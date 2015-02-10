@@ -20,5 +20,6 @@ setup(name="wormhole-sync",
       package_dir={"": "src"},
       packages=["wormhole"],
       install_requires=["spake2"],
+      test_suite="wormhole.test",
       cmdclass=commands,
       )
