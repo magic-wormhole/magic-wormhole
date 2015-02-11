@@ -28,9 +28,12 @@ class Initiator:
         self.timeout = 3*MINUTE
         self.side = "initiator"
 
+    def url(self, suffix):
+        return "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, suffix)
+
     def get_code(self):
         # allocate channel
-        r = requests.post(self.relay + "allocate", data="{}")
+        r = requests.post(self.relay + "allocate")
         r.raise_for_status()
         self.channel_id = r.json()["channel-id"]
         self.code = make_code(self.channel_id)
@@ -38,17 +41,15 @@ class Initiator:
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
         msg = self.sp.start()
-        post_url = self.relay + "pake/post/%d/%s" % (self.channel_id, self.side)
         post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(post_url, data=json.dumps(post_data))
+        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
         r.raise_for_status()
         return self.code
 
     def get_data(self):
         # poll for PAKE response
-        pake_url = self.relay + "pake/poll/%d/%s" % (self.channel_id, self.side)
         while True:
-            r = requests.post(pake_url, data="{}")
+            r = requests.post(self.url("pake/poll"))
             r.raise_for_status()
             msgs = r.json()["messages"]
             if msgs:
@@ -60,15 +61,13 @@ class Initiator:
         self.key = self.sp.finish(pake_msg)
 
         # post encrypted data
-        post_url = self.relay + "data/post/%d/%s" % (self.channel_id, self.side)
         post_data = json.dumps({"message": hexlify(self.data).decode("ascii")})
-        r = requests.post(post_url, data=post_data)
+        r = requests.post(self.url("data/post"), data=post_data)
         r.raise_for_status()
 
         # poll for data message
-        data_url = self.relay + "data/poll/%d/%s" % (self.channel_id, self.side)
         while True:
-            r = requests.post(data_url, data="{}")
+            r = requests.post(self.url("data/poll"))
             r.raise_for_status()
             msgs = r.json()["messages"]
             if msgs:
@@ -79,8 +78,7 @@ class Initiator:
         data = unhexlify(msgs[0].encode("ascii"))
 
         # deallocate channel
-        deallocate_url = self.relay + "deallocate/%s/%s" % (self.channel_id, self.side)
-        r = requests.post(deallocate_url, data="{}")
+        r = requests.post(self.url("deallocate"))
         r.raise_for_status()
 
         return data
@@ -101,18 +99,19 @@ class Receiver:
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
 
+    def url(self, suffix):
+        return "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, suffix)
+
     def get_data(self):
         # post PAKE message
         msg = self.sp.start()
-        post_url = self.relay + "pake/post/%d/%s" % (self.channel_id, self.side)
         post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(post_url, data=json.dumps(post_data))
+        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
         r.raise_for_status()
 
         # poll for PAKE response
-        pake_url = self.relay + "pake/poll/%d/%s" % (self.channel_id, self.side)
         while True:
-            r = requests.post(pake_url, data="{}")
+            r = requests.post(self.url("pake/poll"))
             r.raise_for_status()
             msgs = r.json()["messages"]
             if msgs:
@@ -124,15 +123,13 @@ class Receiver:
         self.key = self.sp.finish(pake_msg)
 
         # post data message
-        post_url = self.relay + "data/post/%d/%s" % (self.channel_id, self.side)
         post_data = json.dumps({"message": hexlify(self.data).decode("ascii")})
-        r = requests.post(post_url, data=post_data)
+        r = requests.post(self.url("data/post"), data=post_data)
         r.raise_for_status()
 
         # poll for data message
-        data_url = self.relay + "data/poll/%d/%s" % (self.channel_id, self.side)
         while True:
-            r = requests.post(data_url, data="{}")
+            r = requests.post(self.url("data/poll"))
             r.raise_for_status()
             msgs = r.json()["messages"]
             if msgs:
@@ -143,9 +140,7 @@ class Receiver:
         data = unhexlify(msgs[0].encode("ascii"))
 
         # deallocate channel
-        deallocate_url = self.relay + "deallocate/%s/%s" % (self.channel_id,
-                                                            self.side)
-        r = requests.post(deallocate_url, data="{}")
+        r = requests.post(self.url("deallocate"))
         r.raise_for_status()
 
         return data
