@@ -29,44 +29,53 @@ The synchronous+blocking flow looks like this:
 
 ```python
 from wormhole.transcribe import Initiator
-blob = b"initiator's blob"
-i = Initiator("appid", blob)
-print("Invitation Code: %s" % i.start()
-theirblob = i.finish()
-print("Their blob: %s" % theirblob.decode("ascii"))
+data = b"initiator's data"
+i = Initiator("appid", data)
+code = i.get_code()
+print("Invitation Code: %s" % code)
+theirdata = i.get_data()
+print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
 ```python
 import sys
 from wormhole.transcribe import Receiver
-blob = b"receiver's blob"
+data = b"receiver's data"
 code = sys.argv[1]
-r = Receiver("appid", code, blob)
-theirblob = r.finish()
-print("Their blob: %s" % theirblob.decode("ascii"))
+r = Receiver("appid", code, data)
+theirdata = r.get_data()
+print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
 The Twisted-friendly flow looks like this:
 
 ```python
-from wormhole.transcribe import Initiator
-blob = b"initiator's blob"
-i = Initiator("appid", blob)
-d = i.start()
-d.addCallback(lambda code: print("Invitation Code: %s" % code))
-d.addCallback(lambda _: i.finish())
-d.addCallback(lambda theirblob:
-              print("Their blob: %s" % theirblob.decode("ascii")))
+from twisted.internet import reactor
+from wormhole.transcribe import TwistedInitiator
+data = b"initiator's data"
+ti = TwistedInitiator("appid", data, reactor)
+ti.startService()
+d1 = ti.when_get_code()
+d1.addCallback(lambda code: print("Invitation Code: %s" % code))
+d2 = ti.when_get_data()
+d2.addCallback(lambda theirdata:
+               print("Their data: %s" % theirdata.decode("ascii")))
+d2.addCallback(labmda _: reactor.stop())
+reactor.run()
 ```
 
 ```python
-from wormhole.transcribe import Receiver
-blob = b"receiver's blob"
+from twisted.internet import reactor
+from wormhole.transcribe import TwistedReceiver
+data = b"receiver's data"
 code = sys.argv[1]
-r = Receiver("appid", code, blob)
-d = r.finish()
-d.addCallback(lambda theirblob:
-              print("Their blob: %s" % theirblob.decode("ascii")))
+tr = TwistedReceiver("appid", code, data, reactor)
+tr.startService()
+d = tr.when_get_data()
+d.addCallback(lambda theirdata:
+              print("Their data: %s" % theirdata.decode("ascii")))
+d.addCallback(lambda _: reactor.stop())
+reactor.run()
 ```
 
 ## Application Identifier

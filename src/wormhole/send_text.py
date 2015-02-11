@@ -1,5 +1,5 @@
 import sys, json
-from . import api
+from .transcribe import Initiator
 
 APPID = "lothar.com/wormhole/text-xfer"
 
@@ -7,13 +7,13 @@ APPID = "lothar.com/wormhole/text-xfer"
 message = sys.argv[1]
 blob = json.dumps({"message": message,
                    }).encode("utf-8")
-i = api.Initiator(APPID, blob)
-code = i.start()
+i = Initiator(APPID, blob)
+code = i.get_code()
 print("Wormhole code is '%s'" % code)
 print("On the other computer, please run:")
 print()
 print(" wormhole-receive-text %s" % code)
 print()
-them_bytes = i.finish()
+them_bytes = i.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print("them: %r" % (them_d,))

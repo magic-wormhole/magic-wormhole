@@ -2,7 +2,7 @@ import os, sys, json
 from binascii import hexlify
 from nacl.secret import SecretBox
 from nacl import utils
-from . import api
+from .transcribe import Initiator
 
 APPID = "lothar.com/wormhole/file-xfer"
 RELAY = "example.com"
@@ -16,14 +16,14 @@ blob = json.dumps({"xfer_key": hexlify(xfer_key),
                    "filesize": os.stat(filename).st_size,
                    "relay": RELAY,
                    }).encode("utf-8")
-i = api.Initiator(APPID, blob)
-code = i.start()
+i = Initiator(APPID, blob)
+code = i.get_code()
 print("Wormhole code is '%s'" % code)
 print("On the other computer, please run:")
 print()
 print(" wormhole-receive-file %s" % code)
 print()
-them_bytes = i.finish()
+them_bytes = i.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print("them: %r" % (them_d,))
 
