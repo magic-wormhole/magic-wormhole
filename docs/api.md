@@ -88,3 +88,48 @@ thousands of concurrent sessions.
 The library uses a baked-in rendezvous server hostname. This must be the same
 for both clients. To use a different hostname provide it as the `rendezvous=`
 argument to the `Initiator`/`Receiver` constructor.
+
+## Polling and Shutdown
+
+The reactor-based (Twisted-style) forms of these objects need to establish
+TCP connections, re-establish them if they are lost, and sometimes (for
+transports that don't support long-running connections) poll for new
+messages. They may also time out eventually. Longer delays mean less network
+traffic, but higher latency.
+
+These timers should be matched to the expectations, and expected behavior, of
+your users. In a file-transfer application, where the users are sitting next
+to each other, it is appropriate to poll very frequently (perhaps every
+500ms) for a few minutes, then give up. In an email-like messaging program
+where the introduction is establishing a long-term relationship, and the
+program can store any outgoing messages until the connection is established,
+it is probably better to poll once a minute for the first few minutes, then
+back off to once an hour, and not give up for several days.
+
+The `schedule=` constructor argument establishes the polling schedule. It
+should contain a sorted list of (when, interval) tuples (both floats). At
+`when` seconds after the first `start()` call, the polling interval will be
+set to `interval`.
+
+The `timeout=` argument provides a hard timeout. After this many seconds, the
+sync will be abandoned, and all callbacks will errback with a TimeoutError.
+
+Both have defaults suitable for face-to-face realtime setup environments.
+
+## Serialization
+
+You may not be able to hold the Initiator/Receiver object in memory for the
+whole sync process: maybe you allow it to wait for several days, but the
+program will be restarted during that time. To support this, you can persist
+the state of the object by calling `data = i.serialize()`, which will return
+a printable bytestring (the JSON-encoding of a small dictionary). To restore,
+call `Initiator.from_serialized(data)`.
+
+Note that callbacks are not serialized: they must be restored after
+deserialization.
+
+## Detailed Example
+
+```python
+
+```
