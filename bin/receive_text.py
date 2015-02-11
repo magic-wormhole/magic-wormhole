@@ -7,8 +7,8 @@ APPID = "lothar.com/wormhole/text-xfer"
 # we're receiving
 start = time.time()
 code = sys.argv[1]
-blob = b"{}"
-r = Receiver(APPID, blob, code)
+data = json.dumps({"message": "ok"}).encode("utf-8")
+r = Receiver(APPID, data, code)
 them_bytes = r.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print(them_d["message"])

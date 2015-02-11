@@ -6,9 +6,9 @@ APPID = "lothar.com/wormhole/text-xfer"
 
 # we're sending
 message = sys.argv[1]
-blob = json.dumps({"message": message,
+data = json.dumps({"message": message,
                    }).encode("utf-8")
-i = Initiator(APPID, blob)
+i = Initiator(APPID, data)
 code = i.get_code()
 print("Wormhole code is '%s'" % code)
 print("On the other computer, please run:")
