@@ -31,6 +31,42 @@ class Common:
             msgs = r.json()["messages"]
         return msgs
 
+    def _allocate(self):
+        r = requests.post(self.relay + "allocate")
+        r.raise_for_status()
+        channel_id = r.json()["channel-id"]
+        return channel_id
+
+    def _post_pake(self):
+        msg = self.sp.start()
+        post_data = {"message": hexlify(msg).decode("ascii")}
+        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
+        r.raise_for_status()
+        other_msgs = r.json()["messages"]
+        return other_msgs
+
+    def _poll_pake(self, other_msgs):
+        msgs = self.poll(other_msgs, "pake/poll")
+        pake_msg = unhexlify(msgs[0].encode("ascii"))
+        key = self.sp.finish(pake_msg)
+        return key
+
+    def _post_data(self):
+        post_data = json.dumps({"message": hexlify(self.data).decode("ascii")})
+        r = requests.post(self.url("data/post"), data=post_data)
+        r.raise_for_status()
+        other_msgs = r.json()["messages"]
+        return other_msgs
+
+    def _poll_data(self, other_msgs):
+        msgs = self.poll(other_msgs, "data/poll")
+        data = unhexlify(msgs[0].encode("ascii"))
+        return data
+
+    def _deallocate(self):
+        r = requests.post(self.url("deallocate"))
+        r.raise_for_status()
+
 class Initiator(Common):
     def __init__(self, appid, data, relay=RELAY):
         self.appid = appid
@@ -38,45 +74,26 @@ class Initiator(Common):
         assert relay.endswith("/")
         self.relay = relay
         self.started = time.time()
-        self.wait = 2*SECOND
+        self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
         self.side = "initiator"
 
     def get_code(self):
-        # allocate channel
-        r = requests.post(self.relay + "allocate")
-        r.raise_for_status()
-        self.channel_id = r.json()["channel-id"]
+        self.channel_id = self._allocate() # allocate channel
         self.code = make_code(self.channel_id)
         self.sp = SPAKE2_A(self.code.encode("ascii"),
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
-        msg = self.sp.start()
-        post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
-        r.raise_for_status()
+        self._post_pake()
         return self.code
 
     def get_data(self):
-        # poll for PAKE response
-        msgs = self.poll([], "pake/poll")
-        pake_msg = unhexlify(msgs[0].encode("ascii"))
-        self.key = self.sp.finish(pake_msg)
+        self.key = self._poll_pake([])
 
-        # post encrypted data
-        post_data = json.dumps({"message": hexlify(self.data).decode("ascii")})
-        r = requests.post(self.url("data/post"), data=post_data)
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
+        other_msgs = self._post_data()
+        data = self._poll_data(other_msgs)
 
-        # poll for data message
-        msgs = self.poll(other_msgs, "data/poll")
-        data = unhexlify(msgs[0].encode("ascii"))
-
-        # deallocate channel
-        r = requests.post(self.url("deallocate"))
-        r.raise_for_status()
-
+        self._deallocate()
         return data
 
 class Receiver(Common):
@@ -88,7 +105,7 @@ class Receiver(Common):
         self.relay = relay
         assert relay.endswith("/")
         self.started = time.time()
-        self.wait = 2*SECOND
+        self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
         self.side = "receiver"
         self.sp = SPAKE2_B(code.encode("ascii"),
@@ -96,30 +113,11 @@ class Receiver(Common):
                            idB=self.appid+":Receiver")
 
     def get_data(self):
-        # post PAKE message
-        msg = self.sp.start()
-        post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
+        other_msgs = self._post_pake()
+        self.key = self._poll_pake(other_msgs)
 
-        # poll for PAKE response
-        msgs = self.poll(other_msgs, "pake/poll")
-        pake_msg = unhexlify(msgs[0].encode("ascii"))
-        self.key = self.sp.finish(pake_msg)
+        other_msgs = self._post_data()
+        data = self._poll_data(other_msgs)
 
-        # post data message
-        post_data = json.dumps({"message": hexlify(self.data).decode("ascii")})
-        r = requests.post(self.url("data/post"), data=post_data)
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-
-        # poll for data message
-        msgs = self.poll(other_msgs, "data/poll")
-        data = unhexlify(msgs[0].encode("ascii"))
-
-        # deallocate channel
-        r = requests.post(self.url("deallocate"))
-        r.raise_for_status()
-
+        self._deallocate()
         return data
