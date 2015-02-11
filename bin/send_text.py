@@ -1,5 +1,6 @@
+from __future__ import print_function
 import sys, json
-from .transcribe import Initiator
+from wormhole.transcribe import Initiator
 
 APPID = "lothar.com/wormhole/text-xfer"
 
@@ -11,9 +12,9 @@ i = Initiator(APPID, blob)
 code = i.get_code()
 print("Wormhole code is '%s'" % code)
 print("On the other computer, please run:")
-print()
+print("")
 print(" wormhole-receive-text %s" % code)
-print()
+print("")
 them_bytes = i.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print("them: %r" % (them_d,))

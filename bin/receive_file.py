@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os, sys, json
 from binascii import unhexlify
 from nacl.secret import SecretBox
