@@ -1,9 +1,7 @@
-
 import sys, json
 from . import api
 
 APPID = "lothar.com/wormhole/text-xfer"
-RELAY = "example.com"
 
 # we're receiving
 code = sys.argv[1]

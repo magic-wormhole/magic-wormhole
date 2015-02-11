@@ -1,4 +1,3 @@
-
 import os, sys, json
 from binascii import hexlify
 from nacl.secret import SecretBox
@@ -28,4 +27,12 @@ them_bytes = i.finish()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print("them: %r" % (them_d,))
 
+box = SecretBox(xfer_key)
+with open(filename, "rb") as f:
+    plaintext = f.read()
+nonce = utils.random(SecretBox.NONCE_SIZE)
+encrypted = box.encrypt(plaintext, nonce)
+
 # now draw the rest of the owl
+SEND(RELAY, encrypted)
+print("file sent")
