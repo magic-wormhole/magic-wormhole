@@ -1,4 +1,4 @@
-import os, random
+import random
 
 WORDLIST = ["able", "baker", "charlie"] # TODO: 1024
 
