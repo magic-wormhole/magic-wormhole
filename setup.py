@@ -19,7 +19,7 @@ setup(name="wormhole-sync",
       url="https://github.com/warner/wormhole-sync",
       package_dir={"": "src"},
       packages=["wormhole"],
-      install_requires=["spake2", "requests"],
+      install_requires=["spake2", "pynacl", "requests"],
       test_suite="wormhole.test",
       cmdclass=commands,
       )
