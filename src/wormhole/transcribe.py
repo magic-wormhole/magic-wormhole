@@ -104,15 +104,16 @@ class Initiator(Common):
 
     def get_data(self):
         key = self._poll_pake([])
-        outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
-        outbound_encrypted = self._encrypt_data(outbound_key, self.data)
-        other_msgs = self._post_data(outbound_encrypted)
+        try:
+            outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
+            outbound_encrypted = self._encrypt_data(outbound_key, self.data)
+            other_msgs = self._post_data(outbound_encrypted)
 
-        inbound_encrypted = self._poll_data(other_msgs)
-        inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
-        inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
-
-        self._deallocate()
+            inbound_encrypted = self._poll_data(other_msgs)
+            inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
+            inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
+        finally:
+            self._deallocate()
         return inbound_data
 
 
@@ -142,13 +143,14 @@ class Receiver(Common):
         other_msgs = self._post_pake()
         key = self._poll_pake(other_msgs)
 
-        outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
-        outbound_encrypted = self._encrypt_data(outbound_key, self.data)
-        other_msgs = self._post_data(outbound_encrypted)
+        try:
+            outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
+            outbound_encrypted = self._encrypt_data(outbound_key, self.data)
+            other_msgs = self._post_data(outbound_encrypted)
 
-        inbound_encrypted = self._poll_data(other_msgs)
-        inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
-        inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
-
-        self._deallocate()
+            inbound_encrypted = self._poll_data(other_msgs)
+            inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
+            inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
+        finally:
+            self._deallocate()
         return inbound_data
