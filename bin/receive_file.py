@@ -12,23 +12,28 @@ APPID = "lothar.com/wormhole/file-xfer"
 transit_receiver = TransitReceiver()
 direct_hints = transit_receiver.get_direct_hints()
 
-data = json.dumps({"direct_connection_hints": direct_hints,
-                   }).encode("utf-8")
-r = Receiver(APPID, data)
+mydata = json.dumps({
+    "transit": {
+        "direct_connection_hints": direct_hints,
+        },
+    }).encode("utf-8")
+r = Receiver(APPID, mydata)
 r.set_code(r.input_code("Enter receive-text wormhole code: "))
 
-them_bytes = r.get_data()
-them_d = json.loads(them_bytes.decode("utf-8"))
-print("them: %r" % (them_d,))
+data = json.loads(r.get_data().decode("utf-8"))
+print("their data: %r" % (data,))
 
-xfer_key = unhexlify(them_d["xfer_key"].encode("ascii"))
-filename = os.path.basename(them_d["filename"]) # unicode
-filesize = them_d["filesize"]
+file_data = data["file"]
+xfer_key = unhexlify(file_data["key"].encode("ascii"))
+filename = os.path.basename(file_data["filename"]) # unicode
+filesize = file_data["filesize"]
 
 # now receive the rest of the owl
-transit_receiver.add_sender_direct_hints(them_d["direct_connection_hints"])
-transit_receiver.add_sender_relay_hints(them_d["relay_connection_hints"])
-transit_receiver.establish_connection(IDS)
+tdata = data["transit"]
+transit_receiver.set_transit_key(tdata["key"])
+transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
+transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
+transit_receiver.establish_connection()
 encrypted = transit_receiver.receive()
 
 decrypted = SecretBox(xfer_key).decrypt(encrypted)

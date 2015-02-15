@@ -1,7 +1,11 @@
+import os
+from ..util import ipaddrs
 
 class TransitSender:
-    def __init__(self, IDS):
-        pass
+    def __init__(self):
+        self.key = os.urandom(32)
+    def get_transit_key(self):
+        return self.key
     def get_direct_hints(self):
         pass
     def get_relay_hints(self):
@@ -16,10 +20,12 @@ class TransitSender:
         pass
 
 class TransitReceiver:
-    def __init__(self, IDS):
+    def __init__(self):
         pass
     def get_direct_hints(self):
         pass
+    def set_transit_key(self, key):
+        self.key = key
     def add_sender_direct_hints(self, hints):
         self.sender_direct_hints = hints
     def add_sender_relay_hints(self, hints):
