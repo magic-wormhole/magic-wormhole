@@ -115,6 +115,13 @@ class Initiator(Common):
         self._deallocate()
         return inbound_data
 
+
+def list_channels(relay=RELAY):
+    r = requests.get(relay + "list")
+    r.raise_for_status()
+    channel_ids = r.json()["channel-ids"]
+    return channel_ids
+
 class Receiver(Common):
     def __init__(self, appid, data, code, relay=RELAY):
         self.appid = appid

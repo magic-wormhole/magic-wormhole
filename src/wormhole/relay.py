@@ -68,6 +68,13 @@ class Allocated(resource.Resource):
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps({"channel-id": self.channel_id})+"\n"
 
+class ChannelList(resource.Resource):
+    def __init__(self, channel_ids):
+        resource.Resource.__init__(self)
+        self.channel_ids = channel_ids
+    def render_GET(self, request):
+        request.setHeader("content-type", "application/json; charset=utf-8")
+        return json.dumps({"channel-ids": self.channel_ids})+"\n"
 
 class Relay(resource.Resource):
     def __init__(self):
@@ -85,6 +92,9 @@ class Relay(resource.Resource):
             log.msg("allocated %d, now have %d channels" %
                     (channel_id, len(self.channels)))
             return Allocated(channel_id)
+        if path == "list":
+            channel_ids = sorted(self.channels.keys())
+            return ChannelList(channel_ids)
         if not re.search(r'^\d+$', path):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
