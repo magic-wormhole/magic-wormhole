@@ -1,12 +1,13 @@
 from __future__ import print_function
-import time, sys, json
+import time, json
 from wormhole.transcribe import Receiver
+from wormhole.codes import input_code_with_completion
 
 APPID = "lothar.com/wormhole/text-xfer"
 
 # we're receiving
+code = input_code_with_completion("Enter receive-text wormhole code: ", [])
 start = time.time()
-code = sys.argv[1]
 data = json.dumps({"message": "ok"}).encode("utf-8")
 r = Receiver(APPID, data, code)
 them_bytes = r.get_data()

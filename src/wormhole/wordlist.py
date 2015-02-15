@@ -146,8 +146,13 @@ byte_to_even_word = dict([(unhexlify(k), both_words[0])
 byte_to_odd_word = dict([(unhexlify(k), both_words[1])
                          for k,both_words
                          in raw_words.items()])
-lowercase_word_to_byte_and_evenodd = l = {}
+even_words_lowercase, odd_words_lowercase = set(), set()
+even_words_lowercase_to_byte, odd_words_lowercase_to_byte = dict(), dict()
 for k,both_words in raw_words.items():
     even_word, odd_word = both_words
-    l[even_word.lower()] = (unhexlify(k), 0)
-    l[odd_word.lower()] = (unhexlify(k), 1)
+
+    even_words_lowercase.add(even_word.lower())
+    even_words_lowercase_to_byte[even_word.lower()] = unhexlify(k)
+
+    odd_words_lowercase.add(odd_word.lower())
+    odd_words_lowercase_to_byte[odd_word.lower()] = unhexlify(k)
