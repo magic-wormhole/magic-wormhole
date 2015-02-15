@@ -3,9 +3,9 @@ from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
 from nacl import utils
+from . import codes
 from .hkdf import HKDF
 from .const import RELAY
-from .codes import make_code, extract_channel_id
 
 SECOND = 1
 MINUTE = 60*SECOND
@@ -95,7 +95,7 @@ class Initiator(Common):
 
     def get_code(self):
         self.channel_id = self._allocate() # allocate channel
-        self.code = make_code(self.channel_id)
+        self.code = codes.make_code(self.channel_id)
         self.sp = SPAKE2_A(self.code.encode("ascii"),
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
@@ -117,29 +117,42 @@ class Initiator(Common):
         return inbound_data
 
 
-def list_channels(relay=RELAY):
-    r = requests.get(relay + "list")
-    r.raise_for_status()
-    channel_ids = r.json()["channel-ids"]
-    return channel_ids
-
 class Receiver(Common):
-    def __init__(self, appid, data, code, relay=RELAY):
+    def __init__(self, appid, data, relay=RELAY):
         self.appid = appid
         self.data = data
-        self.code = code
-        self.channel_id = extract_channel_id(code)
         self.relay = relay
         assert relay.endswith("/")
         self.started = time.time()
         self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
         self.side = "receiver"
+        self.code = None
+        self.channel_id = None
+
+    def list_channels(self):
+        r = requests.get(self.relay + "list")
+        r.raise_for_status()
+        channel_ids = r.json()["channel-ids"]
+        return channel_ids
+
+    def input_code(self, prompt="Enter wormhole code: "):
+        channel_ids = self.list_channels()
+        code = codes.input_code_with_completion(prompt, channel_ids)
+        return code
+
+    def set_code(self, code):
+        assert self.code is None
+        assert self.channel_id is None
+        self.code = code
+        self.channel_id = codes.extract_channel_id(code)
         self.sp = SPAKE2_B(code.encode("ascii"),
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
 
     def get_data(self):
+        assert self.code is not None
+        assert self.channel_id is not None
         other_msgs = self._post_pake()
         key = self._poll_pake(other_msgs)
 
