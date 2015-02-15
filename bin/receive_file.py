@@ -2,25 +2,34 @@ from __future__ import print_function
 import os, sys, json
 from binascii import unhexlify
 from nacl.secret import SecretBox
-from .transcribe import Receiver
+from wormhole.blocking.transcribe import Receiver
+from wormhole.codes import input_code_with_completion
+from wormhole.blocking.transit import TransitReceiver
 
 APPID = "lothar.com/wormhole/file-xfer"
-RELAY = "example.com"
 
 # we're receiving
-code = sys.argv[1]
-blob = b""
-r = Receiver(APPID, blob, code)
+transit_receiver = TransitReceiver()
+direct_hints = transit_receiver.get_direct_hints()
+
+data = json.dumps({"direct_connection_hints": direct_hints,
+                   }).encode("utf-8")
+r = Receiver(APPID, data)
+r.set_code(r.input_code("Enter receive-text wormhole code: "))
+
 them_bytes = r.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 print("them: %r" % (them_d,))
+
 xfer_key = unhexlify(them_d["xfer_key"].encode("ascii"))
 filename = os.path.basename(them_d["filename"]) # unicode
 filesize = them_d["filesize"]
-relay = them_d["relay"].encode("ascii")
 
 # now receive the rest of the owl
-encrypted = RECEIVE(relay)
+transit_receiver.add_sender_direct_hints(them_d["direct_connection_hints"])
+transit_receiver.add_sender_relay_hints(them_d["relay_connection_hints"])
+transit_receiver.establish_connection(IDS)
+encrypted = transit_receiver.receive()
 
 decrypted = SecretBox(xfer_key).decrypt(encrypted)
 
