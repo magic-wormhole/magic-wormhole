@@ -1,6 +1,6 @@
 from __future__ import print_function
 import sys, json
-from wormhole.transcribe import Initiator
+from wormhole.blocking.transcribe import Initiator
 
 APPID = "lothar.com/wormhole/text-xfer"
 

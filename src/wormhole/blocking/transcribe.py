@@ -3,9 +3,9 @@ from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
 from nacl import utils
-from . import codes
-from .hkdf import HKDF
-from .const import RELAY
+from .. import codes
+from ..util.hkdf import HKDF
+from ..const import RELAY
 
 SECOND = 1
 MINUTE = 60*SECOND

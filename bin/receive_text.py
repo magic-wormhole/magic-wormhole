@@ -1,6 +1,6 @@
 from __future__ import print_function
 import time, json
-from wormhole.transcribe import Receiver
+from wormhole.blocking.transcribe import Receiver
 from wormhole.codes import input_code_with_completion
 
 APPID = "lothar.com/wormhole/text-xfer"
