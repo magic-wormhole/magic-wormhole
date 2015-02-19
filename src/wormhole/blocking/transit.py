@@ -151,18 +151,26 @@ def handle(skt, client_address, owner, send_handshake, expected_handshake):
         got = b""
         # for the receiver, this includes the "go\n"
         while len(got) < len(expected_handshake):
-            got += skt.recv(1)
+            more = skt.recv(1)
+            if not more:
+                raise BadHandshake("disconnect after merely '%r'" % got)
+            got += more
             if expected_handshake[:len(got)] != got:
                 raise BadHandshake("got '%r' want '%r'" %
                                    (got, expected_handshake))
         print "handler negotiation finished", client_address
-    except:
+    except Exception as e:
+        print "handler failed", client_address
         try:
+            # this raises socket.err(EBADF) if the socket was already closed
             skt.shutdown(socket.SHUT_WR)
         except socket.error:
             pass
-        skt.close()
-        raise
+        skt.close() # this appears to be idempotent
+        # ignore socket errors, warn about coding errors
+        if not isinstance(e, (socket.error, socket.timeout, BadHandshake)):
+            raise
+        return
     # owner is now responsible for the socket
     owner._negotiation_finished(skt) # note thread
 
