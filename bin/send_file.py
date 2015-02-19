@@ -41,12 +41,13 @@ print("them: %r" % (them_d,))
 box = SecretBox(xfer_key)
 with open(filename, "rb") as f:
     plaintext = f.read()
-nonce = utils.random(SecretBox.NONCE_SIZE)
+nonce = os.urandom(SecretBox.NONCE_SIZE)
 encrypted = box.encrypt(plaintext, nonce)
 
-transit_sender.add_receiver_hints(them_d["direct_connection_hints"])
-transit_sender.establish_connection()
-transit_sender.write(encrypted)
-transit_sender.close()
+tdata = them_d["transit"]
+transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
+skt = transit_sender.establish_connection()
+skt.write(encrypted)
+skt.close()
 
 print("file sent")

@@ -1,9 +1,8 @@
 from __future__ import print_function
-import os, sys, json
+import os, json
 from binascii import unhexlify
 from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Receiver
-from wormhole.codes import input_code_with_completion
 from wormhole.blocking.transit import TransitReceiver
 
 APPID = "lothar.com/wormhole/file-xfer"
@@ -18,7 +17,7 @@ mydata = json.dumps({
         },
     }).encode("utf-8")
 r = Receiver(APPID, mydata)
-r.set_code(r.input_code("Enter receive-text wormhole code: "))
+r.set_code(r.input_code("Enter receive-file wormhole code: "))
 
 data = json.loads(r.get_data().decode("utf-8"))
 print("their data: %r" % (data,))
@@ -30,11 +29,12 @@ filesize = file_data["filesize"]
 
 # now receive the rest of the owl
 tdata = data["transit"]
+print("calling tr.set_transit_key()")
 transit_receiver.set_transit_key(tdata["key"])
 transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
 transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
-transit_receiver.establish_connection()
-encrypted = transit_receiver.receive()
+skt = transit_receiver.establish_connection()
+encrypted = skt.recv(filesize)
 
 decrypted = SecretBox(xfer_key).decrypt(encrypted)
 

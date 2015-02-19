@@ -116,6 +116,8 @@ class BadHandshake(Exception):
     pass
 
 def connector(owner, hint, send_handshake, expected_handshake):
+    if isinstance(hint, type(u"")):
+        hint = hint.encode("ascii")
     addr,port = hint.split(",")
     skt = socket.create_connection((addr,port)) # timeout here
     skt.settimeout(TIMEOUT)
@@ -168,7 +170,7 @@ class MyTCPServer(SocketServer.TCPServer):
     allow_reuse_address = True
     def process_request(self, request, client_address):
         if not self.owner.key:
-            raise BadHandshake("connection received before set_key()")
+            raise BadHandshake("connection received before set_transit_key()")
         t = threading.Thread(target=handle,
                              args=(request, client_address,
                                    self.owner,
@@ -181,6 +183,7 @@ class TransitReceiver:
     def __init__(self):
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
+        self.key = None
         server = MyTCPServer(("",9999), None)
         _, port = server.server_address
         self.my_direct_hints = ["%s,%d" % (addr, port)
