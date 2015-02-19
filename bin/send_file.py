@@ -47,7 +47,7 @@ encrypted = box.encrypt(plaintext, nonce)
 tdata = them_d["transit"]
 transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
 skt = transit_sender.establish_connection()
-skt.write(encrypted)
+skt.send(encrypted)
 skt.close()
 
 print("file sent")
