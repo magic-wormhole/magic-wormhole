@@ -35,10 +35,15 @@ transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
 transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
 skt = transit_receiver.establish_connection()
 print("Receiving %d bytes.." % filesize)
-encrypted = skt.recv(encrypted_filesize)
-if len(encrypted) != encrypted_filesize:
-    print("Connection dropped before file received")
-    sys.exit(1)
+encrypted = b""
+while len(encrypted) < encrypted_filesize:
+    more = skt.recv(encrypted_filesize - len(encrypted))
+    if not more:
+        print("Connection dropped before full file received")
+        print("got %d bytes, wanted %d" % (len(encrypted), encrypted_filesize))
+        sys.exit(1)
+    encrypted += more
+assert len(encrypted) == encrypted_filesize
 
 decrypted = SecretBox(xfer_key).decrypt(encrypted)
 

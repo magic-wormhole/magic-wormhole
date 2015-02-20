@@ -50,7 +50,10 @@ transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
 skt = transit_sender.establish_connection()
 
 print("Sending %d bytes.." % filesize)
-skt.send(encrypted)
+sent = 0
+while sent < len(encrypted):
+    more = skt.send(encrypted[sent:])
+    sent += more
 
 print("File sent.. waiting for confirmation")
 # ack is a short newline-terminated string, followed by socket close. A long
