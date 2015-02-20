@@ -20,7 +20,7 @@ r = Receiver(APPID, mydata)
 r.set_code(r.input_code("Enter receive-file wormhole code: "))
 
 data = json.loads(r.get_data().decode("utf-8"))
-print("their data: %r" % (data,))
+#print("their data: %r" % (data,))
 
 file_data = data["file"]
 xfer_key = unhexlify(file_data["key"].encode("ascii"))
@@ -30,11 +30,11 @@ encrypted_filesize = filesize + SecretBox.NONCE_SIZE+16
 
 # now receive the rest of the owl
 tdata = data["transit"]
-print("calling tr.set_transit_key()")
 transit_receiver.set_transit_key(tdata["key"])
 transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
 transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
 skt = transit_receiver.establish_connection()
+print("Receiving %d bytes.." % filesize)
 encrypted = skt.recv(encrypted_filesize)
 if len(encrypted) != encrypted_filesize:
     print("Connection dropped before file received")
@@ -49,4 +49,5 @@ assert os.path.dirname(target) == here
 assert not os.path.exists(target)
 with open(target, "wb") as f:
     f.write(decrypted)
-print("%s written" % filename)
+print("Received file written to %s" % filename)
+skt.send("ok\n")

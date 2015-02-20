@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os, threading, socket, SocketServer
 from binascii import hexlify
 from ..util import ipaddrs
@@ -121,7 +122,7 @@ def connector(owner, hint, send_handshake, expected_handshake):
     addr,port = hint.split(",")
     skt = socket.create_connection((addr,port)) # timeout here
     skt.settimeout(TIMEOUT)
-    print "socket(%s) connected" % hint
+    #print("socket(%s) connected" % (hint,))
     try:
         skt.send(send_handshake)
         got = b""
@@ -130,7 +131,7 @@ def connector(owner, hint, send_handshake, expected_handshake):
             if expected_handshake[:len(got)] != got:
                 raise BadHandshake("got '%r' want '%r' on %s" %
                                    (got, expected_handshake, hint))
-        print "connector ready", hint
+        #print("connector ready %r" % (hint,))
     except:
         try:
             skt.shutdown(socket.SHUT_WR)
@@ -145,7 +146,7 @@ def connector(owner, hint, send_handshake, expected_handshake):
 
 def handle(skt, client_address, owner, send_handshake, expected_handshake):
     try:
-        print "handle", skt
+        #print("handle %r" %  (skt,))
         skt.settimeout(TIMEOUT)
         skt.send(send_handshake)
         got = b""
@@ -158,9 +159,9 @@ def handle(skt, client_address, owner, send_handshake, expected_handshake):
             if expected_handshake[:len(got)] != got:
                 raise BadHandshake("got '%r' want '%r'" %
                                    (got, expected_handshake))
-        print "handler negotiation finished", client_address
+        #print("handler negotiation finished %r" % (client_address,))
     except Exception as e:
-        print "handler failed", client_address
+        #print("handler failed %r" % (client_address,))
         try:
             # this raises socket.err(EBADF) if the socket was already closed
             skt.shutdown(socket.SHUT_WR)
@@ -260,5 +261,5 @@ class TransitReceiver:
             self.winning.set()
         else:
             winner.close()
-            raise BadHandshake("weird, receiver was given duplicate winner")
+            print("weird, receiver was given duplicate winner")
 

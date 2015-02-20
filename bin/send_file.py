@@ -16,11 +16,12 @@ transit_key = transit_sender.get_transit_key()
 direct_hints = transit_sender.get_direct_hints()
 relay_hints = transit_sender.get_relay_hints()
 
+filesize = os.stat(filename).st_size
 data = json.dumps({
     "file": {
         "key": hexlify(xfer_key),
         "filename": os.path.basename(filename),
-        "filesize": os.stat(filename).st_size,
+        "filesize": filesize,
         },
     "transit": {
         "key": hexlify(transit_key),
@@ -36,7 +37,7 @@ print("Wormhole code is '%s'" % code)
 print("")
 them_bytes = i.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
-print("them: %r" % (them_d,))
+#print("them: %r" % (them_d,))
 
 box = SecretBox(xfer_key)
 with open(filename, "rb") as f:
@@ -47,7 +48,14 @@ encrypted = box.encrypt(plaintext, nonce)
 tdata = them_d["transit"]
 transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
 skt = transit_sender.establish_connection()
-skt.send(encrypted)
-skt.close()
 
-print("file sent")
+print("Sending %d bytes.." % filesize)
+skt.send(encrypted)
+
+print("File sent.. waiting for confirmation")
+ack = skt.recv(3)
+if ack == "ok\n":
+    print("Confirmation received. Transfer complete.")
+else:
+    print("Transfer failed (remote says: '%r')" % ack)
+skt.close()
