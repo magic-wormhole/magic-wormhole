@@ -1,6 +1,5 @@
 from __future__ import print_function
 import sys, os, json
-from binascii import unhexlify
 from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Receiver
 from wormhole.blocking.transit import TransitReceiver
@@ -23,7 +22,7 @@ data = json.loads(r.get_data().decode("utf-8"))
 #print("their data: %r" % (data,))
 
 file_data = data["file"]
-xfer_key = unhexlify(file_data["key"].encode("ascii"))
+xfer_key = r.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)
 filename = os.path.basename(file_data["filename"]) # unicode
 filesize = file_data["filesize"]
 encrypted_filesize = filesize + SecretBox.NONCE_SIZE+16

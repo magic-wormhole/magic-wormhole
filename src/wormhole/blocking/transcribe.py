@@ -82,6 +82,10 @@ class Common:
         r = requests.post(self.url("deallocate"))
         r.raise_for_status()
 
+    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        assert type(purpose) == type(b"")
+        return HKDF(self.key, length, CTXinfo=purpose)
+
 class Initiator(Common):
     def __init__(self, appid, data, relay=RELAY):
         self.appid = appid
@@ -104,13 +108,14 @@ class Initiator(Common):
 
     def get_data(self):
         key = self._poll_pake([])
+        self.key = key
         try:
-            outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
+            outbound_key = self.derive_key(b"sender")
             outbound_encrypted = self._encrypt_data(outbound_key, self.data)
             other_msgs = self._post_data(outbound_encrypted)
 
             inbound_encrypted = self._poll_data(other_msgs)
-            inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
+            inbound_key = self.derive_key(b"receiver")
             inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
         finally:
             self._deallocate()
@@ -155,14 +160,15 @@ class Receiver(Common):
         assert self.channel_id is not None
         other_msgs = self._post_pake()
         key = self._poll_pake(other_msgs)
+        self.key = key
 
         try:
-            outbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"receiver")
+            outbound_key = self.derive_key(b"receiver")
             outbound_encrypted = self._encrypt_data(outbound_key, self.data)
             other_msgs = self._post_data(outbound_encrypted)
 
             inbound_encrypted = self._poll_data(other_msgs)
-            inbound_key = HKDF(key, SecretBox.KEY_SIZE, CTXinfo=b"sender")
+            inbound_key = self.derive_key(b"sender")
             inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
         finally:
             self._deallocate()

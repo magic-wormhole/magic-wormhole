@@ -10,7 +10,6 @@ APPID = "lothar.com/wormhole/file-xfer"
 # we're sending
 filename = sys.argv[1]
 assert os.path.isfile(filename)
-xfer_key = os.urandom(SecretBox.KEY_SIZE)
 transit_sender = TransitSender()
 transit_key = transit_sender.get_transit_key()
 direct_hints = transit_sender.get_direct_hints()
@@ -19,7 +18,6 @@ relay_hints = transit_sender.get_relay_hints()
 filesize = os.stat(filename).st_size
 data = json.dumps({
     "file": {
-        "key": hexlify(xfer_key),
         "filename": os.path.basename(filename),
         "filesize": filesize,
         },
@@ -38,6 +36,7 @@ print("")
 them_bytes = i.get_data()
 them_d = json.loads(them_bytes.decode("utf-8"))
 #print("them: %r" % (them_d,))
+xfer_key = i.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)
 
 box = SecretBox(xfer_key)
 with open(filename, "rb") as f:
