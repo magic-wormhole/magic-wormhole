@@ -146,8 +146,7 @@ class MyTCPServer(SocketServer.TCPServer):
         t.start()
 
 
-
-class TransitSender:
+class Common:
     def __init__(self):
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
@@ -156,7 +155,7 @@ class TransitSender:
         self._start_server()
 
     def _start_server(self):
-        server = MyTCPServer(("",9999), None)
+        server = MyTCPServer(("",self.server_port), None)
         _, port = server.server_address
         self.my_direct_hints = ["%s,%d" % (addr, port)
                                 for addr in ipaddrs.find_addresses()]
@@ -175,6 +174,25 @@ class TransitSender:
         self._their_direct_hints = hints
     def add_their_relay_hints(self, hints):
         self._their_relay_hints = hints # ignored
+
+    def establish_connection(self):
+        self.winning_skt = None
+        self._start_outbound()
+
+        # we sit here until one of our inbound or outbound sockets succeeds
+        flag = self.winning.wait(TIMEOUT)
+
+        if not flag:
+            # timeout: self.winning_skt will not be set. ish. race.
+            pass
+        if self.listener:
+            self.listener.shutdown() # TODO: waits up to 0.5s. push to thread
+        if self.winning_skt:
+            return self.winning_skt
+        raise TransitError
+
+class TransitSender(Common):
+    server_port = 9999
 
     def set_transit_key(self, key):
         # This _have_transit_key condition/lock protects us against the race
@@ -199,22 +217,6 @@ class TransitSender:
             t.daemon = True
             t.start()
 
-    def establish_connection(self):
-        self.winning_skt = None
-        self._start_outbound()
-
-        # we sit here until one of our inbound or outbound sockets succeeds
-        flag = self.winning.wait(TIMEOUT)
-
-        if not flag:
-            # timeout: self.winning_skt will not be set. ish. race.
-            pass
-        if self.listener:
-            self.listener.shutdown() # does this wait? if so, push to thread
-        if self.winning_skt:
-            return self.winning_skt
-        raise TransitError
-
     def _negotiation_finished(self, skt):
         # inbound/outbound sockets call this when they finish negotiation.
         # The first one wins and gets a "go". Any subsequent ones lose and
@@ -236,34 +238,8 @@ class TransitSender:
 
 
 
-class TransitReceiver:
-    def __init__(self):
-        self.winning = threading.Event()
-        self._negotiation_check_lock = threading.Lock()
-        self._have_transit_key = threading.Condition()
-        self._transit_key = None
-        self._start_server()
-
-    def _start_server(self):
-        server = MyTCPServer(("",9998), None)
-        _, port = server.server_address
-        self.my_direct_hints = ["%s,%d" % (addr, port)
-                                for addr in ipaddrs.find_addresses()]
-        server.owner = self
-        server_thread = threading.Thread(target=server.serve_forever)
-        server_thread.daemon = True
-        server_thread.start()
-        self.listener = server
-
-    def get_direct_hints(self):
-        return self.my_direct_hints
-    def get_relay_hints(self):
-        return []
-
-    def add_their_direct_hints(self, hints):
-        self._their_direct_hints = hints
-    def add_their_relay_hints(self, hints):
-        self._their_relay_hints = hints # ignored
+class TransitReceiver(Common):
+    server_port = 9998
 
     def set_transit_key(self, key):
         # This _have_transit_key condition/lock protects us against the race
@@ -287,22 +263,6 @@ class TransitReceiver:
                                        receiver_handshake, sender_handshake))
             t.daemon = True
             t.start()
-
-    def establish_connection(self):
-        self.winning_skt = None
-        self._start_outbound()
-
-        # we sit here until one of our inbound or outbound sockets succeeds
-        flag = self.winning.wait(TIMEOUT)
-
-        if not flag:
-            # timeout: self.winning_skt will not be set. ish. race.
-            pass
-        if self.listener:
-            self.listener.shutdown() # TODO: waits up to 0.5s. push to thread
-        if self.winning_skt:
-            return self.winning_skt
-        raise TransitError
 
     def _negotiation_finished(self, skt):
         with self._negotiation_check_lock:
