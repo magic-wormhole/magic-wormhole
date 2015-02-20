@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os, sys, json
 from nacl.secret import SecretBox
-from wormhole.blocking.transcribe import Initiator
+from wormhole.blocking.transcribe import Initiator, WrongPasswordError
 from wormhole.blocking.transit import TransitSender
 
 APPID = "lothar.com/wormhole/file-xfer"
@@ -28,7 +28,11 @@ code = i.get_code()
 print("On the other computer, please run: receive_file")
 print("Wormhole code is '%s'" % code)
 print("")
-them_bytes = i.get_data()
+try:
+    them_bytes = i.get_data()
+except WrongPasswordError as e:
+    print("ERROR: " + e.explain(), file=sys.stderr)
+    sys.exit(1)
 them_d = json.loads(them_bytes.decode("utf-8"))
 #print("them: %r" % (them_d,))
 xfer_key = i.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)

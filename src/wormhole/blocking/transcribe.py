@@ -1,7 +1,8 @@
-import time, requests, json
+import time, requests, json, textwrap
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
+from nacl.exceptions import CryptoError
 from nacl import utils
 from .. import codes
 from ..util.hkdf import HKDF
@@ -12,6 +13,29 @@ MINUTE = 60*SECOND
 
 class Timeout(Exception):
     pass
+
+class WrongPasswordError(Exception):
+    """
+    Key confirmation failed.
+    """
+    # or the data blob was corrupted, and that's why decrypt failed
+    def explain(self):
+        return textwrap.dedent(self.__doc__)
+
+class InitiatorWrongPasswordError(WrongPasswordError):
+    """
+    Key confirmation failed. Either your correspondent typed the code wrong,
+    or a would-be man-in-the-middle attacker guessed incorrectly. You could
+    try again, giving both your correspondent and the attacker another
+    chance.
+    """
+
+class ReceiverWrongPasswordError(WrongPasswordError):
+    """
+    Key confirmation failed. Either you typed the code wrong, or a would-be
+    man-in-the-middle attacker guessed incorrectly. You could try again,
+    giving both you and the attacker another chance.
+    """
 
 # POST /allocate                                  -> {channel-id: INT}
 # POST /CHANNEL-ID/SIDE/pake/post  {message: STR} -> {messages: [STR..]}
@@ -116,7 +140,11 @@ class Initiator(Common):
 
             inbound_encrypted = self._poll_data(other_msgs)
             inbound_key = self.derive_key(b"receiver")
-            inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
+            try:
+                inbound_data = self._decrypt_data(inbound_key,
+                                                  inbound_encrypted)
+            except CryptoError:
+                raise InitiatorWrongPasswordError
         finally:
             self._deallocate()
         return inbound_data
@@ -169,7 +197,11 @@ class Receiver(Common):
 
             inbound_encrypted = self._poll_data(other_msgs)
             inbound_key = self.derive_key(b"sender")
-            inbound_data = self._decrypt_data(inbound_key, inbound_encrypted)
+            try:
+                inbound_data = self._decrypt_data(inbound_key,
+                                                  inbound_encrypted)
+            except CryptoError:
+                raise ReceiverWrongPasswordError
         finally:
             self._deallocate()
         return inbound_data

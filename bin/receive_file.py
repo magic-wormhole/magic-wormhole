@@ -1,7 +1,7 @@
 from __future__ import print_function
 import sys, os, json
 from nacl.secret import SecretBox
-from wormhole.blocking.transcribe import Receiver
+from wormhole.blocking.transcribe import Receiver, WrongPasswordError
 from wormhole.blocking.transit import TransitReceiver
 
 APPID = "lothar.com/wormhole/file-xfer"
@@ -18,7 +18,11 @@ mydata = json.dumps({
 r = Receiver(APPID, mydata)
 r.set_code(r.input_code("Enter receive-file wormhole code: "))
 
-data = json.loads(r.get_data().decode("utf-8"))
+try:
+    data = json.loads(r.get_data().decode("utf-8"))
+except WrongPasswordError as e:
+    print("ERROR: " + e.explain(), file=sys.stderr)
+    sys.exit(1)
 #print("their data: %r" % (data,))
 
 file_data = data["file"]
