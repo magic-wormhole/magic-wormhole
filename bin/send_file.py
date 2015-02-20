@@ -10,8 +10,6 @@ APPID = "lothar.com/wormhole/file-xfer"
 filename = sys.argv[1]
 assert os.path.isfile(filename)
 transit_sender = TransitSender()
-direct_hints = transit_sender.get_direct_hints()
-relay_hints = transit_sender.get_relay_hints()
 
 filesize = os.stat(filename).st_size
 data = json.dumps({
@@ -20,8 +18,8 @@ data = json.dumps({
         "filesize": filesize,
         },
     "transit": {
-        "direct_connection_hints": direct_hints,
-        "relay_connection_hints": relay_hints,
+        "direct_connection_hints": transit_sender.get_direct_hints(),
+        "relay_connection_hints": transit_sender.get_relay_hints(),
         },
     }).encode("utf-8")
 
@@ -44,7 +42,8 @@ encrypted = box.encrypt(plaintext, nonce)
 tdata = them_d["transit"]
 transit_key = i.derive_key(APPID+"/transit-key")
 transit_sender.set_transit_key(transit_key)
-transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
+transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
+transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
 skt = transit_sender.establish_connection()
 
 print("Sending %d bytes.." % filesize)

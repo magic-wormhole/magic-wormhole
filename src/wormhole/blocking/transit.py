@@ -153,13 +153,28 @@ class TransitSender:
         self._negotiation_check_lock = threading.Lock()
         self._have_transit_key = threading.Condition()
         self._transit_key = None
+        self._start_server()
+
+    def _start_server(self):
+        server = MyTCPServer(("",9999), None)
+        _, port = server.server_address
+        self.my_direct_hints = ["%s,%d" % (addr, port)
+                                for addr in ipaddrs.find_addresses()]
+        server.owner = self
+        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+        self.listener = server
 
     def get_direct_hints(self):
-        return []
+        return self.my_direct_hints
     def get_relay_hints(self):
         return []
-    def add_receiver_hints(self, hints):
-        self.receiver_hints = hints
+
+    def add_their_direct_hints(self, hints):
+        self._their_direct_hints = hints
+    def add_their_relay_hints(self, hints):
+        self._their_relay_hints = hints # ignored
 
     def set_transit_key(self, key):
         # This _have_transit_key condition/lock protects us against the race
@@ -168,23 +183,25 @@ class TransitSender:
         # (and thus the key).
         self._have_transit_key.acquire()
         self._transit_key = key
-        #self.handler_send_handshake = build_receiver_handshake(key)
-        #self.handler_expected_handshake = build_sender_handshake(key) + "go\n"
+        self.handler_send_handshake = build_sender_handshake(key) # no "go"
+        self.handler_expected_handshake = build_receiver_handshake(key)
         self._have_transit_key.notify_all()
         self._have_transit_key.release()
 
-    def establish_connection(self):
+    def _start_outbound(self):
         sender_handshake = build_sender_handshake(self._transit_key)
         receiver_handshake = build_receiver_handshake(self._transit_key)
-        self.listener = None
         self.connectors = []
-        self.winning_skt = None
-        for hint in self.receiver_hints:
+        for hint in self._their_direct_hints:
             t = threading.Thread(target=connector,
                                  args=(self, hint,
                                        sender_handshake, receiver_handshake))
             t.daemon = True
             t.start()
+
+    def establish_connection(self):
+        self.winning_skt = None
+        self._start_outbound()
 
         # we sit here until one of our inbound or outbound sockets succeeds
         flag = self.winning.wait(TIMEOUT)
@@ -225,7 +242,10 @@ class TransitReceiver:
         self._negotiation_check_lock = threading.Lock()
         self._have_transit_key = threading.Condition()
         self._transit_key = None
-        server = MyTCPServer(("",9999), None)
+        self._start_server()
+
+    def _start_server(self):
+        server = MyTCPServer(("",9998), None)
         _, port = server.server_address
         self.my_direct_hints = ["%s,%d" % (addr, port)
                                 for addr in ipaddrs.find_addresses()]
@@ -237,6 +257,13 @@ class TransitReceiver:
 
     def get_direct_hints(self):
         return self.my_direct_hints
+    def get_relay_hints(self):
+        return []
+
+    def add_their_direct_hints(self, hints):
+        self._their_direct_hints = hints
+    def add_their_relay_hints(self, hints):
+        self._their_relay_hints = hints # ignored
 
     def set_transit_key(self, key):
         # This _have_transit_key condition/lock protects us against the race
@@ -250,13 +277,20 @@ class TransitReceiver:
         self._have_transit_key.notify_all()
         self._have_transit_key.release()
 
-    def add_sender_direct_hints(self, hints):
-        self.sender_direct_hints = hints # TODO ignored
-    def add_sender_relay_hints(self, hints):
-        self.sender_relay_hints = hints # TODO ignored
+    def _start_outbound(self):
+        sender_handshake = build_sender_handshake(self._transit_key) + "go\n"
+        receiver_handshake = build_receiver_handshake(self._transit_key)
+        self.connectors = []
+        for hint in self._their_direct_hints:
+            t = threading.Thread(target=connector,
+                                 args=(self, hint, # SWAPPED
+                                       receiver_handshake, sender_handshake))
+            t.daemon = True
+            t.start()
 
     def establish_connection(self):
         self.winning_skt = None
+        self._start_outbound()
 
         # we sit here until one of our inbound or outbound sockets succeeds
         flag = self.winning.wait(TIMEOUT)

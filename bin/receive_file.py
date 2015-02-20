@@ -8,11 +8,11 @@ APPID = "lothar.com/wormhole/file-xfer"
 
 # we're receiving
 transit_receiver = TransitReceiver()
-direct_hints = transit_receiver.get_direct_hints()
 
 mydata = json.dumps({
     "transit": {
-        "direct_connection_hints": direct_hints,
+        "direct_connection_hints": transit_receiver.get_direct_hints(),
+        "relay_connection_hints": transit_receiver.get_relay_hints(),
         },
     }).encode("utf-8")
 r = Receiver(APPID, mydata)
@@ -31,8 +31,8 @@ encrypted_filesize = filesize + SecretBox.NONCE_SIZE+16
 tdata = data["transit"]
 transit_key = r.derive_key(APPID+"/transit-key")
 transit_receiver.set_transit_key(transit_key)
-transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
-transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
+transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
+transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
 skt = transit_receiver.establish_connection()
 print("Receiving %d bytes.." % filesize)
 encrypted = b""
