@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, threading, socket, SocketServer
+import threading, socket, SocketServer
 from binascii import hexlify
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
@@ -149,11 +149,11 @@ class MyTCPServer(SocketServer.TCPServer):
 
 class TransitSender:
     def __init__(self):
-        self.key = os.urandom(32)
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
-    def get_transit_key(self):
-        return self.key
+        self._have_transit_key = threading.Condition()
+        self._transit_key = None
+
     def get_direct_hints(self):
         return []
     def get_relay_hints(self):
@@ -161,9 +161,21 @@ class TransitSender:
     def add_receiver_hints(self, hints):
         self.receiver_hints = hints
 
+    def set_transit_key(self, key):
+        # This _have_transit_key condition/lock protects us against the race
+        # where the sender knows the hints and the key, and connects to the
+        # receiver's transit socket before the receiver gets relay message
+        # (and thus the key).
+        self._have_transit_key.acquire()
+        self._transit_key = key
+        #self.handler_send_handshake = build_receiver_handshake(key)
+        #self.handler_expected_handshake = build_sender_handshake(key) + "go\n"
+        self._have_transit_key.notify_all()
+        self._have_transit_key.release()
+
     def establish_connection(self):
-        sender_handshake = build_sender_handshake(self.key)
-        receiver_handshake = build_receiver_handshake(self.key)
+        sender_handshake = build_sender_handshake(self._transit_key)
+        receiver_handshake = build_receiver_handshake(self._transit_key)
         self.listener = None
         self.connectors = []
         self.winning_skt = None

@@ -1,6 +1,5 @@
 from __future__ import print_function
 import os, sys, json
-from binascii import hexlify
 from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Initiator
 from wormhole.blocking.transit import TransitSender
@@ -11,7 +10,6 @@ APPID = "lothar.com/wormhole/file-xfer"
 filename = sys.argv[1]
 assert os.path.isfile(filename)
 transit_sender = TransitSender()
-transit_key = transit_sender.get_transit_key()
 direct_hints = transit_sender.get_direct_hints()
 relay_hints = transit_sender.get_relay_hints()
 
@@ -22,7 +20,6 @@ data = json.dumps({
         "filesize": filesize,
         },
     "transit": {
-        "key": hexlify(transit_key),
         "direct_connection_hints": direct_hints,
         "relay_connection_hints": relay_hints,
         },
@@ -45,6 +42,8 @@ nonce = os.urandom(SecretBox.NONCE_SIZE)
 encrypted = box.encrypt(plaintext, nonce)
 
 tdata = them_d["transit"]
+transit_key = i.derive_key(APPID+"/transit-key")
+transit_sender.set_transit_key(transit_key)
 transit_sender.add_receiver_hints(tdata["direct_connection_hints"])
 skt = transit_sender.establish_connection()
 

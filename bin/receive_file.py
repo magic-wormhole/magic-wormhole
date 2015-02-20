@@ -29,7 +29,8 @@ encrypted_filesize = filesize + SecretBox.NONCE_SIZE+16
 
 # now receive the rest of the owl
 tdata = data["transit"]
-transit_receiver.set_transit_key(tdata["key"])
+transit_key = r.derive_key(APPID+"/transit-key")
+transit_receiver.set_transit_key(transit_key)
 transit_receiver.add_sender_direct_hints(tdata["direct_connection_hints"])
 transit_receiver.add_sender_relay_hints(tdata["relay_connection_hints"])
 skt = transit_receiver.establish_connection()
