@@ -153,7 +153,7 @@ class Common:
         self._start_server()
 
     def _start_server(self):
-        server = MyTCPServer(("",self.server_port), None)
+        server = MyTCPServer(("", 0), None)
         _, port = server.server_address
         self.my_direct_hints = ["%s,%d" % (addr, port)
                                 for addr in ipaddrs.find_addresses()]
@@ -245,9 +245,7 @@ class Common:
             skt.close()
 
 class TransitSender(Common):
-    server_port = 9999
     is_sender = True
 
 class TransitReceiver(Common):
-    server_port = 9998
     is_sender = False
