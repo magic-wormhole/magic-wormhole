@@ -38,12 +38,10 @@ class TransitError(Exception):
 # "go\n" or "nevermind\n"+close().
 
 def build_receiver_handshake(key):
-    return "rx\n\n"
     hexid = HKDF(key, 32, CTXinfo=b"transit_receiver")
     return "transit receiver %s ready\n\n" % hexlify(hexid)
 
 def build_sender_handshake(key):
-    return "tx\n\n"
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
     return "transit sender %s ready\n\n" % hexlify(hexid)
 
