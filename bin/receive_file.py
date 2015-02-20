@@ -45,9 +45,20 @@ decrypted = SecretBox(xfer_key).decrypt(encrypted)
 # only write to the current directory, and never overwrite anything
 here = os.path.abspath(os.getcwd())
 target = os.path.abspath(os.path.join(here, filename))
-assert os.path.dirname(target) == here
-assert not os.path.exists(target)
+if os.path.dirname(target) != here:
+    print("Error: suggested filename (%s) would be outside current directory"
+          % (filename,))
+    skt.send("bad filename\n")
+    skt.close()
+    sys.exit(1)
+if os.path.exists(target):
+    print("Error: refusing to overwrite existing file %s" % (filename,))
+    skt.send("file already exists\n")
+    skt.close()
+    sys.exit(1)
 with open(target, "wb") as f:
     f.write(decrypted)
 print("Received file written to %s" % filename)
 skt.send("ok\n")
+skt.close()
+sys.exit(0)

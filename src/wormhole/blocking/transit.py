@@ -120,10 +120,11 @@ def connector(owner, hint, send_handshake, expected_handshake):
     if isinstance(hint, type(u"")):
         hint = hint.encode("ascii")
     addr,port = hint.split(",")
-    skt = socket.create_connection((addr,port)) # timeout here
-    skt.settimeout(TIMEOUT)
-    #print("socket(%s) connected" % (hint,))
+    skt = None
     try:
+        skt = socket.create_connection((addr,port)) # timeout here
+        skt.settimeout(TIMEOUT)
+        #print("socket(%s) connected" % (hint,))
         skt.send(send_handshake)
         got = b""
         while len(got) < len(expected_handshake):
@@ -132,13 +133,18 @@ def connector(owner, hint, send_handshake, expected_handshake):
                 raise BadHandshake("got '%r' want '%r' on %s" %
                                    (got, expected_handshake, hint))
         #print("connector ready %r" % (hint,))
-    except:
+    except Exception as e:
         try:
-            skt.shutdown(socket.SHUT_WR)
+            if skt:
+                skt.shutdown(socket.SHUT_WR)
         except socket.error:
             pass
-        skt.close()
-        raise
+        if skt:
+            skt.close()
+        # ignore socket errors, warn about coding errors
+        if not isinstance(e, (socket.error, socket.timeout, BadHandshake)):
+            raise
+        return
     # owner is now responsible for the socket
     owner._negotiation_finished(skt) # note thread
 

@@ -53,9 +53,12 @@ print("Sending %d bytes.." % filesize)
 skt.send(encrypted)
 
 print("File sent.. waiting for confirmation")
-ack = skt.recv(3)
+# ack is a short newline-terminated string, followed by socket close. A long
+# read is probably good enough.
+ack = skt.recv(300)
 if ack == "ok\n":
     print("Confirmation received. Transfer complete.")
+    sys.exit(0)
 else:
-    print("Transfer failed (remote says: '%r')" % ack)
-skt.close()
+    print("Transfer failed (remote says: %r)" % ack)
+    sys.exit(1)
