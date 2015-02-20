@@ -45,7 +45,7 @@ def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
     return "transit sender %s ready\n\n" % hexlify(hexid)
 
-TIMEOUT=10000
+TIMEOUT=15
 
 # 1: sender only transmits, receiver only accepts, both wait forever
 # 2: sender also accepts, receiver also transmits
