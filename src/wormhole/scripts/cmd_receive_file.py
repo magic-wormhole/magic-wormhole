@@ -3,6 +3,7 @@ import sys, os, json
 from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Receiver, WrongPasswordError
 from wormhole.blocking.transit import TransitReceiver
+from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
@@ -39,17 +40,25 @@ def receive_file(so):
     transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
     skt = transit_receiver.establish_connection()
-    print("Receiving %d bytes.." % filesize)
+
+    print("Receiving %d bytes for '%s'.." % (filesize, filename))
+
     encrypted = b""
+    next_update = start_progress(encrypted_filesize)
     while len(encrypted) < encrypted_filesize:
         more = skt.recv(encrypted_filesize - len(encrypted))
         if not more:
+            print()
             print("Connection dropped before full file received")
             print("got %d bytes, wanted %d" % (len(encrypted), encrypted_filesize))
             return 1
         encrypted += more
+        next_update = update_progress(next_update, len(encrypted),
+                                      encrypted_filesize)
+    finish_progress(encrypted_filesize)
     assert len(encrypted) == encrypted_filesize
 
+    print("Decrypting..")
     decrypted = SecretBox(xfer_key).decrypt(encrypted)
 
     # only write to the current directory, and never overwrite anything

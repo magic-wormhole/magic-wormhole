@@ -3,6 +3,7 @@ import os, sys, json
 from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Initiator, WrongPasswordError
 from wormhole.blocking.transit import TransitSender
+from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
@@ -38,6 +39,8 @@ def send_file(so):
     #print("them: %r" % (them_d,))
     xfer_key = i.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)
 
+    print("Encrypting %d bytes.." % filesize)
+
     box = SecretBox(xfer_key)
     with open(filename, "rb") as f:
         plaintext = f.read()
@@ -51,11 +54,14 @@ def send_file(so):
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
     skt = transit_sender.establish_connection()
 
-    print("Sending %d bytes.." % filesize)
+    print("Sending..")
+
     sent = 0
+    next_update = start_progress(len(encrypted))
     while sent < len(encrypted):
-        more = skt.send(encrypted[sent:])
-        sent += more
+        sent += skt.send(encrypted[sent:])
+        next_update = update_progress(next_update, sent, len(encrypted))
+    finish_progress(len(encrypted))
 
     print("File sent.. waiting for confirmation")
     # ack is a short newline-terminated string, followed by socket close. A long
