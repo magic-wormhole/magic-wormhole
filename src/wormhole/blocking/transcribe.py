@@ -6,7 +6,7 @@ from nacl.exceptions import CryptoError
 from nacl import utils
 from .. import codes
 from ..util.hkdf import HKDF
-from ..const import RELAY
+from ..const import RENDEZVOUS_RELAY
 
 SECOND = 1
 MINUTE = 60*SECOND
@@ -111,7 +111,7 @@ class Common:
         return HKDF(self.key, length, CTXinfo=purpose)
 
 class Initiator(Common):
-    def __init__(self, appid, data, relay=RELAY):
+    def __init__(self, appid, data, relay=RENDEZVOUS_RELAY):
         self.appid = appid
         self.data = data
         assert relay.endswith("/")
@@ -151,7 +151,7 @@ class Initiator(Common):
 
 
 class Receiver(Common):
-    def __init__(self, appid, data, relay=RELAY):
+    def __init__(self, appid, data, relay=RENDEZVOUS_RELAY):
         self.appid = appid
         self.data = data
         self.relay = relay

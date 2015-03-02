@@ -3,6 +3,7 @@ import threading, socket, SocketServer
 from binascii import hexlify
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
+from ..const import TRANSIT_RELAY
 
 class TransitError(Exception):
     pass
@@ -45,8 +46,9 @@ def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
     return "transit sender %s ready\n\n" % hexlify(hexid)
 
-def build_relay_token(key):
-    return "PLEASE RELAY\n"
+def build_relay_handshake(key):
+    token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
+    return "please relay %s\n" % hexlify(token)
 
 TIMEOUT=15
 
@@ -65,6 +67,11 @@ def force_ascii(s):
         return s.encode("ascii")
     return s
 
+def send_to(skt, data):
+    sent = 0
+    while sent < len(data):
+        sent += skt.send(data[sent:])
+
 def wait_for(skt, expected, hint):
     got = b""
     while len(got) < len(expected):
@@ -74,7 +81,7 @@ def wait_for(skt, expected, hint):
                                (got, expected, hint))
 
 def connector(owner, hint, send_handshake, expected_handshake,
-              relay_token=None):
+              relay_handshake=None):
     addr,port = hint.split(",")
     skt = None
     try:
@@ -82,10 +89,11 @@ def connector(owner, hint, send_handshake, expected_handshake,
                                        TIMEOUT) # timeout or ECONNREFUSED
         skt.settimeout(TIMEOUT)
         #print("socket(%s) connected" % (hint,))
-        if relay_token:
-            skt.send(relay_token)
+        if relay_handshake:
+            send_to(skt, relay_handshake)
             wait_for(skt, "ok\n", hint)
-        skt.send(send_handshake)
+            #print("relay ready %r" % (hint,))
+        send_to(skt, send_handshake)
         wait_for(skt, expected_handshake, hint)
         #print("connector ready %r" % (hint,))
     except Exception as e:
@@ -100,6 +108,7 @@ def connector(owner, hint, send_handshake, expected_handshake,
         if not isinstance(e, (socket.error, socket.timeout, BadHandshake)):
             raise
         owner._connector_failed(hint)
+        return
     # owner is now responsible for the socket
     owner._negotiation_finished(skt) # note thread
 
@@ -107,7 +116,7 @@ def handle(skt, client_address, owner, send_handshake, expected_handshake):
     try:
         #print("handle %r" %  (skt,))
         skt.settimeout(TIMEOUT)
-        skt.send(send_handshake)
+        send_to(skt, send_handshake)
         got = b""
         # for the receiver, this includes the "go\n"
         while len(got) < len(expected_handshake):
@@ -180,7 +189,7 @@ class Common:
     def get_direct_hints(self):
         return self.my_direct_hints
     def get_relay_hints(self):
-        return []
+        return [TRANSIT_RELAY]
 
     def add_their_direct_hints(self, hints):
         self._their_direct_hints = [force_ascii(h) for h in hints]
@@ -221,7 +230,7 @@ class Common:
     def _start_connector(self, hint, is_relay=False):
         args = (self, hint, self._send_this(), self._expect_this())
         if is_relay:
-            args = args + (build_relay_token(self._transit_key),)
+            args = args + (build_relay_handshake(self._transit_key),)
         t = threading.Thread(target=connector, args=args)
         t.daemon = True
         t.start()
@@ -265,11 +274,11 @@ class Common:
 
         if is_winner:
             if self.is_sender:
-                skt.send("go\n")
+                send_to(skt, "go\n")
             self.winning.set()
         else:
             if self.is_sender:
-                skt.send("nevermind\n")
+                send_to(skt, "nevermind\n")
             skt.close()
 
 class TransitSender(Common):
