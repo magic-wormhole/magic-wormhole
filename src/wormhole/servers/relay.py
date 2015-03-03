@@ -124,6 +124,8 @@ class Relay(resource.Resource):
         self.channels.pop(channel_id)
         log.msg("freed %d, now have %d channels" %
                 (channel_id, len(self.channels)))
+        if not self.channels:
+            self.next_channel = 1
 
 class TransitConnection(protocol.Protocol):
     def __init__(self):
