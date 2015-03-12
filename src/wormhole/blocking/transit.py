@@ -180,7 +180,7 @@ class MyTCPServer(SocketServer.TCPServer):
     allow_reuse_address = True
 
     def process_request(self, request, client_address):
-        description = "<-%s" % (client_address,)
+        description = "<-tcp:%s:%d" % (client_address[0], client_address[1])
         kc = self.owner._have_transit_key
         kc.acquire()
         while not self.owner._transit_key:
