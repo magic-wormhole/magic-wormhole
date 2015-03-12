@@ -133,10 +133,12 @@ class TransitConnection(protocol.Protocol):
         self.token_buffer = b""
         self.sent_ok = False
         self.buddy = None
+        self.total_sent = 0
 
     def dataReceived(self, data):
         if self.sent_ok:
             # TODO: connect as producer/consumer
+            self.total_sent += len(data)
             self.buddy.transport.write(data)
             return
         if self.got_token: # but not yet sent_ok
@@ -182,7 +184,7 @@ class TransitConnection(protocol.Protocol):
         print("connectionLost %r %s" % (self, reason))
         if self.buddy:
             self.buddy.buddy_disconnected()
-        self.factory.transitFinished(self)
+        self.factory.transitFinished(self, self.total_sent)
 
     def disconnect(self):
         self.transport.loseConnection()
@@ -232,8 +234,8 @@ class Transit(protocol.ServerFactory, service.MultiService):
             self.pending_requests[token] = p
             print("transit relay 1: %r" % token)
             # TODO: timer
-    def transitFinished(self, p):
-        print("transitFinished %r" % p)
+    def transitFinished(self, p, total_sent):
+        print("transitFinished (%dB) %r" % (total_sent, p))
         for token,tc in self.pending_requests.items():
             if tc is p:
                 del self.pending_requests[token]
