@@ -1,5 +1,5 @@
 from __future__ import print_function
-import re, threading, socket, SocketServer
+import re, time, threading, socket, SocketServer
 from binascii import hexlify
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
@@ -109,26 +109,36 @@ def parse_hint_tcp(hint):
         return None
     return hint_host, hint_port
 
+def debug(msg):
+    if False:
+        print(msg)
+def since(start):
+    return time.time() - start
+
 def connector(owner, hint, description,
               send_handshake, expected_handshake, relay_handshake=None):
+    start = time.time()
     parsed_hint = parse_hint_tcp(hint)
     if not parsed_hint:
         return # unparseable
     addr,port = parsed_hint
     skt = None
+    debug("+ connector(%s)" % hint)
     try:
         skt = socket.create_connection((addr,port),
                                        TIMEOUT) # timeout or ECONNREFUSED
         skt.settimeout(TIMEOUT)
-        #print("socket(%s) connected" % (description,))
+        debug(" - socket(%s) connected CT+%.1f" % (description, since(start)))
         if relay_handshake:
+            debug(" - sending relay_handshake")
             send_to(skt, relay_handshake)
             wait_for(skt, "ok\n", description)
-            #print("relay ready %r" % (description,))
+            debug(" - relay ready CT+%.1f" % (since(start),))
         send_to(skt, send_handshake)
         wait_for(skt, expected_handshake, description)
-        #print("connector ready %r" % (description,))
+        debug(" + connector(%s) ready CT+%.1f" % (hint, since(start)))
     except Exception as e:
+        debug(" - timeout(%s) CT+%.1f" % (hint, since(start)))
         try:
             if skt:
                 skt.shutdown(socket.SHUT_WR)
@@ -139,6 +149,7 @@ def connector(owner, hint, description,
         # ignore socket errors, warn about coding errors
         if not isinstance(e, (socket.error, socket.timeout, BadHandshake)):
             raise
+        debug(" - notifying owner._connector_failed(%s) CT+%.1f" % (hint, since(start)))
         owner._connector_failed(hint)
         return
     # owner is now responsible for the socket
@@ -147,7 +158,7 @@ def connector(owner, hint, description,
 def handle(skt, client_address, owner, description,
            send_handshake, expected_handshake):
     try:
-        #print("handle %r" %  (skt,))
+        debug("handle %r" %  (skt,))
         skt.settimeout(TIMEOUT)
         send_to(skt, send_handshake)
         got = b""
@@ -160,9 +171,9 @@ def handle(skt, client_address, owner, description,
             if expected_handshake[:len(got)] != got:
                 raise BadHandshake("got '%r' want '%r'" %
                                    (got, expected_handshake))
-        #print("handler negotiation finished %r" % (client_address,))
+        debug("handler negotiation finished %r" % (client_address,))
     except Exception as e:
-        #print("handler failed %r" % (client_address,))
+        debug("handler failed %r" % (client_address,))
         try:
             # this raises socket.err(EBADF) if the socket was already closed
             skt.shutdown(socket.SHUT_WR)
@@ -278,12 +289,14 @@ class Common:
             self._start_connector(hint, is_relay=True)
 
     def establish_connection(self):
+        start = time.time()
         self.winning_skt = None
         self.winning_skt_description = None
         self._start_outbound()
 
         # we sit here until one of our inbound or outbound sockets succeeds
         flag = self.winning.wait(2*TIMEOUT)
+        debug("wait returned at %.1f" % (since(start),))
 
         if not flag:
             # timeout: self.winning_skt will not be set. ish. race.
@@ -300,6 +313,7 @@ class Common:
         return self.winning_skt_description
 
     def _connector_failed(self, hint):
+        debug("- failed connector %s" % hint)
         self._active_connectors.remove(hint)
         if not self._active_connectors:
             self._start_relay_connectors()
