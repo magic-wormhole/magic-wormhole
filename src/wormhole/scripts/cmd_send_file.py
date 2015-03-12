@@ -54,7 +54,7 @@ def send_file(so):
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
     skt = transit_sender.establish_connection()
 
-    print("Sending..")
+    print("Sending (%s).." % transit_sender.describe())
 
     sent = 0
     next_update = start_progress(len(encrypted))

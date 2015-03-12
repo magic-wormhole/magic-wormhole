@@ -41,7 +41,8 @@ def receive_file(so):
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
     skt = transit_receiver.establish_connection()
 
-    print("Receiving %d bytes for '%s'.." % (filesize, filename))
+    print("Receiving %d bytes for '%s' (%s).." % (filesize, filename,
+                                                  transit_receiver.describe()))
 
     encrypted = b""
     next_update = start_progress(encrypted_filesize)

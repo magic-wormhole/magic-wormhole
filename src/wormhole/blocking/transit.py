@@ -80,8 +80,8 @@ def wait_for(skt, expected, hint):
             raise BadHandshake("got '%r' want '%r' on %s" %
                                (got, expected, hint))
 
-def connector(owner, hint, send_handshake, expected_handshake,
-              relay_handshake=None):
+def connector(owner, hint, description,
+              send_handshake, expected_handshake, relay_handshake=None):
     addr,port = hint.split(",")
     skt = None
     try:
@@ -110,9 +110,10 @@ def connector(owner, hint, send_handshake, expected_handshake,
         owner._connector_failed(hint)
         return
     # owner is now responsible for the socket
-    owner._negotiation_finished(skt) # note thread
+    owner._negotiation_finished(skt, description) # note thread
 
-def handle(skt, client_address, owner, send_handshake, expected_handshake):
+def handle(skt, client_address, owner, description,
+           send_handshake, expected_handshake):
     try:
         #print("handle %r" %  (skt,))
         skt.settimeout(TIMEOUT)
@@ -141,12 +142,13 @@ def handle(skt, client_address, owner, send_handshake, expected_handshake):
             raise
         return
     # owner is now responsible for the socket
-    owner._negotiation_finished(skt) # note thread
+    owner._negotiation_finished(skt, description) # note thread
 
 class MyTCPServer(SocketServer.TCPServer):
     allow_reuse_address = True
 
     def process_request(self, request, client_address):
+        description = "<-%s" % (client_address,)
         kc = self.owner._have_transit_key
         kc.acquire()
         while not self.owner._transit_key:
@@ -160,7 +162,7 @@ class MyTCPServer(SocketServer.TCPServer):
         # is what we actually care about.
         t = threading.Thread(target=handle,
                              args=(request, client_address,
-                                   self.owner,
+                                   self.owner, description,
                                    self.owner.handler_send_handshake,
                                    self.owner.handler_expected_handshake))
         t.daemon = True
@@ -228,7 +230,11 @@ class Common:
             self._start_relay_connectors()
 
     def _start_connector(self, hint, is_relay=False):
-        args = (self, hint, self._send_this(), self._expect_this())
+        description = "->%s" % (hint,)
+        if is_relay:
+            description = "->relay@%s" % (hint,)
+        args = (self, hint, description,
+                self._send_this(), self._expect_this())
         if is_relay:
             args = args + (build_relay_handshake(self._transit_key),)
         t = threading.Thread(target=connector, args=args)
@@ -241,6 +247,7 @@ class Common:
 
     def establish_connection(self):
         self.winning_skt = None
+        self.winning_skt_description = None
         self._start_outbound()
 
         # we sit here until one of our inbound or outbound sockets succeeds
@@ -255,12 +262,17 @@ class Common:
             return self.winning_skt
         raise TransitError
 
+    def describe(self):
+        if not self.winning_skt_description:
+            return "not yet established"
+        return self.winning_skt_description
+
     def _connector_failed(self, hint):
         self._active_connectors.remove(hint)
         if not self._active_connectors:
             self._start_relay_connectors()
 
-    def _negotiation_finished(self, skt):
+    def _negotiation_finished(self, skt, description):
         # inbound/outbound sockets call this when they finish negotiation.
         # The first one wins and gets a "go". Any subsequent ones lose and
         # get a "nevermind" before being closed.
@@ -271,6 +283,7 @@ class Common:
             else:
                 is_winner = True
                 self.winning_skt = skt
+                self.winning_skt_description = description
 
         if is_winner:
             if self.is_sender:
