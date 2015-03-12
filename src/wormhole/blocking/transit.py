@@ -283,7 +283,7 @@ class Common:
         self._start_outbound()
 
         # we sit here until one of our inbound or outbound sockets succeeds
-        flag = self.winning.wait(TIMEOUT)
+        flag = self.winning.wait(2*TIMEOUT)
 
         if not flag:
             # timeout: self.winning_skt will not be set. ish. race.
