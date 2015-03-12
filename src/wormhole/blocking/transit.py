@@ -1,5 +1,5 @@
 from __future__ import print_function
-import threading, socket, SocketServer
+import re, threading, socket, SocketServer
 from binascii import hexlify
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
@@ -72,30 +72,62 @@ def send_to(skt, data):
     while sent < len(data):
         sent += skt.send(data[sent:])
 
-def wait_for(skt, expected, hint):
+def wait_for(skt, expected, description):
     got = b""
     while len(got) < len(expected):
         got += skt.recv(1)
         if expected[:len(got)] != got:
             raise BadHandshake("got '%r' want '%r' on %s" %
-                               (got, expected, hint))
+                               (got, expected, description))
+
+# The hint format is: TYPE,VALUE= /^([a-zA-Z0-9]+):(.*)$/ . VALUE depends
+# upon TYPE, and it can have more colons in it. For TYPE=tcp (the only one
+# currently defined), ADDR,PORT = /^(.*):(\d+)$/ , so ADDR can have colons.
+# ADDR can be a hostname, ipv4 dotted-quad, or ipv6 colon-hex. If the hint
+# publisher wants anonymity, their only hint's ADDR will end in .onion .
+
+def parse_hint_tcp(hint):
+    # return tuple or None for an unparseable hint
+    mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
+    if not mo:
+        print("unparseable hint '%s'" % (hint,))
+        return None
+    hint_type = mo.group(1)
+    if hint_type != "tcp":
+        print("unknown hint type '%s' in '%s'" % (hint_type, hint))
+        return None
+    hint_value = mo.group(2)
+    mo = re.search(r'^(.*):(\d+)$', hint_value)
+    if not mo:
+        print("unparseable TCP hint '%s'" % (hint,))
+        return None
+    hint_host = mo.group(1)
+    try:
+        hint_port = int(mo.group(2))
+    except ValueError:
+        print("non-numeric port in TCP hint '%s'" % (hint,))
+        return None
+    return hint_host, hint_port
 
 def connector(owner, hint, description,
               send_handshake, expected_handshake, relay_handshake=None):
-    addr,port = hint.split(",")
+    parsed_hint = parse_hint_tcp(hint)
+    if not parsed_hint:
+        return # unparseable
+    addr,port = parsed_hint
     skt = None
     try:
         skt = socket.create_connection((addr,port),
                                        TIMEOUT) # timeout or ECONNREFUSED
         skt.settimeout(TIMEOUT)
-        #print("socket(%s) connected" % (hint,))
+        #print("socket(%s) connected" % (description,))
         if relay_handshake:
             send_to(skt, relay_handshake)
-            wait_for(skt, "ok\n", hint)
-            #print("relay ready %r" % (hint,))
+            wait_for(skt, "ok\n", description)
+            #print("relay ready %r" % (description,))
         send_to(skt, send_handshake)
-        wait_for(skt, expected_handshake, hint)
-        #print("connector ready %r" % (hint,))
+        wait_for(skt, expected_handshake, description)
+        #print("connector ready %r" % (description,))
     except Exception as e:
         try:
             if skt:
@@ -180,7 +212,7 @@ class Common:
     def _start_server(self):
         server = MyTCPServer(("", 0), None)
         _, port = server.server_address
-        self.my_direct_hints = ["%s,%d" % (addr, port)
+        self.my_direct_hints = ["tcp:%s:%d" % (addr, port)
                                 for addr in ipaddrs.find_addresses()]
         server.owner = self
         server_thread = threading.Thread(target=server.serve_forever)
@@ -232,7 +264,7 @@ class Common:
     def _start_connector(self, hint, is_relay=False):
         description = "->%s" % (hint,)
         if is_relay:
-            description = "->relay@%s" % (hint,)
+            description = "->relay:%s" % (hint,)
         args = (self, hint, description,
                 self._send_this(), self._expect_this())
         if is_relay:
