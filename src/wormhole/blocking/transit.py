@@ -358,6 +358,7 @@ class Common:
         t.start()
 
     def _start_relay_connectors(self):
+        self._active_connectors.update(self._their_direct_hints)
         for hint in self._their_relay_hints:
             self._start_connector(hint, is_relay=True)
 
