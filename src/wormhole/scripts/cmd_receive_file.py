@@ -1,8 +1,7 @@
 from __future__ import print_function
 import sys, os, json
-from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Receiver, WrongPasswordError
-from wormhole.blocking.transit import TransitReceiver
+from wormhole.blocking.transit import TransitReceiver, TransitError
 from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
@@ -28,10 +27,8 @@ def receive_file(so):
     #print("their data: %r" % (data,))
 
     file_data = data["file"]
-    xfer_key = r.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)
     filename = os.path.basename(file_data["filename"]) # unicode
     filesize = file_data["filesize"]
-    encrypted_filesize = filesize + SecretBox.NONCE_SIZE+16
 
     # now receive the rest of the owl
     tdata = data["transit"]
@@ -39,28 +36,10 @@ def receive_file(so):
     transit_receiver.set_transit_key(transit_key)
     transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
-    skt = transit_receiver.establish_connection()
+    record_pipe = transit_receiver.connect()
 
     print("Receiving %d bytes for '%s' (%s).." % (filesize, filename,
                                                   transit_receiver.describe()))
-
-    encrypted = b""
-    next_update = start_progress(encrypted_filesize)
-    while len(encrypted) < encrypted_filesize:
-        more = skt.recv(encrypted_filesize - len(encrypted))
-        if not more:
-            print()
-            print("Connection dropped before full file received")
-            print("got %d bytes, wanted %d" % (len(encrypted), encrypted_filesize))
-            return 1
-        encrypted += more
-        next_update = update_progress(next_update, len(encrypted),
-                                      encrypted_filesize)
-    finish_progress(encrypted_filesize)
-    assert len(encrypted) == encrypted_filesize
-
-    print("Decrypting..")
-    decrypted = SecretBox(xfer_key).decrypt(encrypted)
 
     # only write to the current directory, and never overwrite anything
     here = os.path.abspath(os.getcwd())
@@ -68,17 +47,36 @@ def receive_file(so):
     if os.path.dirname(target) != here:
         print("Error: suggested filename (%s) would be outside current directory"
               % (filename,))
-        skt.send("bad filename\n")
-        skt.close()
+        record_pipe.send_record("bad filename\n")
+        record_pipe.close()
         return 1
     if os.path.exists(target):
         print("Error: refusing to overwrite existing file %s" % (filename,))
-        skt.send("file already exists\n")
-        skt.close()
+        record_pipe.send_record("file already exists\n")
+        record_pipe.close()
         return 1
-    with open(target, "wb") as f:
-        f.write(decrypted)
+    tmp = target + ".tmp"
+
+    with open(tmp, "wb") as f:
+        received = 0
+        next_update = start_progress(filesize)
+        while received < filesize:
+            try:
+                plaintext = record_pipe.receive_record()
+            except TransitError:
+                print()
+                print("Connection dropped before full file received")
+                print("got %d bytes, wanted %d" % (received, filesize))
+                return 1
+            f.write(plaintext)
+            received += len(plaintext)
+            next_update = update_progress(next_update, received, filesize)
+        finish_progress(filesize)
+        assert received == filesize
+
+    os.rename(tmp, target)
+
     print("Received file written to %s" % filename)
-    skt.send("ok\n")
-    skt.close()
+    record_pipe.send_record("ok\n")
+    record_pipe.close()
     return 0

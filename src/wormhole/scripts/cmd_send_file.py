@@ -1,6 +1,5 @@
 from __future__ import print_function
 import os, sys, json
-from nacl.secret import SecretBox
 from wormhole.blocking.transcribe import Initiator, WrongPasswordError
 from wormhole.blocking.transit import TransitSender
 from .progress import start_progress, update_progress, finish_progress
@@ -37,36 +36,30 @@ def send_file(so):
         return 1
     them_d = json.loads(them_bytes.decode("utf-8"))
     #print("them: %r" % (them_d,))
-    xfer_key = i.derive_key(APPID+"/xfer-key", SecretBox.KEY_SIZE)
 
-    print("Encrypting %d bytes.." % filesize)
-
-    box = SecretBox(xfer_key)
-    with open(filename, "rb") as f:
-        plaintext = f.read()
-    nonce = os.urandom(SecretBox.NONCE_SIZE)
-    encrypted = box.encrypt(plaintext, nonce)
 
     tdata = them_d["transit"]
     transit_key = i.derive_key(APPID+"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
-    skt = transit_sender.establish_connection()
+    record_pipe = transit_sender.connect()
 
     print("Sending (%s).." % transit_sender.describe())
 
-    sent = 0
-    next_update = start_progress(len(encrypted))
-    while sent < len(encrypted):
-        sent += skt.send(encrypted[sent:])
-        next_update = update_progress(next_update, sent, len(encrypted))
-    finish_progress(len(encrypted))
+    CHUNKSIZE = 64*1024
+    with open(filename, "rb") as f:
+        sent = 0
+        next_update = start_progress(filesize)
+        while sent < filesize:
+            plaintext = f.read(CHUNKSIZE)
+            record_pipe.send_record(plaintext)
+            sent += len(plaintext)
+            next_update = update_progress(next_update, sent, filesize)
+        finish_progress(filesize)
 
     print("File sent.. waiting for confirmation")
-    # ack is a short newline-terminated string, followed by socket close. A long
-    # read is probably good enough.
-    ack = skt.recv(300)
+    ack = record_pipe.receive_record()
     if ack == "ok\n":
         print("Confirmation received. Transfer complete.")
         return 0

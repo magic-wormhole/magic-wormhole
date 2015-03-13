@@ -1,6 +1,7 @@
 from __future__ import print_function
 import re, time, threading, socket, SocketServer
-from binascii import hexlify
+from binascii import hexlify, unhexlify
+from nacl.secret import SecretBox
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
 from ..const import TRANSIT_RELAY
@@ -212,6 +213,62 @@ class MyTCPServer(SocketServer.TCPServer):
         t.start()
 
 
+class TransitClosed(TransitError):
+    pass
+
+class BadNonce(TransitError):
+    pass
+
+class ReceiveBuffer:
+    def __init__(self, skt):
+        self.skt = skt
+        self.buf = b""
+
+    def read(self, count):
+        while len(self.buf) < count:
+            more = self.skt.recv(4096)
+            if not more:
+                raise TransitClosed
+            self.buf += more
+        rc = self.buf[:count]
+        self.buf = self.buf[count:]
+        return rc
+
+class RecordPipe:
+    def __init__(self, skt, send_key, receive_key):
+        self.skt = skt
+        self.send_box = SecretBox(send_key)
+        self.send_nonce = 0
+        self.receive_buf = ReceiveBuffer(self.skt)
+        self.receive_box = SecretBox(receive_key)
+        self.next_receive_nonce = 0
+
+    def send_record(self, record):
+        assert SecretBox.NONCE_SIZE == 24
+        assert self.send_nonce < 2**(8*24)
+        assert len(record) < 2**(8*4)
+        nonce = unhexlify("%048x" % self.send_nonce) # big-endian
+        self.send_nonce += 1
+        encrypted = self.send_box.encrypt(record, nonce)
+        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        send_to(self.skt, length)
+        send_to(self.skt, encrypted)
+
+    def receive_record(self):
+        length_buf = self.receive_buf.read(4)
+        length = int(hexlify(length_buf), 16)
+        encrypted = self.receive_buf.read(length)
+        nonce_buf = encrypted[:SecretBox.NONCE_SIZE] # assume it's prepended
+        nonce = int(hexlify(nonce_buf), 16)
+        if nonce != self.next_receive_nonce:
+            raise BadNonce("received out-of-order record")
+        self.next_receive_nonce += 1
+        record = self.receive_box.decrypt(encrypted)
+        return record
+
+    def close(self):
+        self.skt.close()
+
 class Common:
     def __init__(self):
         self.winning = threading.Event()
@@ -253,6 +310,22 @@ class Common:
         else:
             return build_sender_handshake(self._transit_key) + "go\n"
 
+    def _sender_record_key(self):
+        if self.is_sender:
+            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
+                        CTXinfo=b"transit_record_sender_key")
+        else:
+            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
+                        CTXinfo=b"transit_record_receiver_key")
+
+    def _receiver_record_key(self):
+        if self.is_sender:
+            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
+                        CTXinfo=b"transit_record_receiver_key")
+        else:
+            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
+                        CTXinfo=b"transit_record_sender_key")
+
     def set_transit_key(self, key):
         # This _have_transit_key condition/lock protects us against the race
         # where the sender knows the hints and the key, and connects to the
@@ -288,7 +361,7 @@ class Common:
         for hint in self._their_relay_hints:
             self._start_connector(hint, is_relay=True)
 
-    def establish_connection(self):
+    def establish_socket(self):
         start = time.time()
         self.winning_skt = None
         self.winning_skt_description = None
@@ -339,6 +412,11 @@ class Common:
             if self.is_sender:
                 send_to(skt, "nevermind\n")
             skt.close()
+
+    def connect(self):
+        skt = self.establish_socket()
+        return RecordPipe(skt, self._sender_record_key(),
+                          self._receiver_record_key())
 
 class TransitSender(Common):
     is_sender = True
