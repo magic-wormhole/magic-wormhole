@@ -223,8 +223,7 @@ class Receiver(Common):
         return channel_ids
 
     def input_code(self, prompt="Enter wormhole code: "):
-        channel_ids = self.list_channels()
-        code = codes.input_code_with_completion(prompt, channel_ids)
+        code = codes.input_code_with_completion(prompt, self.list_channels)
         return code
 
     def set_code(self, code):

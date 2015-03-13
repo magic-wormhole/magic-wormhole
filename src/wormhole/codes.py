@@ -16,8 +16,8 @@ import readline
 #import sys
 
 class CodeInputter:
-    def __init__(self, channel_ids):
-        self.channel_ids = channel_ids
+    def __init__(self, get_channel_ids):
+        self.get_channel_ids = get_channel_ids
         self.last_text = None # memoize for a speedup
         self.last_matches = None
 
@@ -31,15 +31,23 @@ class CodeInputter:
             raise e
 
     def completer(self, text, state):
-        #print("completer:", text, state, file=sys.stderr)
+        #if state == 0:
+        #    print("", file=sys.stderr)
+        #print("completer: '%s' %d '%d'" % (text, state,
+        #                                   readline.get_completion_type()),
+        #      file=sys.stderr)
+        #sys.stderr.flush()
         pieces = text.split("-")
         last = pieces[-1].lower()
-        if text == self.last_text:
+        if text == self.last_text and len(pieces) >= 2:
+            # if len(pieces) == 1, skip the cache, so we can re-fetch the
+            # channel_id list
             matches = self.last_matches
             #print(" old matches", len(matches), file=sys.stderr)
         else:
             if len(pieces) < 2:
-                matches = [str(channel_id) for channel_id in self.channel_ids
+                channel_ids = self.get_channel_ids()
+                matches = [str(channel_id) for channel_id in channel_ids
                            if str(channel_id).startswith(last)]
             else:
                 if len(pieces) % 2 == 0:
@@ -57,11 +65,13 @@ class CodeInputter:
         match = matches[state]
         if len(pieces) < 3:
             match += "-"
+        #print(" match: '%s'" % match, file=sys.stderr)
+        #sys.stderr.flush()
         return match
 
 
-def input_code_with_completion(prompt, channel_ids):
-    c = CodeInputter(channel_ids)
+def input_code_with_completion(prompt, get_channel_ids):
+    c = CodeInputter(get_channel_ids)
     readline.parse_and_bind("tab: complete")
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
@@ -69,5 +79,5 @@ def input_code_with_completion(prompt, channel_ids):
     return code
 
 if __name__ == "__main__":
-    code = input_code_with_completion("Enter wormhole code: ", [])
+    code = input_code_with_completion("Enter wormhole code: ", lambda: [])
     print("code is:", code)
