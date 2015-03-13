@@ -1,6 +1,5 @@
 from __future__ import print_function
 import re, json, time
-from collections import defaultdict
 from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import strports, service, internet
@@ -14,7 +13,7 @@ MB = 1000*1000
 CHANNEL_EXPIRATION_TIME = 1*HOUR
 
 class Channel(resource.Resource):
-    isLeaf = True
+    isLeaf = True # I handle /CHANNEL-ID/*
 
     valid_which = ["pake", "data"]
     # WHICH=(pake,data)
@@ -31,9 +30,7 @@ class Channel(resource.Resource):
         self.relay = relay
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
-        self.messages = {}
-        for which in self.valid_which:
-            self.messages[which] = defaultdict(list) # side -> [strings]
+        self.messages = [] # (side, which, str)
 
     def render_POST(self, request):
         # rest of URL is: SIDE/WHICH/(post|poll)
@@ -47,14 +44,8 @@ class Channel(resource.Resource):
                 return "waiting\n"
             self.relay.free_child(self.channel_id)
             return "deleted\n"
-        elif which in self.valid_which:
-            all_messages = self.messages[which]
-            messages = all_messages[side]
-            other_messages = []
-            for other_side, other_msgs in all_messages.items():
-                if other_side != side:
-                    other_messages.extend(other_msgs)
-        else:
+
+        if which not in self.valid_which:
             request.setResponseCode(http.BAD_REQUEST)
             return "bad command, want 'pake' or 'data' or 'deallocate'\n"
 
@@ -63,9 +54,14 @@ class Channel(resource.Resource):
             request.setResponseCode(http.BAD_REQUEST)
             return "bad verb, want 'post' or 'poll'\n"
 
+        other_messages = []
+        for (msg_side, msg_which, msg_str) in self.messages:
+            if msg_side != side and msg_which == which:
+                other_messages.append(msg_str)
+
         if verb == "post":
             data = json.load(request.content)
-            messages.append(data["message"])
+            self.messages.append( (side, which, data["message"]) )
 
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps({"messages": other_messages})+"\n"
