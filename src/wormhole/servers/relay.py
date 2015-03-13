@@ -12,6 +12,36 @@ MB = 1000*1000
 
 CHANNEL_EXPIRATION_TIME = 1*HOUR
 
+class EventsProtocol:
+    def __init__(self, request):
+        self.request = request
+
+    def sendComment(self, comment):
+        # this is ignored by clients, but can keep the connection open in the
+        # face of firewall/NAT timeouts. It also helps unit tests, since
+        # apparently twisted.web.client.Agent doesn't consider the connection
+        # to be established until it sees the first byte of the reponse body.
+        self.request.write(": %s\n\n" % comment)
+
+    def sendEvent(self, data, name=None, id=None, retry=None):
+        if name:
+            self.request.write("event: %s\n" % name.encode("utf-8"))
+            # e.g. if name=foo, then the client web page should do:
+            # (new EventSource(url)).addEventListener("foo", handlerfunc)
+            # Note that this basically defaults to "message".
+        if id:
+            self.request.write("id: %s\n" % id.encode("utf-8"))
+        if retry:
+            self.request.write("retry: %d\n" % retry) # milliseconds
+        for line in data.splitlines():
+            self.request.write("data: %s\n" % line.encode("utf-8"))
+        self.request.write("\n")
+
+    def stop(self):
+        self.request.finish()
+
+# note: no versions of IE (including the current IE11) support EventSource
+
 class Channel(resource.Resource):
     isLeaf = True # I handle /CHANNEL-ID/*
 
@@ -21,6 +51,7 @@ class Channel(resource.Resource):
     #  these return all messages for CHANNEL-ID= and WHICH= but SIDE!=
     # POST /CHANNEL-ID/SIDE/WHICH/post  {message: STR} -> {messages: [STR..]}
     # POST /CHANNEL-ID/SIDE/WHICH/poll                 -> {messages: [STR..]}
+    # GET  /CHANNEL-ID/SIDE/WHICH/poll (eventsource)   -> STR, STR, ..
     #
     # POST /CHANNEL-ID/SIDE/deallocate                -> waiting | deleted
 
@@ -31,6 +62,37 @@ class Channel(resource.Resource):
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
         self.messages = [] # (side, which, str)
+        self.event_channels = set() # (side, which, ep)
+
+
+    def render_GET(self, request):
+        # rest of URL is: SIDE/WHICH/(post|poll)
+        their_side = request.postpath[0]
+        their_which = request.postpath[1]
+        if "text/event-stream" not in (request.getHeader("accept") or ""):
+            request.setResponseCode(http.BAD_REQUEST, "Must use EventSource")
+            return "Must use EventSource (Content-Type: text/event-stream)"
+        request.setHeader("content-type", "text/event-stream")
+        ep = EventsProtocol(request)
+        handle = (their_side, their_which, ep)
+        self.event_channels.add(handle)
+        request.notifyFinish().addErrback(self._shutdown, handle)
+        for (msg_side, msg_which, msg_str) in self.messages:
+            self.message_added(msg_side, msg_which, msg_str, channels=[handle])
+        return server.NOT_DONE_YET
+
+    def _shutdown(self, _, handle):
+        self.event_channels.discard(handle)
+
+
+    def message_added(self, msg_side, msg_which, msg_str, channels=None):
+        if channels is None:
+            channels = self.event_channels
+        for (their_side, their_which, their_ep) in channels:
+            if msg_side != their_side and msg_which == their_which:
+                data = json.dumps({ "side": msg_side, "message": msg_str })
+                their_ep.sendEvent(data)
+
 
     def render_POST(self, request):
         # rest of URL is: SIDE/WHICH/(post|poll)
@@ -62,6 +124,7 @@ class Channel(resource.Resource):
         if verb == "post":
             data = json.load(request.content)
             self.messages.append( (side, which, data["message"]) )
+            self.message_added(side, which, data["message"])
 
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps({"messages": other_messages})+"\n"

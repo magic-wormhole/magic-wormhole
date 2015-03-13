@@ -1,3 +1,4 @@
+from __future__ import print_function
 import time, requests, json, textwrap
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
@@ -38,11 +39,52 @@ class ReceiverWrongPasswordError(WrongPasswordError):
     """
 
 # POST /allocate                                  -> {channel-id: INT}
-# POST /CHANNEL-ID/SIDE/pake/post  {message: STR} -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/pake/poll                 -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/data/post  {message: STR} -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/data/poll                 -> {messages: [STR..]}
+#  these return all messages for CHANNEL-ID= and WHICH= but SIDE!=
+#  WHICH=(pake,data)
+# POST /CHANNEL-ID/SIDE/WHICH/post  {message: STR} -> {messages: [STR..]}
+# POST /CHANNEL-ID/SIDE/WHICH/poll                 -> {messages: [STR..]}
+# GET  /CHANNEL-ID/SIDE/WHICH/poll (eventsource)   -> STR, STR, ..
+#
 # POST /CHANNEL-ID/SIDE/deallocate                -> waiting | deleted
+
+class EventSourceFollower:
+    def __init__(self, url, timeout):
+        self.resp = requests.get(url,
+                                 headers={"accept": "text/event-stream"},
+                                 stream=True,
+                                 timeout=timeout)
+        self.resp.raise_for_status()
+
+    def close(self):
+        self.resp.close()
+
+    def _get_fields(self, lines):
+        while True:
+            first_line = lines.next() # raises StopIteration when closed
+            fieldname, data = first_line.split(": ", 1)
+            data_lines = [data]
+            while True:
+                next_line = lines.next()
+                if not next_line: # empty string, original was "\n"
+                    yield (fieldname, "\n".join(data_lines))
+                    break
+                data_lines.append(next_line)
+
+    def iter_events(self):
+        # I think Request.iter_lines and .iter_content use chunk_size= in a
+        # funny way, and nothing happens until at least that much data has
+        # arrived. So unless we set chunk_size=1, we won't hear about lines
+        # for a long time. I'd prefer that chunk_size behaved like
+        # read(size), and gave you 1<=x<=size bytes in response.
+        lines_iter = self.resp.iter_lines(chunk_size=1)
+        for (fieldname, data) in self._get_fields(lines_iter):
+            if fieldname == "data":
+                yield data
+            else:
+                print("weird fieldname", fieldname, data)
+
+    def get_message(self):
+        return self.iter_events().next()
 
 class Common:
     def url(self, suffix):
@@ -63,10 +105,10 @@ class Common:
             remaining = self.started + self.timeout - time.time()
             if remaining < 0:
                 raise Timeout
-            time.sleep(self.wait)
-            r = requests.post(self.url(url_suffix))
-            r.raise_for_status()
-            msgs = r.json()["messages"]
+            #time.sleep(self.wait)
+            f = EventSourceFollower(self.url(url_suffix), remaining)
+            msgs = [json.loads(f.get_message())["message"]]
+            f.close()
         return msgs
 
     def _allocate(self):
