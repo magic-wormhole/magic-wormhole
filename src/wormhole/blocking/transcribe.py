@@ -48,9 +48,20 @@ class Common:
     def url(self, suffix):
         return "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, suffix)
 
-    def poll(self, msgs, url_suffix):
+    def get(self, old_msgs, url_suffix):
+        # For now, server errors cause the client to fail. TODO: don't. This
+        # will require changing the client to re-post messages when the
+        # server comes back up.
+
+        # note: while this passes around msgs (plural), our callers really
+        # only care about the first one. we use "WHICH" and "SIDE" so that we
+        # only expect to see a single message (not our own, where "SIDE" is
+        # our own, and not messages for earlier stages, where "WHICH" is
+        # different)
+        msgs = old_msgs
         while not msgs:
-            if time.time() > (self.started + self.timeout):
+            remaining = self.started + self.timeout - time.time()
+            if remaining < 0:
                 raise Timeout
             time.sleep(self.wait)
             r = requests.post(self.url(url_suffix))
@@ -72,8 +83,8 @@ class Common:
         other_msgs = r.json()["messages"]
         return other_msgs
 
-    def _poll_pake(self, other_msgs):
-        msgs = self.poll(other_msgs, "pake/poll")
+    def _get_pake(self, other_msgs):
+        msgs = self.get(other_msgs, "pake/poll")
         pake_msg = unhexlify(msgs[0].encode("ascii"))
         key = self.sp.finish(pake_msg)
         return key
@@ -91,8 +102,8 @@ class Common:
         other_msgs = r.json()["messages"]
         return other_msgs
 
-    def _poll_data(self, other_msgs):
-        msgs = self.poll(other_msgs, "data/poll")
+    def _get_data(self, other_msgs):
+        msgs = self.get(other_msgs, "data/poll")
         data = unhexlify(msgs[0].encode("ascii"))
         return data
 
@@ -131,14 +142,14 @@ class Initiator(Common):
         return self.code
 
     def get_data(self):
-        key = self._poll_pake([])
+        key = self._get_pake([])
         self.key = key
         try:
             outbound_key = self.derive_key(b"sender")
             outbound_encrypted = self._encrypt_data(outbound_key, self.data)
             other_msgs = self._post_data(outbound_encrypted)
 
-            inbound_encrypted = self._poll_data(other_msgs)
+            inbound_encrypted = self._get_data(other_msgs)
             inbound_key = self.derive_key(b"receiver")
             try:
                 inbound_data = self._decrypt_data(inbound_key,
@@ -187,7 +198,7 @@ class Receiver(Common):
         assert self.code is not None
         assert self.channel_id is not None
         other_msgs = self._post_pake()
-        key = self._poll_pake(other_msgs)
+        key = self._get_pake(other_msgs)
         self.key = key
 
         try:
@@ -195,7 +206,7 @@ class Receiver(Common):
             outbound_encrypted = self._encrypt_data(outbound_key, self.data)
             other_msgs = self._post_data(outbound_encrypted)
 
-            inbound_encrypted = self._poll_data(other_msgs)
+            inbound_encrypted = self._get_data(other_msgs)
             inbound_key = self.derive_key(b"sender")
             try:
                 inbound_data = self._decrypt_data(inbound_key,
