@@ -17,4 +17,3 @@ def receive_text(so):
         return 1
     them_d = json.loads(them_bytes.decode("utf-8"))
     print(them_d["message"])
-    print("elapsed time: %.2f" % (time.time() - start))

@@ -26,9 +26,9 @@ def send_file(so):
 
     i = Initiator(APPID, data)
     code = i.get_code()
-    print("On the other computer, please run: receive_file")
+    print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)
-    print("")
+    print()
     try:
         them_bytes = i.get_data()
     except WrongPasswordError as e:

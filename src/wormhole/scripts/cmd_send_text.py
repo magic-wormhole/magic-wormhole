@@ -11,7 +11,7 @@ def send_text(so):
                        }).encode("utf-8")
     i = Initiator(APPID, data)
     code = i.get_code()
-    print("On the other computer, please run: receive_text")
+    print("On the other computer, please run: wormhole receive-text")
     print("Wormhole code is: %s" % code)
     print("")
     try:
@@ -20,4 +20,8 @@ def send_text(so):
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
     them_d = json.loads(them_bytes.decode("utf-8"))
-    print("them: %r" % (them_d,))
+    if them_d["message"] == "ok":
+        print("text sent")
+    else:
+        print("error sending text: %r" % (them_d,))
+
