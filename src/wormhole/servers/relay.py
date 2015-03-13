@@ -16,10 +16,13 @@ CHANNEL_EXPIRATION_TIME = 1*HOUR
 class Channel(resource.Resource):
     isLeaf = True
 
-    # POST /CHANNEL-ID/SIDE/pake/post  {message: STR} -> {messages: [STR..]}
-    # POST /CHANNEL-ID/SIDE/pake/poll                 -> {messages: [STR..]}
-    # POST /CHANNEL-ID/SIDE/data/post  {message: STR} -> {messages: [STR..]}
-    # POST /CHANNEL-ID/SIDE/data/poll                 -> {messages: [STR..]}
+    valid_which = ["pake", "data"]
+    # WHICH=(pake,data)
+
+    #  these return all messages for CHANNEL-ID= and WHICH= but SIDE!=
+    # POST /CHANNEL-ID/SIDE/WHICH/post  {message: STR} -> {messages: [STR..]}
+    # POST /CHANNEL-ID/SIDE/WHICH/poll                 -> {messages: [STR..]}
+    #
     # POST /CHANNEL-ID/SIDE/deallocate                -> waiting | deleted
 
     def __init__(self, channel_id, relay):
@@ -28,11 +31,12 @@ class Channel(resource.Resource):
         self.relay = relay
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
-        self.messages = {"pake": defaultdict(list), # side -> [strings]
-                         "data": defaultdict(list), # side -> [strings]
-                         }
+        self.messages = {}
+        for which in self.valid_which:
+            self.messages[which] = defaultdict(list) # side -> [strings]
 
     def render_POST(self, request):
+        # rest of URL is: SIDE/WHICH/(post|poll)
         side = request.postpath[0]
         self.sides.add(side)
         which = request.postpath[1]
@@ -43,7 +47,7 @@ class Channel(resource.Resource):
                 return "waiting\n"
             self.relay.free_child(self.channel_id)
             return "deleted\n"
-        elif which in ("pake", "data"):
+        elif which in self.valid_which:
             all_messages = self.messages[which]
             messages = all_messages[side]
             other_messages = []
