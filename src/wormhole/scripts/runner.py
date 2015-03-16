@@ -7,7 +7,9 @@ class SendTextOptions(usage.Options):
     synopsis = "TEXT"
 
 class ReceiveTextOptions(usage.Options):
-    synopsis = ""
+    def parseArgs(self, code=None):
+        self["code"] = code
+    synopsis = "[CODE]"
 
 class SendFileOptions(usage.Options):
     def parseArgs(self, filename):
@@ -15,7 +17,9 @@ class SendFileOptions(usage.Options):
     synopsis = "FILENAME"
 
 class ReceiveFileOptions(usage.Options):
-    synopsis = ""
+    def parseArgs(self, code=None):
+        self["code"] = code
+    synopsis = "[CODE]"
 
 class Options(usage.Options):
     synopsis = "\nUsage: wormhole <command>"

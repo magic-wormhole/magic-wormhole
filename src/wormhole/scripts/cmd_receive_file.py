@@ -17,7 +17,10 @@ def receive_file(so):
             },
         }).encode("utf-8")
     r = Receiver(APPID, mydata)
-    r.set_code(r.input_code("Enter receive-file wormhole code: "))
+    code = so["code"]
+    if not code:
+        code = r.input_code("Enter receive-file wormhole code: ")
+    r.set_code(code)
 
     try:
         data = json.loads(r.get_data().decode("utf-8"))
