@@ -44,15 +44,18 @@ def receive_file(so):
     print("Receiving %d bytes for '%s' (%s).." % (filesize, filename,
                                                   transit_receiver.describe()))
 
-    # only write to the current directory, and never overwrite anything
-    here = os.path.abspath(os.getcwd())
-    target = os.path.abspath(os.path.join(here, filename))
-    if os.path.dirname(target) != here:
-        print("Error: suggested filename (%s) would be outside current directory"
-              % (filename,))
-        record_pipe.send_record("bad filename\n")
-        record_pipe.close()
-        return 1
+    target = so["output-file"]
+    if not target:
+        # allow the sender to specify the filename, but only write to the
+        # current directory, and never overwrite anything
+        here = os.path.abspath(os.getcwd())
+        target = os.path.abspath(os.path.join(here, filename))
+        if os.path.dirname(target) != here:
+            print("Error: suggested filename (%s) would be outside current directory"
+                  % (filename,))
+            record_pipe.send_record("bad filename\n")
+            record_pipe.close()
+            return 1
     if os.path.exists(target):
         print("Error: refusing to overwrite existing file %s" % (filename,))
         record_pipe.send_record("file already exists\n")
@@ -79,7 +82,7 @@ def receive_file(so):
 
     os.rename(tmp, target)
 
-    print("Received file written to %s" % filename)
+    print("Received file written to %s" % target)
     record_pipe.send_record("ok\n")
     record_pipe.close()
     return 0

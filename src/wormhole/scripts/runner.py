@@ -17,6 +17,9 @@ class SendFileOptions(usage.Options):
     synopsis = "FILENAME"
 
 class ReceiveFileOptions(usage.Options):
+    optParameters = [
+        ["output-file", "o", None, "File to create"],
+        ]
     def parseArgs(self, code=None):
         self["code"] = code
     synopsis = "[CODE]"
