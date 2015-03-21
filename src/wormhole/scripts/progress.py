@@ -13,7 +13,7 @@ def print_progress(completed, expected):
     if expected > 9999*1000*1000:
         short_unit_size, short_unit_name = 1000*1000*1000, "GB"
 
-    percentage_complete = 1.0 * completed / expected
+    percentage_complete = (1.0 * completed / expected) if expected else 1.0
     bars = "#" * int(percentage_complete * 40)
     perc = int(100 * percentage_complete)
     short_unit_count = int(completed / short_unit_size)
