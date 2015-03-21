@@ -10,7 +10,7 @@ def send_file(so):
     # we're sending
     filename = so["filename"]
     assert os.path.isfile(filename)
-    transit_sender = TransitSender()
+    transit_sender = TransitSender(transit_relay=so.parent["transit-helper"])
 
     filesize = os.stat(filename).st_size
     data = json.dumps({
@@ -24,7 +24,7 @@ def send_file(so):
             },
         }).encode("utf-8")
 
-    i = Initiator(APPID, data)
+    i = Initiator(APPID, data, so.parent["relay-url"])
     code = i.get_code()
     print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)

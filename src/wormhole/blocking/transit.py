@@ -2,9 +2,9 @@ from __future__ import print_function
 import re, time, threading, socket, SocketServer
 from binascii import hexlify, unhexlify
 from nacl.secret import SecretBox
+from .. import const
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
-from ..const import TRANSIT_RELAY
 
 class TransitError(Exception):
     pass
@@ -270,7 +270,8 @@ class RecordPipe:
         self.skt.close()
 
 class Common:
-    def __init__(self):
+    def __init__(self, transit_relay=None):
+        self._transit_relay = transit_relay or const.TRANSIT_RELAY
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
         self._have_transit_key = threading.Condition()
@@ -291,7 +292,7 @@ class Common:
     def get_direct_hints(self):
         return self.my_direct_hints
     def get_relay_hints(self):
-        return [TRANSIT_RELAY]
+        return [self._transit_relay]
 
     def add_their_direct_hints(self, hints):
         self._their_direct_hints = [force_ascii(h) for h in hints]

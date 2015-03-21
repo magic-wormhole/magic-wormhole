@@ -8,7 +8,7 @@ APPID = "lothar.com/wormhole/file-xfer"
 
 def receive_file(so):
     # we're receiving
-    transit_receiver = TransitReceiver()
+    transit_receiver = TransitReceiver(transit_relay=so.parent["transit-helper"])
 
     mydata = json.dumps({
         "transit": {
@@ -16,7 +16,7 @@ def receive_file(so):
             "relay_connection_hints": transit_receiver.get_relay_hints(),
             },
         }).encode("utf-8")
-    r = Receiver(APPID, mydata)
+    r = Receiver(APPID, mydata, so.parent["relay-url"])
     code = so["code"]
     if not code:
         code = r.input_code("Enter receive-file wormhole code: ")

@@ -5,9 +5,8 @@ from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
-from .. import codes
+from .. import codes, const
 from ..util.hkdf import HKDF
-from ..const import RENDEZVOUS_RELAY
 
 SECOND = 1
 MINUTE = 60*SECOND
@@ -164,11 +163,11 @@ class Common:
         return HKDF(self.key, length, CTXinfo=purpose)
 
 class Initiator(Common):
-    def __init__(self, appid, data, relay=RENDEZVOUS_RELAY):
+    def __init__(self, appid, data, relay=None):
         self.appid = appid
         self.data = data
-        assert relay.endswith("/")
-        self.relay = relay
+        self.relay = relay or const.RENDEZVOUS_RELAY
+        assert self.relay.endswith("/")
         self.started = time.time()
         self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
@@ -204,11 +203,11 @@ class Initiator(Common):
 
 
 class Receiver(Common):
-    def __init__(self, appid, data, relay=RENDEZVOUS_RELAY):
+    def __init__(self, appid, data, relay=None):
         self.appid = appid
         self.data = data
-        self.relay = relay
-        assert relay.endswith("/")
+        self.relay = relay or const.RENDEZVOUS_RELAY
+        assert self.relay.endswith("/")
         self.started = time.time()
         self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE

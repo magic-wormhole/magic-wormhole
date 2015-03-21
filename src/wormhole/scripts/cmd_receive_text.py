@@ -7,7 +7,7 @@ APPID = "lothar.com/wormhole/text-xfer"
 def receive_text(so):
     # we're receiving
     data = json.dumps({"message": "ok"}).encode("utf-8")
-    r = Receiver(APPID, data)
+    r = Receiver(APPID, data, so.parent["relay-url"])
     code = so["code"]
     if not code:
         code = r.input_code("Enter receive-text wormhole code: ")
