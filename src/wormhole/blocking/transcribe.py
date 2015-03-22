@@ -5,7 +5,7 @@ from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
-from .. import codes, const
+from .. import codes
 from ..util.hkdf import HKDF
 
 SECOND = 1
@@ -167,10 +167,10 @@ class Common:
         return HKDF(self.key, length, CTXinfo=purpose)
 
 class Initiator(Common):
-    def __init__(self, appid, data, relay=None):
+    def __init__(self, appid, data, relay):
         self.appid = appid
         self.data = data
-        self.relay = relay or const.RENDEZVOUS_RELAY
+        self.relay = relay
         assert self.relay.endswith("/")
         self.started = time.time()
         self.wait = 0.5*SECOND
@@ -207,10 +207,10 @@ class Initiator(Common):
 
 
 class Receiver(Common):
-    def __init__(self, appid, data, relay=None):
+    def __init__(self, appid, data, relay):
         self.appid = appid
         self.data = data
-        self.relay = relay or const.RENDEZVOUS_RELAY
+        self.relay = relay
         assert self.relay.endswith("/")
         self.started = time.time()
         self.wait = 0.5*SECOND
