@@ -6,11 +6,11 @@ from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
-def send_file(so):
+def send_file(args):
     # we're sending
-    filename = so["filename"]
+    filename = args.filename
     assert os.path.isfile(filename)
-    transit_sender = TransitSender(transit_relay=so.parent["transit-helper"])
+    transit_sender = TransitSender(transit_relay=args.transit_helper)
 
     filesize = os.stat(filename).st_size
     data = json.dumps({
@@ -24,7 +24,7 @@ def send_file(so):
             },
         }).encode("utf-8")
 
-    i = Initiator(APPID, data, so.parent["relay-url"])
+    i = Initiator(APPID, data, args.relay_url)
     code = i.get_code()
     print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)

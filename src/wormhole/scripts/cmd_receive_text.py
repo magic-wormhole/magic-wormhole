@@ -4,11 +4,11 @@ from wormhole.blocking.transcribe import Receiver, WrongPasswordError
 
 APPID = "lothar.com/wormhole/text-xfer"
 
-def receive_text(so):
+def receive_text(args):
     # we're receiving
     data = json.dumps({"message": "ok"}).encode("utf-8")
-    r = Receiver(APPID, data, so.parent["relay-url"])
-    code = so["code"]
+    r = Receiver(APPID, data, args.relay_url)
+    code = args.code
     if not code:
         code = r.input_code("Enter receive-text wormhole code: ")
     r.set_code(code)

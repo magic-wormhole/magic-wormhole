@@ -4,12 +4,12 @@ from wormhole.blocking.transcribe import Initiator, WrongPasswordError
 
 APPID = "lothar.com/wormhole/text-xfer"
 
-def send_text(so):
+def send_text(args):
     # we're sending
-    message = so["text"]
+    message = args.text
     data = json.dumps({"message": message,
                        }).encode("utf-8")
-    i = Initiator(APPID, data, so.parent["relay-url"])
+    i = Initiator(APPID, data, args.relay_url)
     code = i.get_code()
     print("On the other computer, please run: wormhole receive-text")
     print("Wormhole code is: %s" % code)

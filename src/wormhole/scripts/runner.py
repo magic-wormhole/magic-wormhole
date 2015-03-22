@@ -1,93 +1,69 @@
-import sys
-from twisted.python import usage
+import sys, argparse
+from textwrap import dedent
 from .. import public_relay
+from .. import __version__
+from . import cmd_send_text, cmd_receive_text, cmd_send_file, cmd_receive_file
 
-class SendTextOptions(usage.Options):
-    def parseArgs(self, text):
-        self["text"] = text
-    synopsis = "TEXT"
+parser = argparse.ArgumentParser(
+    usage="wormhole SUBCOMMAND (subcommand-options)",
+    description=dedent("""
+    Create a Magic Wormhole and communicate through it. Wormholes are created
+    by speaking the same magic CODE in two different places at the same time.
+    Wormholes are secure against anyone who doesn't use the same code."""),
+    )
+parser.add_argument("--version", action="version",
+                    version="magic-wormhole "+ __version__)
+g = parser.add_argument_group("wormhole configuration options")
+g.add_argument("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
+               metavar="URL", help="rendezvous relay to use")
+g.add_argument("--transit-helper", default=public_relay.TRANSIT_RELAY,
+               metavar="tcp:HOST:PORT", help="transit relay to use")
+subparsers = parser.add_subparsers(title="subcommands",
+                                   dest="subcommand")
 
-class ReceiveTextOptions(usage.Options):
-    def parseArgs(self, code=None):
-        self["code"] = code
-    synopsis = "[CODE]"
 
-class SendFileOptions(usage.Options):
-    def parseArgs(self, filename):
-        self["filename"] = filename
-    synopsis = "FILENAME"
+p = subparsers.add_parser("send-text", description="Send a text mesasge",
+                          usage="wormhole send-text TEXT")
+p.add_argument("text", metavar="TEXT", help="the message to send (a string)")
+p.set_defaults(func=cmd_send_text.send_text)
 
-class ReceiveFileOptions(usage.Options):
-    optParameters = [
-        ["output-file", "o", None, "File to create"],
-        ]
-    def parseArgs(self, code=None):
-        self["code"] = code
-    synopsis = "[CODE]"
+p = subparsers.add_parser("receive-text", description="Receive a text message",
+                          usage="wormhole receive-text [CODE]")
+p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
+               help=dedent("""\
+               The magic-wormhole code, from the sender. If omitted, the
+               program will ask for it, using tab-completion."""),
+               )
+p.set_defaults(func=cmd_receive_text.receive_text)
 
-class Options(usage.Options):
-    synopsis = "\nUsage: wormhole <command>"
-    optParameters = [
-        ["relay-url", None, public_relay.RENDEZVOUS_RELAY,
-         "rendezvous relay to use (URL)"],
-        ["transit-helper", None, public_relay.TRANSIT_RELAY,
-         "transit relay to use (tcp:HOST:PORT)"],
-        ]
-    subCommands = [("send-text", None, SendTextOptions, "Send a text message"),
-                   ("send-file", None, SendFileOptions, "Send a file"),
-                   ("receive-text", None, ReceiveTextOptions, "Receive a text message"),
-                   ("receive-file", None, ReceiveFileOptions, "Receive a file"),
-                   ]
+p = subparsers.add_parser("send-file", description="Send a file",
+                          usage="wormhole send-file FILENAME")
+p.add_argument("filename", metavar="FILENAME", help="The file to be sent")
+p.set_defaults(func=cmd_send_file.send_file)
 
-    def getUsage(self, **kwargs):
-        t = usage.Options.getUsage(self, **kwargs)
-        return t + "\nPlease run 'wormhole <command> --help' for more details on each command.\n"
+p = subparsers.add_parser("receive-file", description="Receive a file",
+                          usage="wormhole receive-file [-o FILENAME] [CODE]")
+p.add_argument("-o", "--output-file", default=None, metavar="FILENAME",
+               help=dedent("""\
+               The file to create, overriding the filename suggested by the
+               sender"""),
+               )
+p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
+               help=dedent("""\
+               The magic-wormhole code, from the sender. If omitted, the
+               program will ask for it, using tab-completion."""),
+               )
+p.set_defaults(func=cmd_receive_file.receive_file)
 
-    def postOptions(self):
-        if not hasattr(self, 'subOptions'):
-            raise usage.UsageError("must specify a command")
-
-def send_text(*args):
-    from . import cmd_send_text
-    return cmd_send_text.send_text(*args)
-
-def receive_text(*args):
-    from . import cmd_receive_text
-    return cmd_receive_text.receive_text(*args)
-
-def send_file(*args):
-    from . import cmd_send_file
-    return cmd_send_file.send_file(*args)
-
-def receive_file(*args):
-    from . import cmd_receive_file
-    return cmd_receive_file.receive_file(*args)
-
-DISPATCH = {"send-text": send_text,
-            "receive-text": receive_text,
-            "send-file": send_file,
-            "receive-file": receive_file,
-            }
 
 def run(args, stdout, stderr, executable=None):
     """This is invoked directly by the 'wormhole' entry-point script. It can
     also invoked by entry() below."""
-    config = Options()
+
+    args = parser.parse_args()
     try:
-        config.parseOptions(args)
-    except usage.error, e:
-        c = config
-        while hasattr(c, 'subOptions'):
-            c = c.subOptions
-        print >>stderr, str(c)
-        print >>stderr, e.args[0]
-        return 1
-    command = config.subCommand
-    so = config.subOptions
-    so["executable"] = executable
-    try:
-        #rc = DISPATCH[command](so, stdout, stderr)
-        rc = DISPATCH[command](so)
+        #rc = command.func(args, stdout, stderr)
+        rc = args.func(args)
         return rc
     except ImportError, e:
         print >>stderr, "--- ImportError ---"
@@ -100,3 +76,7 @@ def entry():
     """This is used by a setuptools entry_point. When invoked this way,
     setuptools has already put the installed package on sys.path ."""
     return run(sys.argv[1:], sys.stdout, sys.stderr, executable=sys.argv[0])
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    print args

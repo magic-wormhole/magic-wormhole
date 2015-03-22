@@ -6,9 +6,9 @@ from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
-def receive_file(so):
+def receive_file(args):
     # we're receiving
-    transit_receiver = TransitReceiver(transit_relay=so.parent["transit-helper"])
+    transit_receiver = TransitReceiver(transit_relay=args.transit_helper)
 
     mydata = json.dumps({
         "transit": {
@@ -16,8 +16,8 @@ def receive_file(so):
             "relay_connection_hints": transit_receiver.get_relay_hints(),
             },
         }).encode("utf-8")
-    r = Receiver(APPID, mydata, so.parent["relay-url"])
-    code = so["code"]
+    r = Receiver(APPID, mydata, args.relay_url)
+    code = args.code
     if not code:
         code = r.input_code("Enter receive-file wormhole code: ")
     r.set_code(code)
@@ -44,7 +44,7 @@ def receive_file(so):
     print("Receiving %d bytes for '%s' (%s).." % (filesize, filename,
                                                   transit_receiver.describe()))
 
-    target = so["output-file"]
+    target = args.output_file
     if not target:
         # allow the sender to specify the filename, but only write to the
         # current directory, and never overwrite anything

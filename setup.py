@@ -23,7 +23,7 @@ setup(name="wormhole-sync",
                 "wormhole.test", "wormhole.util"],
       entry_points={"console_scripts":
                     ["wormhole = wormhole.scripts.runner:entry"]},
-      install_requires=["spake2", "pynacl", "requests", "twisted"],
+      install_requires=["spake2", "pynacl", "requests", "argparse"],
       test_suite="wormhole.test",
       cmdclass=commands,
       )
