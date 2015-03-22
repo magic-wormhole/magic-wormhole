@@ -37,14 +37,15 @@ class ReceiverWrongPasswordError(WrongPasswordError):
     giving both you and the attacker another chance.
     """
 
-# POST /allocate                                  -> {channel-id: INT}
-#  these return all messages for CHANNEL-ID= and WHICH= but SIDE!=
-#  WHICH=(pake,data)
-# POST /CHANNEL-ID/SIDE/WHICH/post  {message: STR} -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/WHICH/poll                 -> {messages: [STR..]}
-# GET  /CHANNEL-ID/SIDE/WHICH/poll (eventsource)   -> STR, STR, ..
+# relay URLs are:
 #
-# POST /CHANNEL-ID/SIDE/deallocate                -> waiting | deleted
+# POST /allocate                                  -> {channel-id: INT}
+#  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
+# POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
+# POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
+# GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
+#
+# POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
 class EventSourceFollower:
     def __init__(self, url, timeout):
@@ -86,10 +87,13 @@ class EventSourceFollower:
         return self.iter_events().next()
 
 class Common:
-    def url(self, suffix):
-        return "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, suffix)
+    def url(self, verb, msgnum=None):
+        url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
+        if msgnum is not None:
+            url += "/" + msgnum
+        return url
 
-    def get(self, old_msgs, url_suffix):
+    def get(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
@@ -105,7 +109,7 @@ class Common:
             if remaining < 0:
                 raise Timeout
             #time.sleep(self.wait)
-            f = EventSourceFollower(self.url(url_suffix), remaining)
+            f = EventSourceFollower(self.url(verb, msgnum), remaining)
             msgs = [json.loads(f.get_message())["message"]]
             f.close()
         return msgs
@@ -119,13 +123,13 @@ class Common:
     def _post_pake(self):
         msg = self.sp.start()
         post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(self.url("pake/post"), data=json.dumps(post_data))
+        r = requests.post(self.url("post", "pake"), data=json.dumps(post_data))
         r.raise_for_status()
         other_msgs = r.json()["messages"]
         return other_msgs
 
     def _get_pake(self, other_msgs):
-        msgs = self.get(other_msgs, "pake/poll")
+        msgs = self.get(other_msgs, "poll", "pake")
         pake_msg = unhexlify(msgs[0].encode("ascii"))
         key = self.sp.finish(pake_msg)
         return key
@@ -138,13 +142,13 @@ class Common:
 
     def _post_data(self, data):
         post_data = json.dumps({"message": hexlify(data).decode("ascii")})
-        r = requests.post(self.url("data/post"), data=post_data)
+        r = requests.post(self.url("post", "data"), data=post_data)
         r.raise_for_status()
         other_msgs = r.json()["messages"]
         return other_msgs
 
     def _get_data(self, other_msgs):
-        msgs = self.get(other_msgs, "data/poll")
+        msgs = self.get(other_msgs, "poll", "data")
         data = unhexlify(msgs[0].encode("ascii"))
         return data
 

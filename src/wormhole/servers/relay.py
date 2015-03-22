@@ -42,18 +42,18 @@ class EventsProtocol:
 
 # note: no versions of IE (including the current IE11) support EventSource
 
+# relay URLs are:
+#
+# POST /allocate                                  -> {channel-id: INT}
+#  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
+# POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
+# POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
+# GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
+#
+# POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
+
 class Channel(resource.Resource):
     isLeaf = True # I handle /CHANNEL-ID/*
-
-    valid_which = ["pake", "data"]
-    # WHICH=(pake,data)
-
-    #  these return all messages for CHANNEL-ID= and WHICH= but SIDE!=
-    # POST /CHANNEL-ID/SIDE/WHICH/post  {message: STR} -> {messages: [STR..]}
-    # POST /CHANNEL-ID/SIDE/WHICH/poll                 -> {messages: [STR..]}
-    # GET  /CHANNEL-ID/SIDE/WHICH/poll (eventsource)   -> STR, STR, ..
-    #
-    # POST /CHANNEL-ID/SIDE/deallocate                -> waiting | deleted
 
     def __init__(self, channel_id, relay):
         resource.Resource.__init__(self)
@@ -61,70 +61,70 @@ class Channel(resource.Resource):
         self.relay = relay
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
-        self.messages = [] # (side, which, str)
-        self.event_channels = set() # (side, which, ep)
+        self.messages = [] # (side, msgnum, str)
+        self.event_channels = set() # (side, msgnum, ep)
 
 
     def render_GET(self, request):
-        # rest of URL is: SIDE/WHICH/(post|poll)
+        # rest of URL is: SIDE/poll/MSGNUM
         their_side = request.postpath[0]
-        their_which = request.postpath[1]
+        if request.postpath[1] != "poll":
+            request.setResponseCode(http.BAD_REQUEST, "GET to wrong URL")
+            return "GET is only for /SIDE/poll/MSGNUM"
+        their_msgnum = request.postpath[2]
         if "text/event-stream" not in (request.getHeader("accept") or ""):
             request.setResponseCode(http.BAD_REQUEST, "Must use EventSource")
             return "Must use EventSource (Content-Type: text/event-stream)"
         request.setHeader("content-type", "text/event-stream")
         ep = EventsProtocol(request)
-        handle = (their_side, their_which, ep)
+        handle = (their_side, their_msgnum, ep)
         self.event_channels.add(handle)
         request.notifyFinish().addErrback(self._shutdown, handle)
-        for (msg_side, msg_which, msg_str) in self.messages:
-            self.message_added(msg_side, msg_which, msg_str, channels=[handle])
+        for (msg_side, msg_msgnum, msg_str) in self.messages:
+            self.message_added(msg_side, msg_msgnum, msg_str, channels=[handle])
         return server.NOT_DONE_YET
 
     def _shutdown(self, _, handle):
         self.event_channels.discard(handle)
 
 
-    def message_added(self, msg_side, msg_which, msg_str, channels=None):
+    def message_added(self, msg_side, msg_msgnum, msg_str, channels=None):
         if channels is None:
             channels = self.event_channels
-        for (their_side, their_which, their_ep) in channels:
-            if msg_side != their_side and msg_which == their_which:
+        for (their_side, their_msgnum, their_ep) in channels:
+            if msg_side != their_side and msg_msgnum == their_msgnum:
                 data = json.dumps({ "side": msg_side, "message": msg_str })
                 their_ep.sendEvent(data)
 
 
     def render_POST(self, request):
-        # rest of URL is: SIDE/WHICH/(post|poll)
+        # rest of URL is: SIDE/(MSGNUM|deallocate)/(post|poll)
         side = request.postpath[0]
         self.sides.add(side)
-        which = request.postpath[1]
+        verb = request.postpath[1]
 
-        if which == "deallocate":
+        if verb == "deallocate":
             self.sides.remove(side)
             if self.sides:
                 return "waiting\n"
             self.relay.free_child(self.channel_id)
             return "deleted\n"
 
-        if which not in self.valid_which:
-            request.setResponseCode(http.BAD_REQUEST)
-            return "bad command, want 'pake' or 'data' or 'deallocate'\n"
-
-        verb = request.postpath[2]
         if verb not in ("post", "poll"):
             request.setResponseCode(http.BAD_REQUEST)
             return "bad verb, want 'post' or 'poll'\n"
 
+        msgnum = request.postpath[2]
+
         other_messages = []
-        for (msg_side, msg_which, msg_str) in self.messages:
-            if msg_side != side and msg_which == which:
+        for (msg_side, msg_msgnum, msg_str) in self.messages:
+            if msg_side != side and msg_msgnum == msgnum:
                 other_messages.append(msg_str)
 
         if verb == "post":
             data = json.load(request.content)
-            self.messages.append( (side, which, data["message"]) )
-            self.message_added(side, which, data["message"])
+            self.messages.append( (side, msgnum, data["message"]) )
+            self.message_added(side, msgnum, data["message"])
 
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps({"messages": other_messages})+"\n"
