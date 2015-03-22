@@ -1,6 +1,6 @@
 import sys
 from twisted.python import usage
-from .. import const
+from .. import public_relay
 
 class SendTextOptions(usage.Options):
     def parseArgs(self, text):
@@ -28,9 +28,9 @@ class ReceiveFileOptions(usage.Options):
 class Options(usage.Options):
     synopsis = "\nUsage: wormhole <command>"
     optParameters = [
-        ["relay-url", None, const.RENDEZVOUS_RELAY,
+        ["relay-url", None, public_relay.RENDEZVOUS_RELAY,
          "rendezvous relay to use (URL)"],
-        ["transit-helper", None, const.TRANSIT_RELAY,
+        ["transit-helper", None, public_relay.TRANSIT_RELAY,
          "transit relay to use (tcp:HOST:PORT)"],
         ]
     subCommands = [("send-text", None, SendTextOptions, "Send a text message"),
