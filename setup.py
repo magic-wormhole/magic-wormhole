@@ -10,11 +10,11 @@ versioneer.parentdir_prefix = "wormhole-sync"
 
 commands = versioneer.get_cmdclass()
 
-setup(name="wormhole-sync",
+setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
       author="Brian Warner",
-      author_email="warner-wormholesync@lothar.com",
+      author_email="warner-magic-wormhole@lothar.com",
       license="MIT",
       url="https://github.com/warner/wormhole-sync",
       package_dir={"": "src"},
