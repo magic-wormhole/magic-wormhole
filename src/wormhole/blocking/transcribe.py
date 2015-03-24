@@ -177,9 +177,9 @@ class Initiator(Common):
         self.timeout = 3*MINUTE
         self.side = "initiator"
 
-    def get_code(self):
+    def get_code(self, code_length=2):
         self.channel_id = self._allocate() # allocate channel
-        self.code = codes.make_code(self.channel_id)
+        self.code = codes.make_code(self.channel_id, code_length)
         self.sp = SPAKE2_A(self.code.encode("ascii"),
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
@@ -225,8 +225,9 @@ class Receiver(Common):
         channel_ids = r.json()["channel-ids"]
         return channel_ids
 
-    def input_code(self, prompt="Enter wormhole code: "):
-        code = codes.input_code_with_completion(prompt, self.list_channels)
+    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
+        code = codes.input_code_with_completion(prompt, self.list_channels,
+                                                code_length)
         return code
 
     def set_code(self, code):

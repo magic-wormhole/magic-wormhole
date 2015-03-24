@@ -25,7 +25,7 @@ def send_file(args):
         }).encode("utf-8")
 
     i = Initiator(APPID, data, args.relay_url)
-    code = i.get_code()
+    code = i.get_code(args.code_length)
     print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)
     print()

@@ -10,7 +10,7 @@ def send_text(args):
     data = json.dumps({"message": message,
                        }).encode("utf-8")
     i = Initiator(APPID, data, args.relay_url)
-    code = i.get_code()
+    code = i.get_code(args.code_length)
     print("On the other computer, please run: wormhole receive-text")
     print("Wormhole code is: %s" % code)
     print("")

@@ -18,6 +18,8 @@ g.add_argument("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
                metavar="URL", help="rendezvous relay to use")
 g.add_argument("--transit-helper", default=public_relay.TRANSIT_RELAY,
                metavar="tcp:HOST:PORT", help="transit relay to use")
+g.add_argument("-c", "--code-length", type=int, default=2,
+               metavar="WORDS", help="length of code (in bytes/words)")
 subparsers = parser.add_subparsers(title="subcommands",
                                    dest="subcommand")
 

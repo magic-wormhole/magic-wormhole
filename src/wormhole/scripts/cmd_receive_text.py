@@ -10,7 +10,8 @@ def receive_text(args):
     r = Receiver(APPID, data, args.relay_url)
     code = args.code
     if not code:
-        code = r.input_code("Enter receive-text wormhole code: ")
+        code = r.input_code("Enter receive-text wormhole code: ",
+                            args.code_length)
     r.set_code(code)
     try:
         them_bytes = r.get_data()

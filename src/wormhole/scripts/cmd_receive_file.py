@@ -19,7 +19,8 @@ def receive_file(args):
     r = Receiver(APPID, mydata, args.relay_url)
     code = args.code
     if not code:
-        code = r.input_code("Enter receive-file wormhole code: ")
+        code = r.input_code("Enter receive-file wormhole code: ",
+                            args.code_length)
     r.set_code(code)
 
     try:
