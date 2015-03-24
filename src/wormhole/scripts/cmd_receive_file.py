@@ -10,21 +10,21 @@ def receive_file(args):
     # we're receiving
     transit_receiver = TransitReceiver(transit_relay=args.transit_helper)
 
-    mydata = json.dumps({
-        "transit": {
-            "direct_connection_hints": transit_receiver.get_direct_hints(),
-            "relay_connection_hints": transit_receiver.get_relay_hints(),
-            },
-        }).encode("utf-8")
-    r = Receiver(APPID, mydata, args.relay_url)
+    r = Receiver(APPID, args.relay_url)
     code = args.code
     if not code:
         code = r.input_code("Enter receive-file wormhole code: ",
                             args.code_length)
     r.set_code(code)
 
+    mydata = json.dumps({
+        "transit": {
+            "direct_connection_hints": transit_receiver.get_direct_hints(),
+            "relay_connection_hints": transit_receiver.get_relay_hints(),
+            },
+        }).encode("utf-8")
     try:
-        data = json.loads(r.get_data().decode("utf-8"))
+        data = json.loads(r.get_data(mydata).decode("utf-8"))
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1

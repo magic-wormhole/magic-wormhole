@@ -138,7 +138,7 @@ class Common:
         assert len(key) == SecretBox.KEY_SIZE
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
-        return box.encrypt(self.data, nonce)
+        return box.encrypt(data, nonce)
 
     def _post_data(self, data):
         post_data = json.dumps({"message": hexlify(data).decode("ascii")})
@@ -167,9 +167,8 @@ class Common:
         return HKDF(self.key, length, CTXinfo=purpose)
 
 class Initiator(Common):
-    def __init__(self, appid, data, relay):
+    def __init__(self, appid, relay):
         self.appid = appid
-        self.data = data
         self.relay = relay
         assert self.relay.endswith("/")
         self.started = time.time()
@@ -186,12 +185,12 @@ class Initiator(Common):
         self._post_pake()
         return self.code
 
-    def get_data(self):
+    def get_data(self, outbound_data):
         key = self._get_pake([])
         self.key = key
         try:
             outbound_key = self.derive_key(b"sender")
-            outbound_encrypted = self._encrypt_data(outbound_key, self.data)
+            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
             other_msgs = self._post_data(outbound_encrypted)
 
             inbound_encrypted = self._get_data(other_msgs)
@@ -207,9 +206,8 @@ class Initiator(Common):
 
 
 class Receiver(Common):
-    def __init__(self, appid, data, relay):
+    def __init__(self, appid, relay):
         self.appid = appid
-        self.data = data
         self.relay = relay
         assert self.relay.endswith("/")
         self.started = time.time()
@@ -239,7 +237,7 @@ class Receiver(Common):
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
 
-    def get_data(self):
+    def get_data(self, outbound_data):
         assert self.code is not None
         assert self.channel_id is not None
         other_msgs = self._post_pake()
@@ -248,7 +246,7 @@ class Receiver(Common):
 
         try:
             outbound_key = self.derive_key(b"receiver")
-            outbound_encrypted = self._encrypt_data(outbound_key, self.data)
+            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
             other_msgs = self._post_data(outbound_encrypted)
 
             inbound_encrypted = self._get_data(other_msgs)

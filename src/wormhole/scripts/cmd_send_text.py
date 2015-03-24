@@ -9,13 +9,13 @@ def send_text(args):
     message = args.text
     data = json.dumps({"message": message,
                        }).encode("utf-8")
-    i = Initiator(APPID, data, args.relay_url)
+    i = Initiator(APPID, args.relay_url)
     code = i.get_code(args.code_length)
     print("On the other computer, please run: wormhole receive-text")
     print("Wormhole code is: %s" % code)
     print("")
     try:
-        them_bytes = i.get_data()
+        them_bytes = i.get_data(data)
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1

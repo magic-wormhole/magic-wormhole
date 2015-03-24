@@ -12,6 +12,12 @@ def send_file(args):
     assert os.path.isfile(filename)
     transit_sender = TransitSender(transit_relay=args.transit_helper)
 
+    i = Initiator(APPID, args.relay_url)
+    code = i.get_code(args.code_length)
+    print("On the other computer, please run: wormhole receive-file")
+    print("Wormhole code is '%s'" % code)
+    print()
+
     filesize = os.stat(filename).st_size
     data = json.dumps({
         "file": {
@@ -24,13 +30,8 @@ def send_file(args):
             },
         }).encode("utf-8")
 
-    i = Initiator(APPID, data, args.relay_url)
-    code = i.get_code(args.code_length)
-    print("On the other computer, please run: wormhole receive-file")
-    print("Wormhole code is '%s'" % code)
-    print()
     try:
-        them_bytes = i.get_data()
+        them_bytes = i.get_data(data)
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
