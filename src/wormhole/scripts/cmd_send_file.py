@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json
+import os, sys, json, binascii
 from wormhole.blocking.transcribe import Initiator, WrongPasswordError
 from wormhole.blocking.transit import TransitSender
 from .progress import start_progress, update_progress, finish_progress
@@ -17,6 +17,20 @@ def send_file(args):
     print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)
     print()
+
+    if args.verify:
+        verifier = binascii.hexlify(i.get_verifier())
+        while True:
+            ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
+            if ok.lower() == "yes":
+                break
+            if ok.lower() == "no":
+                print("verification rejected, abandoning transfer",
+                      file=sys.stderr)
+                reject_data = json.dumps({"error": "verification rejected",
+                                          }).encode("utf-8")
+                i.get_data(reject_data)
+                return 1
 
     filesize = os.stat(filename).st_size
     data = json.dumps({

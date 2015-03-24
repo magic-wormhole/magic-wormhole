@@ -175,6 +175,8 @@ class Initiator(Common):
         self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
         self.side = "initiator"
+        self.key = None
+        self.verifier = None
 
     def get_code(self, code_length=2):
         self.channel_id = self._allocate() # allocate channel
@@ -185,9 +187,18 @@ class Initiator(Common):
         self._post_pake()
         return self.code
 
+    def _wait_for_key(self):
+        if not self.key:
+            key = self._get_pake([])
+            self.key = key
+            self.verifier = self.derive_key(self.appid+b":Verifier")
+
+    def get_verifier(self):
+        self._wait_for_key()
+        return self.verifier
+
     def get_data(self, outbound_data):
-        key = self._get_pake([])
-        self.key = key
+        self._wait_for_key()
         try:
             outbound_key = self.derive_key(b"sender")
             outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
@@ -216,6 +227,8 @@ class Receiver(Common):
         self.side = "receiver"
         self.code = None
         self.channel_id = None
+        self.key = None
+        self.verifier = None
 
     def list_channels(self):
         r = requests.get(self.relay + "list")
@@ -237,12 +250,21 @@ class Receiver(Common):
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
 
+    def _wait_for_key(self):
+        if not self.key:
+            other_msgs = self._post_pake()
+            key = self._get_pake(other_msgs)
+            self.key = key
+            self.verifier = self.derive_key(self.appid+b":Verifier")
+
+    def get_verifier(self):
+        self._wait_for_key()
+        return self.verifier
+
     def get_data(self, outbound_data):
         assert self.code is not None
         assert self.channel_id is not None
-        other_msgs = self._post_pake()
-        key = self._get_pake(other_msgs)
-        self.key = key
+        self._wait_for_key()
 
         try:
             outbound_key = self.derive_key(b"receiver")

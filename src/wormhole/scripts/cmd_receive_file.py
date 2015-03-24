@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, os, json
+import sys, os, json, binascii
 from wormhole.blocking.transcribe import Receiver, WrongPasswordError
 from wormhole.blocking.transit import TransitReceiver, TransitError
 from .progress import start_progress, update_progress, finish_progress
@@ -17,6 +17,10 @@ def receive_file(args):
                             args.code_length)
     r.set_code(code)
 
+    if args.verify:
+        verifier = binascii.hexlify(r.get_verifier())
+        print("Verifier %s." % verifier)
+
     mydata = json.dumps({
         "transit": {
             "direct_connection_hints": transit_receiver.get_direct_hints(),
@@ -29,6 +33,10 @@ def receive_file(args):
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
     #print("their data: %r" % (data,))
+
+    if "error" in data:
+        print("ERROR: " + data["error"], file=sys.stderr)
+        return 1
 
     file_data = data["file"]
     filename = os.path.basename(file_data["filename"]) # unicode
