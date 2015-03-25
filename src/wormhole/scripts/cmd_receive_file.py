@@ -65,7 +65,7 @@ def receive_file(args):
             record_pipe.send_record("bad filename\n")
             record_pipe.close()
             return 1
-    if os.path.exists(target):
+    if os.path.exists(target) and not args.overwrite:
         print("Error: refusing to overwrite existing file %s" % (filename,))
         record_pipe.send_record("file already exists\n")
         record_pipe.close()

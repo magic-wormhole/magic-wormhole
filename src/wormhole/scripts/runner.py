@@ -52,6 +52,12 @@ p.add_argument("-o", "--output-file", default=None, metavar="FILENAME",
                The file to create, overriding the filename suggested by the
                sender"""),
                )
+p.add_argument("--overwrite", action="store_true",
+               help=dedent("""\
+               Allow the output file to be overwritten. By default, if the
+               output file already exists, the program will refuse to
+               overwrite it."""),
+               )
 p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                help=dedent("""\
                The magic-wormhole code, from the sender. If omitted, the
