@@ -333,4 +333,4 @@ class RelayServer(service.MultiService):
         self.transport_service.setServiceParent(self)
 
 application = service.Application("foo")
-RelayServer("tcp:8009", "tcp:8010").setServiceParent(application)
+RelayServer("tcp:3000", "tcp:3001").setServiceParent(application)
