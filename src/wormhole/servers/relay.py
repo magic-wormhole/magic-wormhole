@@ -324,7 +324,7 @@ class RelayServer(service.MultiService):
         self.relayport_service = strports.service(relayport, site)
         self.relayport_service.setServiceParent(self)
         self.relay = Relay() # accessible from tests
-        self.root.putChild("relay", self.relay)
+        self.root.putChild("wormhole-relay", self.relay)
         t = internet.TimerService(5*MINUTE, self.relay.prune_old_channels)
         t.setServiceParent(self)
         self.transit = Transit()
