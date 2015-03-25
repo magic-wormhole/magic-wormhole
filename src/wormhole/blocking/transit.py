@@ -2,7 +2,6 @@ from __future__ import print_function
 import re, time, threading, socket, SocketServer
 from binascii import hexlify, unhexlify
 from nacl.secret import SecretBox
-from .. import const
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
 
@@ -270,8 +269,8 @@ class RecordPipe:
         self.skt.close()
 
 class Common:
-    def __init__(self, transit_relay=None):
-        self._transit_relay = transit_relay or const.TRANSIT_RELAY
+    def __init__(self, transit_relay):
+        self._transit_relay = transit_relay
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
         self._have_transit_key = threading.Condition()

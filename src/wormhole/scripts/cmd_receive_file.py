@@ -8,7 +8,7 @@ APPID = "lothar.com/wormhole/file-xfer"
 
 def receive_file(args):
     # we're receiving
-    transit_receiver = TransitReceiver(transit_relay=args.transit_helper)
+    transit_receiver = TransitReceiver(args.transit_helper)
 
     r = Receiver(APPID, args.relay_url)
     code = args.code

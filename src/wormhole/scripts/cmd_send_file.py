@@ -10,7 +10,7 @@ def send_file(args):
     # we're sending
     filename = args.filename
     assert os.path.isfile(filename)
-    transit_sender = TransitSender(transit_relay=args.transit_helper)
+    transit_sender = TransitSender(args.transit_helper)
 
     i = Initiator(APPID, args.relay_url)
     code = i.get_code(args.code_length)
