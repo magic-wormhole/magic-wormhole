@@ -1,4 +1,4 @@
-# wormhole-sync
+# Magic-Wormhole
 
 This library provides a primitive function to securely transfer small amounts
 of data between two computers. Both machines must be connected to the
@@ -29,25 +29,30 @@ The synchronous+blocking flow looks like this:
 
 ```python
 from wormhole.transcribe import Initiator
-data = b"initiator's data"
-i = Initiator("appid", data)
+from wormhole.public_relay import RENDEZVOUS_RELAY
+mydata = b"initiator's data"
+i = Initiator("appid", RENDEZVOUS_RELAY)
 code = i.get_code()
 print("Invitation Code: %s" % code)
-theirdata = i.get_data()
+theirdata = i.get_data(mydata)
 print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
 ```python
 import sys
 from wormhole.transcribe import Receiver
-data = b"receiver's data"
+from wormhole.public_relay import RENDEZVOUS_RELAY
+mydata = b"receiver's data"
 code = sys.argv[1]
-r = Receiver("appid", code, data)
-theirdata = r.get_data()
+r = Receiver("appid", RENDEZVOUS_RELAY)
+r.set_code(code)
+theirdata = r.get_data(mydata)
 print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
-The Twisted-friendly flow looks like this:
+## Twisted (TODO)
+
+The Twisted-friendly flow, which is not yet implemented, may look like this:
 
 ```python
 from twisted.internet import reactor
@@ -80,7 +85,7 @@ reactor.run()
 
 ## Application Identifier
 
-Applications using this library should provide an "application identifier", a
+Applications using this library must provide an "application identifier", a
 simple bytestring that distinguishes one application from another. To ensure
 uniqueness, use a domain name. To use multiple apps for a single domain, just
 use a string like `example.com/app1`. This string must be the same on both
@@ -92,13 +97,18 @@ ten initiators are active for a given app-id, the connection-id will only
 need to contain a single digit, even if some other app-id is currently using
 thousands of concurrent sessions.
 
-## Custom Rendezvous Server
+## Rendezvous Relays
 
-The library uses a baked-in rendezvous server hostname. This must be the same
-for both clients. To use a different hostname provide it as the `rendezvous=`
-argument to the `Initiator`/`Receiver` constructor.
+The library depends upon a "rendezvous relay", which is a server (with a
+public IP address) that delivers small encrypted messages from one client to
+the other. This must be the same for both clients, and is generally baked-in
+to the application source code or default config.
 
-## Polling and Shutdown
+This library includes the URL of a public relay run by the author.
+Application developers can use this one, or they can run their own (see
+src/wormhole/servers/relay.py) and configure their clients to use it instead.
+
+## Polling and Shutdown (TODO)
 
 The reactor-based (Twisted-style) forms of these objects need to establish
 TCP connections, re-establish them if they are lost, and sometimes (for
@@ -125,7 +135,7 @@ sync will be abandoned, and all callbacks will errback with a TimeoutError.
 
 Both have defaults suitable for face-to-face realtime setup environments.
 
-## Serialization
+## Serialization (TODO)
 
 You may not be able to hold the Initiator/Receiver object in memory for the
 whole sync process: maybe you allow it to wait for several days, but the
