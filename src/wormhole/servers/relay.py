@@ -4,6 +4,7 @@ from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import strports, service, internet
 from twisted.web import server, static, resource, http
+from .. import __version__
 
 SECONDS = 1.0
 MINUTE = 60*SECONDS
@@ -42,6 +43,11 @@ class EventsProtocol:
 
 # note: no versions of IE (including the current IE11) support EventSource
 
+WELCOME = {
+    "current_version": __version__,
+    "motd": "Welcome to the public relay.",
+    }
+
 # relay URLs are:
 #
 # POST /allocate                                  -> {channel-id: INT}
@@ -77,6 +83,7 @@ class Channel(resource.Resource):
             return "Must use EventSource (Content-Type: text/event-stream)"
         request.setHeader("content-type", "text/event-stream")
         ep = EventsProtocol(request)
+        ep.sendEvent(json.dumps(WELCOME), name="welcome")
         handle = (their_side, their_msgnum, ep)
         self.event_channels.add(handle)
         request.notifyFinish().addErrback(self._shutdown, handle)
@@ -127,7 +134,8 @@ class Channel(resource.Resource):
             self.message_added(side, msgnum, data["message"])
 
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"messages": other_messages})+"\n"
+        return json.dumps({"welcome": WELCOME,
+                           "messages": other_messages})+"\n"
 
 class Allocated(resource.Resource):
     def __init__(self, channel_id):
@@ -135,7 +143,8 @@ class Allocated(resource.Resource):
         self.channel_id = channel_id
     def render_POST(self, request):
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"channel-id": self.channel_id})+"\n"
+        return json.dumps({"welcome": WELCOME,
+                           "channel-id": self.channel_id})+"\n"
 
 class ChannelList(resource.Resource):
     def __init__(self, channel_ids):
@@ -143,7 +152,8 @@ class ChannelList(resource.Resource):
         self.channel_ids = channel_ids
     def render_GET(self, request):
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"channel-ids": self.channel_ids})+"\n"
+        return json.dumps({"welcome": WELCOME,
+                           "channel-ids": self.channel_ids})+"\n"
 
 class Relay(resource.Resource):
     def __init__(self):
