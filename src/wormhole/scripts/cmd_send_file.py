@@ -1,13 +1,14 @@
 from __future__ import print_function
-import os, sys, json, binascii
-from wormhole.blocking.transcribe import Initiator, WrongPasswordError
-from wormhole.blocking.transit import TransitSender
-from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
 def send_file(args):
     # we're sending
+    import os, sys, json, binascii
+    from wormhole.blocking.transcribe import Initiator, WrongPasswordError
+    from wormhole.blocking.transit import TransitSender
+    from .progress import start_progress, update_progress, finish_progress
+
     filename = args.filename
     assert os.path.isfile(filename)
     transit_sender = TransitSender(args.transit_helper)

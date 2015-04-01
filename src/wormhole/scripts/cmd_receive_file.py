@@ -1,13 +1,14 @@
 from __future__ import print_function
-import sys, os, json, binascii
-from wormhole.blocking.transcribe import Receiver, WrongPasswordError
-from wormhole.blocking.transit import TransitReceiver, TransitError
-from .progress import start_progress, update_progress, finish_progress
 
 APPID = "lothar.com/wormhole/file-xfer"
 
 def receive_file(args):
     # we're receiving
+    import sys, os, json, binascii
+    from wormhole.blocking.transcribe import Receiver, WrongPasswordError
+    from wormhole.blocking.transit import TransitReceiver, TransitError
+    from .progress import start_progress, update_progress, finish_progress
+
     transit_receiver = TransitReceiver(args.transit_helper)
 
     r = Receiver(APPID, args.relay_url)

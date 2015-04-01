@@ -1,11 +1,12 @@
 from __future__ import print_function
-import sys, json, binascii
-from wormhole.blocking.transcribe import Receiver, WrongPasswordError
 
 APPID = "lothar.com/wormhole/text-xfer"
 
 def receive_text(args):
     # we're receiving
+    import sys, json, binascii
+    from wormhole.blocking.transcribe import Receiver, WrongPasswordError
+
     r = Receiver(APPID, args.relay_url)
     code = args.code
     if not code:
