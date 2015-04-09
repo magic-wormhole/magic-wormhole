@@ -1,10 +1,11 @@
 from __future__ import print_function
-import time, requests, json, textwrap
+import sys, time, requests, json, textwrap
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
+from .. import __version__
 from .. import codes
 from ..util.hkdf import HKDF
 
@@ -94,6 +95,21 @@ class Common:
             url += "/" + msgnum
         return url
 
+    version_warning_displayed = False
+
+    def handle_welcome(self, welcome):
+        if self.version_warning_displayed:
+            return
+        if "-" in __version__:
+            # only warn if we're running a release version (e.g. 0.0.6, not
+            # 0.0.6-DISTANCE-gHASH)
+            return
+        if welcome["current_version"] != __version__:
+            print("Warning: errors may occur unless both sides are running the same version", file=sys.stderr)
+            print("Server claims %s is current, but ours is %s"
+                  % (welcome["current_version"], __version__), file=sys.stderr)
+            self.version_warning_displayed = True
+
     def get(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
@@ -112,6 +128,8 @@ class Common:
             #time.sleep(self.wait)
             f = EventSourceFollower(self.url(verb, msgnum), remaining)
             for (eventtype, data) in f.iter_events():
+                if eventtype == "welcome":
+                    self.handle_welcome(json.loads(data))
                 if eventtype == "message":
                     msgs = [json.loads(data)["message"]]
                     break
