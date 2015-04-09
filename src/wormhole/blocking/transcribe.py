@@ -7,6 +7,7 @@ from nacl.exceptions import CryptoError
 from nacl import utils
 from .. import __version__
 from .. import codes
+from ..errors import ServerError
 from ..util.hkdf import HKDF
 
 SECOND = 1
@@ -98,11 +99,13 @@ class Common:
     version_warning_displayed = False
 
     def handle_welcome(self, welcome):
-        if self.version_warning_displayed:
-            return
+        if "error" in welcome:
+            raise ServerError(welcome["error"], self.relay)
         if "-" in __version__:
             # only warn if we're running a release version (e.g. 0.0.6, not
             # 0.0.6-DISTANCE-gHASH)
+            return
+        if self.version_warning_displayed:
             return
         if welcome["current_version"] != __version__:
             print("Warning: errors may occur unless both sides are running the same version", file=sys.stderr)
@@ -139,7 +142,10 @@ class Common:
     def _allocate(self):
         r = requests.post(self.relay + "allocate")
         r.raise_for_status()
-        channel_id = r.json()["channel-id"]
+        data = r.json()
+        if "welcome" in data:
+            self.handle_welcome(data["welcome"])
+        channel_id = data["channel-id"]
         return channel_id
 
     def _post_pake(self):

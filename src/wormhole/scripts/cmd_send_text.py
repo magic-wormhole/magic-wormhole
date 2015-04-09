@@ -1,11 +1,13 @@
 from __future__ import print_function
+import sys, json, binascii
+from ..errors import handle_server_error
 
 APPID = "lothar.com/wormhole/text-xfer"
 
+@handle_server_error
 def send_text(args):
     # we're sending
-    import sys, json, binascii
-    from wormhole.blocking.transcribe import Initiator, WrongPasswordError
+    from ..blocking.transcribe import Initiator, WrongPasswordError
 
     i = Initiator(APPID, args.relay_url)
     code = i.get_code(args.code_length)
