@@ -23,7 +23,7 @@ setup(name="magic-wormhole",
                 "wormhole.test", "wormhole.util"],
       entry_points={"console_scripts":
                     ["wormhole = wormhole.scripts.runner:entry"]},
-      install_requires=["spake2", "pynacl", "requests", "argparse"],
+      install_requires=["spake2==0.2", "pynacl", "requests", "argparse"],
       test_suite="wormhole.test",
       cmdclass=commands,
       )
