@@ -96,9 +96,18 @@ class Common:
             url += "/" + msgnum
         return url
 
+    motd_displayed = False
     version_warning_displayed = False
 
     def handle_welcome(self, welcome):
+        if ("motd" in welcome and
+            not self.motd_displayed):
+            motd_lines = welcome["motd"].splitlines()
+            motd_formatted = "\n ".join(motd_lines)
+            print("Server (at %s) says:\n %s" % (self.relay, motd_formatted),
+                  file=sys.stderr)
+            self.motd_displayed = True
+
         # Only warn if we're running a release version (e.g. 0.0.6, not
         # 0.0.6-DISTANCE-gHASH). Only warn once.
         if ("-" not in __version__ and
@@ -108,6 +117,7 @@ class Common:
             print("Server claims %s is current, but ours is %s"
                   % (welcome["current_version"], __version__), file=sys.stderr)
             self.version_warning_displayed = True
+
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 

@@ -48,7 +48,9 @@ class EventsProtocol:
 
 WELCOME = {
     "current_version": __version__,
-    "motd": "Welcome to the public relay.",
+    # adding .motd will cause all clients to display the message, then keep
+    # running normally
+    #"motd": "Welcome to the public relay.\nPlease enjoy this service.",
     # adding .error will cause all clients to fail, with this message
     #"error": "This server has been disabled, see URL for details.",
     }
