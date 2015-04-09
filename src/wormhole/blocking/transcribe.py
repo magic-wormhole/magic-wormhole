@@ -99,19 +99,17 @@ class Common:
     version_warning_displayed = False
 
     def handle_welcome(self, welcome):
-        if "error" in welcome:
-            raise ServerError(welcome["error"], self.relay)
-        if "-" in __version__:
-            # only warn if we're running a release version (e.g. 0.0.6, not
-            # 0.0.6-DISTANCE-gHASH)
-            return
-        if self.version_warning_displayed:
-            return
-        if welcome["current_version"] != __version__:
+        # Only warn if we're running a release version (e.g. 0.0.6, not
+        # 0.0.6-DISTANCE-gHASH). Only warn once.
+        if ("-" not in __version__ and
+            not self.version_warning_displayed and
+            welcome["current_version"] != __version__):
             print("Warning: errors may occur unless both sides are running the same version", file=sys.stderr)
             print("Server claims %s is current, but ours is %s"
                   % (welcome["current_version"], __version__), file=sys.stderr)
             self.version_warning_displayed = True
+        if "error" in welcome:
+            raise ServerError(welcome["error"], self.relay)
 
     def get(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
