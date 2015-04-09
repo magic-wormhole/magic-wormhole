@@ -54,3 +54,4 @@ docs/_build/
 
 # PyBuilder
 target/
+/twistd.pid
