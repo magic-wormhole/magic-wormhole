@@ -76,15 +76,16 @@ class EventSourceFollower:
         # arrived. So unless we set chunk_size=1, we won't hear about lines
         # for a long time. I'd prefer that chunk_size behaved like
         # read(size), and gave you 1<=x<=size bytes in response.
+        eventtype = "message"
         lines_iter = self.resp.iter_lines(chunk_size=1)
         for (fieldname, data) in self._get_fields(lines_iter):
             if fieldname == "data":
-                yield data
+                yield (eventtype, data)
+                eventtype = "message"
+            elif fieldname == "event":
+                eventtype = data
             else:
                 print("weird fieldname", fieldname, data)
-
-    def get_message(self):
-        return self.iter_events().next()
 
 class Common:
     def url(self, verb, msgnum=None):
@@ -110,7 +111,10 @@ class Common:
                 raise Timeout
             #time.sleep(self.wait)
             f = EventSourceFollower(self.url(verb, msgnum), remaining)
-            msgs = [json.loads(f.get_message())["message"]]
+            for (eventtype, data) in f.iter_events():
+                if eventtype == "message":
+                    msgs = [json.loads(data)["message"]]
+                    break
             f.close()
         return msgs
 

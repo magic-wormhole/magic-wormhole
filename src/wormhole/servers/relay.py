@@ -30,10 +30,13 @@ class EventsProtocol:
             # e.g. if name=foo, then the client web page should do:
             # (new EventSource(url)).addEventListener("foo", handlerfunc)
             # Note that this basically defaults to "message".
+            self.request.write("\n")
         if id:
             self.request.write("id: %s\n" % id.encode("utf-8"))
+            self.request.write("\n")
         if retry:
             self.request.write("retry: %d\n" % retry) # milliseconds
+            self.request.write("\n")
         for line in data.splitlines():
             self.request.write("data: %s\n" % line.encode("utf-8"))
         self.request.write("\n")
