@@ -1,2 +1,5 @@
 include versioneer.py
 include src/wormhole/_version.py
+include LICENSE README.md
+recursive-include docs *.md *.rst
+
