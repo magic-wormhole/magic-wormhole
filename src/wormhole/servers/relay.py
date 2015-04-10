@@ -5,6 +5,7 @@ from twisted.internet import protocol
 from twisted.application import strports, service, internet
 from twisted.web import server, static, resource, http
 from .. import __version__
+from ..database import get_db
 
 SECONDS = 1.0
 MINUTE = 60*SECONDS
@@ -58,10 +59,11 @@ class EventsProtocol:
 class Channel(resource.Resource):
     isLeaf = True # I handle /CHANNEL-ID/*
 
-    def __init__(self, channel_id, relay, welcome):
+    def __init__(self, channel_id, relay, db, welcome):
         resource.Resource.__init__(self)
         self.channel_id = channel_id
         self.relay = relay
+        self.db = db
         self.welcome = welcome
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
@@ -145,7 +147,7 @@ class Allocator(resource.Resource):
         #side = request.postpath[0]
         channel_id = self.relay.allocate_channel_id()
         self.relay.channels[channel_id] = Channel(channel_id, self.relay,
-                                                  self.welcome)
+                                                  self.relay.db, self.welcome)
         log.msg("allocated #%d, now have %d channels" %
                 (channel_id, len(self.relay.channels)))
         request.setHeader("content-type", "application/json; charset=utf-8")
@@ -163,8 +165,9 @@ class ChannelList(resource.Resource):
                            "channel-ids": self.channel_ids})+"\n"
 
 class Relay(resource.Resource):
-    def __init__(self, welcome):
+    def __init__(self, db, welcome):
         resource.Resource.__init__(self)
+        self.db = db
         self.welcome = welcome
         self.channels = {}
 
@@ -205,7 +208,8 @@ class Relay(resource.Resource):
         if not channel_id in self.channels:
             log.msg("claimed #%d, now have %d channels" %
                     (channel_id, len(self.channels)))
-            self.channels[channel_id] = Channel(channel_id, self, self.welcome)
+            self.channels[channel_id] = Channel(channel_id, self, self.db,
+                                                self.welcome)
         return self.channels[channel_id]
 
     def free_child(self, channel_id):
@@ -342,7 +346,7 @@ class Root(resource.Resource):
 class RelayServer(service.MultiService):
     def __init__(self, relayport, transitport, advertise_version):
         service.MultiService.__init__(self)
-
+        self.db = get_db("relay.sqlite")
         welcome = {
             "current_version": __version__,
             # adding .motd will cause all clients to display the message,
@@ -358,7 +362,7 @@ class RelayServer(service.MultiService):
         site = server.Site(self.root)
         self.relayport_service = strports.service(relayport, site)
         self.relayport_service.setServiceParent(self)
-        self.relay = Relay(welcome) # accessible from tests
+        self.relay = Relay(self.db, welcome) # accessible from tests
         self.root.putChild("wormhole-relay", self.relay)
         t = internet.TimerService(5*MINUTE, self.relay.prune_old_channels)
         t.setServiceParent(self)
