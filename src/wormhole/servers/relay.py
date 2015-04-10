@@ -205,9 +205,9 @@ class Relay(resource.Resource):
                                       "invalid channel id")
         channel_id = int(path)
         if not channel_id in self.channels:
-            return resource.ErrorPage(http.NOT_FOUND,
-                                      "invalid channel id",
-                                      "invalid channel id")
+            log.msg("claimed #%d, now have %d channels" %
+                    (channel_id, len(self.channels)))
+            self.channels[channel_id] = Channel(channel_id, self)
         return self.channels[channel_id]
 
     def free_child(self, channel_id):
