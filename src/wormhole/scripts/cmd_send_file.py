@@ -16,6 +16,9 @@ def send_file(args):
     transit_sender = TransitSender(args.transit_helper)
 
     i = Initiator(APPID, args.relay_url)
+    if args.zeromode:
+        assert not args.code
+        args.code = "0-"
     if args.code:
         i.set_code(args.code)
         code = args.code
@@ -24,8 +27,11 @@ def send_file(args):
     other_cmd = "wormhole receive-file"
     if args.verify:
         other_cmd = "wormhole --verify receive-file"
+    if args.zeromode:
+        other_cmd += " -0"
     print("On the other computer, please run: %s" % other_cmd)
-    print("Wormhole code is '%s'" % code)
+    if not args.zeromode:
+        print("Wormhole code is '%s'" % code)
     print()
 
     if args.verify:

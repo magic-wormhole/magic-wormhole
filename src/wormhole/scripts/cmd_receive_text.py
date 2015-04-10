@@ -10,6 +10,9 @@ def receive_text(args):
     from ..blocking.transcribe import Receiver, WrongPasswordError
 
     r = Receiver(APPID, args.relay_url)
+    if args.zeromode:
+        assert not args.code
+        args.code = "0-"
     code = args.code
     if not code:
         code = r.input_code("Enter receive-text wormhole code: ",

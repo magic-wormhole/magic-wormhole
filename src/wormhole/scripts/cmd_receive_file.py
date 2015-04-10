@@ -14,6 +14,9 @@ def receive_file(args):
     transit_receiver = TransitReceiver(args.transit_helper)
 
     r = Receiver(APPID, args.relay_url)
+    if args.zeromode:
+        assert not args.code
+        args.code = "0-"
     code = args.code
     if not code:
         code = r.input_code("Enter receive-file wormhole code: ",

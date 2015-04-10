@@ -57,12 +57,16 @@ sp_restart.set_defaults(func=cmd_server.restart_server)
 p = subparsers.add_parser("send-text", description="Send a text mesasge",
                           usage="wormhole send-text TEXT")
 p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
+p.add_argument("-0", dest="zeromode", action="store_true",
+               help="enable no-code anything-goes mode")
 p.add_argument("text", metavar="TEXT", help="the message to send (a string)")
 p.set_defaults(func=cmd_send_text.send_text)
 
 # CLI: receive-text
 p = subparsers.add_parser("receive-text", description="Receive a text message",
                           usage="wormhole receive-text [CODE]")
+p.add_argument("-0", dest="zeromode", action="store_true",
+               help="enable no-code anything-goes mode")
 p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                help=dedent("""\
                The magic-wormhole code, from the sender. If omitted, the
@@ -74,6 +78,8 @@ p.set_defaults(func=cmd_receive_text.receive_text)
 p = subparsers.add_parser("send-file", description="Send a file",
                           usage="wormhole send-file FILENAME")
 p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
+p.add_argument("-0", dest="zeromode", action="store_true",
+               help="enable no-code anything-goes mode")
 p.add_argument("filename", metavar="FILENAME", help="The file to be sent")
 p.set_defaults(func=cmd_send_file.send_file)
 
@@ -91,6 +97,8 @@ p.add_argument("--overwrite", action="store_true",
                output file already exists, the program will refuse to
                overwrite it."""),
                )
+p.add_argument("-0", dest="zeromode", action="store_true",
+               help="enable no-code anything-goes mode")
 p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                help=dedent("""\
                The magic-wormhole code, from the sender. If omitted, the
