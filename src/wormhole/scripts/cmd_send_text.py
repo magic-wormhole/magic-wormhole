@@ -10,7 +10,11 @@ def send_text(args):
     from ..blocking.transcribe import Initiator, WrongPasswordError
 
     i = Initiator(APPID, args.relay_url)
-    code = i.get_code(args.code_length)
+    if args.code:
+        i.set_code(args.code)
+        code = args.code
+    else:
+        code = i.get_code(args.code_length)
     print("On the other computer, please run: wormhole receive-text")
     print("Wormhole code is: %s" % code)
     print("")

@@ -56,6 +56,7 @@ sp_restart.set_defaults(func=cmd_server.restart_server)
 # CLI: send-text
 p = subparsers.add_parser("send-text", description="Send a text mesasge",
                           usage="wormhole send-text TEXT")
+p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
 p.add_argument("text", metavar="TEXT", help="the message to send (a string)")
 p.set_defaults(func=cmd_send_text.send_text)
 
@@ -72,6 +73,7 @@ p.set_defaults(func=cmd_receive_text.receive_text)
 # CLI: send-file
 p = subparsers.add_parser("send-file", description="Send a file",
                           usage="wormhole send-file FILENAME")
+p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
 p.add_argument("filename", metavar="FILENAME", help="The file to be sent")
 p.set_defaults(func=cmd_send_file.send_file)
 

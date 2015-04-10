@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, time, requests, json, textwrap
+import sys, time, re, requests, json, textwrap
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_A, SPAKE2_B
 from nacl.secret import SecretBox
@@ -214,14 +214,22 @@ class Initiator(Common):
         self.key = None
         self.verifier = None
 
-    def get_code(self, code_length=2):
-        self.channel_id = self._allocate() # allocate channel
-        self.code = codes.make_code(self.channel_id, code_length)
+    def set_code(self, code): # used for human-made pre-generated codes
+        mo = re.search(r'^(\d+)-', code)
+        if not mo:
+            raise ValueError("code (%s) must start with NN-" % code)
+        self.channel_id = int(mo.group(1))
+        self.code = code
         self.sp = SPAKE2_A(self.code.encode("ascii"),
                            idA=self.appid+":Initiator",
                            idB=self.appid+":Receiver")
         self._post_pake()
-        return self.code
+
+    def get_code(self, code_length=2):
+        channel_id = self._allocate() # allocate channel
+        code = codes.make_code(channel_id, code_length)
+        self.set_code(code)
+        return code
 
     def _wait_for_key(self):
         if not self.key:

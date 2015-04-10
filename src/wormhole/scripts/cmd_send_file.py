@@ -16,7 +16,11 @@ def send_file(args):
     transit_sender = TransitSender(args.transit_helper)
 
     i = Initiator(APPID, args.relay_url)
-    code = i.get_code(args.code_length)
+    if args.code:
+        i.set_code(args.code)
+        code = args.code
+    else:
+        code = i.get_code(args.code_length)
     print("On the other computer, please run: wormhole receive-file")
     print("Wormhole code is '%s'" % code)
     print()
