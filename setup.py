@@ -6,7 +6,7 @@ versioneer.VCS = "git"
 versioneer.versionfile_source = "src/wormhole/_version.py"
 versioneer.versionfile_build = "wormhole/_version.py"
 versioneer.tag_prefix = ""
-versioneer.parentdir_prefix = "wormhole-sync"
+versioneer.parentdir_prefix = "magic-wormhole"
 
 commands = versioneer.get_cmdclass()
 
@@ -16,7 +16,7 @@ setup(name="magic-wormhole",
       author="Brian Warner",
       author_email="warner-magic-wormhole@lothar.com",
       license="MIT",
-      url="https://github.com/warner/wormhole-sync",
+      url="https://github.com/warner/magic-wormhole",
       package_dir={"": "src"},
       packages=["wormhole",
                 "wormhole.blocking", "wormhole.scripts",
