@@ -15,4 +15,11 @@ CREATE TABLE `messages`
  `message` VARCHAR,
  `when` INTEGER
 );
-CREATE INDEX `lookup` ON `messages` (`channel_id`, `side`, `msgnum`);
+CREATE INDEX `messages_idx` ON `messages` (`channel_id`, `side`, `msgnum`);
+
+CREATE TABLE `allocations`
+(
+ `channel_id` INTEGER,
+ `side` VARCHAR
+);
+CREATE INDEX `allocations_idx` ON `allocations` (`channel_id`);
