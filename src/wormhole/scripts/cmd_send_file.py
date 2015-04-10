@@ -21,7 +21,10 @@ def send_file(args):
         code = args.code
     else:
         code = i.get_code(args.code_length)
-    print("On the other computer, please run: wormhole receive-file")
+    other_cmd = "wormhole receive-file"
+    if args.verify:
+        other_cmd = "wormhole --verify receive-file"
+    print("On the other computer, please run: %s" % other_cmd)
     print("Wormhole code is '%s'" % code)
     print()
 

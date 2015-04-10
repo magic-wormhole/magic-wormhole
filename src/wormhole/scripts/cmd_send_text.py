@@ -15,7 +15,10 @@ def send_text(args):
         code = args.code
     else:
         code = i.get_code(args.code_length)
-    print("On the other computer, please run: wormhole receive-text")
+    other_cmd = "wormhole receive-text"
+    if args.verify:
+        other_cmd = "wormhole --verify receive-text"
+    print("On the other computer, please run: %s" % other_cmd)
     print("Wormhole code is: %s" % code)
     print("")
 
