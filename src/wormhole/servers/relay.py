@@ -1,5 +1,5 @@
 from __future__ import print_function
-import re, json, time
+import re, json, time, random
 from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import strports, service, internet
@@ -56,13 +56,12 @@ WELCOME = {
     }
 
 # relay URLs are:
-#
-# POST /allocate                                  -> {channel-id: INT}
+# GET /list                                         -> {channel-ids: [INT..]}
+# POST /allocate                                    -> {channel-id: INT}
 #  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
 # POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
 # POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
 # GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
-#
 # POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
 class Channel(resource.Resource):
@@ -166,7 +165,6 @@ class Relay(resource.Resource):
     def __init__(self):
         resource.Resource.__init__(self)
         self.channels = {}
-        self.next_channel = 1
 
     def prune_old_channels(self):
         now = time.time()
@@ -176,14 +174,26 @@ class Relay(resource.Resource):
                 log.msg("expiring %d" % channel_id)
                 self.free_child(channel_id)
 
+    def allocate_channel_id(self):
+        for size in range(1,4): # stick to 1-999 for now
+            available = set()
+            for cid in range(10**(size-1), 10**size):
+                if cid not in self.channels:
+                    available.add(cid)
+            if available:
+                return random.choice(list(available))
+        # ouch, 999 currently allocated. Try random ones for a while.
+        for tries in range(1000):
+            cid = random.randrange(1000, 1000*1000)
+            if cid not in self.channels:
+                return cid
+        raise ValueError("unable to find a free channel-id")
+
     def getChild(self, path, request):
         if path == "allocate":
-            # be more clever later. Rotate through 1-99 unless they're all
-            # full, then rotate through 1-999, etc.
-            channel_id = self.next_channel
-            self.next_channel += 1
+            channel_id = self.allocate_channel_id()
             self.channels[channel_id] = Channel(channel_id, self)
-            log.msg("allocated %d, now have %d channels" %
+            log.msg("allocated #%d, now have %d channels" %
                     (channel_id, len(self.channels)))
             return Allocated(channel_id)
         if path == "list":
@@ -202,10 +212,8 @@ class Relay(resource.Resource):
 
     def free_child(self, channel_id):
         self.channels.pop(channel_id)
-        log.msg("freed %d, now have %d channels" %
+        log.msg("freed #%d, now have %d channels" %
                 (channel_id, len(self.channels)))
-        if not self.channels:
-            self.next_channel = 1
 
 class TransitConnection(protocol.Protocol):
     def __init__(self):
