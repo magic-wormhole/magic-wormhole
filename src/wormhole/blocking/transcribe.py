@@ -40,13 +40,12 @@ class ReceiverWrongPasswordError(WrongPasswordError):
     """
 
 # relay URLs are:
-#
-# POST /allocate                                  -> {channel-id: INT}
+# GET /list                                         -> {channel-ids: [INT..]}
+# POST /allocate/SIDE                               -> {channel-id: INT}
 #  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
 # POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
 # POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
 # GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
-#
 # POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
 class EventSourceFollower:
@@ -148,7 +147,7 @@ class Common:
         return msgs
 
     def _allocate(self):
-        r = requests.post(self.relay + "allocate")
+        r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:

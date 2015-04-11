@@ -57,7 +57,7 @@ WELCOME = {
 
 # relay URLs are:
 # GET /list                                         -> {channel-ids: [INT..]}
-# POST /allocate                                    -> {channel-id: INT}
+# POST /allocate/SIDE                               -> {channel-id: INT}
 #  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
 # POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
 # POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
@@ -143,14 +143,20 @@ class Channel(resource.Resource):
         return json.dumps({"welcome": WELCOME,
                            "messages": other_messages})+"\n"
 
-class Allocated(resource.Resource):
-    def __init__(self, channel_id):
+class Allocator(resource.Resource):
+    isLeaf = True
+    def __init__(self, relay):
         resource.Resource.__init__(self)
-        self.channel_id = channel_id
+        self.relay = relay
     def render_POST(self, request):
+        side = request.postpath[0]
+        channel_id = self.relay.allocate_channel_id()
+        self.relay.channels[channel_id] = Channel(channel_id, self.relay)
+        log.msg("allocated #%d, now have %d channels" %
+                (channel_id, len(self.relay.channels)))
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps({"welcome": WELCOME,
-                           "channel-id": self.channel_id})+"\n"
+                           "channel-id": channel_id})+"\n"
 
 class ChannelList(resource.Resource):
     def __init__(self, channel_ids):
@@ -191,11 +197,7 @@ class Relay(resource.Resource):
 
     def getChild(self, path, request):
         if path == "allocate":
-            channel_id = self.allocate_channel_id()
-            self.channels[channel_id] = Channel(channel_id, self)
-            log.msg("allocated #%d, now have %d channels" %
-                    (channel_id, len(self.channels)))
-            return Allocated(channel_id)
+            return Allocator(self)
         if path == "list":
             channel_ids = sorted(self.channels.keys())
             return ChannelList(channel_ids)
