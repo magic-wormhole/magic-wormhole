@@ -199,17 +199,19 @@ class Relay(resource.Resource):
                 self.free_child(channel_id)
 
     def allocate_channel_id(self):
+        c = self.db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
+        allocated = set([row["channel_id"] for row in c.fetchall()])
         for size in range(1,4): # stick to 1-999 for now
             available = set()
             for cid in range(10**(size-1), 10**size):
-                if cid not in self.channels:
+                if cid not in allocated:
                     available.add(cid)
             if available:
                 return random.choice(list(available))
         # ouch, 999 currently allocated. Try random ones for a while.
         for tries in range(1000):
             cid = random.randrange(1000, 1000*1000)
-            if cid not in self.channels:
+            if cid not in allocated:
                 return cid
         raise ValueError("unable to find a free channel-id")
 
