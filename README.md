@@ -99,7 +99,7 @@ provide information about alternatives.
 
 * `wormhole send-text TEXT`
 * `wormhole receive-text`
-*
+* 
 * `wormhole send-file FILENAME`
 * `wormhole receive-file`
 
