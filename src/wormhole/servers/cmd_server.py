@@ -9,7 +9,8 @@ class MyPlugin:
         # delay this import as late as possible, to allow twistd's code to
         # accept --reactor= selection
         from .relay import RelayServer
-        return RelayServer(self.args.rendezvous, self.args.transit)
+        return RelayServer(self.args.rendezvous, self.args.transit,
+                           self.args.advertise_version)
 
 def start_server(args):
     from twisted.python import usage

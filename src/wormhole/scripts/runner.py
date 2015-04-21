@@ -36,6 +36,8 @@ sp_start.add_argument("--rendezvous", default="tcp:3000", metavar="tcp:PORT",
                       help="endpoint specification for the rendezvous port")
 sp_start.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                       help="endpoint specification for the transit-relay port")
+sp_start.add_argument("--advertise-version", metavar="VERSION",
+                      help="version to recommend to clients")
 #sp_start.add_argument("twistd_args", nargs="*", default=None,
 #                      metavar="[TWISTD-ARGS..]",
 #                      help=dedent("""\
@@ -51,6 +53,8 @@ sp_restart.add_argument("--rendezvous", default="tcp:3000", metavar="tcp:PORT",
                         help="endpoint specification for the rendezvous port")
 sp_restart.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                         help="endpoint specification for the transit-relay port")
+sp_restart.add_argument("--advertise-version", metavar="VERSION",
+                        help="version to recommend to clients")
 sp_restart.set_defaults(func=cmd_server.restart_server)
 
 # CLI: send-text

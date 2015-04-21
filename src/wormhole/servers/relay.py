@@ -46,15 +46,6 @@ class EventsProtocol:
 
 # note: no versions of IE (including the current IE11) support EventSource
 
-WELCOME = {
-    "current_version": __version__,
-    # adding .motd will cause all clients to display the message, then keep
-    # running normally
-    #"motd": "Welcome to the public relay.\nPlease enjoy this service.",
-    # adding .error will cause all clients to fail, with this message
-    #"error": "This server has been disabled, see URL for details.",
-    }
-
 # relay URLs are:
 # GET /list                                         -> {channel-ids: [INT..]}
 # POST /allocate/SIDE                               -> {channel-id: INT}
@@ -67,10 +58,11 @@ WELCOME = {
 class Channel(resource.Resource):
     isLeaf = True # I handle /CHANNEL-ID/*
 
-    def __init__(self, channel_id, relay):
+    def __init__(self, channel_id, relay, welcome):
         resource.Resource.__init__(self)
         self.channel_id = channel_id
         self.relay = relay
+        self.welcome = welcome
         self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.sides = set()
         self.messages = [] # (side, msgnum, str)
@@ -89,7 +81,7 @@ class Channel(resource.Resource):
             return "Must use EventSource (Content-Type: text/event-stream)"
         request.setHeader("content-type", "text/event-stream")
         ep = EventsProtocol(request)
-        ep.sendEvent(json.dumps(WELCOME), name="welcome")
+        ep.sendEvent(json.dumps(self.welcome), name="welcome")
         handle = (their_side, their_msgnum, ep)
         self.event_channels.add(handle)
         request.notifyFinish().addErrback(self._shutdown, handle)
@@ -140,36 +132,40 @@ class Channel(resource.Resource):
             self.message_added(side, msgnum, data["message"])
 
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": WELCOME,
+        return json.dumps({"welcome": self.welcome,
                            "messages": other_messages})+"\n"
 
 class Allocator(resource.Resource):
     isLeaf = True
-    def __init__(self, relay):
+    def __init__(self, relay, welcome):
         resource.Resource.__init__(self)
         self.relay = relay
+        self.welcome = welcome
     def render_POST(self, request):
         side = request.postpath[0]
         channel_id = self.relay.allocate_channel_id()
-        self.relay.channels[channel_id] = Channel(channel_id, self.relay)
+        self.relay.channels[channel_id] = Channel(channel_id, self.relay,
+                                                  self.welcome)
         log.msg("allocated #%d, now have %d channels" %
                 (channel_id, len(self.relay.channels)))
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": WELCOME,
+        return json.dumps({"welcome": self.welcome,
                            "channel-id": channel_id})+"\n"
 
 class ChannelList(resource.Resource):
-    def __init__(self, channel_ids):
+    def __init__(self, channel_ids, welcome):
         resource.Resource.__init__(self)
         self.channel_ids = channel_ids
+        self.welcome = welcome
     def render_GET(self, request):
         request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": WELCOME,
+        return json.dumps({"welcome": self.welcome,
                            "channel-ids": self.channel_ids})+"\n"
 
 class Relay(resource.Resource):
-    def __init__(self):
+    def __init__(self, welcome):
         resource.Resource.__init__(self)
+        self.welcome = welcome
         self.channels = {}
 
     def prune_old_channels(self):
@@ -197,10 +193,10 @@ class Relay(resource.Resource):
 
     def getChild(self, path, request):
         if path == "allocate":
-            return Allocator(self)
+            return Allocator(self, self.welcome)
         if path == "list":
             channel_ids = sorted(self.channels.keys())
-            return ChannelList(channel_ids)
+            return ChannelList(channel_ids, self.welcome)
         if not re.search(r'^\d+$', path):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
@@ -209,7 +205,7 @@ class Relay(resource.Resource):
         if not channel_id in self.channels:
             log.msg("claimed #%d, now have %d channels" %
                     (channel_id, len(self.channels)))
-            self.channels[channel_id] = Channel(channel_id, self)
+            self.channels[channel_id] = Channel(channel_id, self, self.welcome)
         return self.channels[channel_id]
 
     def free_child(self, channel_id):
@@ -344,13 +340,25 @@ class Root(resource.Resource):
         self.putChild("", static.Data("Wormhole Relay\n", "text/plain"))
 
 class RelayServer(service.MultiService):
-    def __init__(self, relayport, transitport):
+    def __init__(self, relayport, transitport, advertise_version):
         service.MultiService.__init__(self)
+
+        welcome = {
+            "current_version": __version__,
+            # adding .motd will cause all clients to display the message,
+            # then keep running normally
+            #"motd": "Welcome to the public relay.\nPlease enjoy this service.",
+            #
+            # adding .error will cause all clients to fail, with this message
+            #"error": "This server has been disabled, see URL for details.",
+            }
+        if advertise_version:
+            welcome["current_version"] = advertise_version
         self.root = Root()
         site = server.Site(self.root)
         self.relayport_service = strports.service(relayport, site)
         self.relayport_service.setServiceParent(self)
-        self.relay = Relay() # accessible from tests
+        self.relay = Relay(welcome) # accessible from tests
         self.root.putChild("wormhole-relay", self.relay)
         t = internet.TimerService(5*MINUTE, self.relay.prune_old_channels)
         t.setServiceParent(self)
