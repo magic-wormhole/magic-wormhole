@@ -142,7 +142,7 @@ class Allocator(resource.Resource):
         self.relay = relay
         self.welcome = welcome
     def render_POST(self, request):
-        side = request.postpath[0]
+        #side = request.postpath[0]
         channel_id = self.relay.allocate_channel_id()
         self.relay.channels[channel_id] = Channel(channel_id, self.relay,
                                                   self.welcome)
@@ -366,6 +366,3 @@ class RelayServer(service.MultiService):
         self.transit.setServiceParent(self) # for the timer
         self.transport_service = strports.service(transitport, self.transit)
         self.transport_service.setServiceParent(self)
-
-application = service.Application("foo")
-RelayServer("tcp:3000", "tcp:3001").setServiceParent(application)
