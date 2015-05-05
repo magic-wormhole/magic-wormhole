@@ -13,7 +13,8 @@ HOUR = 60*MINUTE
 DAY = 24*HOUR
 MB = 1000*1000
 
-CHANNEL_EXPIRATION_TIME = 1*HOUR
+CHANNEL_EXPIRATION_TIME = 3*DAY
+EXPIRATION_CHECK_PERIOD = 2*HOUR
 
 class EventsProtocol:
     def __init__(self, request):
@@ -66,9 +67,7 @@ class Channel(resource.Resource):
         self.relay = relay
         self.db = db
         self.welcome = welcome
-        self.expire_at = time.time() + CHANNEL_EXPIRATION_TIME
         self.event_channels = set() # (side, msgnum, ep)
-
 
     def render_GET(self, request):
         # rest of URL is: SIDE/poll/MSGNUM
@@ -97,7 +96,6 @@ class Channel(resource.Resource):
     def _shutdown(self, _, handle):
         self.event_channels.discard(handle)
 
-
     def message_added(self, msg_side, msg_msgnum, msg_str, channels=None):
         if channels is None:
             channels = self.event_channels
@@ -105,7 +103,6 @@ class Channel(resource.Resource):
             if msg_side != their_side and msg_msgnum == their_msgnum:
                 data = json.dumps({ "side": msg_side, "message": msg_str })
                 their_ep.sendEvent(data)
-
 
     def render_POST(self, request):
         # rest of URL is: SIDE/(MSGNUM|deallocate)/(post|poll)
@@ -202,8 +199,6 @@ class ChannelList(resource.Resource):
                            "channel-ids": allocated})+"\n"
 
 class Relay(resource.Resource):
-    PRUNE_AGE = 3*DAY  # old channels expire after 3 days
-
     def __init__(self, db, welcome):
         resource.Resource.__init__(self)
         self.db = db
@@ -251,7 +246,7 @@ class Relay(resource.Resource):
                 (channel_id, len(get_allocated(self.db)), len(self.channels)))
 
     def prune_old_channels(self):
-        old = time.time() - self.PRUNE_AGE
+        old = time.time() - CHANNEL_EXPIRATION_TIME
         for channel_id in get_allocated(self.db):
             c = self.db.execute("SELECT `when` FROM `messages`"
                                 " WHERE `channel_id`=?"
@@ -408,7 +403,8 @@ class RelayServer(service.MultiService):
         self.relayport_service.setServiceParent(self)
         self.relay = Relay(self.db, welcome) # accessible from tests
         self.root.putChild("wormhole-relay", self.relay)
-        t = internet.TimerService(2*HOUR, self.relay.prune_old_channels)
+        t = internet.TimerService(EXPIRATION_CHECK_PERIOD,
+                                  self.relay.prune_old_channels)
         t.setServiceParent(self)
         self.transit = Transit()
         self.transit.setServiceParent(self) # for the timer
