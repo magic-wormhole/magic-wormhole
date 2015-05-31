@@ -2,11 +2,6 @@
 from setuptools import setup
 
 import versioneer
-versioneer.VCS = "git"
-versioneer.versionfile_source = "src/wormhole/_version.py"
-versioneer.versionfile_build = "wormhole/_version.py"
-versioneer.tag_prefix = ""
-versioneer.parentdir_prefix = "magic-wormhole"
 
 commands = versioneer.get_cmdclass()
 
