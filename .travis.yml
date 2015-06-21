@@ -1,0 +1,8 @@
+language: python
+python:
+  - "2.7"
+install:
+  - pip install . Twisted pyflakes
+script:
+  - pyflakes src
+  - trial wormhole
