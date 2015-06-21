@@ -50,38 +50,44 @@ theirdata = r.get_data(mydata)
 print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
-## Twisted (TODO)
+## Twisted
 
-The Twisted-friendly flow, which is not yet implemented, may look like this:
-
-```python
-from twisted.internet import reactor
-from wormhole.transcribe import TwistedInitiator
-data = b"initiator's data"
-ti = TwistedInitiator("appid", data, reactor)
-ti.startService()
-d1 = ti.when_get_code()
-d1.addCallback(lambda code: print("Invitation Code: %s" % code))
-d2 = ti.when_get_data()
-d2.addCallback(lambda theirdata:
-               print("Their data: %s" % theirdata.decode("ascii")))
-d2.addCallback(labmda _: reactor.stop())
-reactor.run()
-```
+The Twisted-friendly flow looks like this:
 
 ```python
 from twisted.internet import reactor
-from wormhole.transcribe import TwistedReceiver
-data = b"receiver's data"
-code = sys.argv[1]
-tr = TwistedReceiver("appid", code, data, reactor)
-tr.startService()
-d = tr.when_get_data()
-d.addCallback(lambda theirdata:
-              print("Their data: %s" % theirdata.decode("ascii")))
-d.addCallback(lambda _: reactor.stop())
+from wormhole.public_relay import RENDEZVOUS_RELAY
+from wormhole.twisted.transcribe import SymmetricWormhole
+outbound_message = b"outbound data"
+w1 = SymmetricWormhole("appid", RENDEZVOUS_RELAY)
+d = w1.get_code()
+def _got_code(code):
+    print "Invitation Code:", code
+    return w1.get_data(outbound_message)
+d.addCallback(_got_code)
+def _got_data(inbound_message):
+    print "Inbound message:", inbound_message
+d.addCallback(_got_data)
+d.addBoth(lambda _: reactor.stop())
 reactor.run()
 ```
+
+On the other side, you call `set_code()` instead of waiting for `get_code()`:
+
+```python
+w2 = SymmetricWormhole("appid", RENDEZVOUS_RELAY)
+w2.set_code(code)
+d = w2.get_data(my_message)
+```
+
+You can call `d=w.get_verifier()` before `get_data()`: this will perform the
+first half of the PAKE negotiation, then fire the Deferred with a verifier
+object (bytes) which can be converted into a printable representation and
+manually compared. When the users are convinced that `get_verifier()` from
+both sides are the same, call `d=get_data()` to continue the transfer. If you
+call `get_data()` first, it will perform the complete transfer without
+pausing.
+
 
 ## Application Identifier
 
@@ -135,17 +141,27 @@ sync will be abandoned, and all callbacks will errback with a TimeoutError.
 
 Both have defaults suitable for face-to-face realtime setup environments.
 
-## Serialization (TODO)
+## Serialization
+
+TODO: only the Twisted form supports serialization so far
 
 You may not be able to hold the Initiator/Receiver object in memory for the
 whole sync process: maybe you allow it to wait for several days, but the
 program will be restarted during that time. To support this, you can persist
-the state of the object by calling `data = i.serialize()`, which will return
+the state of the object by calling `data = w.serialize()`, which will return
 a printable bytestring (the JSON-encoding of a small dictionary). To restore,
-call `Initiator.from_serialized(data)`.
+use the `from_serialized(data)` classmethod (e.g. `w =
+SymmetricWormhole.from_serialized(data)`).
 
-Note that callbacks are not serialized: they must be restored after
-deserialization.
+There is exactly one point at which you can serialize the wormhole: *after*
+establishing the invitation code, but before waiting for `get_verifier()` or
+`get_data()`. If you are creating a new code, the correct time is during the
+callback fired by `get_code()`. If you are accepting a pre-generated code,
+the time is just after calling `set_code()`.
+
+To properly checkpoint the process, you should store the first message
+(returned by `start()`) next to the serialized wormhole instance, so you can
+re-send it if necessary.
 
 ## Detailed Example
 
