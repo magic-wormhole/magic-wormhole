@@ -406,7 +406,8 @@ class RelayServer(service.MultiService):
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD,
                                   self.relay.prune_old_channels)
         t.setServiceParent(self)
-        self.transit = Transit()
-        self.transit.setServiceParent(self) # for the timer
-        self.transport_service = strports.service(transitport, self.transit)
-        self.transport_service.setServiceParent(self)
+        if transitport:
+            self.transit = Transit()
+            self.transit.setServiceParent(self) # for the timer
+            self.transport_service = strports.service(transitport, self.transit)
+            self.transport_service.setServiceParent(self)
