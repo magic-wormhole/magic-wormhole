@@ -88,6 +88,27 @@ both sides are the same, call `d=get_data()` to continue the transfer. If you
 call `get_data()` first, it will perform the complete transfer without
 pausing.
 
+## Generating the Invitation Code
+
+In most situations, the Initiator will call `i.get_code()` to generate the
+invitation code. This returns a string in the form `NNN-code-words`. The
+numeric "NNN" prefix is the "channel id", and is a short integer allocated by
+talking to the rendezvous server. The rest is a randomly-generated selection
+from the PGP wordlist, providing a default of 16 bits of entropy. The
+initiating program should display this code to the user, who should
+transcribe it to the receiving user, who gives it to the Receiver object by
+calling `r.set_code()`. The receiving program can also use
+`input_code_with_completion()` to use a readline-based input function: this
+offers tab completion of allocated channel-ids and known codewords.
+
+Alternatively, the human users can agree upon an invitation code themselves,
+and provide it to both programs later (with `i.set_code()` and
+`r.set_code()`). They should choose a channel-id that is unlikely to already
+be in use (3 or more digits are recommended), append a hyphen, and then
+include randomly-selected words or characters. Dice, coin flips, shuffled
+cards, or repeated sampling of a high-resolution stopwatch are all useful
+techniques.
+
 
 ## Application Identifier
 
@@ -114,7 +135,9 @@ This library includes the URL of a public relay run by the author.
 Application developers can use this one, or they can run their own (see
 src/wormhole/servers/relay.py) and configure their clients to use it instead.
 
-## Polling and Shutdown (TODO)
+## Polling and Shutdown
+
+TODO: this is mostly imaginary
 
 The reactor-based (Twisted-style) forms of these objects need to establish
 TCP connections, re-establish them if they are lost, and sometimes (for

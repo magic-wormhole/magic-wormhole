@@ -113,12 +113,13 @@ All four commands accept:
 ## Library
 
 The `wormhole` module makes it possible for other applications to use these
-code-protected channels. The current release only includes
-blocking/synchronous support, but a future release will include async/Twisted
-libraries too. The main module is named `wormhole.blocking.transcribe`, to
-reflect that it is for synchronous/blocking code, and uses a PAKE mode
-whereby one user transcribes their code to the other. (internal names may
-change in the future). There are distinctive sides: one `Initiator`, and one
+code-protected channels. This includes blocking/synchronous support (for an
+asymmetric pair of "initiator" and "receiver" endpoints), and async/Twisted
+support (for a symmetric scheme). The main module is named
+`wormhole.blocking.transcribe`, to reflect that it is for
+synchronous/blocking code, and uses a PAKE mode whereby one user transcribes
+their code to the other. (internal names may change in the future). The
+synchronous support uses distinctive sides: one `Initiator`, and one
 `Receiver`.
 
 The file-transfer tools use a second module named
@@ -138,7 +139,7 @@ This library is intended to be compatible with python2.6, 2.7, 3.3, and 3.4,
 although proper tests have not yet been implemented.
 
 It depends upon the SPAKE2, pynacl, requests, and argparse libraries. To run
-a relay server, you must also install Twisted.
+a relay server or use the async support, you must also install Twisted.
 
 
 #### footnotes
