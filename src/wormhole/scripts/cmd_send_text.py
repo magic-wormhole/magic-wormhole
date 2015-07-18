@@ -7,17 +7,17 @@ APPID = "lothar.com/wormhole/text-xfer"
 @handle_server_error
 def send_text(args):
     # we're sending
-    from ..blocking.transcribe import Initiator, WrongPasswordError
+    from ..blocking.transcribe import Wormhole, WrongPasswordError
 
-    i = Initiator(APPID, args.relay_url)
+    w = Wormhole(APPID, args.relay_url)
     if args.zeromode:
         assert not args.code
         args.code = "0-"
     if args.code:
-        i.set_code(args.code)
+        w.set_code(args.code)
         code = args.code
     else:
-        code = i.get_code(args.code_length)
+        code = w.get_code(args.code_length)
     other_cmd = "wormhole receive-text"
     if args.verify:
         other_cmd = "wormhole --verify receive-text"
@@ -29,7 +29,7 @@ def send_text(args):
     print("")
 
     if args.verify:
-        verifier = binascii.hexlify(i.get_verifier())
+        verifier = binascii.hexlify(w.get_verifier())
         while True:
             ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
@@ -39,14 +39,14 @@ def send_text(args):
                       file=sys.stderr)
                 reject_data = json.dumps({"error": "verification rejected",
                                           }).encode("utf-8")
-                i.get_data(reject_data)
+                w.get_data(reject_data)
                 return 1
 
     message = args.text
     data = json.dumps({"message": message,
                        }).encode("utf-8")
     try:
-        them_bytes = i.get_data(data)
+        them_bytes = w.get_data(data)
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1

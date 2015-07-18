@@ -1,7 +1,7 @@
 from __future__ import print_function
-import sys, time, re, requests, json, textwrap
+import os, sys, time, re, requests, json, textwrap
 from binascii import hexlify, unhexlify
-from spake2 import SPAKE2_A, SPAKE2_B
+from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
@@ -19,26 +19,20 @@ class Timeout(Exception):
 
 class WrongPasswordError(Exception):
     """
-    Key confirmation failed.
+    Key confirmation failed. Either you or your correspondent typed the code
+    wrong, or a would-be man-in-the-middle attacker guessed incorrectly. You
+    could try again, giving both your correspondent and the attacker another
+    chance.
     """
     # or the data blob was corrupted, and that's why decrypt failed
     def explain(self):
         return textwrap.dedent(self.__doc__)
 
-class InitiatorWrongPasswordError(WrongPasswordError):
-    """
-    Key confirmation failed. Either your correspondent typed the code wrong,
-    or a would-be man-in-the-middle attacker guessed incorrectly. You could
-    try again, giving both your correspondent and the attacker another
-    chance.
-    """
+class ReflectionAttack(Exception):
+    """An attacker (or bug) reflected our outgoing message back to us."""
 
-class ReceiverWrongPasswordError(WrongPasswordError):
-    """
-    Key confirmation failed. Either you typed the code wrong, or a would-be
-    man-in-the-middle attacker guessed incorrectly. You could try again,
-    giving both you and the attacker another chance.
-    """
+class UsageError(Exception):
+    """The programmer did something wrong."""
 
 # relay URLs are:
 # GET /list                                         -> {channel-ids: [INT..]}
@@ -49,7 +43,19 @@ class ReceiverWrongPasswordError(WrongPasswordError):
 # GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
 # POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
-class Common:
+class Wormhole:
+    def __init__(self, appid, relay):
+        self.appid = appid
+        self.relay = relay
+        assert self.relay.endswith("/")
+        self.started = time.time()
+        self.wait = 0.5*SECOND
+        self.timeout = 3*MINUTE
+        self.side = None
+        self.code = None
+        self.key = None
+        self.verifier = None
+
     def url(self, verb, msgnum=None):
         url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
         if msgnum is not None:
@@ -107,7 +113,7 @@ class Common:
             f.close()
         return msgs
 
-    def _allocate(self):
+    def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
         data = r.json()
@@ -116,25 +122,105 @@ class Common:
         channel_id = data["channel-id"]
         return channel_id
 
-    def _post_pake(self):
-        msg = self.sp.start()
-        post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(self.url("post", "pake"), data=json.dumps(post_data))
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-        return other_msgs
+    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        assert type(purpose) == type(b"")
+        return HKDF(self.key, length, CTXinfo=purpose)
 
-    def _get_pake(self, other_msgs):
-        msgs = self.get(other_msgs, "poll", "pake")
-        pake_msg = unhexlify(msgs[0].encode("ascii"))
-        key = self.sp.finish(pake_msg)
-        return key
+
+    def get_code(self, code_length=2):
+        if self.code is not None: raise UsageError
+        self.side = hexlify(os.urandom(5))
+        channel_id = self._allocate_channel() # allocate channel
+        code = codes.make_code(channel_id, code_length)
+        self._set_code_and_channel_id(code)
+        self._start()
+        return code
+
+    def list_channels(self):
+        r = requests.get(self.relay + "list")
+        r.raise_for_status()
+        channel_ids = r.json()["channel-ids"]
+        return channel_ids
+
+    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
+        code = codes.input_code_with_completion(prompt, self.list_channels,
+                                                code_length)
+        return code
+
+    def set_code(self, code): # used for human-made pre-generated codes
+        if self.code is not None: raise UsageError
+        if self.side is not None: raise UsageError
+        self._set_code_and_channel_id(code)
+        self.side = hexlify(os.urandom(5))
+        self._start()
+
+    def _set_code_and_channel_id(self, code):
+        if self.code is not None: raise UsageError
+        mo = re.search(r'^(\d+)-', code)
+        if not mo:
+            raise ValueError("code (%s) must start with NN-" % code)
+        self.channel_id = int(mo.group(1))
+        self.code = code
+
+    def _start(self):
+        # allocate the rest now too, so it can be serialized
+        self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
+                                   idA=self.appid+":SymmetricA",
+                                   idB=self.appid+":SymmetricB")
+        self.msg1 = self.sp.start()
+
+    def _get_key(self):
+        if not self.key:
+            post_data = {"message": hexlify(self.msg1).decode("ascii")}
+            r = requests.post(self.url("post", "pake"),
+                              data=json.dumps(post_data))
+            r.raise_for_status()
+            other_msgs = r.json()["messages"]
+            msgs = self.get(other_msgs, "poll", "pake")
+            pake_msg = unhexlify(msgs[0].encode("ascii"))
+            self.key = self.sp.finish(pake_msg)
+            self.verifier = self.derive_key(self.appid+b":Verifier")
+
+    def get_verifier(self):
+        self._get_key()
+        return self.verifier
+
+    def get_data(self, outbound_data):
+        assert self.code is not None
+        assert self.channel_id is not None
+
+        self._get_key()
+        # Without predefined roles, we can't derive predictably unique keys
+        # for each side, so we use the same key for both. We use random
+        # nonces to keep the messages distinct, and check for reflection.
+        try:
+            data_key = self.derive_key(b"data-key")
+
+            outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+            other_msgs = self._post_data(outbound_encrypted)
+
+            inbound_encrypted = self._get_data(other_msgs)
+            if inbound_encrypted == outbound_encrypted:
+                raise ReflectionAttack
+            try:
+                inbound_data = self._decrypt_data(data_key, inbound_encrypted)
+            except CryptoError:
+                raise WrongPasswordError
+        finally:
+            self._deallocate()
+        return inbound_data
 
     def _encrypt_data(self, key, data):
         assert len(key) == SecretBox.KEY_SIZE
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
+
+    def _decrypt_data(self, key, encrypted):
+        assert len(key) == SecretBox.KEY_SIZE
+        box = SecretBox(key)
+        data = box.decrypt(encrypted)
+        return data
 
     def _post_data(self, data):
         post_data = json.dumps({"message": hexlify(data).decode("ascii")})
@@ -148,140 +234,6 @@ class Common:
         data = unhexlify(msgs[0].encode("ascii"))
         return data
 
-    def _decrypt_data(self, key, encrypted):
-        assert len(key) == SecretBox.KEY_SIZE
-        box = SecretBox(key)
-        data = box.decrypt(encrypted)
-        return data
-
     def _deallocate(self):
         r = requests.post(self.url("deallocate"))
         r.raise_for_status()
-
-    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        assert type(purpose) == type(b"")
-        return HKDF(self.key, length, CTXinfo=purpose)
-
-class Initiator(Common):
-    def __init__(self, appid, relay):
-        self.appid = appid
-        self.relay = relay
-        assert self.relay.endswith("/")
-        self.started = time.time()
-        self.wait = 0.5*SECOND
-        self.timeout = 3*MINUTE
-        self.side = "initiator"
-        self.key = None
-        self.verifier = None
-
-    def set_code(self, code): # used for human-made pre-generated codes
-        mo = re.search(r'^(\d+)-', code)
-        if not mo:
-            raise ValueError("code (%s) must start with NN-" % code)
-        self.channel_id = int(mo.group(1))
-        self.code = code
-        self.sp = SPAKE2_A(self.code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
-        self._post_pake()
-
-    def get_code(self, code_length=2):
-        channel_id = self._allocate() # allocate channel
-        code = codes.make_code(channel_id, code_length)
-        self.set_code(code)
-        return code
-
-    def _wait_for_key(self):
-        if not self.key:
-            key = self._get_pake([])
-            self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
-
-    def get_verifier(self):
-        self._wait_for_key()
-        return self.verifier
-
-    def get_data(self, outbound_data):
-        self._wait_for_key()
-        try:
-            outbound_key = self.derive_key(b"sender")
-            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
-            other_msgs = self._post_data(outbound_encrypted)
-
-            inbound_encrypted = self._get_data(other_msgs)
-            inbound_key = self.derive_key(b"receiver")
-            try:
-                inbound_data = self._decrypt_data(inbound_key,
-                                                  inbound_encrypted)
-            except CryptoError:
-                raise InitiatorWrongPasswordError
-        finally:
-            self._deallocate()
-        return inbound_data
-
-
-class Receiver(Common):
-    def __init__(self, appid, relay):
-        self.appid = appid
-        self.relay = relay
-        assert self.relay.endswith("/")
-        self.started = time.time()
-        self.wait = 0.5*SECOND
-        self.timeout = 3*MINUTE
-        self.side = "receiver"
-        self.code = None
-        self.channel_id = None
-        self.key = None
-        self.verifier = None
-
-    def list_channels(self):
-        r = requests.get(self.relay + "list")
-        r.raise_for_status()
-        channel_ids = r.json()["channel-ids"]
-        return channel_ids
-
-    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
-        code = codes.input_code_with_completion(prompt, self.list_channels,
-                                                code_length)
-        return code
-
-    def set_code(self, code):
-        assert self.code is None
-        assert self.channel_id is None
-        self.code = code
-        self.channel_id = codes.extract_channel_id(code)
-        self.sp = SPAKE2_B(code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
-
-    def _wait_for_key(self):
-        if not self.key:
-            other_msgs = self._post_pake()
-            key = self._get_pake(other_msgs)
-            self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
-
-    def get_verifier(self):
-        self._wait_for_key()
-        return self.verifier
-
-    def get_data(self, outbound_data):
-        assert self.code is not None
-        assert self.channel_id is not None
-        self._wait_for_key()
-
-        try:
-            outbound_key = self.derive_key(b"receiver")
-            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
-            other_msgs = self._post_data(outbound_encrypted)
-
-            inbound_encrypted = self._get_data(other_msgs)
-            inbound_key = self.derive_key(b"sender")
-            try:
-                inbound_data = self._decrypt_data(inbound_key,
-                                                  inbound_encrypted)
-            except CryptoError:
-                raise ReceiverWrongPasswordError
-        finally:
-            self._deallocate()
-        return inbound_data

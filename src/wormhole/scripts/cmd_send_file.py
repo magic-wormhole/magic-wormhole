@@ -7,7 +7,7 @@ APPID = "lothar.com/wormhole/file-xfer"
 @handle_server_error
 def send_file(args):
     # we're sending
-    from ..blocking.transcribe import Initiator, WrongPasswordError
+    from ..blocking.transcribe import Wormhole, WrongPasswordError
     from ..blocking.transit import TransitSender
     from .progress import start_progress, update_progress, finish_progress
 
@@ -15,15 +15,15 @@ def send_file(args):
     assert os.path.isfile(filename)
     transit_sender = TransitSender(args.transit_helper)
 
-    i = Initiator(APPID, args.relay_url)
+    w = Wormhole(APPID, args.relay_url)
     if args.zeromode:
         assert not args.code
         args.code = "0-"
     if args.code:
-        i.set_code(args.code)
+        w.set_code(args.code)
         code = args.code
     else:
-        code = i.get_code(args.code_length)
+        code = w.get_code(args.code_length)
     other_cmd = "wormhole receive-file"
     if args.verify:
         other_cmd = "wormhole --verify receive-file"
@@ -35,7 +35,7 @@ def send_file(args):
     print()
 
     if args.verify:
-        verifier = binascii.hexlify(i.get_verifier())
+        verifier = binascii.hexlify(w.get_verifier())
         while True:
             ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
@@ -45,7 +45,7 @@ def send_file(args):
                       file=sys.stderr)
                 reject_data = json.dumps({"error": "verification rejected",
                                           }).encode("utf-8")
-                i.get_data(reject_data)
+                w.get_data(reject_data)
                 return 1
 
     filesize = os.stat(filename).st_size
@@ -61,7 +61,7 @@ def send_file(args):
         }).encode("utf-8")
 
     try:
-        them_bytes = i.get_data(data)
+        them_bytes = w.get_data(data)
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
@@ -70,7 +70,7 @@ def send_file(args):
 
 
     tdata = them_d["transit"]
-    transit_key = i.derive_key(APPID+"/transit-key")
+    transit_key = w.derive_key(APPID+"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
