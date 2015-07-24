@@ -59,7 +59,7 @@ class Wormhole:
         self.key = None
         self.verifier = None
 
-    def url(self, verb, msgnum=None):
+    def _url(self, verb, msgnum=None):
         url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
         if msgnum is not None:
             url += "/" + msgnum
@@ -87,7 +87,7 @@ class Wormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def get(self, old_msgs, verb, msgnum):
+    def _get_messages(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
@@ -103,7 +103,7 @@ class Wormhole:
             if remaining < 0:
                 raise Timeout
             #time.sleep(self.wait)
-            f = EventSourceFollower(self.url(verb, msgnum), remaining)
+            f = EventSourceFollower(self._url(verb, msgnum), remaining)
             for (eventtype, data) in f.iter_events():
                 if eventtype == "welcome":
                     self.handle_welcome(json.loads(data))
@@ -172,11 +172,11 @@ class Wormhole:
     def _get_key(self):
         if not self.key:
             post_data = {"message": hexlify(self.msg1).decode("ascii")}
-            r = requests.post(self.url("post", "pake"),
+            r = requests.post(self._url("post", "pake"),
                               data=json.dumps(post_data))
             r.raise_for_status()
             other_msgs = r.json()["messages"]
-            msgs = self.get(other_msgs, "poll", "pake")
+            msgs = self._get_messages(other_msgs, "poll", "pake")
             pake_msg = unhexlify(msgs[0].encode("ascii"))
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(self.appid+b":Verifier")
@@ -224,16 +224,16 @@ class Wormhole:
 
     def _post_data(self, data):
         post_data = json.dumps({"message": hexlify(data).decode("ascii")})
-        r = requests.post(self.url("post", "data"), data=post_data)
+        r = requests.post(self._url("post", "data"), data=post_data)
         r.raise_for_status()
         other_msgs = r.json()["messages"]
         return other_msgs
 
     def _get_data(self, other_msgs):
-        msgs = self.get(other_msgs, "poll", "data")
+        msgs = self._get_messages(other_msgs, "poll", "data")
         data = unhexlify(msgs[0].encode("ascii"))
         return data
 
     def _deallocate(self):
-        r = requests.post(self.url("deallocate"))
+        r = requests.post(self._url("deallocate"))
         r.raise_for_status()

@@ -69,7 +69,7 @@ class SymmetricWormhole:
 
     def _allocate_channel(self):
         url = self.relay + "allocate/%s" % self.side
-        d = self.post(url)
+        d = self._post_json(url)
         def _got_channel(data):
             if "welcome" in data:
                 self.handle_welcome(data["welcome"])
@@ -149,13 +149,13 @@ class SymmetricWormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def url(self, verb, msgnum=None):
+    def _url(self, verb, msgnum=None):
         url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
         if msgnum is not None:
             url += "/" + msgnum
         return url
 
-    def post(self, url, post_json=None):
+    def _post_json(self, url, post_json=None):
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
         p = None
@@ -172,7 +172,7 @@ class SymmetricWormhole:
         d.addCallback(lambda data: json.loads(data))
         return d
 
-    def _get_msgs(self, old_msgs, verb, msgnum):
+    def _get_messages(self, old_msgs, verb, msgnum):
         # fire with a list of messages that match verb/msgnum, which either
         # came from old_msgs, or from an EventSource that we attached to the
         # corresponding URL
@@ -186,7 +186,7 @@ class SymmetricWormhole:
             if name == "message":
                 msgs.append(json.loads(data)["message"])
                 d.callback(None)
-        es = ReconnectingEventSource(None, lambda: self.url(verb, msgnum),
+        es = ReconnectingEventSource(None, lambda: self._url(verb, msgnum),
                                      _handle)#, agent=self.agent)
         es.startService() # TODO: .setServiceParent(self)
         es.activate()
@@ -220,8 +220,8 @@ class SymmetricWormhole:
         if self.key:
             return defer.succeed(self.key)
         data = {"message": hexlify(self.msg1).decode("ascii")}
-        d = self.post(self.url("post", "pake"), data)
-        d.addCallback(lambda j: self._get_msgs(j["messages"], "poll", "pake"))
+        d = self._post_json(self._url("post", "pake"), data)
+        d.addCallback(lambda j: self._get_messages(j["messages"], "poll", "pake"))
         def _got_pake(msgs):
             pake_msg = unhexlify(msgs[0].encode("ascii"))
             key = self.sp.finish(pake_msg)
@@ -251,8 +251,8 @@ class SymmetricWormhole:
         data_key = self.derive_key(b"data-key")
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         data = {"message": hexlify(outbound_encrypted).decode("ascii")}
-        d = self.post(self.url("post", "data"), data)
-        d.addCallback(lambda j: self._get_msgs(j["messages"], "poll", "data"))
+        d = self._post_json(self._url("post", "data"), data)
+        d.addCallback(lambda j: self._get_messages(j["messages"], "poll", "data"))
         def _got_data(msgs):
             inbound_encrypted = unhexlify(msgs[0].encode("ascii"))
             if inbound_encrypted == outbound_encrypted:
@@ -268,6 +268,6 @@ class SymmetricWormhole:
 
     def _deallocate(self, res):
         # only try once, no retries
-        d = self.agent.request("POST", self.url("deallocate"))
+        d = self.agent.request("POST", self._url("deallocate"))
         d.addBoth(lambda _: res) # ignore POST failure, pass-through result
         return d
