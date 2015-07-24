@@ -200,7 +200,7 @@ class SymmetricWormhole:
         if self.key is None:
             # call after get_verifier() or get_data()
             raise UsageError
-        if type(purpose) is not type(b""): raise UsageError
+        if not isinstance(purpose, type(b"")): raise UsageError
         return HKDF(self.key, length, CTXinfo=purpose)
 
     def _encrypt_data(self, key, data):

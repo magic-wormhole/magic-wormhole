@@ -135,7 +135,7 @@ class Wormhole:
         return channel_id
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        if type(purpose) is not type(b""): raise UsageError
+        if not isinstance(purpose, type(b"")): raise UsageError
         return HKDF(self.key, length, CTXinfo=purpose)
 
 
