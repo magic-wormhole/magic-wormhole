@@ -172,12 +172,13 @@ class SymmetricWormhole:
             url += "/" + msgnum
         return url
 
-    def _get_messages(self, old_msgs, verb, msgnum):
-        # fire with a list of messages that match verb/msgnum, which either
-        # came from old_msgs, or from an EventSource that we attached to the
-        # corresponding URL
+    def _get_message(self, old_msgs, verb, msgnum):
+        # fire with a bytestring of the first message that matches
+        # verb/msgnum, which either came from old_msgs, or from an
+        # EventSource that we attached to the corresponding URL
         if old_msgs:
-            return defer.succeed(old_msgs)
+            msg = unhexlify(old_msgs[0].encode("ascii"))
+            return defer.succeed(msg)
         d = defer.Deferred()
         msgs = []
         def _handle(name, data):
@@ -192,7 +193,7 @@ class SymmetricWormhole:
         es.activate()
         d.addCallback(lambda _: es.deactivate())
         d.addCallback(lambda _: es.stopService())
-        d.addCallback(lambda _: msgs)
+        d.addCallback(lambda _: unhexlify(msgs[0].encode("ascii")))
         return d
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
@@ -221,9 +222,8 @@ class SymmetricWormhole:
             return defer.succeed(self.key)
         data = {"message": hexlify(self.msg1).decode("ascii")}
         d = self._post_json(self._url("post", "pake"), data)
-        d.addCallback(lambda j: self._get_messages(j["messages"], "poll", "pake"))
-        def _got_pake(msgs):
-            pake_msg = unhexlify(msgs[0].encode("ascii"))
+        d.addCallback(lambda j: self._get_message(j["messages"], "poll", "pake"))
+        def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
             self.verifier = self.derive_key(self.appid+b":Verifier")
@@ -252,9 +252,8 @@ class SymmetricWormhole:
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         data = {"message": hexlify(outbound_encrypted).decode("ascii")}
         d = self._post_json(self._url("post", "data"), data)
-        d.addCallback(lambda j: self._get_messages(j["messages"], "poll", "data"))
-        def _got_data(msgs):
-            inbound_encrypted = unhexlify(msgs[0].encode("ascii"))
+        d.addCallback(lambda j: self._get_message(j["messages"], "poll", "data"))
+        def _got_data(inbound_encrypted):
             if inbound_encrypted == outbound_encrypted:
                 raise ReflectionAttack
             try:
