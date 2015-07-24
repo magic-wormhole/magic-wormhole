@@ -43,8 +43,8 @@ class Basic(unittest.TestCase):
         def _done(dl):
             ((success1, dataX), (success2, dataY)) = dl
             r1,r2 = dl
-            self.assertTrue(success1)
-            self.assertTrue(success2)
+            self.assertTrue(success1, dataX)
+            self.assertTrue(success2, dataY)
             self.assertEqual(dataX, "data2")
             self.assertEqual(dataY, "data1")
         d.addCallback(_done)
@@ -62,8 +62,8 @@ class Basic(unittest.TestCase):
         def _done(dl):
             ((success1, dataX), (success2, dataY)) = dl
             r1,r2 = dl
-            self.assertTrue(success1)
-            self.assertTrue(success2)
+            self.assertTrue(success1, dataX)
+            self.assertTrue(success2, dataY)
             self.assertEqual(dataX, "data2")
             self.assertEqual(dataY, "data1")
         d.addCallback(_done)
@@ -104,8 +104,8 @@ class Basic(unittest.TestCase):
         def _done(dl):
             ((success1, dataX), (success2, dataY)) = dl
             r1,r2 = dl
-            self.assertTrue(success1)
-            self.assertTrue(success2)
+            self.assertTrue(success1, dataX)
+            self.assertTrue(success2, dataY)
             self.assertEqual(dataX, "data2")
             self.assertEqual(dataY, "data1")
             self.assertRaises(UsageError, w2.serialize) # too late
