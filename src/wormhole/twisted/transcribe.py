@@ -67,6 +67,23 @@ class SymmetricWormhole:
         d.addCallback(_got_channel_id)
         return d
 
+    def _post_json(self, url, post_json=None):
+        # TODO: retry on failure, with exponential backoff. We're guarding
+        # against the rendezvous server being temporarily offline.
+        p = None
+        if post_json:
+            data = json.dumps(post_json).encode("utf-8")
+            p = DataProducer(data)
+        d = self.agent.request("POST", url, bodyProducer=p)
+        def _check_error(resp):
+            if resp.code != 200:
+                raise web_error.Error(resp.code, resp.phrase)
+            return resp
+        d.addCallback(_check_error)
+        d.addCallback(web_client.readBody)
+        d.addCallback(lambda data: json.loads(data))
+        return d
+
     def _allocate_channel(self):
         url = self.relay + "allocate/%s" % self.side
         d = self._post_json(url)
@@ -154,23 +171,6 @@ class SymmetricWormhole:
         if msgnum is not None:
             url += "/" + msgnum
         return url
-
-    def _post_json(self, url, post_json=None):
-        # TODO: retry on failure, with exponential backoff. We're guarding
-        # against the rendezvous server being temporarily offline.
-        p = None
-        if post_json:
-            data = json.dumps(post_json).encode("utf-8")
-            p = DataProducer(data)
-        d = self.agent.request("POST", url, bodyProducer=p)
-        def _check_error(resp):
-            if resp.code != 200:
-                raise web_error.Error(resp.code, resp.phrase)
-            return resp
-        d.addCallback(_check_error)
-        d.addCallback(web_client.readBody)
-        d.addCallback(lambda data: json.loads(data))
-        return d
 
     def _get_messages(self, old_msgs, verb, msgnum):
         # fire with a list of messages that match verb/msgnum, which either

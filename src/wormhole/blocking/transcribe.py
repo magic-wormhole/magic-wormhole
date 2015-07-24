@@ -87,6 +87,13 @@ class Wormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
+    def _post_data(self, data):
+        post_data = json.dumps({"message": hexlify(data).decode("ascii")})
+        r = requests.post(self._url("post", "data"), data=post_data)
+        r.raise_for_status()
+        other_msgs = r.json()["messages"]
+        return other_msgs
+
     def _get_messages(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
@@ -112,6 +119,11 @@ class Wormhole:
                     break
             f.close()
         return msgs
+
+    def _get_data(self, other_msgs):
+        msgs = self._get_messages(other_msgs, "poll", "data")
+        data = unhexlify(msgs[0].encode("ascii"))
+        return data
 
     def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
@@ -220,18 +232,6 @@ class Wormhole:
         if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         data = box.decrypt(encrypted)
-        return data
-
-    def _post_data(self, data):
-        post_data = json.dumps({"message": hexlify(data).decode("ascii")})
-        r = requests.post(self._url("post", "data"), data=post_data)
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-        return other_msgs
-
-    def _get_data(self, other_msgs):
-        msgs = self._get_messages(other_msgs, "poll", "data")
-        data = unhexlify(msgs[0].encode("ascii"))
         return data
 
     def _deallocate(self):
