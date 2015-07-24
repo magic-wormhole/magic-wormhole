@@ -44,6 +44,9 @@ class UsageError(Exception):
 # POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
 class Wormhole:
+    motd_displayed = False
+    version_warning_displayed = False
+
     def __init__(self, appid, relay):
         self.appid = appid
         self.relay = relay
@@ -61,9 +64,6 @@ class Wormhole:
         if msgnum is not None:
             url += "/" + msgnum
         return url
-
-    motd_displayed = False
-    version_warning_displayed = False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
