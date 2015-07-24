@@ -249,6 +249,7 @@ class SymmetricWormhole:
         if self.code is None: raise UsageError
         d = self._get_key()
         d.addCallback(self._get_data2, outbound_data)
+        d.addBoth(self._deallocate)
         return d
 
     def _get_data2(self, key, outbound_data):
@@ -268,7 +269,6 @@ class SymmetricWormhole:
             except CryptoError:
                 raise WrongPasswordError
         d.addCallback(_got_data)
-        d.addBoth(self._deallocate)
         return d
 
     def _deallocate(self, res):
