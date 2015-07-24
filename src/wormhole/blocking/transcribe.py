@@ -47,7 +47,7 @@ class Wormhole:
     def __init__(self, appid, relay):
         self.appid = appid
         self.relay = relay
-        assert self.relay.endswith("/")
+        if not self.relay.endswith("/"): raise UsageError
         self.started = time.time()
         self.wait = 0.5*SECOND
         self.timeout = 3*MINUTE
@@ -123,7 +123,7 @@ class Wormhole:
         return channel_id
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        assert type(purpose) == type(b"")
+        if type(purpose) is not type(b""): raise UsageError
         return HKDF(self.key, length, CTXinfo=purpose)
 
 
@@ -186,8 +186,8 @@ class Wormhole:
         return self.verifier
 
     def get_data(self, outbound_data):
-        assert self.code is not None
-        assert self.channel_id is not None
+        if self.code is None: raise UsageError
+        if self.channel_id is None: raise UsageError
 
         self._get_key()
         # Without predefined roles, we can't derive predictably unique keys
@@ -211,13 +211,13 @@ class Wormhole:
         return inbound_data
 
     def _encrypt_data(self, key, data):
-        assert len(key) == SecretBox.KEY_SIZE
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
 
     def _decrypt_data(self, key, encrypted):
-        assert len(key) == SecretBox.KEY_SIZE
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         data = box.decrypt(encrypted)
         return data

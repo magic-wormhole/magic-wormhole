@@ -196,18 +196,20 @@ class SymmetricWormhole:
         return d
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        assert self.key is not None # call after get_verifier() or get_data()
-        assert type(purpose) == type(b"")
+        if self.key is None:
+            # call after get_verifier() or get_data()
+            raise UsageError
+        if type(purpose) is not type(b""): raise UsageError
         return HKDF(self.key, length, CTXinfo=purpose)
 
     def _encrypt_data(self, key, data):
-        assert len(key) == SecretBox.KEY_SIZE
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
 
     def _decrypt_data(self, key, encrypted):
-        assert len(key) == SecretBox.KEY_SIZE
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         data = box.decrypt(encrypted)
         return data
