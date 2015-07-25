@@ -104,13 +104,6 @@ class Wormhole:
         resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
         return resp["messages"] # other_msgs
 
-    def _post_data(self, data):
-        post_data = json.dumps({"message": hexlify(data).decode("ascii")})
-        r = requests.post(self._url("post", "data"), data=post_data)
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-        return other_msgs
-
     def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
@@ -162,16 +155,14 @@ class Wormhole:
                                    idB=self.appid+":SymmetricB")
         self.msg1 = self.sp.start()
 
-    def _get_messages(self, old_msgs, verb, msgnum):
+    def _get_message(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
 
-        # note: while this passes around msgs (plural), our callers really
-        # only care about the first one. we use "WHICH" and "SIDE" so that we
-        # only expect to see a single message (not our own, where "SIDE" is
-        # our own, and not messages for earlier stages, where "WHICH" is
-        # different)
+        # fire with a bytestring of the first message that matches
+        # verb/msgnum, which either came from old_msgs, or from an
+        # EventSource that we attached to the corresponding URL
         msgs = old_msgs
         while not msgs:
             remaining = self.started + self.timeout - time.time()
@@ -186,12 +177,7 @@ class Wormhole:
                     msgs = [json.loads(data)["message"]]
                     break
             f.close()
-        return msgs
-
-    def _get_data(self, other_msgs):
-        msgs = self._get_messages(other_msgs, "poll", "data")
-        data = unhexlify(msgs[0].encode("ascii"))
-        return data
+        return unhexlify(msgs[0].encode("ascii"))
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(b"")): raise UsageError
@@ -212,9 +198,8 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            other_msgs = self._post_message(self._url("post", "pake"), self.msg1)
-            msgs = self._get_messages(other_msgs, "poll", "pake")
-            pake_msg = unhexlify(msgs[0].encode("ascii"))
+            old_msgs = self._post_message(self._url("post", "pake"), self.msg1)
+            pake_msg = self._get_message(old_msgs, "poll", "pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(self.appid+b":Verifier")
 
@@ -234,9 +219,10 @@ class Wormhole:
             data_key = self.derive_key(b"data-key")
 
             outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-            other_msgs = self._post_data(outbound_encrypted)
+            old_msgs = self._post_message(self._url("post", "data"),
+                                          outbound_encrypted)
 
-            inbound_encrypted = self._get_data(other_msgs)
+            inbound_encrypted = self._get_message(old_msgs, "poll", "data")
             if inbound_encrypted == outbound_encrypted:
                 raise ReflectionAttack
             try:
