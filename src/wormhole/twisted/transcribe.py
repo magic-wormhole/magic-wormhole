@@ -84,20 +84,6 @@ class SymmetricWormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def get_code(self, code_length=2):
-        if self.code is not None: raise UsageError
-        if self._started_get_code: raise UsageError
-        self._started_get_code = True
-        self.side = hexlify(os.urandom(5))
-        d = self._allocate_channel()
-        def _got_channel_id(channel_id):
-            code = codes.make_code(channel_id, code_length)
-            self._set_code_and_channel_id(code)
-            self._start()
-            return code
-        d.addCallback(_got_channel_id)
-        return d
-
     def _post_json(self, url, post_json=None):
         # POST to a URL, parsing the response as JSON. Optionally include a
         # JSON request body.
@@ -123,6 +109,20 @@ class SymmetricWormhole:
                 self.handle_welcome(data["welcome"])
             return data["channel-id"]
         d.addCallback(_got_channel)
+        return d
+
+    def get_code(self, code_length=2):
+        if self.code is not None: raise UsageError
+        if self._started_get_code: raise UsageError
+        self._started_get_code = True
+        self.side = hexlify(os.urandom(5))
+        d = self._allocate_channel()
+        def _got_channel_id(channel_id):
+            code = codes.make_code(channel_id, code_length)
+            self._set_code_and_channel_id(code)
+            self._start()
+            return code
+        d.addCallback(_got_channel_id)
         return d
 
     def set_code(self, code):

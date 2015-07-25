@@ -94,37 +94,6 @@ class Wormhole:
         other_msgs = r.json()["messages"]
         return other_msgs
 
-    def _get_messages(self, old_msgs, verb, msgnum):
-        # For now, server errors cause the client to fail. TODO: don't. This
-        # will require changing the client to re-post messages when the
-        # server comes back up.
-
-        # note: while this passes around msgs (plural), our callers really
-        # only care about the first one. we use "WHICH" and "SIDE" so that we
-        # only expect to see a single message (not our own, where "SIDE" is
-        # our own, and not messages for earlier stages, where "WHICH" is
-        # different)
-        msgs = old_msgs
-        while not msgs:
-            remaining = self.started + self.timeout - time.time()
-            if remaining < 0:
-                raise Timeout
-            #time.sleep(self.wait)
-            f = EventSourceFollower(self._url(verb, msgnum), remaining)
-            for (eventtype, data) in f.iter_events():
-                if eventtype == "welcome":
-                    self.handle_welcome(json.loads(data))
-                if eventtype == "message":
-                    msgs = [json.loads(data)["message"]]
-                    break
-            f.close()
-        return msgs
-
-    def _get_data(self, other_msgs):
-        msgs = self._get_messages(other_msgs, "poll", "data")
-        data = unhexlify(msgs[0].encode("ascii"))
-        return data
-
     def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
@@ -133,11 +102,6 @@ class Wormhole:
             self.handle_welcome(data["welcome"])
         channel_id = data["channel-id"]
         return channel_id
-
-    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        if not isinstance(purpose, type(b"")): raise UsageError
-        return HKDF(self.key, length, CTXinfo=purpose)
-
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError
@@ -181,6 +145,54 @@ class Wormhole:
                                    idB=self.appid+":SymmetricB")
         self.msg1 = self.sp.start()
 
+    def _get_messages(self, old_msgs, verb, msgnum):
+        # For now, server errors cause the client to fail. TODO: don't. This
+        # will require changing the client to re-post messages when the
+        # server comes back up.
+
+        # note: while this passes around msgs (plural), our callers really
+        # only care about the first one. we use "WHICH" and "SIDE" so that we
+        # only expect to see a single message (not our own, where "SIDE" is
+        # our own, and not messages for earlier stages, where "WHICH" is
+        # different)
+        msgs = old_msgs
+        while not msgs:
+            remaining = self.started + self.timeout - time.time()
+            if remaining < 0:
+                raise Timeout
+            #time.sleep(self.wait)
+            f = EventSourceFollower(self._url(verb, msgnum), remaining)
+            for (eventtype, data) in f.iter_events():
+                if eventtype == "welcome":
+                    self.handle_welcome(json.loads(data))
+                if eventtype == "message":
+                    msgs = [json.loads(data)["message"]]
+                    break
+            f.close()
+        return msgs
+
+    def _get_data(self, other_msgs):
+        msgs = self._get_messages(other_msgs, "poll", "data")
+        data = unhexlify(msgs[0].encode("ascii"))
+        return data
+
+    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        if not isinstance(purpose, type(b"")): raise UsageError
+        return HKDF(self.key, length, CTXinfo=purpose)
+
+    def _encrypt_data(self, key, data):
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        box = SecretBox(key)
+        nonce = utils.random(SecretBox.NONCE_SIZE)
+        return box.encrypt(data, nonce)
+
+    def _decrypt_data(self, key, encrypted):
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        box = SecretBox(key)
+        data = box.decrypt(encrypted)
+        return data
+
+
     def _get_key(self):
         if not self.key:
             post_data = {"message": hexlify(self.msg1).decode("ascii")}
@@ -221,18 +233,6 @@ class Wormhole:
         finally:
             self._deallocate()
         return inbound_data
-
-    def _encrypt_data(self, key, data):
-        if len(key) != SecretBox.KEY_SIZE: raise UsageError
-        box = SecretBox(key)
-        nonce = utils.random(SecretBox.NONCE_SIZE)
-        return box.encrypt(data, nonce)
-
-    def _decrypt_data(self, key, encrypted):
-        if len(key) != SecretBox.KEY_SIZE: raise UsageError
-        box = SecretBox(key)
-        data = box.decrypt(encrypted)
-        return data
 
     def _deallocate(self):
         r = requests.post(self._url("deallocate"))
