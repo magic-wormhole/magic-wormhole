@@ -43,7 +43,7 @@ class DataProducer:
         pass
 
 
-class SymmetricWormhole:
+class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
 
