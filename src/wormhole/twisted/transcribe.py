@@ -10,7 +10,7 @@ from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
 from spake2 import SPAKE2_Symmetric
-from .eventsource import ReconnectingEventSource
+from .eventsource_twisted import ReconnectingEventSource
 from .. import __version__
 from .. import codes
 from ..errors import ServerError
