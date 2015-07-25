@@ -87,6 +87,23 @@ class Wormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
+    def _post_json(self, url, post_json=None):
+        # POST to a URL, parsing the response as JSON. Optionally include a
+        # JSON request body.
+        data = None
+        if post_json:
+            data = json.dumps(post_json).encode("utf-8")
+        r = requests.post(url, data=data)
+        r.raise_for_status()
+        return r.json()
+
+    def _post_message(self, url, msg):
+        # TODO: retry on failure, with exponential backoff. We're guarding
+        # against the rendezvous server being temporarily offline.
+        if not isinstance(msg, type(b"")): raise UsageError(type(msg))
+        resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
+        return resp["messages"] # other_msgs
+
     def _post_data(self, data):
         post_data = json.dumps({"message": hexlify(data).decode("ascii")})
         r = requests.post(self._url("post", "data"), data=post_data)
@@ -195,11 +212,7 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            post_data = {"message": hexlify(self.msg1).decode("ascii")}
-            r = requests.post(self._url("post", "pake"),
-                              data=json.dumps(post_data))
-            r.raise_for_status()
-            other_msgs = r.json()["messages"]
+            other_msgs = self._post_message(self._url("post", "pake"), self.msg1)
             msgs = self._get_messages(other_msgs, "poll", "pake")
             pake_msg = unhexlify(msgs[0].encode("ascii"))
             self.key = self.sp.finish(pake_msg)
