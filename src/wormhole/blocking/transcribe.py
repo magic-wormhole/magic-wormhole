@@ -97,13 +97,6 @@ class Wormhole:
         r.raise_for_status()
         return r.json()
 
-    def _post_message(self, url, msg):
-        # TODO: retry on failure, with exponential backoff. We're guarding
-        # against the rendezvous server being temporarily offline.
-        if not isinstance(msg, type(b"")): raise UsageError(type(msg))
-        resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
-        return resp["messages"] # other_msgs
-
     def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
@@ -154,6 +147,13 @@ class Wormhole:
                                    idA=self.appid+":SymmetricA",
                                    idB=self.appid+":SymmetricB")
         self.msg1 = self.sp.start()
+
+    def _post_message(self, url, msg):
+        # TODO: retry on failure, with exponential backoff. We're guarding
+        # against the rendezvous server being temporarily offline.
+        if not isinstance(msg, type(b"")): raise UsageError(type(msg))
+        resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
+        return resp["messages"] # other_msgs
 
     def _get_message(self, old_msgs, verb, msgnum):
         # For now, server errors cause the client to fail. TODO: don't. This
@@ -208,31 +208,34 @@ class Wormhole:
         return self.verifier
 
     def get_data(self, outbound_data):
+        # only call this once
         if self.code is None: raise UsageError
         if self.channel_id is None: raise UsageError
+        try:
+            self._get_key()
+            return self._get_data2(outbound_data)
+        finally:
+            self._deallocate()
 
-        self._get_key()
+    def _get_data2(self, outbound_data):
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and check for reflection.
+        data_key = self.derive_key(b"data-key")
+
+        outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+        msgs = self._post_message(self._url("post", "data"), outbound_encrypted)
+
+        inbound_encrypted = self._get_message(msgs, "poll", "data")
+        if inbound_encrypted == outbound_encrypted:
+            raise ReflectionAttack
         try:
-            data_key = self.derive_key(b"data-key")
-
-            outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-            old_msgs = self._post_message(self._url("post", "data"),
-                                          outbound_encrypted)
-
-            inbound_encrypted = self._get_message(old_msgs, "poll", "data")
-            if inbound_encrypted == outbound_encrypted:
-                raise ReflectionAttack
-            try:
-                inbound_data = self._decrypt_data(data_key, inbound_encrypted)
-            except CryptoError:
-                raise WrongPasswordError
-        finally:
-            self._deallocate()
-        return inbound_data
+            inbound_data = self._decrypt_data(data_key, inbound_encrypted)
+            return inbound_data
+        except CryptoError:
+            raise WrongPasswordError
 
     def _deallocate(self):
-        r = requests.post(self._url("deallocate"))
-        r.raise_for_status()
+        # only try once, no retries
+        requests.post(self._url("deallocate"))
+        # ignore POST failure, don't call r.raise_for_status()
