@@ -16,7 +16,7 @@ def get_db(dbfile, stderr=sys.stderr):
     must_create = not os.path.exists(dbfile)
     try:
         db = sqlite3.connect(dbfile)
-    except (EnvironmentError, sqlite3.OperationalError), e:
+    except (EnvironmentError, sqlite3.OperationalError) as e:
         raise DBError("Unable to create/open db file %s: %s" % (dbfile, e))
     db.row_factory = sqlite3.Row
 
@@ -29,7 +29,7 @@ def get_db(dbfile, stderr=sys.stderr):
 
     try:
         version = db.execute("SELECT version FROM version").fetchone()[0]
-    except sqlite3.DatabaseError, e:
+    except sqlite3.DatabaseError as e:
         # this indicates that the file is not a compatible database format.
         # Perhaps it was created with an old version, or it might be junk.
         raise DBError("db file is unusable: %s" % e)

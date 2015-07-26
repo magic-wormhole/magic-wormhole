@@ -1,3 +1,4 @@
+from __future__ import print_function
 import requests
 
 class EventSourceFollower:
@@ -13,11 +14,11 @@ class EventSourceFollower:
 
     def _get_fields(self, lines):
         while True:
-            first_line = lines.next() # raises StopIteration when closed
+            first_line = next(lines) # raises StopIteration when closed
             fieldname, data = first_line.split(": ", 1)
             data_lines = [data]
             while True:
-                next_line = lines.next()
+                next_line = next(lines)
                 if not next_line: # empty string, original was "\n"
                     yield (fieldname, "\n".join(data_lines))
                     break
