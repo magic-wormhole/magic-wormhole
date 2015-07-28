@@ -15,12 +15,12 @@ class EventSourceFollower:
     def _get_fields(self, lines):
         while True:
             first_line = next(lines) # raises StopIteration when closed
-            fieldname, data = first_line.split(": ", 1)
+            fieldname, data = first_line.split(b": ", 1)
             data_lines = [data]
             while True:
                 next_line = next(lines)
                 if not next_line: # empty string, original was "\n"
-                    yield (fieldname, "\n".join(data_lines))
+                    yield (fieldname, b"\n".join(data_lines))
                     break
                 data_lines.append(next_line)
 
@@ -33,10 +33,10 @@ class EventSourceFollower:
         eventtype = "message"
         lines_iter = self.resp.iter_lines(chunk_size=1)
         for (fieldname, data) in self._get_fields(lines_iter):
-            if fieldname == "data":
+            if fieldname == b"data":
                 yield (eventtype, data)
                 eventtype = "message"
-            elif fieldname == "event":
+            elif fieldname == b"event":
                 eventtype = data
             else:
                 print("weird fieldname", fieldname, data)

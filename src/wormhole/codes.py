@@ -1,7 +1,11 @@
 from __future__ import print_function
-import os
+import os, sys
 from .wordlist import (byte_to_even_word, byte_to_odd_word,
                        even_words_lowercase, odd_words_lowercase)
+
+PY2 = sys.version_info[0] == 2
+if PY2:
+    input = raw_input
 
 def make_code(channel_id, code_length):
     words = []
@@ -81,7 +85,7 @@ def input_code_with_completion(prompt, get_channel_ids, code_length):
     readline.parse_and_bind("tab: complete")
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
-    code = raw_input(prompt)
+    code = input(prompt)
     return code
 
 if __name__ == "__main__":
