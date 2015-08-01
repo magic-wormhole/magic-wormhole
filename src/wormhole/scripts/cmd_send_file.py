@@ -70,7 +70,7 @@ def send_file(args):
 
 
     tdata = them_d["transit"]
-    transit_key = i.derive_key(APPID+"/transit-key")
+    transit_key = i.derive_key(APPID.encode('ascii')+b"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
@@ -91,7 +91,7 @@ def send_file(args):
 
     print("File sent.. waiting for confirmation")
     ack = record_pipe.receive_record()
-    if ack == "ok\n":
+    if ack == b"ok\n":
         print("Confirmation received. Transfer complete.")
         return 0
     else:

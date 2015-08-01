@@ -1,9 +1,17 @@
 from __future__ import print_function
-import re, time, threading, socket, SocketServer
+import re, time, threading, socket, sys
 from binascii import hexlify, unhexlify
 from nacl.secret import SecretBox
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
+
+PY2 = sys.version_info[0] == 2
+
+if PY2:
+    import socketserver as socketserver
+else:
+    import socketserver
+
 
 class TransitError(Exception):
     pass
@@ -23,32 +31,36 @@ class TransitError(Exception):
 # If the sender is satisfied with the handshake, and this is the first socket
 # to complete negotiation, the sender does:
 #
-#  sender -> receiver: go\n
+#  sender -> receiver: b"go\n"
 #
 # and the next byte on the wire will be from the application.
 #
 # If this is not the first socket, the sender does:
 #
-#  sender -> receiver: nevermind\n
+#  sender -> receiver: b"nevermind\n"
 #
 # and closes the socket.
 
-# So the receiver looks for "transit sender TXID_HEX ready\n\ngo\n" and hangs
-# up upon the first wrong byte. The sender lookgs for "transit receiver
+# So the receiver looks for b"transit sender TXID_HEX ready\n\ngo\n" and hangs
+# up upon the first wrong byte. The sender lookgs for b"transit receiver
 # RXID_HEX ready\n\n" and then makes a first/not-first decision about sending
-# "go\n" or "nevermind\n"+close().
+# b"go\n" or b"nevermind\n"+close().
 
 def build_receiver_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_receiver")
-    return "transit receiver %s ready\n\n" % hexlify(hexid)
+    # Python 3.5 will have % formatting for bytes, until then...
+    msg = "transit receiver %s ready\n\n" % hexlify(hexid).decode('ascii')
+    return msg.encode('ascii')
 
 def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
-    return "transit sender %s ready\n\n" % hexlify(hexid)
+    msg = "transit sender %s ready\n\n" % hexlify(hexid).decode('ascii')
+    return msg.encode('ascii')
 
 def build_relay_handshake(key):
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return "please relay %s\n" % hexlify(token)
+    msg = "please relay %s\n" % hexlify(token).decode('ascii')
+    return msg.encode('ascii')
 
 TIMEOUT=15
 
@@ -68,6 +80,8 @@ def force_ascii(s):
     return s
 
 def send_to(skt, data):
+    if not isinstance(data, bytes):
+        raise TypeError("expected bytes, found %r" % data)
     sent = 0
     while sent < len(data):
         sent += skt.send(data[sent:])
@@ -87,17 +101,19 @@ def wait_for(skt, expected, description):
 # publisher wants anonymity, their only hint's ADDR will end in .onion .
 
 def parse_hint_tcp(hint):
+    if not isinstance(hint, bytes):
+        raise TypeError("expected bytes, got '%r'" % hint)
     # return tuple or None for an unparseable hint
-    mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
+    mo = re.search(br'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
         print("unparseable hint '%s'" % (hint,))
         return None
     hint_type = mo.group(1)
-    if hint_type != "tcp":
+    if hint_type != b"tcp":
         print("unknown hint type '%s' in '%s'" % (hint_type, hint))
         return None
     hint_value = mo.group(2)
-    mo = re.search(r'^(.*):(\d+)$', hint_value)
+    mo = re.search(br'^(.*):(\d+)$', hint_value)
     if not mo:
         print("unparseable TCP hint '%s'" % (hint,))
         return None
@@ -132,7 +148,7 @@ def connector(owner, hint, description,
         if relay_handshake:
             debug(" - sending relay_handshake")
             send_to(skt, relay_handshake)
-            wait_for(skt, "ok\n", description)
+            wait_for(skt, b"ok\n", description)
             debug(" - relay ready CT+%.1f" % (since(start),))
         send_to(skt, send_handshake)
         wait_for(skt, expected_handshake, description)
@@ -187,7 +203,7 @@ def handle(skt, client_address, owner, description,
     # owner is now responsible for the socket
     owner._negotiation_finished(skt, description) # note thread
 
-class MyTCPServer(SocketServer.TCPServer):
+class MyTCPServer(socketserver.TCPServer):
     allow_reuse_address = True
 
     def process_request(self, request, client_address):
@@ -308,7 +324,7 @@ class Common:
         if self.is_sender:
             return build_receiver_handshake(self._transit_key)
         else:
-            return build_sender_handshake(self._transit_key) + "go\n"
+            return build_sender_handshake(self._transit_key) + b"go\n"
 
     def _sender_record_key(self):
         if self.is_sender:
@@ -407,11 +423,11 @@ class Common:
 
         if is_winner:
             if self.is_sender:
-                send_to(skt, "go\n")
+                send_to(skt, b"go\n")
             self.winning.set()
         else:
             if self.is_sender:
-                send_to(skt, "nevermind\n")
+                send_to(skt, b"nevermind\n")
             skt.close()
 
     def connect(self):

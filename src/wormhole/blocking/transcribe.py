@@ -100,9 +100,9 @@ class Common:
             f = EventSourceFollower(self.url(verb, msgnum), remaining)
             for (eventtype, data) in f.iter_events():
                 if eventtype == "welcome":
-                    self.handle_welcome(json.loads(data))
+                    self.handle_welcome(json.loads(data.decode("ascii")))
                 if eventtype == "message":
-                    msgs = [json.loads(data)["message"]]
+                    msgs = [json.loads(data.decode("ascii"))["message"]]
                     break
             f.close()
         return msgs
@@ -181,8 +181,8 @@ class Initiator(Common):
         self.channel_id = int(mo.group(1))
         self.code = code
         self.sp = SPAKE2_A(self.code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
+                           idA=self.appid.encode("ascii")+b":Initiator",
+                           idB=self.appid.encode("ascii")+b":Receiver")
         self._post_pake()
 
     def get_code(self, code_length=2):
@@ -195,7 +195,7 @@ class Initiator(Common):
         if not self.key:
             key = self._get_pake([])
             self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
+            self.verifier = self.derive_key(self.appid.encode('ascii')+b":Verifier")
 
     def get_verifier(self):
         self._wait_for_key()
@@ -251,15 +251,15 @@ class Receiver(Common):
         self.code = code
         self.channel_id = codes.extract_channel_id(code)
         self.sp = SPAKE2_B(code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
+                           idA=self.appid.encode("ascii")+b":Initiator",
+                           idB=self.appid.encode("ascii")+b":Receiver")
 
     def _wait_for_key(self):
         if not self.key:
             other_msgs = self._post_pake()
             key = self._get_pake(other_msgs)
             self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
+            self.verifier = self.derive_key(self.appid.encode("ascii")+b":Verifier")
 
     def get_verifier(self):
         self._wait_for_key()

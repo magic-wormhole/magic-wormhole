@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys, argparse
 from textwrap import dedent
 from .. import public_relay
@@ -121,10 +122,10 @@ def run(args, stdout, stderr, executable=None):
         #rc = command.func(args, stdout, stderr)
         rc = args.func(args)
         return rc
-    except ImportError, e:
-        print >>stderr, "--- ImportError ---"
-        print >>stderr, e
-        print >>stderr, "Please run 'python setup.py build'"
+    except ImportError as e:
+        print("--- ImportError ---", file=stderr)
+        print(e, file=stderr)
+        print("Please run 'python setup.py build'", file=stderr)
         raise
         return 1
 
@@ -135,4 +136,4 @@ def entry():
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    print args
+    print(args)

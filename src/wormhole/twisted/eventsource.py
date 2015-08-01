@@ -36,20 +36,20 @@ class EventSourceParser(basic.LineOnlyReceiver):
         if not line:
             # blank line ends the field
             self.fieldReceived(self.current_field,
-                               "\n".join(self.current_lines))
+                               b"\n".join(self.current_lines))
             self.current_field = None
             self.current_lines[:] = []
             return
         if self.current_field is None:
-            self.current_field, data = line.split(": ", 1)
+            self.current_field, data = line.split(b": ", 1)
             self.current_lines.append(data)
         else:
             self.current_lines.append(line)
 
     def fieldReceived(self, fieldname, data):
-        if fieldname == "event":
+        if fieldname == b"event":
             self.eventtype = data
-        elif fieldname == "data":
+        elif fieldname == b"data":
             self.eventReceived(self.eventtype, data)
             self.eventtype = "message"
         else:
