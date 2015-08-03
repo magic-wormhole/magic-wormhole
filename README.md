@@ -30,3 +30,10 @@ This library is released under the MIT license, see LICENSE for details.
 
 This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5, and
 3.6 .
+
+## See Also
+
+Other projects in the same space: check them out!
+
+* http://www.pushbullet.com/
+* https://github.com/mafintosh/webcat
