@@ -20,7 +20,7 @@ setup(name="magic-wormhole",
       package_data={"wormhole": ["db-schemas/*.sql"]},
       entry_points={"console_scripts":
                     ["wormhole = wormhole.scripts.runner:entry"]},
-      install_requires=["spake2==0.2", "pynacl", "requests", "argparse"],
+      install_requires=["spake2==0.3", "pynacl", "requests", "argparse"],
       test_suite="wormhole.test",
       cmdclass=commands,
       )
