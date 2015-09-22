@@ -1,6 +1,14 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.4.0 (22-Sep-2015)
+
+Change the protocol used (to a symmetric form), breaking compatibility with
+0.3.0 peers. Now both blocking-style and Twisted-style use a symmetric
+protocol, and the two sides do not need to figure out (ahead of time) which
+one goes first. The internal layout was rearranged, so applications that
+import wormhole must be updated.
+
 ## Release 0.3.0 (24-Jun-2015)
 
 Add preliminary Twisted support, only for symmetric endpoints (no
