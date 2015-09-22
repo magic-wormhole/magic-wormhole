@@ -185,6 +185,8 @@ class Wormhole:
             self.verifier = self.derive_key(self.appid+b":Verifier")
 
     def get_verifier(self):
+        if self.code is None: raise UsageError
+        if self.channel_id is None: raise UsageError
         self._get_key()
         return self.verifier
 
