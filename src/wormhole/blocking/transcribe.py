@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, time, re, requests, json, textwrap
+import os, sys, time, re, requests, json
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
@@ -8,31 +8,12 @@ from nacl import utils
 from .eventsource import EventSourceFollower
 from .. import __version__
 from .. import codes
-from ..errors import ServerError
+from ..errors import (ServerError, Timeout, WrongPasswordError,
+                      ReflectionAttack, UsageError)
 from ..util.hkdf import HKDF
 
 SECOND = 1
 MINUTE = 60*SECOND
-
-class Timeout(Exception):
-    pass
-
-class WrongPasswordError(Exception):
-    """
-    Key confirmation failed. Either you or your correspondent typed the code
-    wrong, or a would-be man-in-the-middle attacker guessed incorrectly. You
-    could try again, giving both your correspondent and the attacker another
-    chance.
-    """
-    # or the data blob was corrupted, and that's why decrypt failed
-    def explain(self):
-        return textwrap.dedent(self.__doc__)
-
-class ReflectionAttack(Exception):
-    """An attacker (or bug) reflected our outgoing message back to us."""
-
-class UsageError(Exception):
-    """The programmer did something wrong."""
 
 # relay URLs are:
 # GET /list                                         -> {channel-ids: [INT..]}

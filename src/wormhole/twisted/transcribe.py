@@ -13,19 +13,9 @@ from spake2 import SPAKE2_Symmetric
 from .eventsource_twisted import ReconnectingEventSource
 from .. import __version__
 from .. import codes
-from ..errors import ServerError
+from ..errors import (ServerError, WrongPasswordError,
+                      ReflectionAttack, UsageError)
 from ..util.hkdf import HKDF
-
-class WrongPasswordError(Exception):
-    """
-    Key confirmation failed.
-    """
-
-class ReflectionAttack(Exception):
-    """An attacker (or bug) reflected our outgoing message back to us."""
-
-class UsageError(Exception):
-    """The programmer did something wrong."""
 
 @implementer(IBodyProducer)
 class DataProducer:
