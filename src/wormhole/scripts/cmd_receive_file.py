@@ -7,24 +7,24 @@ APPID = "lothar.com/wormhole/file-xfer"
 @handle_server_error
 def receive_file(args):
     # we're receiving
-    from ..blocking.transcribe import Receiver, WrongPasswordError
+    from ..blocking.transcribe import Wormhole, WrongPasswordError
     from ..blocking.transit import TransitReceiver, TransitError
     from .progress import start_progress, update_progress, finish_progress
 
     transit_receiver = TransitReceiver(args.transit_helper)
 
-    r = Receiver(APPID, args.relay_url)
+    w = Wormhole(APPID, args.relay_url)
     if args.zeromode:
         assert not args.code
         args.code = "0-"
     code = args.code
     if not code:
-        code = r.input_code("Enter receive-file wormhole code: ",
+        code = w.input_code("Enter receive-file wormhole code: ",
                             args.code_length)
-    r.set_code(code)
+    w.set_code(code)
 
     if args.verify:
-        verifier = binascii.hexlify(r.get_verifier())
+        verifier = binascii.hexlify(w.get_verifier())
         print("Verifier %s." % verifier)
 
     mydata = json.dumps({
@@ -34,7 +34,7 @@ def receive_file(args):
             },
         }).encode("utf-8")
     try:
-        data = json.loads(r.get_data(mydata).decode("utf-8"))
+        data = json.loads(w.get_data(mydata).decode("utf-8"))
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
@@ -50,7 +50,7 @@ def receive_file(args):
 
     # now receive the rest of the owl
     tdata = data["transit"]
-    transit_key = r.derive_key(APPID+"/transit-key")
+    transit_key = w.derive_key(APPID+"/transit-key")
     transit_receiver.set_transit_key(transit_key)
     transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])

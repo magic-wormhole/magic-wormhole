@@ -1,44 +1,19 @@
 from __future__ import print_function
-import sys, time, re, requests, json, textwrap
+import os, sys, time, re, requests, json
 from binascii import hexlify, unhexlify
-from spake2 import SPAKE2_A, SPAKE2_B
+from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
 from .eventsource import EventSourceFollower
 from .. import __version__
 from .. import codes
-from ..errors import ServerError
+from ..errors import (ServerError, Timeout, WrongPasswordError,
+                      ReflectionAttack, UsageError)
 from ..util.hkdf import HKDF
 
 SECOND = 1
 MINUTE = 60*SECOND
-
-class Timeout(Exception):
-    pass
-
-class WrongPasswordError(Exception):
-    """
-    Key confirmation failed.
-    """
-    # or the data blob was corrupted, and that's why decrypt failed
-    def explain(self):
-        return textwrap.dedent(self.__doc__)
-
-class InitiatorWrongPasswordError(WrongPasswordError):
-    """
-    Key confirmation failed. Either your correspondent typed the code wrong,
-    or a would-be man-in-the-middle attacker guessed incorrectly. You could
-    try again, giving both your correspondent and the attacker another
-    chance.
-    """
-
-class ReceiverWrongPasswordError(WrongPasswordError):
-    """
-    Key confirmation failed. Either you typed the code wrong, or a would-be
-    man-in-the-middle attacker guessed incorrectly. You could try again,
-    giving both you and the attacker another chance.
-    """
 
 # relay URLs are:
 # GET /list                                         -> {channel-ids: [INT..]}
@@ -49,15 +24,27 @@ class ReceiverWrongPasswordError(WrongPasswordError):
 # GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
 # POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
 
-class Common:
-    def url(self, verb, msgnum=None):
+class Wormhole:
+    motd_displayed = False
+    version_warning_displayed = False
+
+    def __init__(self, appid, relay):
+        self.appid = appid
+        self.relay = relay
+        if not self.relay.endswith("/"): raise UsageError
+        self.started = time.time()
+        self.wait = 0.5*SECOND
+        self.timeout = 3*MINUTE
+        self.side = None
+        self.code = None
+        self.key = None
+        self.verifier = None
+
+    def _url(self, verb, msgnum=None):
         url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
         if msgnum is not None:
             url += "/" + msgnum
         return url
-
-    motd_displayed = False
-    version_warning_displayed = False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -81,33 +68,17 @@ class Common:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def get(self, old_msgs, verb, msgnum):
-        # For now, server errors cause the client to fail. TODO: don't. This
-        # will require changing the client to re-post messages when the
-        # server comes back up.
+    def _post_json(self, url, post_json=None):
+        # POST to a URL, parsing the response as JSON. Optionally include a
+        # JSON request body.
+        data = None
+        if post_json:
+            data = json.dumps(post_json).encode("utf-8")
+        r = requests.post(url, data=data)
+        r.raise_for_status()
+        return r.json()
 
-        # note: while this passes around msgs (plural), our callers really
-        # only care about the first one. we use "WHICH" and "SIDE" so that we
-        # only expect to see a single message (not our own, where "SIDE" is
-        # our own, and not messages for earlier stages, where "WHICH" is
-        # different)
-        msgs = old_msgs
-        while not msgs:
-            remaining = self.started + self.timeout - time.time()
-            if remaining < 0:
-                raise Timeout
-            #time.sleep(self.wait)
-            f = EventSourceFollower(self.url(verb, msgnum), remaining)
-            for (eventtype, data) in f.iter_events():
-                if eventtype == "welcome":
-                    self.handle_welcome(json.loads(data))
-                if eventtype == "message":
-                    msgs = [json.loads(data)["message"]]
-                    break
-            f.close()
-        return msgs
-
-    def _allocate(self):
+    def _allocate_channel(self):
         r = requests.post(self.relay + "allocate/%s" % self.side)
         r.raise_for_status()
         data = r.json()
@@ -116,123 +87,14 @@ class Common:
         channel_id = data["channel-id"]
         return channel_id
 
-    def _post_pake(self):
-        msg = self.sp.start()
-        post_data = {"message": hexlify(msg).decode("ascii")}
-        r = requests.post(self.url("post", "pake"), data=json.dumps(post_data))
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-        return other_msgs
-
-    def _get_pake(self, other_msgs):
-        msgs = self.get(other_msgs, "poll", "pake")
-        pake_msg = unhexlify(msgs[0].encode("ascii"))
-        key = self.sp.finish(pake_msg)
-        return key
-
-    def _encrypt_data(self, key, data):
-        assert len(key) == SecretBox.KEY_SIZE
-        box = SecretBox(key)
-        nonce = utils.random(SecretBox.NONCE_SIZE)
-        return box.encrypt(data, nonce)
-
-    def _post_data(self, data):
-        post_data = json.dumps({"message": hexlify(data).decode("ascii")})
-        r = requests.post(self.url("post", "data"), data=post_data)
-        r.raise_for_status()
-        other_msgs = r.json()["messages"]
-        return other_msgs
-
-    def _get_data(self, other_msgs):
-        msgs = self.get(other_msgs, "poll", "data")
-        data = unhexlify(msgs[0].encode("ascii"))
-        return data
-
-    def _decrypt_data(self, key, encrypted):
-        assert len(key) == SecretBox.KEY_SIZE
-        box = SecretBox(key)
-        data = box.decrypt(encrypted)
-        return data
-
-    def _deallocate(self):
-        r = requests.post(self.url("deallocate"))
-        r.raise_for_status()
-
-    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        assert type(purpose) == type(b"")
-        return HKDF(self.key, length, CTXinfo=purpose)
-
-class Initiator(Common):
-    def __init__(self, appid, relay):
-        self.appid = appid
-        self.relay = relay
-        assert self.relay.endswith("/")
-        self.started = time.time()
-        self.wait = 0.5*SECOND
-        self.timeout = 3*MINUTE
-        self.side = "initiator"
-        self.key = None
-        self.verifier = None
-
-    def set_code(self, code): # used for human-made pre-generated codes
-        mo = re.search(r'^(\d+)-', code)
-        if not mo:
-            raise ValueError("code (%s) must start with NN-" % code)
-        self.channel_id = int(mo.group(1))
-        self.code = code
-        self.sp = SPAKE2_A(self.code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
-        self._post_pake()
-
     def get_code(self, code_length=2):
-        channel_id = self._allocate() # allocate channel
+        if self.code is not None: raise UsageError
+        self.side = hexlify(os.urandom(5))
+        channel_id = self._allocate_channel() # allocate channel
         code = codes.make_code(channel_id, code_length)
-        self.set_code(code)
+        self._set_code_and_channel_id(code)
+        self._start()
         return code
-
-    def _wait_for_key(self):
-        if not self.key:
-            key = self._get_pake([])
-            self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
-
-    def get_verifier(self):
-        self._wait_for_key()
-        return self.verifier
-
-    def get_data(self, outbound_data):
-        self._wait_for_key()
-        try:
-            outbound_key = self.derive_key(b"sender")
-            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
-            other_msgs = self._post_data(outbound_encrypted)
-
-            inbound_encrypted = self._get_data(other_msgs)
-            inbound_key = self.derive_key(b"receiver")
-            try:
-                inbound_data = self._decrypt_data(inbound_key,
-                                                  inbound_encrypted)
-            except CryptoError:
-                raise InitiatorWrongPasswordError
-        finally:
-            self._deallocate()
-        return inbound_data
-
-
-class Receiver(Common):
-    def __init__(self, appid, relay):
-        self.appid = appid
-        self.relay = relay
-        assert self.relay.endswith("/")
-        self.started = time.time()
-        self.wait = 0.5*SECOND
-        self.timeout = 3*MINUTE
-        self.side = "receiver"
-        self.code = None
-        self.channel_id = None
-        self.key = None
-        self.verifier = None
 
     def list_channels(self):
         r = requests.get(self.relay + "list")
@@ -245,43 +107,117 @@ class Receiver(Common):
                                                 code_length)
         return code
 
-    def set_code(self, code):
-        assert self.code is None
-        assert self.channel_id is None
-        self.code = code
-        self.channel_id = codes.extract_channel_id(code)
-        self.sp = SPAKE2_B(code.encode("ascii"),
-                           idA=self.appid+":Initiator",
-                           idB=self.appid+":Receiver")
+    def set_code(self, code): # used for human-made pre-generated codes
+        if self.code is not None: raise UsageError
+        if self.side is not None: raise UsageError
+        self._set_code_and_channel_id(code)
+        self.side = hexlify(os.urandom(5))
+        self._start()
 
-    def _wait_for_key(self):
+    def _set_code_and_channel_id(self, code):
+        if self.code is not None: raise UsageError
+        mo = re.search(r'^(\d+)-', code)
+        if not mo:
+            raise ValueError("code (%s) must start with NN-" % code)
+        self.channel_id = int(mo.group(1))
+        self.code = code
+
+    def _start(self):
+        # allocate the rest now too, so it can be serialized
+        self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
+                                   idSymmetric=self.appid)
+        self.msg1 = self.sp.start()
+
+    def _post_message(self, url, msg):
+        # TODO: retry on failure, with exponential backoff. We're guarding
+        # against the rendezvous server being temporarily offline.
+        if not isinstance(msg, type(b"")): raise UsageError(type(msg))
+        resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
+        return resp["messages"] # other_msgs
+
+    def _get_message(self, old_msgs, verb, msgnum):
+        # For now, server errors cause the client to fail. TODO: don't. This
+        # will require changing the client to re-post messages when the
+        # server comes back up.
+
+        # fire with a bytestring of the first message that matches
+        # verb/msgnum, which either came from old_msgs, or from an
+        # EventSource that we attached to the corresponding URL
+        msgs = old_msgs
+        while not msgs:
+            remaining = self.started + self.timeout - time.time()
+            if remaining < 0:
+                raise Timeout
+            #time.sleep(self.wait)
+            f = EventSourceFollower(self._url(verb, msgnum), remaining)
+            for (eventtype, data) in f.iter_events():
+                if eventtype == "welcome":
+                    self.handle_welcome(json.loads(data))
+                if eventtype == "message":
+                    msgs = [json.loads(data)["message"]]
+                    break
+            f.close()
+        return unhexlify(msgs[0].encode("ascii"))
+
+    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        if not isinstance(purpose, type(b"")): raise UsageError
+        return HKDF(self.key, length, CTXinfo=purpose)
+
+    def _encrypt_data(self, key, data):
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        box = SecretBox(key)
+        nonce = utils.random(SecretBox.NONCE_SIZE)
+        return box.encrypt(data, nonce)
+
+    def _decrypt_data(self, key, encrypted):
+        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        box = SecretBox(key)
+        data = box.decrypt(encrypted)
+        return data
+
+
+    def _get_key(self):
         if not self.key:
-            other_msgs = self._post_pake()
-            key = self._get_pake(other_msgs)
-            self.key = key
+            old_msgs = self._post_message(self._url("post", "pake"), self.msg1)
+            pake_msg = self._get_message(old_msgs, "poll", "pake")
+            self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(self.appid+b":Verifier")
 
     def get_verifier(self):
-        self._wait_for_key()
+        if self.code is None: raise UsageError
+        if self.channel_id is None: raise UsageError
+        self._get_key()
         return self.verifier
 
     def get_data(self, outbound_data):
-        assert self.code is not None
-        assert self.channel_id is not None
-        self._wait_for_key()
-
+        # only call this once
+        if self.code is None: raise UsageError
+        if self.channel_id is None: raise UsageError
         try:
-            outbound_key = self.derive_key(b"receiver")
-            outbound_encrypted = self._encrypt_data(outbound_key, outbound_data)
-            other_msgs = self._post_data(outbound_encrypted)
-
-            inbound_encrypted = self._get_data(other_msgs)
-            inbound_key = self.derive_key(b"sender")
-            try:
-                inbound_data = self._decrypt_data(inbound_key,
-                                                  inbound_encrypted)
-            except CryptoError:
-                raise ReceiverWrongPasswordError
+            self._get_key()
+            return self._get_data2(outbound_data)
         finally:
             self._deallocate()
-        return inbound_data
+
+    def _get_data2(self, outbound_data):
+        # Without predefined roles, we can't derive predictably unique keys
+        # for each side, so we use the same key for both. We use random
+        # nonces to keep the messages distinct, and check for reflection.
+        data_key = self.derive_key(b"data-key")
+
+        outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+        msgs = self._post_message(self._url("post", "data"), outbound_encrypted)
+
+        inbound_encrypted = self._get_message(msgs, "poll", "data")
+        if inbound_encrypted == outbound_encrypted:
+            raise ReflectionAttack
+        try:
+            inbound_data = self._decrypt_data(data_key, inbound_encrypted)
+            return inbound_data
+        except CryptoError:
+            raise WrongPasswordError
+
+    def _deallocate(self):
+        # only try once, no retries
+        requests.post(self._url("deallocate"))
+        # ignore POST failure, don't call r.raise_for_status()

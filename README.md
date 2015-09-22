@@ -113,14 +113,11 @@ All four commands accept:
 ## Library
 
 The `wormhole` module makes it possible for other applications to use these
-code-protected channels. This includes blocking/synchronous support (for an
-asymmetric pair of "initiator" and "receiver" endpoints), and async/Twisted
-support (for a symmetric scheme). The main module is named
+code-protected channels. This includes blocking/synchronous support and
+async/Twisted support, both for a symmetric scheme. The main module is named
 `wormhole.blocking.transcribe`, to reflect that it is for
 synchronous/blocking code, and uses a PAKE mode whereby one user transcribes
-their code to the other. (internal names may change in the future). The
-synchronous support uses distinctive sides: one `Initiator`, and one
-`Receiver`.
+their code to the other. (internal names may change in the future).
 
 The file-transfer tools use a second module named
 `wormhole.blocking.transit`, which provides an encrypted record-pipe. It

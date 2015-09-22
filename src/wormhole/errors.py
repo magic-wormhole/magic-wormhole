@@ -1,4 +1,4 @@
-import functools
+import functools, textwrap
 
 class ServerError(Exception):
     def __init__(self, message, relay):
@@ -16,3 +16,23 @@ def handle_server_error(func):
             print("Server error (from %s):\n%s" % (e.relay, e.message))
             return 1
     return _wrap
+
+class Timeout(Exception):
+    pass
+
+class WrongPasswordError(Exception):
+    """
+    Key confirmation failed. Either you or your correspondent typed the code
+    wrong, or a would-be man-in-the-middle attacker guessed incorrectly. You
+    could try again, giving both your correspondent and the attacker another
+    chance.
+    """
+    # or the data blob was corrupted, and that's why decrypt failed
+    def explain(self):
+        return textwrap.dedent(self.__doc__)
+
+class ReflectionAttack(Exception):
+    """An attacker (or bug) reflected our outgoing message back to us."""
+
+class UsageError(Exception):
+    """The programmer did something wrong."""
