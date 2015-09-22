@@ -50,7 +50,7 @@ which.
 The synchronous+blocking flow looks like this:
 
 ```python
-from wormhole.transcribe import Wormhole
+from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"initiator's data"
 i = Wormhole("appid", RENDEZVOUS_RELAY)
@@ -62,7 +62,7 @@ print("Their data: %s" % theirdata.decode("ascii"))
 
 ```python
 import sys
-from wormhole.transcribe import Wormhole
+from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"receiver's data"
 code = sys.argv[1]
@@ -197,7 +197,7 @@ restarted during that time. To support this, you can persist the state of the
 object by calling `data = w.serialize()`, which will return a printable
 bytestring (the JSON-encoding of a small dictionary). To restore, use the
 `from_serialized(data)` classmethod (e.g. `w =
-SymmetricWormhole.from_serialized(data)`).
+Wormhole.from_serialized(data)`).
 
 There is exactly one point at which you can serialize the wormhole: *after*
 establishing the invitation code, but before waiting for `get_verifier()` or
