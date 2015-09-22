@@ -125,8 +125,7 @@ class Wormhole:
     def _start(self):
         # allocate the rest now too, so it can be serialized
         self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
-                                   idA=self.appid+":SymmetricA",
-                                   idB=self.appid+":SymmetricB")
+                                   idSymmetric=self.appid)
         self.msg1 = self.sp.start()
 
     def _post_message(self, url, msg):
