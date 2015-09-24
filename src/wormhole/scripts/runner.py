@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser(
     by speaking the same magic CODE in two different places at the same time.
     Wormholes are secure against anyone who doesn't use the same code."""),
     )
+
 parser.add_argument("--version", action="version",
                     version="magic-wormhole "+ __version__)
 g = parser.add_argument_group("wormhole configuration options")
@@ -44,9 +45,11 @@ sp_start.add_argument("--advertise-version", metavar="VERSION",
 #                      Additional arguments to pass to twistd"""),
 #                      )
 sp_start.set_defaults(func=cmd_server.start_server)
+
 sp_stop = sp.add_parser("stop", description="Stop the relay server",
                         usage="wormhole server stop")
 sp_stop.set_defaults(func=cmd_server.stop_server)
+
 sp_restart = sp.add_parser("restart", description="Restart the relay server",
                            usage="wormhole server restart")
 sp_restart.add_argument("--rendezvous", default="tcp:3000", metavar="tcp:PORT",
