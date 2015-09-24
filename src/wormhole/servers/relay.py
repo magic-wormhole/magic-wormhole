@@ -80,7 +80,7 @@ class Channel(resource.Resource):
         if "text/event-stream" not in (request.getHeader("accept") or ""):
             request.setResponseCode(http.BAD_REQUEST, "Must use EventSource")
             return "Must use EventSource (Content-Type: text/event-stream)"
-        request.setHeader("content-type", "text/event-stream")
+        request.setHeader("content-type", "text/event-stream; charset=utf-8")
         ep = EventsProtocol(request)
         ep.sendEvent(json.dumps(self.welcome), name="welcome")
         handle = (their_side, their_msgnum, ep)
