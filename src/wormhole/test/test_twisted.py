@@ -9,7 +9,7 @@ from .common import ServerBase
 
 class Basic(ServerBase, unittest.TestCase):
     def test_basic(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
         w2 = Wormhole(appid, self.relayurl)
         d = w1.get_code()
@@ -30,7 +30,7 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_fixed_code(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
         w2 = Wormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
@@ -49,7 +49,7 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_errors(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.get_data, "data")
@@ -62,7 +62,7 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_serialize(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
         w2 = Wormhole(appid, self.relayurl)

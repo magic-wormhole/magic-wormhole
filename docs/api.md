@@ -53,7 +53,7 @@ The synchronous+blocking flow looks like this:
 from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"initiator's data"
-i = Wormhole("appid", RENDEZVOUS_RELAY)
+i = Wormhole(b"appid", RENDEZVOUS_RELAY)
 code = i.get_code()
 print("Invitation Code: %s" % code)
 theirdata = i.get_data(mydata)
@@ -66,7 +66,7 @@ from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"receiver's data"
 code = sys.argv[1]
-r = Wormhole("appid", RENDEZVOUS_RELAY)
+r = Wormhole(b"appid", RENDEZVOUS_RELAY)
 r.set_code(code)
 theirdata = r.get_data(mydata)
 print("Their data: %s" % theirdata.decode("ascii"))
@@ -81,7 +81,7 @@ from twisted.internet import reactor
 from wormhole.public_relay import RENDEZVOUS_RELAY
 from wormhole.twisted.transcribe import Wormhole
 outbound_message = b"outbound data"
-w1 = Wormhole("appid", RENDEZVOUS_RELAY)
+w1 = Wormhole(b"appid", RENDEZVOUS_RELAY)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
@@ -97,7 +97,7 @@ reactor.run()
 On the other side, you call `set_code()` instead of waiting for `get_code()`:
 
 ```python
-w2 = Wormhole("appid", RENDEZVOUS_RELAY)
+w2 = Wormhole(b"appid", RENDEZVOUS_RELAY)
 w2.set_code(code)
 d = w2.get_data(my_message)
 ...
@@ -140,7 +140,8 @@ simple bytestring that distinguishes one application from another. To ensure
 uniqueness, use a domain name. To use multiple apps for a single domain, just
 use a string like `example.com/app1`. This string must be the same on both
 clients, otherwise they will not see each other. The invitation codes are
-scoped to the app-id.
+scoped to the app-id. Note that the app-id must be a bytestring, not unicode,
+so on python3 use `b"appid"`.
 
 Distinct app-ids reduce the size of the connection-id numbers. If fewer than
 ten initiators are active for a given app-id, the connection-id will only

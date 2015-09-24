@@ -10,7 +10,7 @@ class Blocking(ServerBase, unittest.TestCase):
     # with deferToThread()
 
     def test_basic(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
         w2 = BlockingWormhole(appid, self.relayurl)
         d = deferToThread(w1.get_code)
@@ -31,7 +31,7 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_fixed_code(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
         w2 = BlockingWormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
@@ -50,7 +50,7 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_errors(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.get_data, "data")
@@ -65,7 +65,7 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_serialize(self):
-        appid = "appid"
+        appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
         w2 = BlockingWormhole(appid, self.relayurl)

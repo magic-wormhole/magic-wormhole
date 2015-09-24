@@ -29,6 +29,7 @@ class Wormhole:
     version_warning_displayed = False
 
     def __init__(self, appid, relay):
+        if not isinstance(appid, type(b"")): raise UsageError
         self.appid = appid
         self.relay = relay
         if not self.relay.endswith("/"): raise UsageError
