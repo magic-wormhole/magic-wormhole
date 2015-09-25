@@ -383,9 +383,10 @@ class Root(resource.Resource):
         self.putChild("", static.Data("Wormhole Relay\n", "text/plain"))
 
 class RelayServer(service.MultiService):
-    def __init__(self, relayport, transitport, advertise_version):
+    def __init__(self, relayport, transitport, advertise_version,
+                 db_url=":memory:"):
         service.MultiService.__init__(self)
-        self.db = get_db("relay.sqlite")
+        self.db = get_db(db_url)
         welcome = {
             "current_version": __version__,
             # adding .motd will cause all clients to display the message,
