@@ -26,24 +26,24 @@ class EventsProtocol:
         # face of firewall/NAT timeouts. It also helps unit tests, since
         # apparently twisted.web.client.Agent doesn't consider the connection
         # to be established until it sees the first byte of the reponse body.
-        self.request.write(": %s\n\n" % comment)
+        self.request.write(b": %s\n\n" % comment)
 
     def sendEvent(self, data, name=None, id=None, retry=None):
         if name:
-            self.request.write("event: %s\n" % name.encode("utf-8"))
+            self.request.write(b"event: %s\n" % name.encode("utf-8"))
             # e.g. if name=foo, then the client web page should do:
             # (new EventSource(url)).addEventListener("foo", handlerfunc)
             # Note that this basically defaults to "message".
-            self.request.write("\n")
+            self.request.write(b"\n")
         if id:
-            self.request.write("id: %s\n" % id.encode("utf-8"))
-            self.request.write("\n")
+            self.request.write(b"id: %s\n" % id.encode("utf-8"))
+            self.request.write(b"\n")
         if retry:
-            self.request.write("retry: %d\n" % retry) # milliseconds
-            self.request.write("\n")
+            self.request.write(b"retry: %d\n" % retry) # milliseconds
+            self.request.write(b"\n")
         for line in data.splitlines():
-            self.request.write("data: %s\n" % line.encode("utf-8"))
-        self.request.write("\n")
+            self.request.write(b"data: %s\n" % line.encode("utf-8"))
+        self.request.write(b"\n")
 
     def stop(self):
         self.request.finish()
@@ -72,15 +72,15 @@ class Channel(resource.Resource):
 
     def render_GET(self, request):
         # rest of URL is: SIDE/poll/MSGNUM
-        their_side = request.postpath[0]
-        if request.postpath[1] != "poll":
-            request.setResponseCode(http.BAD_REQUEST, "GET to wrong URL")
-            return "GET is only for /SIDE/poll/MSGNUM"
-        their_msgnum = request.postpath[2]
-        if "text/event-stream" not in (request.getHeader("accept") or ""):
-            request.setResponseCode(http.BAD_REQUEST, "Must use EventSource")
-            return "Must use EventSource (Content-Type: text/event-stream)"
-        request.setHeader("content-type", "text/event-stream; charset=utf-8")
+        their_side = request.postpath[0].decode("utf-8")
+        if request.postpath[1] != b"poll":
+            request.setResponseCode(http.BAD_REQUEST, b"GET to wrong URL")
+            return b"GET is only for /SIDE/poll/MSGNUM"
+        their_msgnum = request.postpath[2].decode("utf-8")
+        if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
+            request.setResponseCode(http.BAD_REQUEST, b"Must use EventSource")
+            return b"Must use EventSource (Content-Type: text/event-stream)"
+        request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
         ep = EventsProtocol(request)
         ep.sendEvent(json.dumps(self.welcome), name="welcome")
         handle = (their_side, their_msgnum, ep)
@@ -107,20 +107,20 @@ class Channel(resource.Resource):
 
     def render_POST(self, request):
         # rest of URL is: SIDE/(MSGNUM|deallocate)/(post|poll)
-        side = request.postpath[0]
-        verb = request.postpath[1]
+        side = request.postpath[0].decode("utf-8")
+        verb = request.postpath[1].decode("utf-8")
 
         if verb == "deallocate":
             deleted = self.relay.maybe_free_child(self.channel_id, side)
             if deleted:
-                return "deleted\n"
-            return "waiting\n"
+                return b"deleted\n"
+            return b"waiting\n"
 
         if verb not in ("post", "poll"):
             request.setResponseCode(http.BAD_REQUEST)
-            return "bad verb, want 'post' or 'poll'\n"
+            return b"bad verb, want 'post' or 'poll'\n"
 
-        msgnum = request.postpath[2]
+        msgnum = request.postpath[2].decode("utf-8")
 
         other_messages = []
         for row in self.db.execute("SELECT `message` FROM `messages`"
@@ -131,7 +131,9 @@ class Channel(resource.Resource):
             other_messages.append(row["message"])
 
         if verb == "post":
-            data = json.load(request.content)
+            #data = json.load(request.content, encoding="utf-8")
+            content = request.content.read()
+            data = json.loads(content.decode("utf-8"))
             self.db.execute("INSERT INTO `messages`"
                             " (`channel_id`, `side`, `msgnum`, `message`, `when`)"
                             " VALUES (?,?,?,?,?)",
@@ -144,9 +146,10 @@ class Channel(resource.Resource):
             self.db.commit()
             self.message_added(side, msgnum, data["message"])
 
-        request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": self.welcome,
-                           "messages": other_messages})+"\n"
+        request.setHeader(b"content-type", b"application/json; charset=utf-8")
+        data = {"welcome": self.welcome,
+                "messages": other_messages}
+        return (json.dumps(data)+"\n").encode("utf-8")
 
 def get_allocated(db):
     c = db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
@@ -183,9 +186,10 @@ class Allocator(resource.Resource):
         self.db.commit()
         log.msg("allocated #%d, now have %d DB channels" %
                 (channel_id, len(get_allocated(self.db))))
-        request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": self.welcome,
-                           "channel-id": channel_id})+"\n"
+        request.setHeader(b"content-type", b"application/json; charset=utf-8")
+        data = {"welcome": self.welcome,
+                "channel-id": channel_id}
+        return (json.dumps(data)+"\n").encode("utf-8")
 
 class ChannelList(resource.Resource):
     def __init__(self, db, welcome):
@@ -195,9 +199,10 @@ class ChannelList(resource.Resource):
     def render_GET(self, request):
         c = self.db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
         allocated = sorted(set([row["channel_id"] for row in c.fetchall()]))
-        request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps({"welcome": self.welcome,
-                           "channel-ids": allocated})+"\n"
+        request.setHeader(b"content-type", b"application/json; charset=utf-8")
+        data = {"welcome": self.welcome,
+                "channel-ids": allocated}
+        return (json.dumps(data)+"\n").encode("utf-8")
 
 class Relay(resource.Resource):
     def __init__(self, db, welcome):
@@ -207,11 +212,11 @@ class Relay(resource.Resource):
         self.channels = {}
 
     def getChild(self, path, request):
-        if path == "allocate":
+        if path == b"allocate":
             return Allocator(self.db, self.welcome)
-        if path == "list":
+        if path == b"list":
             return ChannelList(self.db, self.welcome)
-        if not re.search(r'^\d+$', path):
+        if not re.search(br'^\d+$', path):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
                                       "invalid channel id")
@@ -381,7 +386,7 @@ class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self):
         resource.Resource.__init__(self)
-        self.putChild("", static.Data("Wormhole Relay\n", "text/plain"))
+        self.putChild(b"", static.Data(b"Wormhole Relay\n", "text/plain"))
 
 class RelayServer(service.MultiService):
     def __init__(self, relayport, transitport, advertise_version,
@@ -405,7 +410,7 @@ class RelayServer(service.MultiService):
         self.relayport_service = EndpointServerService(r, site)
         self.relayport_service.setServiceParent(self)
         self.relay = Relay(self.db, welcome) # accessible from tests
-        self.root.putChild("wormhole-relay", self.relay)
+        self.root.putChild(b"wormhole-relay", self.relay)
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD,
                                   self.relay.prune_old_channels)
         t.setServiceParent(self)
