@@ -40,6 +40,7 @@ sp_start.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                       help="endpoint specification for the transit-relay port")
 sp_start.add_argument("--advertise-version", metavar="VERSION",
                       help="version to recommend to clients")
+sp_start.add_argument("-n", "--no-daemon", action="store_true")
 #sp_start.add_argument("twistd_args", nargs="*", default=None,
 #                      metavar="[TWISTD-ARGS..]",
 #                      help=dedent("""\

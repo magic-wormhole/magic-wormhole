@@ -22,8 +22,11 @@ def start_server(args):
 
     c = MyTwistdConfig()
     #twistd_args = tuple(args.twistd_args) + ("XYZ",)
-    twistd_args = ("XYZ",) # TODO: allow user to add twistd-specific args
-    c.parseOptions(twistd_args)
+    base_args = []
+    if args.no_daemon:
+        base_args.append("--nodaemon")
+    twistd_args = base_args + ["XYZ"]
+    c.parseOptions(tuple(twistd_args))
     c.loadedPlugins = {"XYZ": MyPlugin(args)}
 
     print("starting wormhole relay server")
