@@ -2,34 +2,12 @@ import json
 from twisted.trial import unittest
 from twisted.internet import defer
 from twisted.internet.threads import deferToThread
-from twisted.application import service
-from ..servers.relay import RelayServer
 from ..twisted.transcribe import Wormhole, UsageError
-from ..twisted.util import allocate_ports
 from ..blocking.transcribe import Wormhole as BlockingWormhole
-from .. import __version__
+from .common import ServerBase
 #from twisted.python import log
 #import sys
 #log.startLogging(sys.stdout)
-
-class ServerBase:
-    def setUp(self):
-        self.sp = service.MultiService()
-        self.sp.startService()
-        d = allocate_ports()
-        def _got_ports(ports):
-            relayport, transitport = ports
-            s = RelayServer("tcp:%d:interface=127.0.0.1" % relayport,
-                            "tcp:%s:interface=127.0.0.1" % transitport,
-                            __version__)
-            s.setServiceParent(self.sp)
-            self.relayurl = "http://127.0.0.1:%d/wormhole-relay/" % relayport
-            self.transit = "tcp:127.0.0.1:%d" % transitport
-        d.addCallback(_got_ports)
-        return d
-
-    def tearDown(self):
-        return self.sp.stopService()
 
 class Basic(ServerBase, unittest.TestCase):
     def test_basic(self):
