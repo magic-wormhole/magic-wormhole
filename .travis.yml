@@ -1,7 +1,17 @@
 sudo: false
 language: python
 python:
+  - "2.6"
   - "2.7"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+matrix:
+  allow_failures:
+    - python: "3.3"
+    - python: "3.4"
+    - python: "3.5"
+  fast_finish: true
 install:
   - pip install . Twisted pyflakes
 script:
