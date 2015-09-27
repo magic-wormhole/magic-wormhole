@@ -1,4 +1,4 @@
-import os
+import os, sys
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
@@ -9,16 +9,19 @@ class Scripts(ServerBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
     def find_executable(self):
+        # to make sure we're running the right executable (in a virtualenv),
+        # we require that our "wormhole" lives in the same directory as our
+        # "python"
         locations = procutils.which("wormhole")
         if not locations:
             raise unittest.SkipTest("unable to find 'wormhole' in $PATH")
         wormhole = locations[0]
-        here = os.path.dirname(os.path.abspath("."))
-        if not os.path.abspath(wormhole).startswith(here):
+        if (os.path.dirname(os.path.abspath(wormhole)) !=
+            os.path.dirname(sys.executable)):
             log.msg("locations: %s" % (locations,))
-            log.msg("here: %s" % (here,))
+            log.msg("sys.executable: %s" % (sys.executable,))
             raise unittest.SkipTest("found the wrong 'wormhole' in $PATH: %s %s"
-                                    % (wormhole, here))
+                                    % (wormhole, sys.executable))
         return wormhole
 
     def test_version(self):
