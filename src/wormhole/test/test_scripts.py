@@ -18,7 +18,7 @@ class Scripts(ServerBase, unittest.TestCase):
             log.msg("locations: %s" % (locations,))
             log.msg("here: %s" % (here,))
             raise unittest.SkipTest("found the wrong 'wormhole' in $PATH: %s %s"
-                                    % (wormhole, locations))
+                                    % (wormhole, here))
         return wormhole
 
     def test_version(self):
