@@ -5,9 +5,7 @@ from twisted.internet.utils import getProcessOutputAndValue
 from .. import __version__
 from .common import ServerBase
 
-class Scripts(ServerBase, unittest.TestCase):
-    # we need Twisted to run the server, but we run the sender and receiver
-    # with deferToThread()
+class ScriptsBase:
     def find_executable(self):
         # to make sure we're running the right executable (in a virtualenv),
         # we require that our "wormhole" lives in the same directory as our
@@ -24,6 +22,32 @@ class Scripts(ServerBase, unittest.TestCase):
                                     % (wormhole, sys.executable))
         return wormhole
 
+    def is_runnable(self):
+        # One property of Versioneer is that many changes to the source tree
+        # (making a commit, dirtying a previously-clean tree) will change the
+        # version string. Entrypoint scripts frequently insist upon importing
+        # a library version that matches the script version (whatever was
+        # reported when 'pip install' was run), and throw a
+        # DistributionNotFound error when they don't match. This is really
+        # annoying in a workspace created with "pip install -e .", as you
+        # must re-run pip after each commit.
+
+        # So let's report just one error in this case (from test_version),
+        # and skip the other tests that we know will fail.
+
+        wormhole = self.find_executable()
+        d = getProcessOutputAndValue(wormhole, ["--version"])
+        def _check(res):
+            out, err, rc = res
+            if rc != 0:
+                raise unittest.SkipTest("wormhole is not runnable in this tree")
+        d.addCallback(_check)
+        return d
+
+class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
+    # we need Twisted to run the server, but we run the sender and receiver
+    # with deferToThread()
+
     def test_version(self):
         # "wormhole" must be on the path, so e.g. "pip install -e ." in a
         # virtualenv
@@ -32,9 +56,22 @@ class Scripts(ServerBase, unittest.TestCase):
         def _check(res):
             out, err, rc = res
             self.failUnlessEqual(out, "")
+            if "DistributionNotFound" in err:
+                log.msg("stderr was %s" % err)
+                last = err.strip().split("\n")[-1]
+                self.fail("wormhole not runnable: %s" % last)
             self.failUnlessEqual(err, "magic-wormhole %s\n" % __version__)
             self.failUnlessEqual(rc, 0)
         d.addCallback(_check)
+        return d
+
+class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
+    # we need Twisted to run the server, but we run the sender and receiver
+    # with deferToThread()
+
+    def setUp(self):
+        d = self.is_runnable()
+        d.addCallback(lambda _: ServerBase.setUp(self))
         return d
 
     def test_send_text_pre_generated_code(self):
