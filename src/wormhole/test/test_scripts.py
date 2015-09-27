@@ -17,8 +17,8 @@ class Scripts(ServerBase, unittest.TestCase):
         if not os.path.abspath(wormhole).startswith(here):
             log.msg("locations: %s" % (locations,))
             log.msg("here: %s" % (here,))
-            raise unittest.SkipTest("found the wrong 'wormhole' in $PATH: %s"
-                                    % wormhole)
+            raise unittest.SkipTest("found the wrong 'wormhole' in $PATH: %s %s"
+                                    % (wormhole, locations))
         return wormhole
 
     def test_version(self):
