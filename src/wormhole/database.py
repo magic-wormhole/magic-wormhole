@@ -6,7 +6,8 @@ class DBError(Exception):
     pass
 
 def get_schema(version):
-    return resource_string("wormhole", "db-schemas/v%d.sql" % version)
+    schema_bytes = resource_string("wormhole", "db-schemas/v%d.sql" % version)
+    return schema_bytes.decode("utf-8")
 
 def get_db(dbfile, stderr=sys.stderr):
     """Open or create the given db file. The parent directory must exist.
