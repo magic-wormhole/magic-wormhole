@@ -124,7 +124,7 @@ def run(args, stdout, stderr, executable=None):
         #rc = command.func(args, stdout, stderr)
         rc = args.func(args)
         return rc
-    except ImportError, e:
+    except ImportError as e:
         print >>stderr, "--- ImportError ---"
         print >>stderr, e
         print >>stderr, "Please run 'python setup.py build'"
