@@ -1,9 +1,11 @@
 from __future__ import print_function
-import re, time, threading, socket, SocketServer
+import re, time, threading, socket
+from six.moves import socketserver
 from binascii import hexlify, unhexlify
 from nacl.secret import SecretBox
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
+from ..errors import UsageError
 
 class TransitError(Exception):
     pass
@@ -40,15 +42,15 @@ class TransitError(Exception):
 
 def build_receiver_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_receiver")
-    return "transit receiver %s ready\n\n" % hexlify(hexid)
+    return b"transit receiver %s ready\n\n" % hexlify(hexid)
 
 def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
-    return "transit sender %s ready\n\n" % hexlify(hexid)
+    return b"transit sender %s ready\n\n" % hexlify(hexid)
 
 def build_relay_handshake(key):
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return "please relay %s\n" % hexlify(token)
+    return b"please relay %s\n" % hexlify(token)
 
 TIMEOUT=15
 
@@ -61,11 +63,6 @@ TIMEOUT=15
 
 class BadHandshake(Exception):
     pass
-
-def force_ascii(s):
-    if isinstance(s, type(u"")):
-        return s.encode("ascii")
-    return s
 
 def send_to(skt, data):
     sent = 0
@@ -87,6 +84,7 @@ def wait_for(skt, expected, description):
 # publisher wants anonymity, their only hint's ADDR will end in .onion .
 
 def parse_hint_tcp(hint):
+    assert isinstance(hint, str)
     # return tuple or None for an unparseable hint
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
@@ -187,7 +185,7 @@ def handle(skt, client_address, owner, description,
     # owner is now responsible for the socket
     owner._negotiation_finished(skt, description) # note thread
 
-class MyTCPServer(SocketServer.TCPServer):
+class MyTCPServer(socketserver.TCPServer):
     allow_reuse_address = True
 
     def process_request(self, request, client_address):
@@ -243,6 +241,7 @@ class RecordPipe:
         self.next_receive_nonce = 0
 
     def send_record(self, record):
+        if not isinstance(record, type(b"")): raise UsageError
         assert SecretBox.NONCE_SIZE == 24
         assert self.send_nonce < 2**(8*24)
         assert len(record) < 2**(8*4)
@@ -294,9 +293,9 @@ class Common:
         return [self._transit_relay]
 
     def add_their_direct_hints(self, hints):
-        self._their_direct_hints = [force_ascii(h) for h in hints]
+        self._their_direct_hints = [str(h) for h in hints]
     def add_their_relay_hints(self, hints):
-        self._their_relay_hints = [force_ascii(h) for h in hints]
+        self._their_relay_hints = [str(h) for h in hints]
 
     def _send_this(self):
         if self.is_sender:
@@ -308,7 +307,7 @@ class Common:
         if self.is_sender:
             return build_receiver_handshake(self._transit_key)
         else:
-            return build_sender_handshake(self._transit_key) + "go\n"
+            return build_sender_handshake(self._transit_key) + b"go\n"
 
     def _sender_record_key(self):
         if self.is_sender:
@@ -407,11 +406,11 @@ class Common:
 
         if is_winner:
             if self.is_sender:
-                send_to(skt, "go\n")
+                send_to(skt, b"go\n")
             self.winning.set()
         else:
             if self.is_sender:
-                send_to(skt, "nevermind\n")
+                send_to(skt, b"nevermind\n")
             skt.close()
 
     def connect(self):

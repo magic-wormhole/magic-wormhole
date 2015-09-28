@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii
+import os, sys, json, binascii, six
 from ..errors import handle_server_error
 
 APPID = b"lothar.com/wormhole/file-xfer"
@@ -37,7 +37,7 @@ def send_file(args):
     if args.verify:
         verifier = binascii.hexlify(w.get_verifier())
         while True:
-            ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":
@@ -91,7 +91,7 @@ def send_file(args):
 
     print("File sent.. waiting for confirmation")
     ack = record_pipe.receive_record()
-    if ack == "ok\n":
+    if ack == b"ok\n":
         print("Confirmation received. Transfer complete.")
         return 0
     else:

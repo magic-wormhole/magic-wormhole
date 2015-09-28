@@ -219,15 +219,16 @@ python2, "bytes" in python3):
 
 * application identifier
 * verifier string
-* data in
-* data out
+* data in/out
 * derived-key "purpose" string
+* transit records in/out
 
 Some human-readable parameters are passed as strings: "str" in python2, "str"
 (i.e. unicode) in python3:
 
 * wormhole code
 * relay/transit URLs
+* transit connection hints (e.g. "host:port")
 
 ## Detailed Example
 
