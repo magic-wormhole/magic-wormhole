@@ -6,10 +6,6 @@ python:
   - "3.3"
   - "3.4"
   - "3.5"
-matrix:
-  allow_failures:
-    - python: "3.3"
-  fast_finish: true
 install:
   - pip install . Twisted pyflakes
 script:
