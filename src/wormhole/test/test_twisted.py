@@ -1,6 +1,6 @@
 import sys, json
 from twisted.trial import unittest
-from twisted.internet import defer
+from twisted.internet.defer import gatherResults
 from ..twisted.transcribe import Wormhole, UsageError
 from .common import ServerBase
 
@@ -14,13 +14,10 @@ class Basic(ServerBase, unittest.TestCase):
             w2.set_code(code)
             d1 = w1.get_data(b"data1")
             d2 = w2.get_data(b"data2")
-            return defer.DeferredList([d1,d2], fireOnOneErrback=False)
+            return gatherResults([d1,d2], True)
         d.addCallback(_got_code)
         def _done(dl):
-            ((success1, dataX), (success2, dataY)) = dl
-            r1,r2 = dl
-            self.assertTrue(success1, dataX)
-            self.assertTrue(success2, dataY)
+            (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
         d.addCallback(_done)
@@ -34,12 +31,9 @@ class Basic(ServerBase, unittest.TestCase):
         w2.set_code("123-purple-elephant")
         d1 = w1.get_data(b"data1")
         d2 = w2.get_data(b"data2")
-        d = defer.DeferredList([d1,d2], fireOnOneErrback=False)
+        d = gatherResults([d1,d2], True)
         def _done(dl):
-            ((success1, dataX), (success2, dataY)) = dl
-            r1,r2 = dl
-            self.assertTrue(success1, dataX)
-            self.assertTrue(success2, dataY)
+            (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
         d.addCallback(_done)
@@ -75,13 +69,10 @@ class Basic(ServerBase, unittest.TestCase):
             new_w1 = Wormhole.from_serialized(s)
             d1 = new_w1.get_data(b"data1")
             d2 = w2.get_data(b"data2")
-            return defer.DeferredList([d1,d2], fireOnOneErrback=False)
+            return gatherResults([d1,d2], True)
         d.addCallback(_got_code)
         def _done(dl):
-            ((success1, dataX), (success2, dataY)) = dl
-            r1,r2 = dl
-            self.assertTrue(success1, dataX)
-            self.assertTrue(success2, dataY)
+            (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
             self.assertRaises(UsageError, w2.serialize) # too late
