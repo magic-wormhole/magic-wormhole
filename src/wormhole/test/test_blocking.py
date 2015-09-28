@@ -16,9 +16,8 @@ class Blocking(ServerBase, unittest.TestCase):
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
-            d1 = deferToThread(w1.get_data, b"data1")
-            d2 = deferToThread(w2.get_data, b"data2")
-            return gatherResults([d1,d2], True)
+            return gatherResults([deferToThread(w1.get_data, b"data1"),
+                                  deferToThread(w2.get_data, b"data2")], True)
         d.addCallback(_got_code)
         def _done(dl):
             (dataX, dataY) = dl
@@ -33,9 +32,8 @@ class Blocking(ServerBase, unittest.TestCase):
         w2 = BlockingWormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        d1 = deferToThread(w1.get_data, b"data1")
-        d2 = deferToThread(w2.get_data, b"data2")
-        d = gatherResults([d1,d2], True)
+        d = gatherResults([deferToThread(w1.get_data, b"data1"),
+                           deferToThread(w2.get_data, b"data2")], True)
         def _done(dl):
             (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
@@ -114,9 +112,8 @@ class Blocking(ServerBase, unittest.TestCase):
             unpacked = json.loads(s) # this is supposed to be JSON
             self.assertEqual(type(unpacked), dict)
             new_w1 = BlockingWormhole.from_serialized(s)
-            d1 = deferToThread(new_w1.get_data, b"data1")
-            d2 = deferToThread(w2.get_data, b"data2")
-            return gatherResults([d1,d2], True)
+            return gatherResults([deferToThread(new_w1.get_data, b"data1"),
+                                  deferToThread(w2.get_data, b"data2")], True)
         d.addCallback(_got_code)
         def _done(dl):
             (dataX, dataY) = dl

@@ -12,9 +12,8 @@ class Basic(ServerBase, unittest.TestCase):
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
-            d1 = w1.get_data(b"data1")
-            d2 = w2.get_data(b"data2")
-            return gatherResults([d1,d2], True)
+            return gatherResults([w1.get_data(b"data1"),
+                                  w2.get_data(b"data2")], True)
         d.addCallback(_got_code)
         def _done(dl):
             (dataX, dataY) = dl
@@ -29,9 +28,8 @@ class Basic(ServerBase, unittest.TestCase):
         w2 = Wormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        d1 = w1.get_data(b"data1")
-        d2 = w2.get_data(b"data2")
-        d = gatherResults([d1,d2], True)
+        d = gatherResults([w1.get_data(b"data1"),
+                           w2.get_data(b"data2")], True)
         def _done(dl):
             (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
@@ -106,9 +104,8 @@ class Basic(ServerBase, unittest.TestCase):
             unpacked = json.loads(s) # this is supposed to be JSON
             self.assertEqual(type(unpacked), dict)
             new_w1 = Wormhole.from_serialized(s)
-            d1 = new_w1.get_data(b"data1")
-            d2 = w2.get_data(b"data2")
-            return gatherResults([d1,d2], True)
+            return gatherResults([new_w1.get_data(b"data1"),
+                                  w2.get_data(b"data2")], True)
         d.addCallback(_got_code)
         def _done(dl):
             (dataX, dataY) = dl
