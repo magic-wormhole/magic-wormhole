@@ -1,11 +1,8 @@
-import json
+import sys, json
 from twisted.trial import unittest
 from twisted.internet import defer
 from ..twisted.transcribe import Wormhole, UsageError
 from .common import ServerBase
-#from twisted.python import log
-#import sys
-#log.startLogging(sys.stdout)
 
 class Basic(ServerBase, unittest.TestCase):
     def test_basic(self):
@@ -90,3 +87,9 @@ class Basic(ServerBase, unittest.TestCase):
             self.assertRaises(UsageError, w2.serialize) # too late
         d.addCallback(_done)
         return d
+
+if sys.version_info[0] >= 3:
+    Basic.skip = "twisted is not yet sufficiently ported to py3"
+    # as of 15.4.0, Twisted is still missing:
+    # * web.client.Agent (for all non-EventSource POSTs in transcribe.py)
+    # * python.logfile (to allow daemonization of 'wormhole server')
