@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os
+import os, six
 from .wordlist import (byte_to_even_word, byte_to_odd_word,
                        even_words_lowercase, odd_words_lowercase)
 
@@ -81,7 +81,7 @@ def input_code_with_completion(prompt, get_channel_ids, code_length):
     readline.parse_and_bind("tab: complete")
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
-    code = raw_input(prompt)
+    code = six.moves.input(prompt)
     return code
 
 if __name__ == "__main__":
