@@ -90,9 +90,10 @@ class Wormhole:
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError
-        self.side = hexlify(os.urandom(5))
+        self.side = hexlify(os.urandom(5)).decode("ascii")
         channel_id = self._allocate_channel() # allocate channel
         code = codes.make_code(channel_id, code_length)
+        assert isinstance(code, str), type(code)
         self._set_code_and_channel_id(code)
         self._start()
         return code
@@ -109,10 +110,11 @@ class Wormhole:
         return code
 
     def set_code(self, code): # used for human-made pre-generated codes
+        if not isinstance(code, str): raise UsageError
         if self.code is not None: raise UsageError
         if self.side is not None: raise UsageError
         self._set_code_and_channel_id(code)
-        self.side = hexlify(os.urandom(5))
+        self.side = hexlify(os.urandom(5)).decode("ascii")
         self._start()
 
     def _set_code_and_channel_id(self, code):
@@ -165,12 +167,16 @@ class Wormhole:
         return HKDF(self.key, length, CTXinfo=purpose)
 
     def _encrypt_data(self, key, data):
+        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(data, type(b"")), type(data)
         if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
 
     def _decrypt_data(self, key, encrypted):
+        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(encrypted, type(b"")), type(encrypted)
         if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         data = box.decrypt(encrypted)
@@ -192,6 +198,7 @@ class Wormhole:
 
     def get_data(self, outbound_data):
         # only call this once
+        if not isinstance(outbound_data, type(b"")): raise UsageError
         if self.code is None: raise UsageError
         if self.channel_id is None: raise UsageError
         try:

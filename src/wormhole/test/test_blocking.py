@@ -16,8 +16,8 @@ class Blocking(ServerBase, unittest.TestCase):
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
-            d1 = deferToThread(w1.get_data, "data1")
-            d2 = deferToThread(w2.get_data, "data2")
+            d1 = deferToThread(w1.get_data, b"data1")
+            d2 = deferToThread(w2.get_data, b"data2")
             return defer.DeferredList([d1,d2], fireOnOneErrback=False)
         d.addCallback(_got_code)
         def _done(dl):
@@ -25,8 +25,8 @@ class Blocking(ServerBase, unittest.TestCase):
             r1,r2 = dl
             self.assertTrue(success1, dataX)
             self.assertTrue(success2, dataY)
-            self.assertEqual(dataX, "data2")
-            self.assertEqual(dataY, "data1")
+            self.assertEqual(dataX, b"data2")
+            self.assertEqual(dataY, b"data1")
         d.addCallback(_done)
         return d
 
@@ -36,16 +36,16 @@ class Blocking(ServerBase, unittest.TestCase):
         w2 = BlockingWormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        d1 = deferToThread(w1.get_data, "data1")
-        d2 = deferToThread(w2.get_data, "data2")
+        d1 = deferToThread(w1.get_data, b"data1")
+        d2 = deferToThread(w2.get_data, b"data2")
         d = defer.DeferredList([d1,d2], fireOnOneErrback=False)
         def _done(dl):
             ((success1, dataX), (success2, dataY)) = dl
             r1,r2 = dl
             self.assertTrue(success1, dataX)
             self.assertTrue(success2, dataY)
-            self.assertEqual(dataX, "data2")
-            self.assertEqual(dataY, "data1")
+            self.assertEqual(dataX, b"data2")
+            self.assertEqual(dataY, b"data1")
         d.addCallback(_done)
         return d
 
@@ -53,7 +53,7 @@ class Blocking(ServerBase, unittest.TestCase):
         appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
-        self.assertRaises(UsageError, w1.get_data, "data")
+        self.assertRaises(UsageError, w1.get_data, b"data")
         w1.set_code("123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
@@ -79,8 +79,8 @@ class Blocking(ServerBase, unittest.TestCase):
             unpacked = json.loads(s) # this is supposed to be JSON
             self.assertEqual(type(unpacked), dict)
             new_w1 = BlockingWormhole.from_serialized(s)
-            d1 = deferToThread(new_w1.get_data, "data1")
-            d2 = deferToThread(w2.get_data, "data2")
+            d1 = deferToThread(new_w1.get_data, b"data1")
+            d2 = deferToThread(w2.get_data, b"data2")
             return defer.DeferredList([d1,d2], fireOnOneErrback=False)
         d.addCallback(_got_code)
         def _done(dl):
@@ -88,8 +88,8 @@ class Blocking(ServerBase, unittest.TestCase):
             r1,r2 = dl
             self.assertTrue(success1, dataX)
             self.assertTrue(success2, dataY)
-            self.assertEqual(dataX, "data2")
-            self.assertEqual(dataY, "data1")
+            self.assertEqual(dataX, b"data2")
+            self.assertEqual(dataY, b"data1")
             self.assertRaises(UsageError, w2.serialize) # too late
         d.addCallback(_done)
         return d

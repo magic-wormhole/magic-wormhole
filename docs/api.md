@@ -132,6 +132,8 @@ include randomly-selected words or characters. Dice, coin flips, shuffled
 cards, or repeated sampling of a high-resolution stopwatch are all useful
 techniques.
 
+Note that the code is a human-readable string (the python "str" type: so
+unicode in python3, plain bytes in python2).
 
 ## Application Identifier
 
@@ -209,6 +211,23 @@ the time is just after calling `set_code()`.
 To properly checkpoint the process, you should store the first message
 (returned by `start()`) next to the serialized wormhole instance, so you can
 re-send it if necessary.
+
+## Bytes, Strings, Unicode, and Python 3
+
+All cryptographically-sensitive parameters are passed as bytes ("str" in
+python2, "bytes" in python3):
+
+* application identifier
+* verifier string
+* data in
+* data out
+* derived-key "purpose" string
+
+Some human-readable parameters are passed as strings: "str" in python2, "str"
+(i.e. unicode) in python3:
+
+* wormhole code
+* relay/transit URLs
 
 ## Detailed Example
 
