@@ -43,6 +43,47 @@ class Blocking(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    def test_verifier(self):
+        appid = b"appid"
+        w1 = BlockingWormhole(appid, self.relayurl)
+        w2 = BlockingWormhole(appid, self.relayurl)
+        d = deferToThread(w1.get_code)
+        def _got_code(code):
+            w2.set_code(code)
+            return gatherResults([deferToThread(w1.get_verifier),
+                                  deferToThread(w2.get_verifier)], True)
+        d.addCallback(_got_code)
+        def _check_verifier(res):
+            v1, v2 = res
+            self.failUnlessEqual(type(v1), type(b""))
+            self.failUnlessEqual(v1, v2)
+            return gatherResults([deferToThread(w1.get_data, b"data1"),
+                                  deferToThread(w2.get_data, b"data2")], True)
+        d.addCallback(_check_verifier)
+        def _done(dl):
+            (dataX, dataY) = dl
+            self.assertEqual(dataX, b"data2")
+            self.assertEqual(dataY, b"data1")
+        d.addCallback(_done)
+        return d
+
+    def test_verifier_mismatch(self):
+        appid = b"appid"
+        w1 = BlockingWormhole(appid, self.relayurl)
+        w2 = BlockingWormhole(appid, self.relayurl)
+        d = deferToThread(w1.get_code)
+        def _got_code(code):
+            w2.set_code(code+"not")
+            return gatherResults([deferToThread(w1.get_verifier),
+                                  deferToThread(w2.get_verifier)], True)
+        d.addCallback(_got_code)
+        def _check_verifier(res):
+            v1, v2 = res
+            self.failUnlessEqual(type(v1), type(b""))
+            self.failIfEqual(v1, v2)
+        d.addCallback(_check_verifier)
+        return d
+
     def test_errors(self):
         appid = b"appid"
         w1 = BlockingWormhole(appid, self.relayurl)
