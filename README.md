@@ -1,4 +1,5 @@
 # Magic Wormhole
+[![Build Status](https://travis-ci.org/warner/magic-wormhole.svg?branch=master)](https://travis-ci.org/warner/magic-wormhole)
 
 Get things from one computer to another, safely.
 
