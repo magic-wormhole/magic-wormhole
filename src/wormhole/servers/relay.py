@@ -4,7 +4,7 @@ from twisted.python import log
 from twisted.internet import reactor, protocol, endpoints
 from twisted.application import service, internet
 from twisted.web import server, static, resource, http
-from ..util.endpoint_service import EndpointServerService
+from ..util.endpoint_service import ServerEndpointService
 from .. import __version__
 from ..database import get_db
 
@@ -407,7 +407,7 @@ class RelayServer(service.MultiService):
         self.root = Root()
         site = server.Site(self.root)
         r = endpoints.serverFromString(reactor, relayport)
-        self.relayport_service = EndpointServerService(r, site)
+        self.relayport_service = ServerEndpointService(r, site)
         self.relayport_service.setServiceParent(self)
         self.relay = Relay(self.db, welcome) # accessible from tests
         self.root.putChild(b"wormhole-relay", self.relay)
@@ -418,5 +418,5 @@ class RelayServer(service.MultiService):
             self.transit = Transit()
             self.transit.setServiceParent(self) # for the timer
             t = endpoints.serverFromString(reactor, transitport)
-            self.transport_service = EndpointServerService(t, self.transit)
+            self.transport_service = ServerEndpointService(t, self.transit)
             self.transport_service.setServiceParent(self)

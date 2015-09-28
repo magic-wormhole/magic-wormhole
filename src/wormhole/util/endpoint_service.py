@@ -4,7 +4,7 @@ from twisted.application import service
 
 # this should probably live in Twisted
 
-class EndpointServerService(service.Service):
+class ServerEndpointService(service.Service):
     def __init__(self, endpoint, factory):
         self.endpoint = endpoint
         self.factory = factory
