@@ -35,7 +35,7 @@ def send_file(args):
     print()
 
     if args.verify:
-        verifier = binascii.hexlify(w.get_verifier())
+        verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
         while True:
             ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":

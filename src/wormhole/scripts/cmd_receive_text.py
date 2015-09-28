@@ -20,7 +20,7 @@ def receive_text(args):
     w.set_code(code)
 
     if args.verify:
-        verifier = binascii.hexlify(w.get_verifier())
+        verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
         print("Verifier %s." % verifier)
 
     data = json.dumps({"message": "ok"}).encode("utf-8")
