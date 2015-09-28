@@ -50,26 +50,22 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_version(self):
         # "wormhole" must be on the path, so e.g. "pip install -e ." in a
-        # virtualenv
+        # virtualenv. This guards against an environment where the tests
+        # below might run the wrong executable.
         wormhole = self.find_executable()
         d = getProcessOutputAndValue(wormhole, ["--version"])
         def _check(res):
             out, err, rc = res
-            # argparse on py2 sends --version to stderr
-            # argparse on py3 sends --version to stdout
+            # argparse on py2 and py3.3 sends --version to stderr
+            # argparse on py3.4/py3.5 sends --version to stdout
             # aargh
-            out = out.decode("utf-8")
             err = err.decode("utf-8")
             if "DistributionNotFound" in err:
                 log.msg("stderr was %s" % err)
                 last = err.strip().split("\n")[-1]
                 self.fail("wormhole not runnable: %s" % last)
-            if sys.version_info[0] == 2:
-                self.failUnlessEqual(out, "")
-                self.failUnlessEqual(err, "magic-wormhole %s\n" % __version__)
-            else:
-                self.failUnlessEqual(err, "")
-                self.failUnlessEqual(out, "magic-wormhole %s\n" % __version__)
+            ver = out.decode("utf-8") or err
+            self.failUnlessEqual(ver, "magic-wormhole %s\n" % __version__)
             self.failUnlessEqual(rc, 0)
         d.addCallback(_check)
         return d
