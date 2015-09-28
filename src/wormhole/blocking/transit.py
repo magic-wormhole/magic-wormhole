@@ -42,15 +42,15 @@ class TransitError(Exception):
 
 def build_receiver_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_receiver")
-    return b"transit receiver %s ready\n\n" % hexlify(hexid)
+    return b"transit receiver "+hexlify(hexid)+b" ready\n\n"
 
 def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
-    return b"transit sender %s ready\n\n" % hexlify(hexid)
+    return b"transit sender "+hexlify(hexid)+b" ready\n\n"
 
 def build_relay_handshake(key):
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return b"please relay %s\n" % hexlify(token)
+    return b"please relay "+hexlify(token)+b"\n"
 
 TIMEOUT=15
 

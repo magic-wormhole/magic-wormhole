@@ -26,23 +26,23 @@ class EventsProtocol:
         # face of firewall/NAT timeouts. It also helps unit tests, since
         # apparently twisted.web.client.Agent doesn't consider the connection
         # to be established until it sees the first byte of the reponse body.
-        self.request.write(b": %s\n\n" % comment)
+        self.request.write(b": " + comment + b"\n\n")
 
     def sendEvent(self, data, name=None, id=None, retry=None):
         if name:
-            self.request.write(b"event: %s\n" % name.encode("utf-8"))
+            self.request.write(b"event: " + name.encode("utf-8") + b"\n")
             # e.g. if name=foo, then the client web page should do:
             # (new EventSource(url)).addEventListener("foo", handlerfunc)
             # Note that this basically defaults to "message".
             self.request.write(b"\n")
         if id:
-            self.request.write(b"id: %s\n" % id.encode("utf-8"))
+            self.request.write(b"id: " + id.encode("utf-8") + b"\n")
             self.request.write(b"\n")
         if retry:
-            self.request.write(b"retry: %d\n" % retry) # milliseconds
+            self.request.write(b"retry: " + retry + b"\n") # milliseconds
             self.request.write(b"\n")
         for line in data.splitlines():
-            self.request.write(b"data: %s\n" % line.encode("utf-8"))
+            self.request.write(b"data: " + line.encode("utf-8") + b"\n")
         self.request.write(b"\n")
 
     def stop(self):

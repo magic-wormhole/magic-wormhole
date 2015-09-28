@@ -9,7 +9,6 @@ python:
 matrix:
   allow_failures:
     - python: "3.3"
-    - python: "3.4"
   fast_finish: true
 install:
   - pip install . Twisted pyflakes
