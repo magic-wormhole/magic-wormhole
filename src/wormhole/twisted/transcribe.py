@@ -38,6 +38,7 @@ class Wormhole:
     version_warning_displayed = False
 
     def __init__(self, appid, relay):
+        if not isinstance(appid, type(b"")): raise UsageError
         self.appid = appid
         self.relay = relay
         self.agent = web_client.Agent(reactor)
@@ -109,6 +110,7 @@ class Wormhole:
         d = self._allocate_channel()
         def _got_channel_id(channel_id):
             code = codes.make_code(channel_id, code_length)
+            assert isinstance(code, str), type(code)
             self._set_code_and_channel_id(code)
             self._start()
             return code
@@ -116,6 +118,7 @@ class Wormhole:
         return d
 
     def set_code(self, code):
+        if not isinstance(code, str): raise UsageError
         if self.code is not None: raise UsageError
         if self.side is not None: raise UsageError
         self._set_code_and_channel_id(code)
@@ -201,12 +204,16 @@ class Wormhole:
         return HKDF(self.key, length, CTXinfo=purpose)
 
     def _encrypt_data(self, key, data):
+        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(data, type(b"")), type(data)
         if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
 
     def _decrypt_data(self, key, encrypted):
+        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(encrypted, type(b"")), type(encrypted)
         if len(key) != SecretBox.KEY_SIZE: raise UsageError
         box = SecretBox(key)
         data = box.decrypt(encrypted)
@@ -235,6 +242,7 @@ class Wormhole:
 
     def get_data(self, outbound_data):
         # only call this once
+        if not isinstance(outbound_data, type(b"")): raise UsageError
         if self.code is None: raise UsageError
         d = self._get_key()
         d.addCallback(self._get_data2, outbound_data)

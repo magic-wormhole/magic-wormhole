@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys, argparse
 from textwrap import dedent
 from .. import public_relay
@@ -39,6 +40,7 @@ sp_start.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                       help="endpoint specification for the transit-relay port")
 sp_start.add_argument("--advertise-version", metavar="VERSION",
                       help="version to recommend to clients")
+sp_start.add_argument("-n", "--no-daemon", action="store_true")
 #sp_start.add_argument("twistd_args", nargs="*", default=None,
 #                      metavar="[TWISTD-ARGS..]",
 #                      help=dedent("""\
@@ -120,14 +122,19 @@ def run(args, stdout, stderr, executable=None):
     also invoked by entry() below."""
 
     args = parser.parse_args()
+    if not getattr(args, "func", None):
+        # So far this only works on py3. py2 exits with a really terse
+        # "error: too few arguments" during parse_args().
+        parser.print_help()
+        sys.exit(0)
     try:
         #rc = command.func(args, stdout, stderr)
         rc = args.func(args)
         return rc
     except ImportError as e:
-        print >>stderr, "--- ImportError ---"
-        print >>stderr, e
-        print >>stderr, "Please run 'python setup.py build'"
+        print("--- ImportError ---", file=stderr)
+        print(e, file=stderr)
+        print("Please run 'python setup.py build'", file=stderr)
         raise
         return 1
 
@@ -138,4 +145,4 @@ def entry():
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    print args
+    print(args)

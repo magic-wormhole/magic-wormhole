@@ -1,8 +1,8 @@
 from __future__ import print_function
-import sys, json, binascii
+import sys, json, binascii, six
 from ..errors import handle_server_error
 
-APPID = "lothar.com/wormhole/text-xfer"
+APPID = b"lothar.com/wormhole/text-xfer"
 
 @handle_server_error
 def send_text(args):
@@ -31,7 +31,7 @@ def send_text(args):
     if args.verify:
         verifier = binascii.hexlify(w.get_verifier())
         while True:
-            ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":

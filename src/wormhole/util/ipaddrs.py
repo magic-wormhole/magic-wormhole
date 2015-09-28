@@ -32,7 +32,7 @@ def find_addresses():
         commands = _unix_commands
 
     for (pathtotool, args, regex) in commands:
-        assert os.path.isabs(pathtotool)
+        assert os.path.isabs(pathtotool), pathtotool
         if not os.path.isfile(pathtotool):
             continue
         try:
@@ -46,12 +46,13 @@ def find_addresses():
 def _query(path, args, regex):
     env = {'LANG': 'en_US.UTF-8'}
     TRIES = 5
-    for trial in xrange(TRIES):
+    for trial in range(TRIES):
         try:
             p = subprocess.Popen([path] + list(args),
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 env=env)
+                                 env=env,
+                                 universal_newlines=True)
             (output, err) = p.communicate()
             break
         except OSError as e:

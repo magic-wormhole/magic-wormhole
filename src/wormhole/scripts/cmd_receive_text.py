@@ -2,7 +2,7 @@ from __future__ import print_function
 import sys, json, binascii
 from ..errors import handle_server_error
 
-APPID = "lothar.com/wormhole/text-xfer"
+APPID = b"lothar.com/wormhole/text-xfer"
 
 @handle_server_error
 def receive_text(args):

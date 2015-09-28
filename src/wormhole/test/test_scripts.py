@@ -55,12 +55,21 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         d = getProcessOutputAndValue(wormhole, ["--version"])
         def _check(res):
             out, err, rc = res
-            self.failUnlessEqual(out, "")
+            # argparse on py2 sends --version to stderr
+            # argparse on py3 sends --version to stdout
+            # aargh
+            out = out.decode("utf-8")
+            err = err.decode("utf-8")
             if "DistributionNotFound" in err:
                 log.msg("stderr was %s" % err)
                 last = err.strip().split("\n")[-1]
                 self.fail("wormhole not runnable: %s" % last)
-            self.failUnlessEqual(err, "magic-wormhole %s\n" % __version__)
+            if sys.version_info[0] == 2:
+                self.failUnlessEqual(out, "")
+                self.failUnlessEqual(err, "magic-wormhole %s\n" % __version__)
+            else:
+                self.failUnlessEqual(err, "")
+                self.failUnlessEqual(out, "magic-wormhole %s\n" % __version__)
             self.failUnlessEqual(rc, 0)
         d.addCallback(_check)
         return d
@@ -92,6 +101,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         d2 = getProcessOutputAndValue(wormhole, receive_args)
         def _check_sender(res):
             out, err, rc = res
+            out = out.decode("utf-8")
+            err = err.decode("utf-8")
             self.failUnlessEqual(out,
                                  "On the other computer, please run: "
                                  "wormhole receive-text\n"
@@ -104,6 +115,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         d1.addCallback(_check_sender)
         def _check_receiver(res):
             out, err, rc = res
+            out = out.decode("utf-8")
+            err = err.decode("utf-8")
             self.failUnlessEqual(out, message+"\n")
             self.failUnlessEqual(err, "")
             self.failUnlessEqual(rc, 0)
@@ -137,6 +150,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         d2 = getProcessOutputAndValue(wormhole, receive_args, path=receive_dir)
         def _check_sender(res):
             out, err, rc = res
+            out = out.decode("utf-8")
+            err = err.decode("utf-8")
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive-file\n"
                               "Wormhole code is '%s'\n\n" % code,
@@ -150,6 +165,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         d1.addCallback(_check_sender)
         def _check_receiver(res):
             out, err, rc = res
+            out = out.decode("utf-8")
+            err = err.decode("utf-8")
             self.failUnlessIn("Receiving %d bytes for 'testfile'" % len(message),
                               out)
             self.failUnlessIn("Received file written to ", out)

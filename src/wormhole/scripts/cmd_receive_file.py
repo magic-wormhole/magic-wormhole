@@ -2,7 +2,7 @@ from __future__ import print_function
 import sys, os, json, binascii
 from ..errors import handle_server_error
 
-APPID = "lothar.com/wormhole/file-xfer"
+APPID = b"lothar.com/wormhole/file-xfer"
 
 @handle_server_error
 def receive_file(args):
@@ -50,7 +50,7 @@ def receive_file(args):
 
     # now receive the rest of the owl
     tdata = data["transit"]
-    transit_key = w.derive_key(APPID+"/transit-key")
+    transit_key = w.derive_key(APPID+b"/transit-key")
     transit_receiver.set_transit_key(transit_key)
     transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
@@ -68,12 +68,12 @@ def receive_file(args):
         if os.path.dirname(target) != here:
             print("Error: suggested filename (%s) would be outside current directory"
                   % (filename,))
-            record_pipe.send_record("bad filename\n")
+            record_pipe.send_record(b"bad filename\n")
             record_pipe.close()
             return 1
     if os.path.exists(target) and not args.overwrite:
         print("Error: refusing to overwrite existing file %s" % (filename,))
-        record_pipe.send_record("file already exists\n")
+        record_pipe.send_record(b"file already exists\n")
         record_pipe.close()
         return 1
     tmp = target + ".tmp"
@@ -98,6 +98,6 @@ def receive_file(args):
     os.rename(tmp, target)
 
     print("Received file written to %s" % target)
-    record_pipe.send_record("ok\n")
+    record_pipe.send_record(b"ok\n")
     record_pipe.close()
     return 0

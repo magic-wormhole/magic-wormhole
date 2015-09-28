@@ -1,8 +1,8 @@
 from __future__ import print_function
-import os, sys, json, binascii
+import os, sys, json, binascii, six
 from ..errors import handle_server_error
 
-APPID = "lothar.com/wormhole/file-xfer"
+APPID = b"lothar.com/wormhole/file-xfer"
 
 @handle_server_error
 def send_file(args):
@@ -37,7 +37,7 @@ def send_file(args):
     if args.verify:
         verifier = binascii.hexlify(w.get_verifier())
         while True:
-            ok = raw_input("Verifier %s. ok? (yes/no): " % verifier)
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":
@@ -70,7 +70,7 @@ def send_file(args):
 
 
     tdata = them_d["transit"]
-    transit_key = w.derive_key(APPID+"/transit-key")
+    transit_key = w.derive_key(APPID+b"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
@@ -91,7 +91,7 @@ def send_file(args):
 
     print("File sent.. waiting for confirmation")
     ack = record_pipe.receive_record()
-    if ack == "ok\n":
+    if ack == b"ok\n":
         print("Confirmation received. Transfer complete.")
         return 0
     else:
