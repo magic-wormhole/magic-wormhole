@@ -1,10 +1,17 @@
+#import sys
 from twisted.python import log, failure
 from twisted.internet import reactor, defer, protocol
 from twisted.application import service
 from twisted.protocols import basic
 from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
+from cgi import parse_header
 from ..util.eventual import eventually
+
+#if sys.version_info[0] == 2:
+#    to_unicode = unicode
+#else:
+#    to_unicode = str
 
 class EventSourceParser(basic.LineOnlyReceiver):
     delimiter = "\n"
@@ -15,6 +22,10 @@ class EventSourceParser(basic.LineOnlyReceiver):
         self.handler = handler
         self.done_deferred = defer.Deferred()
         self.eventtype = "message"
+        self.encoding = "utf-8"
+
+    def set_encoding(self, encoding):
+        self.encoding = encoding
 
     def connectionLost(self, why):
         if why.check(ResponseDone):
@@ -40,6 +51,8 @@ class EventSourceParser(basic.LineOnlyReceiver):
             self.current_field = None
             self.current_lines[:] = []
             return
+        line = line.decode(self.encoding)
+        #line = to_unicode(line, self.encoding)
         if self.current_field is None:
             self.current_field, data = line.split(": ", 1)
             self.current_lines.append(data)
@@ -90,7 +103,11 @@ class EventSource: # TODO: service.Service
             raise EventSourceError("%d: %s" % (resp.code, resp.phrase))
         if self.when_connected:
             self.when_connected()
-        #if resp.headers.getRawHeaders("content-type") == ["text/event-stream"]:
+        default_ct = "text/event-stream; charset=utf-8"
+        ct_headers = resp.headers.getRawHeaders("content-type", [default_ct])
+        ct, ct_params = parse_header(ct_headers[0])
+        assert ct == "text/event-stream", ct
+        self.proto.set_encoding(ct_params.get("charset", "utf-8"))
         resp.deliverBody(self.proto)
         if self.cancelled:
             self.kill_connection()
