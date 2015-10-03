@@ -387,7 +387,8 @@ class Common:
 
     def _connector_failed(self, hint):
         debug("- failed connector %s" % hint)
-        self._active_connectors.remove(hint)
+        # XXX this was .remove, and occasionally got KeyError
+        self._active_connectors.discard(hint)
         if not self._active_connectors:
             self._start_relay_connectors()
 
