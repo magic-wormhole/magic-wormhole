@@ -51,112 +51,101 @@ class EventsProtocol:
 # note: no versions of IE (including the current IE11) support EventSource
 
 # relay URLs are:
-# GET /list                                         -> {channel-ids: [INT..]}
-# POST /allocate/SIDE                               -> {channel-id: INT}
-#  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
-# POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
-# GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
-# POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
+#  GET /list                           -> {channel-ids: [INT..]}
+#  POST /allocate {side: SIDE}         -> {channel-id: INT}
+#   these return all messages (base64) for CID= :
+#  POST /CID {side:, phase:, body:}    -> {messages: [{phase:, body:}..]}
+#  GET  /CID (no-eventsource)          -> {messages: [{phase:, body:}..]}
+#  GET  /CID (eventsource)             -> {phase:, body:}..
+#  POST /CID/deallocate {side: SIDE}   -> {status: waiting | deleted}
+# all JSON responses include a "welcome:{..}" key
 
 class Channel(resource.Resource):
-    isLeaf = True # I handle /CHANNEL-ID/*
-
     def __init__(self, channel_id, relay, db, welcome):
         resource.Resource.__init__(self)
         self.channel_id = channel_id
         self.relay = relay
         self.db = db
         self.welcome = welcome
-        self.event_channels = set() # (side, msgnum, ep)
+        self.event_channels = set() # ep
+        self.putChild(b"deallocate", Deallocator(self.channel_id, self.relay))
 
-    def render_GET(self, request):
-        # rest of URL is: SIDE/poll/MSGNUM
-        their_side = request.postpath[0].decode("utf-8")
-        if request.postpath[1] != b"poll":
-            request.setResponseCode(http.BAD_REQUEST, b"GET to wrong URL")
-            return b"GET is only for /SIDE/poll/MSGNUM"
-        their_msgnum = request.postpath[2].decode("utf-8")
-        if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
-            request.setResponseCode(http.BAD_REQUEST, b"Must use EventSource")
-            return b"Must use EventSource (Content-Type: text/event-stream)"
-        request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
-        ep = EventsProtocol(request)
-        ep.sendEvent(json.dumps(self.welcome), name="welcome")
-        handle = (their_side, their_msgnum, ep)
-        self.event_channels.add(handle)
-        request.notifyFinish().addErrback(self._shutdown, handle)
+    def get_messages(self, request):
+        request.setHeader(b"content-type", b"application/json; charset=utf-8")
+        messages = []
         for row in self.db.execute("SELECT * FROM `messages`"
                                    " WHERE `channel_id`=?"
                                    " ORDER BY `when` ASC",
                                    (self.channel_id,)).fetchall():
-            self.message_added(row["side"], row["msgnum"], row["message"],
-                               channels=[handle])
+            messages.append({"phase": row["phase"], "body": row["body"]})
+        data = {"welcome": self.welcome, "messages": messages}
+        return (json.dumps(data)+"\n").encode("utf-8")
+
+    def render_GET(self, request):
+        if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
+            return self.get_messages(request)
+        request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
+        ep = EventsProtocol(request)
+        ep.sendEvent(json.dumps(self.welcome), name="welcome")
+        self.event_channels.add(ep)
+        request.notifyFinish().addErrback(lambda f:
+                                          self.event_channels.discard(ep))
+        for row in self.db.execute("SELECT * FROM `messages`"
+                                   " WHERE `channel_id`=?"
+                                   " ORDER BY `when` ASC",
+                                   (self.channel_id,)).fetchall():
+            data = json.dumps({"phase": row["phase"], "body": row["body"]})
+            ep.sendEvent(data)
         return server.NOT_DONE_YET
 
-    def _shutdown(self, _, handle):
-        self.event_channels.discard(handle)
-
-    def message_added(self, msg_side, msg_msgnum, msg_str, channels=None):
-        if channels is None:
-            channels = self.event_channels
-        for (their_side, their_msgnum, their_ep) in channels:
-            if msg_side != their_side and msg_msgnum == their_msgnum:
-                data = json.dumps({ "side": msg_side, "message": msg_str })
-                their_ep.sendEvent(data)
+    def broadcast_message(self, phase, body):
+        data = json.dumps({"phase": phase, "body": body})
+        for ep in self.event_channels:
+            ep.sendEvent(data)
 
     def render_POST(self, request):
-        # rest of URL is: SIDE/(MSGNUM|deallocate)/(post|poll)
-        side = request.postpath[0].decode("utf-8")
-        verb = request.postpath[1].decode("utf-8")
+        #data = json.load(request.content, encoding="utf-8")
+        content = request.content.read()
+        data = json.loads(content.decode("utf-8"))
 
-        if verb == "deallocate":
-            deleted = self.relay.maybe_free_child(self.channel_id, side)
-            if deleted:
-                return b"deleted\n"
-            return b"waiting\n"
+        side = data["side"]
+        phase = data["phase"]
+        if not isinstance(phase, type(u"")):
+            raise TypeError("phase must be string, not %s" % type(phase))
+        body = data["body"]
 
-        if verb not in ("post", "poll"):
-            request.setResponseCode(http.BAD_REQUEST)
-            return b"bad verb, want 'post' or 'poll'\n"
+        self.db.execute("INSERT INTO `messages`"
+                        " (`channel_id`, `side`, `phase`, `body`, `when`)"
+                        " VALUES (?,?,?,?,?)",
+                        (self.channel_id, side, phase, body, time.time()))
+        self.db.execute("INSERT INTO `allocations`"
+                        " (`channel_id`, `side`)"
+                        " VALUES (?,?)",
+                        (self.channel_id, side))
+        self.db.commit()
+        self.broadcast_message(phase, body)
+        return self.get_messages(request)
 
-        msgnum = request.postpath[2].decode("utf-8")
+class Deallocator(resource.Resource):
+    def __init__(self, channel_id, relay):
+        self.channel_id = channel_id
+        self.relay = relay
 
-        other_messages = []
-        for row in self.db.execute("SELECT `message` FROM `messages`"
-                                   " WHERE `channel_id`=? AND `side`!=?"
-                                   "       AND `msgnum`=?"
-                                   " ORDER BY `when` ASC",
-                                   (self.channel_id, side, msgnum)).fetchall():
-            other_messages.append(row["message"])
-
-        if verb == "post":
-            #data = json.load(request.content, encoding="utf-8")
-            content = request.content.read()
-            data = json.loads(content.decode("utf-8"))
-            self.db.execute("INSERT INTO `messages`"
-                            " (`channel_id`, `side`, `msgnum`, `message`, `when`)"
-                            " VALUES (?,?,?,?,?)",
-                            (self.channel_id, side, msgnum, data["message"],
-                             time.time()))
-            self.db.execute("INSERT INTO `allocations`"
-                            " (`channel_id`, `side`)"
-                            " VALUES (?,?)",
-                            (self.channel_id, side))
-            self.db.commit()
-            self.message_added(side, msgnum, data["message"])
-
-        request.setHeader(b"content-type", b"application/json; charset=utf-8")
-        data = {"welcome": self.welcome,
-                "messages": other_messages}
-        return (json.dumps(data)+"\n").encode("utf-8")
+    def render_POST(self, request):
+        content = request.content.read()
+        data = json.loads(content.decode("utf-8"))
+        side = data["side"]
+        deleted = self.relay.maybe_free_child(self.channel_id, side)
+        resp = {"status": "waiting"}
+        if deleted:
+            resp = {"status": "deleted"}
+        return json.dumps(resp).encode("utf-8")
 
 def get_allocated(db):
     c = db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
     return set([row["channel_id"] for row in c.fetchall()])
 
 class Allocator(resource.Resource):
-    isLeaf = True
     def __init__(self, db, welcome):
         resource.Resource.__init__(self)
         self.db = db
@@ -179,7 +168,11 @@ class Allocator(resource.Resource):
         raise ValueError("unable to find a free channel-id")
 
     def render_POST(self, request):
-        side = request.postpath[0]
+        content = request.content.read()
+        data = json.loads(content.decode("utf-8"))
+        side = data["side"]
+        if not isinstance(side, type(u"")):
+            raise TypeError("side must be string, not '%s'" % type(side))
         channel_id = self.allocate_channel_id()
         self.db.execute("INSERT INTO `allocations` VALUES (?,?)",
                         (channel_id, side))

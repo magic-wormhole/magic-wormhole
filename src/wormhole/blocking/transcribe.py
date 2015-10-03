@@ -8,21 +8,21 @@ from nacl import utils
 from .eventsource import EventSourceFollower
 from .. import __version__
 from .. import codes
-from ..errors import (ServerError, Timeout, WrongPasswordError,
-                      ReflectionAttack, UsageError)
+from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
 
 SECOND = 1
 MINUTE = 60*SECOND
 
 # relay URLs are:
-# GET /list                                         -> {channel-ids: [INT..]}
-# POST /allocate/SIDE                               -> {channel-id: INT}
-#  these return all messages for CHANNEL-ID= and MSGNUM= but SIDE!= :
-# POST /CHANNEL-ID/SIDE/post/MSGNUM  {message: STR} -> {messages: [STR..]}
-# POST /CHANNEL-ID/SIDE/poll/MSGNUM                 -> {messages: [STR..]}
-# GET  /CHANNEL-ID/SIDE/poll/MSGNUM (eventsource)   -> STR, STR, ..
-# POST /CHANNEL-ID/SIDE/deallocate                  -> waiting | deleted
+#  GET /list                           -> {channel-ids: [INT..]}
+#  POST /allocate {side: SIDE}         -> {channel-id: INT}
+#   these return all messages (base64) for CID= :
+#  POST /CID {side:, phase:, body:}    -> {messages: [{phase:, body:}..]}
+#  GET  /CID (no-eventsource)          -> {messages: [{phase:, body:}..]}
+#  GET  /CID (eventsource)             -> {phase:, body:}..
+#  POST /CID/deallocate {side: SIDE}   -> {status: waiting | deleted}
+# all JSON responses include a "welcome:{..}" key
 
 class Wormhole:
     motd_displayed = False
@@ -40,12 +40,9 @@ class Wormhole:
         self.code = None
         self.key = None
         self.verifier = None
-
-    def _url(self, verb, msgnum=None):
-        url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
-        if msgnum is not None:
-            url += "/" + msgnum
-        return url
+        self._channel_url = None
+        self._messages = set() # (phase,body) , body is bytes
+        self._sent_messages = set() # (phase,body)
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -69,18 +66,9 @@ class Wormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def _post_json(self, url, post_json=None):
-        # POST to a URL, parsing the response as JSON. Optionally include a
-        # JSON request body.
-        data = None
-        if post_json:
-            data = json.dumps(post_json).encode("utf-8")
-        r = requests.post(url, data=data)
-        r.raise_for_status()
-        return r.json()
-
     def _allocate_channel(self):
-        r = requests.post(self.relay + "allocate/%s" % self.side)
+        data = json.dumps({"side": self.side}).encode("utf-8")
+        r = requests.post(self.relay + "allocate", data=data)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
@@ -123,6 +111,7 @@ class Wormhole:
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         self.channel_id = int(mo.group(1))
+        self._channel_url = "%s%d" % (self.relay, self.channel_id)
         self.code = code
 
     def _start(self):
@@ -131,36 +120,62 @@ class Wormhole:
                                    idSymmetric=self.appid)
         self.msg1 = self.sp.start()
 
-    def _post_message(self, url, msg):
+    def _add_inbound_messages(self, messages):
+        for msg in messages:
+            phase = msg["phase"]
+            body = unhexlify(msg["body"].encode("ascii"))
+            self._messages.add( (phase, body) )
+
+    def _find_inbound_message(self, phase):
+        for (their_phase,body) in self._messages - self._sent_messages:
+            if their_phase == phase:
+                return body
+        return None
+
+    def _send_message(self, phase, msg):
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
+        if not isinstance(phase, type(u"")): raise UsageError(type(phase))
         if not isinstance(msg, type(b"")): raise UsageError(type(msg))
-        resp = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
-        return resp["messages"] # other_msgs
+        self._sent_messages.add( (phase,msg) )
+        payload = {"side": self.side,
+                   "phase": phase,
+                   "body": hexlify(msg).decode("ascii")}
+        data = json.dumps(payload).encode("utf-8")
+        r = requests.post(self._channel_url, data=data)
+        r.raise_for_status()
+        resp = r.json()
+        self._add_inbound_messages(resp["messages"])
 
-    def _get_message(self, old_msgs, verb, msgnum):
+    def _get_message(self, phase):
+        if not isinstance(phase, type(u"")): raise UsageError(type(phase))
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
 
-        # fire with a bytestring of the first message that matches
-        # verb/msgnum, which either came from old_msgs, or from an
-        # EventSource that we attached to the corresponding URL
-        msgs = old_msgs
-        while not msgs:
+        # fire with a bytestring of the first message for 'phase' that wasn't
+        # one of ours. It will either come from previously-received messages,
+        # or from an EventSource that we attach to the corresponding URL
+        body = self._find_inbound_message(phase)
+        while body is None:
             remaining = self.started + self.timeout - time.time()
             if remaining < 0:
-                raise Timeout
-            #time.sleep(self.wait)
-            f = EventSourceFollower(self._url(verb, msgnum), remaining)
+                return Timeout
+            f = EventSourceFollower(self._channel_url, remaining)
+            # we loop here until the connection is lost, or we see the
+            # message we want
             for (eventtype, data) in f.iter_events():
                 if eventtype == "welcome":
                     self.handle_welcome(json.loads(data))
                 if eventtype == "message":
-                    msgs = [json.loads(data)["message"]]
-                    break
-            f.close()
-        return unhexlify(msgs[0].encode("ascii"))
+                    self._add_inbound_messages([json.loads(data)])
+                    body = self._find_inbound_message(phase)
+                    if body:
+                        f.close()
+                        break
+            if not body:
+                time.sleep(self.wait)
+        return body
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(b"")): raise UsageError
@@ -185,8 +200,8 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            old_msgs = self._post_message(self._url("post", "pake"), self.msg1)
-            pake_msg = self._get_message(old_msgs, "poll", "pake")
+            self._send_message(u"pake", self.msg1)
+            pake_msg = self._get_message(u"pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(self.appid+b":Verifier")
 
@@ -214,11 +229,12 @@ class Wormhole:
         data_key = self.derive_key(b"data-key")
 
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        msgs = self._post_message(self._url("post", "data"), outbound_encrypted)
+        self._send_message(u"data", outbound_encrypted)
 
-        inbound_encrypted = self._get_message(msgs, "poll", "data")
-        if inbound_encrypted == outbound_encrypted:
-            raise ReflectionAttack
+        inbound_encrypted = self._get_message(u"data")
+        # _find_inbound_message() ignores any inbound message that matches
+        # something we previously sent out, so we don't need to explicitly
+        # check for reflection. A reflection attack will just not progress.
         try:
             inbound_data = self._decrypt_data(data_key, inbound_encrypted)
             return inbound_data
@@ -227,5 +243,6 @@ class Wormhole:
 
     def _deallocate(self):
         # only try once, no retries
-        requests.post(self._url("deallocate"))
+        data = json.dumps({"side": self.side}).encode("utf-8")
+        requests.post(self._channel_url+"/deallocate", data=data)
         # ignore POST failure, don't call r.raise_for_status()

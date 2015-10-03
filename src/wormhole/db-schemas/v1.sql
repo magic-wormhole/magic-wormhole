@@ -11,11 +11,11 @@ CREATE TABLE `messages`
 (
  `channel_id` INTEGER,
  `side` VARCHAR,
- `msgnum` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
- `message` VARCHAR,
+ `phase` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
+ `body` VARCHAR,
  `when` INTEGER
 );
-CREATE INDEX `messages_idx` ON `messages` (`channel_id`, `side`, `msgnum`);
+CREATE INDEX `messages_idx` ON `messages` (`channel_id`, `side`, `phase`);
 
 CREATE TABLE `allocations`
 (

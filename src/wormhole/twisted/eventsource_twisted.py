@@ -93,6 +93,7 @@ class EventSource: # TODO: service.Service
     def start(self):
         assert not self.started, "single-use"
         self.started = True
+        assert self.url
         d = self.agent.request("GET", self.url,
                                Headers({"accept": ["text/event-stream"]}))
         d.addCallback(self._connected)
@@ -154,14 +155,13 @@ class Connector:
 
 class ReconnectingEventSource(service.MultiService,
                               protocol.ReconnectingClientFactory):
-    def __init__(self, baseurl, connection_starting, handler, agent=None):
+    def __init__(self, url, handler, agent=None):
         service.MultiService.__init__(self)
         # we don't use any of the basic Factory/ClientFactory methods of
         # this, just the ReconnectingClientFactory.retry, stopTrying, and
         # resetDelay methods.
 
-        self.baseurl = baseurl
-        self.connection_starting = connection_starting
+        self.url = url
         self.handler = handler
         self.agent = agent
         # IService provides self.running, toggled by {start,stop}Service.
@@ -201,8 +201,7 @@ class ReconnectingEventSource(service.MultiService,
         if not (self.active and self.running):
             return
         self.continueTrying = True
-        url = self.connection_starting()
-        self.es = EventSource(url, self.handler, self.resetDelay,
+        self.es = EventSource(self.url, self.handler, self.resetDelay,
                               agent=self.agent)
         d = self.es.start()
         d.addBoth(self._stopped)

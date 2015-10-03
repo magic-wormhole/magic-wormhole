@@ -13,8 +13,7 @@ from spake2 import SPAKE2_Symmetric
 from .eventsource_twisted import ReconnectingEventSource
 from .. import __version__
 from .. import codes
-from ..errors import (ServerError, WrongPasswordError,
-                      ReflectionAttack, UsageError)
+from ..errors import ServerError, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
 
 @implementer(IBodyProducer)
@@ -46,12 +45,9 @@ class Wormhole:
         self.code = None
         self.key = None
         self._started_get_code = False
-
-    def _url(self, verb, msgnum=None):
-        url = "%s%d/%s/%s" % (self.relay, self.channel_id, self.side, verb)
-        if msgnum is not None:
-            url += "/" + msgnum
-        return url
+        self._channel_url = None
+        self._messages = set() # (phase,body) , body is bytes
+        self._sent_messages = set() # (phase,body)
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -75,14 +71,10 @@ class Wormhole:
         if "error" in welcome:
             raise ServerError(welcome["error"], self.relay)
 
-    def _post_json(self, url, post_json=None):
-        # POST to a URL, parsing the response as JSON. Optionally include a
-        # JSON request body.
-        p = None
-        if post_json:
-            data = json.dumps(post_json).encode("utf-8")
-            p = DataProducer(data)
-        d = self.agent.request("POST", url, bodyProducer=p)
+    def _post_json(self, url, post_json):
+        # POST a JSON body to a URL, parsing the response as JSON
+        data = json.dumps(post_json).encode("utf-8")
+        d = self.agent.request("POST", url, bodyProducer=DataProducer(data))
         def _check_error(resp):
             if resp.code != 200:
                 raise web_error.Error(resp.code, resp.phrase)
@@ -93,8 +85,8 @@ class Wormhole:
         return d
 
     def _allocate_channel(self):
-        url = self.relay + "allocate/%s" % self.side
-        d = self._post_json(url)
+        url = self.relay + "allocate"
+        d = self._post_json(url, {"side": self.side})
         def _got_channel(data):
             if "welcome" in data:
                 self.handle_welcome(data["welcome"])
@@ -131,6 +123,7 @@ class Wormhole:
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         self.channel_id = int(mo.group(1))
+        self._channel_url = "%s%d" % (self.relay, self.channel_id)
         self.code = code
 
     def _start(self):
@@ -164,36 +157,56 @@ class Wormhole:
         self.msg1 = d["msg1"].decode("hex")
         return self
 
-    def _post_message(self, url, msg):
+    def _add_inbound_messages(self, messages):
+        for msg in messages:
+            phase = msg["phase"]
+            body = unhexlify(msg["body"].encode("ascii"))
+            self._messages.add( (phase, body) )
+
+    def _find_inbound_message(self, phase):
+        for (their_phase,body) in self._messages - self._sent_messages:
+            if their_phase == phase:
+                return body
+        return None
+
+    def _send_message(self, phase, msg):
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
+        if not isinstance(phase, type(u"")): raise UsageError(type(phase))
         if not isinstance(msg, type(b"")): raise UsageError(type(msg))
-        d = self._post_json(url, {"message": hexlify(msg).decode("ascii")})
-        d.addCallback(lambda resp: resp["messages"]) # other_msgs
+        self._sent_messages.add( (phase,msg) )
+        payload = {"side": self.side,
+                   "phase": phase,
+                   "body": hexlify(msg).decode("ascii")}
+        d = self._post_json(self._channel_url, payload)
+        d.addCallback(lambda resp: self._add_inbound_messages(resp["messages"]))
         return d
 
-    def _get_message(self, old_msgs, verb, msgnum):
-        # fire with a bytestring of the first message that matches
-        # verb/msgnum, which either came from old_msgs, or from an
-        # EventSource that we attached to the corresponding URL
-        if old_msgs:
-            msg = unhexlify(old_msgs[0].encode("ascii"))
-            return defer.succeed(msg)
+    def _get_message(self, phase):
+        # fire with a bytestring of the first message for 'phase' that wasn't
+        # one of ours. It will either come from previously-received messages,
+        # or from an EventSource that we attach to the corresponding URL
+        body = self._find_inbound_message(phase)
+        if body is not None:
+            return defer.succeed(body)
         d = defer.Deferred()
         msgs = []
         def _handle(name, data):
             if name == "welcome":
                 self.handle_welcome(json.loads(data))
             if name == "message":
-                msgs.append(json.loads(data)["message"])
-                d.callback(None)
-        es = ReconnectingEventSource(None, lambda: self._url(verb, msgnum),
-                                     _handle)#, agent=self.agent)
+                self._add_inbound_messages([json.loads(data)])
+                body = self._find_inbound_message(phase)
+                if body is not None and not msgs:
+                    msgs.append(body)
+                    d.callback(None)
+        # TODO: use agent=self.agent
+        es = ReconnectingEventSource(self._channel_url, _handle)
         es.startService() # TODO: .setServiceParent(self)
         es.activate()
         d.addCallback(lambda _: es.deactivate())
         d.addCallback(lambda _: es.stopService())
-        d.addCallback(lambda _: unhexlify(msgs[0].encode("ascii")))
+        d.addCallback(lambda _: msgs[0])
         return d
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
@@ -224,8 +237,8 @@ class Wormhole:
         # TODO: prevent multiple invocation
         if self.key:
             return defer.succeed(self.key)
-        d = self._post_message(self._url("post", "pake"), self.msg1)
-        d.addCallback(lambda msgs: self._get_message(msgs, "poll", "pake"))
+        d = self._send_message(u"pake", self.msg1)
+        d.addCallback(lambda _: self._get_message(u"pake"))
         def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
@@ -256,12 +269,12 @@ class Wormhole:
         data_key = self.derive_key(b"data-key")
 
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        d = self._post_message(self._url("post", "data"), outbound_encrypted)
+        d = self._send_message(u"data", outbound_encrypted)
 
-        d.addCallback(lambda msgs: self._get_message(msgs, "poll", "data"))
+        d.addCallback(lambda _: self._get_message(u"data"))
         def _got_data(inbound_encrypted):
-            if inbound_encrypted == outbound_encrypted:
-                raise ReflectionAttack
+            #if inbound_encrypted == outbound_encrypted:
+            #    raise ReflectionAttack
             try:
                 inbound_data = self._decrypt_data(data_key, inbound_encrypted)
                 return inbound_data
@@ -272,6 +285,7 @@ class Wormhole:
 
     def _deallocate(self, res):
         # only try once, no retries
-        d = self.agent.request("POST", self._url("deallocate"))
+        d = self._post_json(self._channel_url+"/deallocate",
+                            {"side": self.side})
         d.addBoth(lambda _: res) # ignore POST failure, pass-through result
         return d
