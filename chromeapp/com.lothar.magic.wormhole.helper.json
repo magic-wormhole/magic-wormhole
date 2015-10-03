@@ -1,0 +1,9 @@
+{
+    "name": "com.lothar.magic.wormhole.helper",
+    "description": "helper",
+    "path": "/Users/warner/stuff/tahoe/magic-wormhole/chromeapp/helper.py",
+    "type": "stdio",
+    "allowed_origins": [
+        "chrome-extension://bgahhifpcdfhlglhddkkapeajpgheied/"
+    ]
+}
