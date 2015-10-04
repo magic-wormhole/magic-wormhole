@@ -1,6 +1,6 @@
 from twisted.application import service
 from ..twisted.util import allocate_ports
-from ..servers.relay import RelayServer
+from ..servers.server import RelayServer
 from .. import __version__
 
 class ServerBase:
