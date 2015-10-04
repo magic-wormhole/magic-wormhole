@@ -98,11 +98,9 @@ provide information about alternatives.
 
 ## CLI tool
 
-* `wormhole send-text TEXT`
-* `wormhole receive-text`
-* 
-* `wormhole send-file FILENAME`
-* `wormhole receive-file`
+* `wormhole send TEXT`
+* `wormhole send FILENAME`
+* `wormhole receive`
 
 All four commands accept:
 

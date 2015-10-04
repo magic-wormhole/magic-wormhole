@@ -3,7 +3,7 @@ import sys, argparse
 from textwrap import dedent
 from .. import public_relay
 from .. import __version__
-from . import cmd_send_text, cmd_receive_text, cmd_send_file, cmd_receive_file
+from . import cmd_send, cmd_receive
 from ..servers import cmd_server
 
 parser = argparse.ArgumentParser(
@@ -62,58 +62,38 @@ sp_restart.add_argument("--advertise-version", metavar="VERSION",
                         help="version to recommend to clients")
 sp_restart.set_defaults(func=cmd_server.restart_server)
 
-# CLI: send-text
-p = subparsers.add_parser("send-text", description="Send a text mesasge",
-                          usage="wormhole send-text TEXT")
+# CLI: send
+p = subparsers.add_parser("send",
+                          description="Send text message or file",
+                          usage="wormhole send TEXT|FILENAME")
 p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
 p.add_argument("-0", dest="zeromode", action="store_true",
                help="enable no-code anything-goes mode")
-p.add_argument("text", metavar="TEXT", help="the message to send (a string)")
-p.set_defaults(func=cmd_send_text.send_text)
+p.add_argument("what", metavar="TEXT|FILENAME",
+               help="the message to send (a string), or a filename")
+p.set_defaults(func=cmd_send.send)
 
-# CLI: receive-text
-p = subparsers.add_parser("receive-text", description="Receive a text message",
-                          usage="wormhole receive-text [CODE]")
+# CLI: receive
+p = subparsers.add_parser("receive",
+                          description="Receive a text message or file",
+                          usage="wormhole receive [CODE]")
 p.add_argument("-0", dest="zeromode", action="store_true",
                help="enable no-code anything-goes mode")
-p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
-               help=dedent("""\
-               The magic-wormhole code, from the sender. If omitted, the
-               program will ask for it, using tab-completion."""),
-               )
-p.set_defaults(func=cmd_receive_text.receive_text)
-
-# CLI: send-file
-p = subparsers.add_parser("send-file", description="Send a file",
-                          usage="wormhole send-file FILENAME")
-p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
-p.add_argument("-0", dest="zeromode", action="store_true",
-               help="enable no-code anything-goes mode")
-p.add_argument("filename", metavar="FILENAME", help="The file to be sent")
-p.set_defaults(func=cmd_send_file.send_file)
-
-# CLI: receive-file
-p = subparsers.add_parser("receive-file", description="Receive a file",
-                          usage="wormhole receive-file [-o FILENAME] [CODE]")
+p.add_argument("-t", "--only-text", dest="only_text", action="store_true",
+               help="refuse file transfers, only accept text transfers")
+p.add_argument("--accept-file", dest="accept_file", action="store_true",
+               help="accept file transfer with prompting")
 p.add_argument("-o", "--output-file", default=None, metavar="FILENAME",
                help=dedent("""\
                The file to create, overriding the filename suggested by the
-               sender"""),
+               sender."""),
                )
-p.add_argument("--overwrite", action="store_true",
-               help=dedent("""\
-               Allow the output file to be overwritten. By default, if the
-               output file already exists, the program will refuse to
-               overwrite it."""),
-               )
-p.add_argument("-0", dest="zeromode", action="store_true",
-               help="enable no-code anything-goes mode")
 p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                help=dedent("""\
                The magic-wormhole code, from the sender. If omitted, the
                program will ask for it, using tab-completion."""),
                )
-p.set_defaults(func=cmd_receive_file.receive_file)
+p.set_defaults(func=cmd_receive.receive)
 
 
 

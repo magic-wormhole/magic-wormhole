@@ -85,13 +85,13 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         code = "1-abc"
         message = "test message"
         send_args = server_args + [
-            "send-text",
+            "send",
             "--code", code,
             message,
             ]
         d1 = getProcessOutputAndValue(wormhole, send_args)
         receive_args = server_args + [
-            "receive-text",
+            "receive",
             code,
             ]
         d2 = getProcessOutputAndValue(wormhole, receive_args)
@@ -100,10 +100,11 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             out = out.decode("utf-8")
             err = err.decode("utf-8")
             self.failUnlessEqual(out,
+                                 "Sending text message (%d bytes)\n"
                                  "On the other computer, please run: "
-                                 "wormhole receive-text\n"
+                                 "wormhole receive\n"
                                  "Wormhole code is: %s\n\n"
-                                 "text sent\n" % code
+                                 "text message sent\n" % (len(message), code)
                                  )
             self.failUnlessEqual(err, "")
             self.failUnlessEqual(rc, 0)
@@ -121,26 +122,27 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_send_file_pre_generated_code(self):
         code = "1-abc"
+        filename = "testfile"
         message = "test message"
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
-        with open(os.path.join(send_dir, "testfile"), "w") as f:
+        with open(os.path.join(send_dir, filename), "w") as f:
             f.write(message)
 
         wormhole = self.find_executable()
         server_args = ["--relay-url", self.relayurl]
         send_args = server_args + [
-            "send-file",
+            "send",
             "--code", code,
-            "testfile",
+            filename,
             ]
         d1 = getProcessOutputAndValue(wormhole, send_args, path=send_dir)
 
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
         receive_args = server_args + [
-            "receive-file",
+            "receive", "--accept-file",
             code,
             ]
         d2 = getProcessOutputAndValue(wormhole, receive_args, path=receive_dir)
@@ -148,9 +150,11 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             out, err, rc = res
             out = out.decode("utf-8")
             err = err.decode("utf-8")
+            self.failUnlessIn("Sending %d byte file named '%s'\n" %
+                              (len(message), filename), out)
             self.failUnlessIn("On the other computer, please run: "
-                              "wormhole receive-file\n"
-                              "Wormhole code is '%s'\n\n" % code,
+                              "wormhole receive\n"
+                              "Wormhole code is: %s\n\n" % code,
                               out)
             self.failUnlessIn("File sent.. waiting for confirmation\n"
                               "Confirmation received. Transfer complete.\n",
@@ -163,12 +167,12 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             out, err, rc = res
             out = out.decode("utf-8")
             err = err.decode("utf-8")
-            self.failUnlessIn("Receiving %d bytes for 'testfile'" % len(message),
-                              out)
+            self.failUnlessIn("Receiving %d bytes for '%s'" %
+                              (len(message), filename), out)
             self.failUnlessIn("Received file written to ", out)
             self.failUnlessEqual(err, "")
             self.failUnlessEqual(rc, 0)
-            fn = os.path.join(receive_dir, "testfile")
+            fn = os.path.join(receive_dir, filename)
             self.failUnless(os.path.exists(fn))
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), message)
