@@ -11,7 +11,20 @@ def send(args):
     from ..blocking.transit import TransitSender
     from .progress import start_progress, update_progress, finish_progress
 
-    if os.path.isfile(args.what):
+    text = args.text
+    if not text and not args.what:
+        text = six.moves.input("Text to send: ")
+
+    if text is not None:
+        sending_message = True
+        print("Sending text message (%d bytes)" % len(text))
+        phase1 = {
+            "message": text,
+            }
+    else:
+        if not os.path.isfile(args.what):
+            print("Cannot send: no file named '%s'" % args.what)
+            return 1
         # we're sending a file
         sending_message = False
         filesize = os.stat(args.what).st_size
@@ -27,12 +40,6 @@ def send(args):
                 "direct_connection_hints": transit_sender.get_direct_hints(),
                 "relay_connection_hints": transit_sender.get_relay_hints(),
                 },
-            }
-    else:
-        sending_message = True
-        print("Sending text message (%d bytes)" % len(args.what))
-        phase1 = {
-            "message": args.what,
             }
 
     w = Wormhole(APPID, args.relay_url)

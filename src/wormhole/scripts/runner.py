@@ -65,12 +65,14 @@ sp_restart.set_defaults(func=cmd_server.restart_server)
 # CLI: send
 p = subparsers.add_parser("send",
                           description="Send text message or file",
-                          usage="wormhole send TEXT|FILENAME")
+                          usage="wormhole send [FILENAME]")
+p.add_argument("--text", metavar="MESSAGE",
+               help="text message to send, instead of a file")
 p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
 p.add_argument("-0", dest="zeromode", action="store_true",
                help="enable no-code anything-goes mode")
-p.add_argument("what", metavar="TEXT|FILENAME",
-               help="the message to send (a string), or a filename")
+p.add_argument("what", nargs="?", default=None, metavar="[FILENAME]",
+               help="the file to send")
 p.set_defaults(func=cmd_send.send)
 
 # CLI: receive
@@ -82,7 +84,7 @@ p.add_argument("-0", dest="zeromode", action="store_true",
 p.add_argument("-t", "--only-text", dest="only_text", action="store_true",
                help="refuse file transfers, only accept text transfers")
 p.add_argument("--accept-file", dest="accept_file", action="store_true",
-               help="accept file transfer with prompting")
+               help="accept file transfer with asking for confirmation")
 p.add_argument("-o", "--output-file", default=None, metavar="FILENAME",
                help=dedent("""\
                The file to create, overriding the filename suggested by the
