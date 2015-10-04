@@ -87,7 +87,7 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         send_args = server_args + [
             "send",
             "--code", code,
-            message,
+            "--text", message,
             ]
         d1 = getProcessOutputAndValue(wormhole, send_args)
         receive_args = server_args + [
