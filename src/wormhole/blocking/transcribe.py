@@ -139,6 +139,9 @@ class Wormhole:
         self.code = None
         self.key = None
         self.verifier = None
+        self._sent_data = False
+        self._got_data = False
+        self._closed = False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -232,32 +235,37 @@ class Wormhole:
         self._get_key()
         return self.verifier
 
-    def get_data(self, outbound_data):
-        # only call this once
+    def send_data(self, outbound_data):
+        if self._sent_data: raise UsageError # only call this once
         if not isinstance(outbound_data, type(b"")): raise UsageError
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
-        try:
-            self._get_key()
-            return self._get_data2(outbound_data)
-        finally:
-            self.channel.deallocate()
-
-    def _get_data2(self, outbound_data):
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
-        # nonces to keep the messages distinct, and check for reflection.
+        # nonces to keep the messages distinct, and the Channel automatically
+        # ignores reflections.
+        self._get_key()
         data_key = self.derive_key(b"data-key")
-
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         self.channel.send(u"data", outbound_encrypted)
 
+    def get_data(self):
+        if self._got_data: raise UsageError # only call this once
+        if self.code is None: raise UsageError
+        if self.channel is None: raise UsageError
+        self._get_key()
+        data_key = self.derive_key(b"data-key")
         inbound_encrypted = self.channel.get(u"data")
-        # _find_inbound_message() ignores any inbound message that matches
-        # something we previously sent out, so we don't need to explicitly
-        # check for reflection. A reflection attack will just not progress.
         try:
             inbound_data = self._decrypt_data(data_key, inbound_encrypted)
             return inbound_data
         except CryptoError:
             raise WrongPasswordError
+
+    def close(self):
+        self.channel.deallocate()
+        self._closed = True
+
+    def __del__(self):
+        if not self._closed:
+            print("Error: a Wormhole instance was not closed", file=sys.stderr)

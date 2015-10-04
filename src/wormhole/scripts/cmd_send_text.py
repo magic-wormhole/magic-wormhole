@@ -39,17 +39,20 @@ def send_text(args):
                       file=sys.stderr)
                 reject_data = json.dumps({"error": "verification rejected",
                                           }).encode("utf-8")
-                w.get_data(reject_data)
+                w.send_data(reject_data)
+                w.close()
                 return 1
 
     message = args.text
     data = json.dumps({"message": message,
                        }).encode("utf-8")
+    w.send_data(data)
     try:
-        them_bytes = w.get_data(data)
+        them_bytes = w.get_data()
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
+    w.close()
     them_d = json.loads(them_bytes.decode("utf-8"))
     if them_d["message"] == "ok":
         print("text sent")

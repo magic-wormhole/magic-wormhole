@@ -45,6 +45,16 @@ Transit class currently distinguishes "Sender" from "Receiver", so the
 programs on each side must have some way to decide (ahead of time) which is
 which.
 
+Each side gets to do one `send_data()` call and one `get_data()` call.
+`get_data` will wait until the other side has done `send_data`, so the
+application developer must be careful to avoid deadlocks (don't get before
+you send on both sides in the same protocol). When both sides are done, they
+must call `close()`, to let the library know that the connection is complete
+and it can deallocate the channel. If you forget to call `close()`, the
+server will not free the channel, and other users will suffer longer
+invitation codes as a result. To encourage `close()`, the library will log an
+error if a Wormhole object is destroyed before being closed.
+
 ## Examples
 
 The synchronous+blocking flow looks like this:
@@ -56,7 +66,9 @@ mydata = b"initiator's data"
 i = Wormhole(b"appid", RENDEZVOUS_RELAY)
 code = i.get_code()
 print("Invitation Code: %s" % code)
-theirdata = i.get_data(mydata)
+i.send_data(mydata)
+theirdata = i.get_data()
+i.close()
 print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
@@ -68,7 +80,9 @@ mydata = b"receiver's data"
 code = sys.argv[1]
 r = Wormhole(b"appid", RENDEZVOUS_RELAY)
 r.set_code(code)
-theirdata = r.get_data(mydata)
+r.send_data(mydata)
+theirdata = r.get_data()
+r.close()
 print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
@@ -85,11 +99,13 @@ w1 = Wormhole(b"appid", RENDEZVOUS_RELAY)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
-    return w1.get_data(outbound_message)
+    return w1.send_data(outbound_message)
 d.addCallback(_got_code)
+d.addCallback(lambda _: w1.get_data())
 def _got_data(inbound_message):
     print "Inbound message:", inbound_message
 d.addCallback(_got_data)
+d.addCallback(w1.close)
 d.addBoth(lambda _: reactor.stop())
 reactor.run()
 ```
@@ -99,17 +115,26 @@ On the other side, you call `set_code()` instead of waiting for `get_code()`:
 ```python
 w2 = Wormhole(b"appid", RENDEZVOUS_RELAY)
 w2.set_code(code)
-d = w2.get_data(my_message)
+d = w2.send_data(my_message)
 ...
 ```
 
-You can call `d=w.get_verifier()` before `get_data()`: this will perform the
-first half of the PAKE negotiation, then fire the Deferred with a verifier
-object (bytes) which can be converted into a printable representation and
-manually compared. When the users are convinced that `get_verifier()` from
-both sides are the same, call `d=get_data()` to continue the transfer. If you
-call `get_data()` first, it will perform the complete transfer without
-pausing.
+Note that the Twisted-form `close()` accepts (and returns) an optional
+argument, so you can use `d.addCallback(w.close)` instead of
+`d.addCallback(lambda _: w.close())`.
+
+## Verifier
+
+You can call `w.get_verifier()` before `send_data()/get_data()`: this will
+perform the first half of the PAKE negotiation, then return a verifier object
+(bytes) which can be converted into a printable representation and manually
+compared. When the users are convinced that `get_verifier()` from both sides
+are the same, call `send_data()/get_data()` to continue the transfer. If you
+call `send_data()/get_data()` before `get_verifier()`, it will perform the
+complete transfer without pausing.
+
+The Twisted form of `get_verifier()` returns a Deferred that fires with the
+verifier bytes.
 
 ## Generating the Invitation Code
 
@@ -204,9 +229,10 @@ Wormhole.from_serialized(data)`).
 
 There is exactly one point at which you can serialize the wormhole: *after*
 establishing the invitation code, but before waiting for `get_verifier()` or
-`get_data()`. If you are creating a new code, the correct time is during the
-callback fired by `get_code()`. If you are accepting a pre-generated code,
-the time is just after calling `set_code()`.
+`get_data()`, or calling `send_data()`. If you are creating a new invitation
+code, the correct time is during the callback fired by `get_code()`. If you
+are accepting a pre-generated code, the time is just after calling
+`set_code()`.
 
 To properly checkpoint the process, you should store the first message
 (returned by `start()`) next to the serialized wormhole instance, so you can

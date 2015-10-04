@@ -33,12 +33,14 @@ def receive_file(args):
             "relay_connection_hints": transit_receiver.get_relay_hints(),
             },
         }).encode("utf-8")
+    w.send_data(mydata)
     try:
-        data = json.loads(w.get_data(mydata).decode("utf-8"))
+        data = json.loads(w.get_data().decode("utf-8"))
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
     #print("their data: %r" % (data,))
+    w.close()
 
     if "error" in data:
         print("ERROR: " + data["error"], file=sys.stderr)

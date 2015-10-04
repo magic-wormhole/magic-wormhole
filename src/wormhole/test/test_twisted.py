@@ -5,6 +5,10 @@ from ..twisted.transcribe import Wormhole, UsageError
 from .common import ServerBase
 
 class Basic(ServerBase, unittest.TestCase):
+
+    def doBoth(self, d1, d2):
+        return gatherResults([d1, d2], True)
+
     def test_basic(self):
         appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
@@ -12,13 +16,37 @@ class Basic(ServerBase, unittest.TestCase):
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
-            return gatherResults([w1.get_data(b"data1"),
-                                  w2.get_data(b"data2")], True)
+            return self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
         d.addCallback(_got_code)
+        def _sent(res):
+            return self.doBoth(w1.get_data(), w2.get_data())
+        d.addCallback(_sent)
         def _done(dl):
             (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
+            return self.doBoth(w1.close(), w2.close())
+        d.addCallback(_done)
+        return d
+
+    def test_interleaved(self):
+        appid = b"appid"
+        w1 = Wormhole(appid, self.relayurl)
+        w2 = Wormhole(appid, self.relayurl)
+        d = w1.get_code()
+        def _got_code(code):
+            w2.set_code(code)
+            return self.doBoth(w1.send_data(b"data1"), w2.get_data())
+        d.addCallback(_got_code)
+        def _sent(res):
+            (_, dataY) = res
+            self.assertEqual(dataY, b"data1")
+            return self.doBoth(w1.get_data(), w2.send_data(b"data2"))
+        d.addCallback(_sent)
+        def _done(dl):
+            (dataX, _) = dl
+            self.assertEqual(dataX, b"data2")
+            return self.doBoth(w1.close(), w2.close())
         d.addCallback(_done)
         return d
 
@@ -28,12 +56,15 @@ class Basic(ServerBase, unittest.TestCase):
         w2 = Wormhole(appid, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        d = gatherResults([w1.get_data(b"data1"),
-                           w2.get_data(b"data2")], True)
+        d = self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
+        def _sent(res):
+            return self.doBoth(w1.get_data(), w2.get_data())
+        d.addCallback(_sent)
         def _done(dl):
             (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
+            return self.doBoth(w1.close(), w2.close())
         d.addCallback(_done)
         return d
 
@@ -44,19 +75,22 @@ class Basic(ServerBase, unittest.TestCase):
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
-            return gatherResults([w1.get_verifier(), w2.get_verifier()], True)
+            return self.doBoth(w1.get_verifier(), w2.get_verifier())
         d.addCallback(_got_code)
         def _check_verifier(res):
             v1, v2 = res
             self.failUnlessEqual(type(v1), type(b""))
             self.failUnlessEqual(v1, v2)
-            return gatherResults([w1.get_data(b"data1"),
-                                  w2.get_data(b"data2")], True)
+            return self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
         d.addCallback(_check_verifier)
+        def _sent(res):
+            return self.doBoth(w1.get_data(), w2.get_data())
+        d.addCallback(_sent)
         def _done(dl):
             (dataX, dataY) = dl
             self.assertEqual(dataX, b"data2")
             self.assertEqual(dataY, b"data1")
+            return self.doBoth(w1.close(), w2.close())
         d.addCallback(_done)
         return d
 
@@ -67,12 +101,13 @@ class Basic(ServerBase, unittest.TestCase):
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code+"not")
-            return gatherResults([w1.get_verifier(), w2.get_verifier()], True)
+            return self.doBoth(w1.get_verifier(), w2.get_verifier())
         d.addCallback(_got_code)
         def _check_verifier(res):
             v1, v2 = res
             self.failUnlessEqual(type(v1), type(b""))
             self.failIfEqual(v1, v2)
+            return self.doBoth(w1.close(), w2.close())
         d.addCallback(_check_verifier)
         return d
 
@@ -80,13 +115,17 @@ class Basic(ServerBase, unittest.TestCase):
         appid = b"appid"
         w1 = Wormhole(appid, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
-        self.assertRaises(UsageError, w1.get_data, b"data")
+        self.assertRaises(UsageError, w1.send_data, b"data")
+        self.assertRaises(UsageError, w1.get_data)
         w1.set_code("123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
         w2 = Wormhole(appid, self.relayurl)
         d = w2.get_code()
         self.assertRaises(UsageError, w2.get_code)
+        def _got_code(code):
+            return self.doBoth(w1.close(), w2.close())
+        d.addCallback(_got_code)
         return d
 
     def test_serialize(self):
@@ -103,15 +142,19 @@ class Basic(ServerBase, unittest.TestCase):
             self.assertEqual(type(s), type(""))
             unpacked = json.loads(s) # this is supposed to be JSON
             self.assertEqual(type(unpacked), dict)
-            new_w1 = Wormhole.from_serialized(s)
-            return gatherResults([new_w1.get_data(b"data1"),
-                                  w2.get_data(b"data2")], True)
+            self.new_w1 = Wormhole.from_serialized(s)
+            return self.doBoth(self.new_w1.send_data(b"data1"),
+                               w2.send_data(b"data2"))
         d.addCallback(_got_code)
+        def _sent(res):
+            return self.doBoth(self.new_w1.get_data(), w2.get_data())
+        d.addCallback(_sent)
         def _done(dl):
             (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data2")
-            self.assertEqual(dataY, b"data1")
+            self.assertEqual((dataX, dataY), (b"data2", b"data1"))
             self.assertRaises(UsageError, w2.serialize) # too late
+            return gatherResults([w1.close(), w2.close(), self.new_w1.close()],
+                                 True)
         d.addCallback(_done)
         return d
 

@@ -107,11 +107,11 @@ class Channel:
         d.addCallback(lambda _: msgs[0])
         return d
 
-    def deallocate(self, res):
+    def deallocate(self):
         # only try once, no retries
         d = post_json(self._agent, self._channel_url+"/deallocate",
                       {"side": self._side})
-        d.addBoth(lambda _: res) # ignore POST failure, pass-through result
+        d.addBoth(lambda _: None) # ignore POST failure
         return d
 
 class ChannelManager:
@@ -150,6 +150,9 @@ class Wormhole:
         self.code = None
         self.key = None
         self._started_get_code = False
+        self._sent_data = False
+        self._got_data = False
+        self._closed = False
 
     def _set_side(self, side):
         self._side = side
@@ -218,6 +221,8 @@ class Wormhole:
         # get_verifier/get_data
         if self.code is None: raise UsageError
         if self.key is not None: raise UsageError
+        if self._sent_data: raise UsageError
+        if self._got_data: raise UsageError
         data = {
             "appid": self.appid,
             "relay": self.relay,
@@ -282,32 +287,51 @@ class Wormhole:
         d.addCallback(lambda _: self.verifier)
         return d
 
-    def get_data(self, outbound_data):
-        # only call this once
+    def send_data(self, outbound_data):
+        if self._sent_data: raise UsageError # only call this once
         if not isinstance(outbound_data, type(b"")): raise UsageError
         if self.code is None: raise UsageError
-        d = self._get_key()
-        d.addCallback(self._get_data2, outbound_data)
-        d.addBoth(self.channel.deallocate)
-        return d
-
-    def _get_data2(self, key, outbound_data):
+        if self.channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
-        # nonces to keep the messages distinct, and check for reflection.
-        data_key = self.derive_key(b"data-key")
-
-        outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        d = self.channel.send(u"data", outbound_encrypted)
-
-        d.addCallback(lambda _: self.channel.get(u"data"))
-        def _got_data(inbound_encrypted):
-            #if inbound_encrypted == outbound_encrypted:
-            #    raise ReflectionAttack
-            try:
-                inbound_data = self._decrypt_data(data_key, inbound_encrypted)
-                return inbound_data
-            except CryptoError:
-                raise WrongPasswordError
-        d.addCallback(_got_data)
+        # nonces to keep the messages distinct, and the Channel automatically
+        # ignores reflections.
+        d = self._get_key()
+        def _send(key):
+            data_key = self.derive_key(b"data-key")
+            outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+            return self.channel.send(u"data", outbound_encrypted)
+        d.addCallback(_send)
         return d
+
+    def get_data(self):
+        if self._got_data: raise UsageError # only call this once
+        if self.code is None: raise UsageError
+        if self.channel is None: raise UsageError
+        d = self._get_key()
+        def _get(key):
+            data_key = self.derive_key(b"data-key")
+            d1 = self.channel.get(u"data")
+            def _decrypt(inbound_encrypted):
+                try:
+                    inbound_data = self._decrypt_data(data_key,
+                                                      inbound_encrypted)
+                    return inbound_data
+                except CryptoError:
+                    raise WrongPasswordError
+            d1.addCallback(_decrypt)
+            return d1
+        d.addCallback(_get)
+        return d
+
+    def close(self, res=None):
+        d = self.channel.deallocate()
+        def _closed(_):
+            self._closed = True
+            return res
+        d.addCallback(_closed)
+        return d
+
+    def __del__(self):
+        if not self._closed:
+            print("Error: a Wormhole instance was not closed", file=sys.stderr)

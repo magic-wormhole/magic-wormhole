@@ -24,11 +24,13 @@ def receive_text(args):
         print("Verifier %s." % verifier)
 
     data = json.dumps({"message": "ok"}).encode("utf-8")
+    w.send_data(data)
     try:
-        them_bytes = w.get_data(data)
+        them_bytes = w.get_data()
     except WrongPasswordError as e:
         print("ERROR: " + e.explain(), file=sys.stderr)
         return 1
+    w.close()
     them_d = json.loads(them_bytes.decode("utf-8"))
     if "error" in them_d:
         print("ERROR: " + them_d["error"], file=sys.stderr)
