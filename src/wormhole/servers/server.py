@@ -5,7 +5,7 @@ from twisted.web import server, static, resource
 from ..util.endpoint_service import ServerEndpointService
 from .. import __version__
 from ..database import get_db
-from .relay import Relay
+from .relay_server import Relay
 from .transit_server import Transit
 
 SECONDS = 1.0
