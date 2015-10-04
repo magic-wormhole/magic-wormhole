@@ -1,17 +1,12 @@
 from __future__ import print_function
 from twisted.internet import reactor, endpoints
-from twisted.application import service, internet
+from twisted.application import service
 from twisted.web import server, static, resource
 from ..util.endpoint_service import ServerEndpointService
 from .. import __version__
 from ..database import get_db
 from .relay_server import Relay
 from .transit_server import Transit
-
-SECONDS = 1.0
-MINUTE = 60*SECONDS
-HOUR = 60*MINUTE
-EXPIRATION_CHECK_PERIOD = 2*HOUR
 
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
@@ -42,9 +37,6 @@ class RelayServer(service.MultiService):
         self.relayport_service.setServiceParent(self)
         self.relay = Relay(self.db, welcome) # accessible from tests
         self.root.putChild(b"wormhole-relay", self.relay)
-        t = internet.TimerService(EXPIRATION_CHECK_PERIOD,
-                                  self.relay.prune_old_channels)
-        t.setServiceParent(self)
         if transitport:
             self.transit = Transit()
             self.transit.setServiceParent(self) # for the timer

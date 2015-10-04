@@ -1,6 +1,7 @@
 from __future__ import print_function
 import re, json, time, random
 from twisted.python import log
+from twisted.application import service, internet
 from twisted.web import server, resource, http
 
 SECONDS = 1.0
@@ -10,6 +11,7 @@ DAY = 24*HOUR
 MB = 1000*1000
 
 CHANNEL_EXPIRATION_TIME = 3*DAY
+EXPIRATION_CHECK_PERIOD = 2*HOUR
 
 class EventsProtocol:
     def __init__(self, request):
@@ -191,12 +193,17 @@ class ChannelList(resource.Resource):
                 "channel-ids": allocated}
         return (json.dumps(data)+"\n").encode("utf-8")
 
-class Relay(resource.Resource):
+class Relay(resource.Resource, service.MultiService):
     def __init__(self, db, welcome):
         resource.Resource.__init__(self)
+        service.MultiService.__init__(self)
         self.db = db
         self.welcome = welcome
         self.channels = {}
+        t = internet.TimerService(EXPIRATION_CHECK_PERIOD,
+                                  self.prune_old_channels)
+        t.setServiceParent(self)
+
 
     def getChild(self, path, request):
         if path == b"allocate":
