@@ -10,6 +10,7 @@ from .. import __version__
 from .. import codes
 from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
+from ..channel_monitor import monitor
 
 SECOND = 1
 MINUTE = 60*SECOND
@@ -141,7 +142,6 @@ class Wormhole:
         self.verifier = None
         self._sent_data = False
         self._got_data = False
-        self._closed = False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -194,6 +194,7 @@ class Wormhole:
         self.code = code
         channelid = int(mo.group(1))
         self.channel = self._channel_manager.connect(channelid)
+        monitor.add(self.channel)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -263,9 +264,5 @@ class Wormhole:
             raise WrongPasswordError
 
     def close(self):
+        monitor.close(self.channel)
         self.channel.deallocate()
-        self._closed = True
-
-    def __del__(self):
-        if not self._closed:
-            print("Error: a Wormhole instance was not closed", file=sys.stderr)

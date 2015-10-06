@@ -15,6 +15,7 @@ from .. import __version__
 from .. import codes
 from ..errors import ServerError, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
+from ..channel_monitor import monitor
 
 @implementer(IBodyProducer)
 class DataProducer:
@@ -152,7 +153,6 @@ class Wormhole:
         self._started_get_code = False
         self._sent_data = False
         self._got_data = False
-        self._closed = False
 
     def _set_side(self, side):
         self._side = side
@@ -209,6 +209,7 @@ class Wormhole:
         self.code = code
         channelid = int(mo.group(1))
         self.channel = self._channel_manager.connect(channelid)
+        monitor.add(self.channel)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -325,13 +326,6 @@ class Wormhole:
         return d
 
     def close(self, res=None):
+        monitor.close(self.channel)
         d = self.channel.deallocate()
-        def _closed(_):
-            self._closed = True
-            return res
-        d.addCallback(_closed)
         return d
-
-    def __del__(self):
-        if not self._closed:
-            print("Error: a Wormhole instance was not closed", file=sys.stderr)
