@@ -26,8 +26,8 @@ MINUTE = 60*SECOND
 # all JSON responses include a "welcome:{..}" key
 
 class Channel:
-    def __init__(self, relay, channelid, side, handle_welcome):
-        self._channel_url = "%s%d" % (relay, channelid)
+    def __init__(self, relay_url, channelid, side, handle_welcome):
+        self._channel_url = "%s%d" % (relay_url, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._messages = set() # (phase,body) , body is bytes
@@ -100,20 +100,20 @@ class Channel:
         # ignore POST failure, don't call r.raise_for_status()
 
 class ChannelManager:
-    def __init__(self, relay, side, handle_welcome):
-        self._relay = relay
+    def __init__(self, relay_url, side, handle_welcome):
+        self._relay_url = relay_url
         self._side = side
         self._handle_welcome = handle_welcome
 
     def list_channels(self):
-        r = requests.get(self._relay + "list")
+        r = requests.get(self._relay_url + "list")
         r.raise_for_status()
         channelids = r.json()["channelids"]
         return channelids
 
     def allocate(self):
         data = json.dumps({"side": self._side}).encode("utf-8")
-        r = requests.post(self._relay + "allocate", data=data)
+        r = requests.post(self._relay_url + "allocate", data=data)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
@@ -122,20 +122,20 @@ class ChannelManager:
         return channelid
 
     def connect(self, channelid):
-        return Channel(self._relay, channelid, self._side,
+        return Channel(self._relay_url, channelid, self._side,
                        self._handle_welcome)
 
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
 
-    def __init__(self, appid, relay):
+    def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
         self.appid = appid
-        self.relay = relay
-        if not self.relay.endswith("/"): raise UsageError
+        self._relay_url = relay_url
+        if not self._relay_url.endswith("/"): raise UsageError
         side = hexlify(os.urandom(5)).decode("ascii")
-        self._channel_manager = ChannelManager(relay, side,
+        self._channel_manager = ChannelManager(relay_url, side,
                                                self.handle_welcome)
         self.code = None
         self.key = None
@@ -148,7 +148,8 @@ class Wormhole:
             not self.motd_displayed):
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
-            print("Server (at %s) says:\n %s" % (self.relay, motd_formatted),
+            print("Server (at %s) says:\n %s" % (self._relay_url,
+                                                 motd_formatted),
                   file=sys.stderr)
             self.motd_displayed = True
 
@@ -163,7 +164,7 @@ class Wormhole:
             self.version_warning_displayed = True
 
         if "error" in welcome:
-            raise ServerError(welcome["error"], self.relay)
+            raise ServerError(welcome["error"], self._relay_url)
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError

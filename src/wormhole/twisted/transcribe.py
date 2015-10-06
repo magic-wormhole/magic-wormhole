@@ -47,9 +47,9 @@ def post_json(agent, url, request_body):
     return d
 
 class Channel:
-    def __init__(self, relay, channelid, side, handle_welcome,
+    def __init__(self, relay_url, channelid, side, handle_welcome,
                  agent):
-        self._channel_url = "%s%d" % (relay, channelid)
+        self._channel_url = "%s%d" % (relay_url, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = agent
@@ -116,14 +116,14 @@ class Channel:
         return d
 
 class ChannelManager:
-    def __init__(self, relay, side, handle_welcome):
-        self._relay = relay
+    def __init__(self, relay_url, side, handle_welcome):
+        self._relay_url = relay_url
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = web_client.Agent(reactor)
 
     def allocate(self):
-        url = self._relay + "allocate"
+        url = self._relay_url + "allocate"
         d = post_json(self._agent, url, {"side": self._side})
         def _got_channel(data):
             if "welcome" in data:
@@ -136,17 +136,17 @@ class ChannelManager:
         raise NotImplementedError
 
     def connect(self, channelid):
-        return Channel(self._relay, channelid, self._side,
+        return Channel(self._relay_url, channelid, self._side,
                        self._handle_welcome, self._agent)
 
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
 
-    def __init__(self, appid, relay):
+    def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
         self.appid = appid
-        self.relay = relay
+        self._relay_url = relay_url
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
         self.code = None
         self.key = None
@@ -156,7 +156,7 @@ class Wormhole:
 
     def _set_side(self, side):
         self._side = side
-        self._channel_manager = ChannelManager(self.relay, self._side,
+        self._channel_manager = ChannelManager(self._relay_url, self._side,
                                                self.handle_welcome)
 
     def handle_welcome(self, welcome):
@@ -164,7 +164,8 @@ class Wormhole:
             not self.motd_displayed):
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
-            print("Server (at %s) says:\n %s" % (self.relay, motd_formatted),
+            print("Server (at %s) says:\n %s" % (self._relay_url,
+                                                 motd_formatted),
                   file=sys.stderr)
             self.motd_displayed = True
 
@@ -179,7 +180,7 @@ class Wormhole:
             self.version_warning_displayed = True
 
         if "error" in welcome:
-            raise ServerError(welcome["error"], self.relay)
+            raise ServerError(welcome["error"], self._relay_url)
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError
@@ -226,7 +227,7 @@ class Wormhole:
         if self._got_data: raise UsageError
         data = {
             "appid": self.appid,
-            "relay": self.relay,
+            "relay_url": self._relay_url,
             "code": self.code,
             "side": self._side,
             "spake2": json.loads(self.sp.serialize()),
@@ -237,7 +238,7 @@ class Wormhole:
     @classmethod
     def from_serialized(klass, data):
         d = json.loads(data)
-        self = klass(d["appid"].encode("ascii"), d["relay"].encode("ascii"))
+        self = klass(d["appid"].encode("ascii"), d["relay_url"].encode("ascii"))
         self._set_side(d["side"].encode("ascii"))
         self._set_code_and_channelid(d["code"].encode("ascii"))
         self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))
