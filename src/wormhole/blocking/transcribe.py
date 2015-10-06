@@ -27,7 +27,7 @@ MINUTE = 60*SECOND
 
 class Channel:
     def __init__(self, relay_url, channelid, side, handle_welcome):
-        self._channel_url = "%s%d" % (relay_url, channelid)
+        self._channel_url = u"%s%d" % (relay_url, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._messages = set() # (phase,body) , body is bytes
@@ -131,9 +131,10 @@ class Wormhole:
 
     def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
+        if not isinstance(relay_url, type(u"")): raise UsageError
+        if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
-        if not self._relay_url.endswith("/"): raise UsageError
         side = hexlify(os.urandom(5)).decode("ascii")
         self._channel_manager = ChannelManager(relay_url, side,
                                                self.handle_welcome)

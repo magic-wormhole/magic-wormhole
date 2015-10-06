@@ -10,6 +10,7 @@ def send(args):
     from ..blocking.transcribe import Wormhole, WrongPasswordError
     from ..blocking.transit import TransitSender
     from .progress import start_progress, update_progress, finish_progress
+    assert isinstance(args.relay_url, type(u""))
 
     text = args.text
     if not text and not args.what:

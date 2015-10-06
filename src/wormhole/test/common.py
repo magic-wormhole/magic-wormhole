@@ -14,7 +14,7 @@ class ServerBase:
                             "tcp:%s:interface=127.0.0.1" % transitport,
                             __version__)
             s.setServiceParent(self.sp)
-            self.relayurl = "http://127.0.0.1:%d/wormhole-relay/" % relayport
+            self.relayurl = u"http://127.0.0.1:%d/wormhole-relay/" % relayport
             self.transit = "tcp:127.0.0.1:%d" % transitport
         d.addCallback(_got_ports)
         return d

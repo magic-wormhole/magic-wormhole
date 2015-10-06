@@ -80,6 +80,7 @@ class EventSourceError(Exception):
 
 class EventSource: # TODO: service.Service
     def __init__(self, url, handler, when_connected=None, agent=None):
+        assert isinstance(url, type(u""))
         self.url = url
         self.handler = handler
         self.when_connected = when_connected
@@ -94,7 +95,7 @@ class EventSource: # TODO: service.Service
         assert not self.started, "single-use"
         self.started = True
         assert self.url
-        d = self.agent.request("GET", self.url,
+        d = self.agent.request("GET", self.url.encode("utf-8"),
                                Headers({"accept": ["text/event-stream"]}))
         d.addCallback(self._connected)
         return d

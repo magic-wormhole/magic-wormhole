@@ -10,6 +10,7 @@ def receive(args):
     from ..blocking.transcribe import Wormhole, WrongPasswordError
     from ..blocking.transit import TransitReceiver, TransitError
     from .progress import start_progress, update_progress, finish_progress
+    assert isinstance(args.relay_url, type(u""))
 
     w = Wormhole(APPID, args.relay_url)
     if args.zeromode:

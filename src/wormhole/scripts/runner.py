@@ -18,7 +18,7 @@ parser.add_argument("--version", action="version",
                     version="magic-wormhole "+ __version__)
 g = parser.add_argument_group("wormhole configuration options")
 g.add_argument("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
-               metavar="URL", help="rendezvous relay to use")
+               metavar="URL", help="rendezvous relay to use", type=type(u""))
 g.add_argument("--transit-helper", default=public_relay.TRANSIT_RELAY,
                metavar="tcp:HOST:PORT", help="transit relay to use")
 g.add_argument("-c", "--code-length", type=int, default=2,

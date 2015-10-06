@@ -212,7 +212,7 @@ class API(ServerBase, unittest.TestCase):
         d = self.post("allocate", {"side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
-            url = (self.relayurl+str(self.cid)).encode("utf-8")
+            url = self.relayurl+str(self.cid)
             self.o = OneEventAtATime(url, parser=json.loads)
             return self.o.wait_for_connection()
         d.addCallback(_allocated)

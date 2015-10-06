@@ -36,7 +36,8 @@ class DataProducer:
 def post_json(agent, url, request_body):
     # POST a JSON body to a URL, parsing the response as JSON
     data = json.dumps(request_body).encode("utf-8")
-    d = agent.request("POST", url, bodyProducer=DataProducer(data))
+    d = agent.request("POST", url.encode("utf-8"),
+                      bodyProducer=DataProducer(data))
     def _check_error(resp):
         if resp.code != 200:
             raise web_error.Error(resp.code, resp.phrase)
@@ -49,7 +50,7 @@ def post_json(agent, url, request_body):
 class Channel:
     def __init__(self, relay_url, channelid, side, handle_welcome,
                  agent):
-        self._channel_url = "%s%d" % (relay_url, channelid)
+        self._channel_url = u"%s%d" % (relay_url, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = agent
@@ -117,6 +118,7 @@ class Channel:
 
 class ChannelManager:
     def __init__(self, relay_url, side, handle_welcome):
+        assert isinstance(relay_url, type(u""))
         self._relay_url = relay_url
         self._side = side
         self._handle_welcome = handle_welcome
@@ -145,6 +147,8 @@ class Wormhole:
 
     def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
+        if not isinstance(relay_url, type(u"")): raise UsageError
+        if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
@@ -238,7 +242,7 @@ class Wormhole:
     @classmethod
     def from_serialized(klass, data):
         d = json.loads(data)
-        self = klass(d["appid"].encode("ascii"), d["relay_url"].encode("ascii"))
+        self = klass(d["appid"].encode("ascii"), d["relay_url"])
         self._set_side(d["side"].encode("ascii"))
         self._set_code_and_channelid(d["code"].encode("ascii"))
         self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))

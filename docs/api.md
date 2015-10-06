@@ -185,6 +185,7 @@ to the application source code or default config.
 This library includes the URL of a public relay run by the author.
 Application developers can use this one, or they can run their own (see
 src/wormhole/servers/relay.py) and configure their clients to use it instead.
+This URL is passed as a unicode string.
 
 ## Polling and Shutdown
 
@@ -253,8 +254,12 @@ Some human-readable parameters are passed as strings: "str" in python2, "str"
 (i.e. unicode) in python3:
 
 * wormhole code
-* relay/transit URLs
+* transit URLs
 * transit connection hints (e.g. "host:port")
+
+And some are always unicode, in both python2 and python3:
+
+* relay URL
 
 ## Detailed Example
 
