@@ -47,8 +47,8 @@ class EventsProtocol:
 # note: no versions of IE (including the current IE11) support EventSource
 
 # relay URLs are:
-#  GET /list                           -> {channel-ids: [INT..]}
-#  POST /allocate {side: SIDE}         -> {channel-id: INT}
+#  GET /list                           -> {channelids: [INT..]}
+#  POST /allocate {side: SIDE}         -> {channelid: INT}
 #   these return all messages (base64) for CID= :
 #  POST /CID {side:, phase:, body:}    -> {messages: [{phase:, body:}..]}
 #  GET  /CID (no-eventsource)          -> {messages: [{phase:, body:}..]}
@@ -57,22 +57,22 @@ class EventsProtocol:
 # all JSON responses include a "welcome:{..}" key
 
 class Channel(resource.Resource):
-    def __init__(self, channel_id, relay, db, welcome):
+    def __init__(self, channelid, relay, db, welcome):
         resource.Resource.__init__(self)
-        self.channel_id = channel_id
+        self.channelid = channelid
         self.relay = relay
         self.db = db
         self.welcome = welcome
         self.event_channels = set() # ep
-        self.putChild(b"deallocate", Deallocator(self.channel_id, self.relay))
+        self.putChild(b"deallocate", Deallocator(self.channelid, self.relay))
 
     def get_messages(self, request):
         request.setHeader(b"content-type", b"application/json; charset=utf-8")
         messages = []
         for row in self.db.execute("SELECT * FROM `messages`"
-                                   " WHERE `channel_id`=?"
+                                   " WHERE `channelid`=?"
                                    " ORDER BY `when` ASC",
-                                   (self.channel_id,)).fetchall():
+                                   (self.channelid,)).fetchall():
             messages.append({"phase": row["phase"], "body": row["body"]})
         data = {"welcome": self.welcome, "messages": messages}
         return (json.dumps(data)+"\n").encode("utf-8")
@@ -87,9 +87,9 @@ class Channel(resource.Resource):
         request.notifyFinish().addErrback(lambda f:
                                           self.event_channels.discard(ep))
         for row in self.db.execute("SELECT * FROM `messages`"
-                                   " WHERE `channel_id`=?"
+                                   " WHERE `channelid`=?"
                                    " ORDER BY `when` ASC",
-                                   (self.channel_id,)).fetchall():
+                                   (self.channelid,)).fetchall():
             data = json.dumps({"phase": row["phase"], "body": row["body"]})
             ep.sendEvent(data)
         return server.NOT_DONE_YET
@@ -111,35 +111,35 @@ class Channel(resource.Resource):
         body = data["body"]
 
         self.db.execute("INSERT INTO `messages`"
-                        " (`channel_id`, `side`, `phase`, `body`, `when`)"
+                        " (`channelid`, `side`, `phase`, `body`, `when`)"
                         " VALUES (?,?,?,?,?)",
-                        (self.channel_id, side, phase, body, time.time()))
+                        (self.channelid, side, phase, body, time.time()))
         self.db.execute("INSERT INTO `allocations`"
-                        " (`channel_id`, `side`)"
+                        " (`channelid`, `side`)"
                         " VALUES (?,?)",
-                        (self.channel_id, side))
+                        (self.channelid, side))
         self.db.commit()
         self.broadcast_message(phase, body)
         return self.get_messages(request)
 
 class Deallocator(resource.Resource):
-    def __init__(self, channel_id, relay):
-        self.channel_id = channel_id
+    def __init__(self, channelid, relay):
+        self.channelid = channelid
         self.relay = relay
 
     def render_POST(self, request):
         content = request.content.read()
         data = json.loads(content.decode("utf-8"))
         side = data["side"]
-        deleted = self.relay.maybe_free_child(self.channel_id, side)
+        deleted = self.relay.maybe_free_child(self.channelid, side)
         resp = {"status": "waiting"}
         if deleted:
             resp = {"status": "deleted"}
         return json.dumps(resp).encode("utf-8")
 
 def get_allocated(db):
-    c = db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
-    return set([row["channel_id"] for row in c.fetchall()])
+    c = db.execute("SELECT DISTINCT `channelid` FROM `allocations`")
+    return set([row["channelid"] for row in c.fetchall()])
 
 class Allocator(resource.Resource):
     def __init__(self, db, welcome):
@@ -147,7 +147,7 @@ class Allocator(resource.Resource):
         self.db = db
         self.welcome = welcome
 
-    def allocate_channel_id(self):
+    def allocate_channelid(self):
         allocated = get_allocated(self.db)
         for size in range(1,4): # stick to 1-999 for now
             available = set()
@@ -161,7 +161,7 @@ class Allocator(resource.Resource):
             cid = random.randrange(1000, 1000*1000)
             if cid not in allocated:
                 return cid
-        raise ValueError("unable to find a free channel-id")
+        raise ValueError("unable to find a free channelid")
 
     def render_POST(self, request):
         content = request.content.read()
@@ -169,15 +169,15 @@ class Allocator(resource.Resource):
         side = data["side"]
         if not isinstance(side, type(u"")):
             raise TypeError("side must be string, not '%s'" % type(side))
-        channel_id = self.allocate_channel_id()
+        channelid = self.allocate_channelid()
         self.db.execute("INSERT INTO `allocations` VALUES (?,?)",
-                        (channel_id, side))
+                        (channelid, side))
         self.db.commit()
         log.msg("allocated #%d, now have %d DB channels" %
-                (channel_id, len(get_allocated(self.db))))
+                (channelid, len(get_allocated(self.db))))
         request.setHeader(b"content-type", b"application/json; charset=utf-8")
         data = {"welcome": self.welcome,
-                "channel-id": channel_id}
+                "channelid": channelid}
         return (json.dumps(data)+"\n").encode("utf-8")
 
 class ChannelList(resource.Resource):
@@ -186,11 +186,11 @@ class ChannelList(resource.Resource):
         self.db = db
         self.welcome = welcome
     def render_GET(self, request):
-        c = self.db.execute("SELECT DISTINCT `channel_id` FROM `allocations`")
-        allocated = sorted(set([row["channel_id"] for row in c.fetchall()]))
+        c = self.db.execute("SELECT DISTINCT `channelid` FROM `allocations`")
+        allocated = sorted(set([row["channelid"] for row in c.fetchall()]))
         request.setHeader(b"content-type", b"application/json; charset=utf-8")
         data = {"welcome": self.welcome,
-                "channel-ids": allocated}
+                "channelids": allocated}
         return (json.dumps(data)+"\n").encode("utf-8")
 
 class Relay(resource.Resource, service.MultiService):
@@ -214,45 +214,45 @@ class Relay(resource.Resource, service.MultiService):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
                                       "invalid channel id")
-        channel_id = int(path)
-        if not channel_id in self.channels:
-            log.msg("spawning #%d" % channel_id)
-            self.channels[channel_id] = Channel(channel_id, self, self.db,
-                                                self.welcome)
-        return self.channels[channel_id]
+        channelid = int(path)
+        if not channelid in self.channels:
+            log.msg("spawning #%d" % channelid)
+            self.channels[channelid] = Channel(channelid, self, self.db,
+                                               self.welcome)
+        return self.channels[channelid]
 
-    def maybe_free_child(self, channel_id, side):
+    def maybe_free_child(self, channelid, side):
         self.db.execute("DELETE FROM `allocations`"
-                        " WHERE `channel_id`=? AND `side`=?",
-                        (channel_id, side))
+                        " WHERE `channelid`=? AND `side`=?",
+                        (channelid, side))
         self.db.commit()
         remaining = self.db.execute("SELECT COUNT(*) FROM `allocations`"
-                                    " WHERE `channel_id`=?",
-                                    (channel_id,)).fetchone()[0]
+                                    " WHERE `channelid`=?",
+                                    (channelid,)).fetchone()[0]
         if remaining:
             return False
-        self.free_child(channel_id)
+        self.free_child(channelid)
         return True
 
-    def free_child(self, channel_id):
-        self.db.execute("DELETE FROM `allocations` WHERE `channel_id`=?",
-                        (channel_id,))
-        self.db.execute("DELETE FROM `messages` WHERE `channel_id`=?",
-                        (channel_id,))
+    def free_child(self, channelid):
+        self.db.execute("DELETE FROM `allocations` WHERE `channelid`=?",
+                        (channelid,))
+        self.db.execute("DELETE FROM `messages` WHERE `channelid`=?",
+                        (channelid,))
         self.db.commit()
-        if channel_id in self.channels:
-            self.channels.pop(channel_id)
+        if channelid in self.channels:
+            self.channels.pop(channelid)
         log.msg("freed+killed #%d, now have %d DB channels, %d live" %
-                (channel_id, len(get_allocated(self.db)), len(self.channels)))
+                (channelid, len(get_allocated(self.db)), len(self.channels)))
 
     def prune_old_channels(self):
         old = time.time() - CHANNEL_EXPIRATION_TIME
-        for channel_id in get_allocated(self.db):
+        for channelid in get_allocated(self.db):
             c = self.db.execute("SELECT `when` FROM `messages`"
-                                " WHERE `channel_id`=?"
-                                " ORDER BY `when` DESC LIMIT 1", (channel_id,))
+                                " WHERE `channelid`=?"
+                                " ORDER BY `when` DESC LIMIT 1", (channelid,))
             rows = c.fetchall()
             if not rows or (rows[0]["when"] < old):
-                log.msg("expiring %d" % channel_id)
-                self.free_child(channel_id)
+                log.msg("expiring %d" % channelid)
+                self.free_child(channelid)
 

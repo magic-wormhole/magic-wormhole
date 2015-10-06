@@ -46,9 +46,9 @@ def post_json(agent, url, request_body):
     return d
 
 class Channel:
-    def __init__(self, relay, channel_id, side, handle_welcome,
+    def __init__(self, relay, channelid, side, handle_welcome,
                  agent):
-        self._channel_url = "%s%d" % (relay, channel_id)
+        self._channel_url = "%s%d" % (relay, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = agent
@@ -127,15 +127,15 @@ class ChannelManager:
         def _got_channel(data):
             if "welcome" in data:
                 self._handle_welcome(data["welcome"])
-            return data["channel-id"]
+            return data["channelid"]
         d.addCallback(_got_channel)
         return d
 
     def list_channels(self):
         raise NotImplementedError
 
-    def connect(self, channel_id):
-        return Channel(self._relay, channel_id, self._side,
+    def connect(self, channelid):
+        return Channel(self._relay, channelid, self._side,
                        self._handle_welcome, self._agent)
 
 class Wormhole:
@@ -186,29 +186,29 @@ class Wormhole:
         if self._started_get_code: raise UsageError
         self._started_get_code = True
         d = self._channel_manager.allocate()
-        def _got_channel_id(channel_id):
-            code = codes.make_code(channel_id, code_length)
+        def _got_channelid(channelid):
+            code = codes.make_code(channelid, code_length)
             assert isinstance(code, str), type(code)
-            self._set_code_and_channel_id(code)
+            self._set_code_and_channelid(code)
             self._start()
             return code
-        d.addCallback(_got_channel_id)
+        d.addCallback(_got_channelid)
         return d
 
     def set_code(self, code):
         if not isinstance(code, str): raise UsageError
         if self.code is not None: raise UsageError
-        self._set_code_and_channel_id(code)
+        self._set_code_and_channelid(code)
         self._start()
 
-    def _set_code_and_channel_id(self, code):
+    def _set_code_and_channelid(self, code):
         if self.code is not None: raise UsageError
         mo = re.search(r'^(\d+)-', code)
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         self.code = code
-        channel_id = int(mo.group(1))
-        self.channel = self._channel_manager.connect(channel_id)
+        channelid = int(mo.group(1))
+        self.channel = self._channel_manager.connect(channelid)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -238,7 +238,7 @@ class Wormhole:
         d = json.loads(data)
         self = klass(d["appid"].encode("ascii"), d["relay"].encode("ascii"))
         self._set_side(d["side"].encode("ascii"))
-        self._set_code_and_channel_id(d["code"].encode("ascii"))
+        self._set_code_and_channelid(d["code"].encode("ascii"))
         self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))
         self.msg1 = d["msg1"].decode("hex")
         return self

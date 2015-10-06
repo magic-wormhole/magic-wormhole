@@ -15,8 +15,8 @@ SECOND = 1
 MINUTE = 60*SECOND
 
 # relay URLs are:
-#  GET /list                           -> {channel-ids: [INT..]}
-#  POST /allocate {side: SIDE}         -> {channel-id: INT}
+#  GET /list                           -> {channelids: [INT..]}
+#  POST /allocate {side: SIDE}         -> {channelid: INT}
 #   these return all messages (base64) for CID= :
 #  POST /CID {side:, phase:, body:}    -> {messages: [{phase:, body:}..]}
 #  GET  /CID (no-eventsource)          -> {messages: [{phase:, body:}..]}
@@ -25,8 +25,8 @@ MINUTE = 60*SECOND
 # all JSON responses include a "welcome:{..}" key
 
 class Channel:
-    def __init__(self, relay, channel_id, side, handle_welcome):
-        self._channel_url = "%s%d" % (relay, channel_id)
+    def __init__(self, relay, channelid, side, handle_welcome):
+        self._channel_url = "%s%d" % (relay, channelid)
         self._side = side
         self._handle_welcome = handle_welcome
         self._messages = set() # (phase,body) , body is bytes
@@ -107,8 +107,8 @@ class ChannelManager:
     def list_channels(self):
         r = requests.get(self._relay + "list")
         r.raise_for_status()
-        channel_ids = r.json()["channel-ids"]
-        return channel_ids
+        channelids = r.json()["channelids"]
+        return channelids
 
     def allocate(self):
         data = json.dumps({"side": self._side}).encode("utf-8")
@@ -117,11 +117,11 @@ class ChannelManager:
         data = r.json()
         if "welcome" in data:
             self._handle_welcome(data["welcome"])
-        channel_id = data["channel-id"]
-        return channel_id
+        channelid = data["channelid"]
+        return channelid
 
-    def connect(self, channel_id):
-        return Channel(self._relay, channel_id, self._side,
+    def connect(self, channelid):
+        return Channel(self._relay, channelid, self._side,
                        self._handle_welcome)
 
 class Wormhole:
@@ -167,10 +167,10 @@ class Wormhole:
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError
-        channel_id = self._channel_manager.allocate()
-        code = codes.make_code(channel_id, code_length)
+        channelid = self._channel_manager.allocate()
+        code = codes.make_code(channelid, code_length)
         assert isinstance(code, str), type(code)
-        self._set_code_and_channel_id(code)
+        self._set_code_and_channelid(code)
         self._start()
         return code
 
@@ -183,17 +183,17 @@ class Wormhole:
     def set_code(self, code): # used for human-made pre-generated codes
         if not isinstance(code, str): raise UsageError
         if self.code is not None: raise UsageError
-        self._set_code_and_channel_id(code)
+        self._set_code_and_channelid(code)
         self._start()
 
-    def _set_code_and_channel_id(self, code):
+    def _set_code_and_channelid(self, code):
         if self.code is not None: raise UsageError
         mo = re.search(r'^(\d+)-', code)
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         self.code = code
-        channel_id = int(mo.group(1))
-        self.channel = self._channel_manager.connect(channel_id)
+        channelid = int(mo.group(1))
+        self.channel = self._channel_manager.connect(channelid)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized

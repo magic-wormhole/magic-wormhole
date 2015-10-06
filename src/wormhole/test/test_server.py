@@ -76,20 +76,20 @@ class API(ServerBase, unittest.TestCase):
         d = self.get("list")
         def _check_list_1(data):
             self.check_welcome(data)
-            self.failUnlessEqual(data["channel-ids"], [])
+            self.failUnlessEqual(data["channelids"], [])
         d.addCallback(_check_list_1)
 
         d.addCallback(lambda _: self.post("allocate", {"side": "abc"}))
         def _allocated(data):
             self.failUnlessEqual(set(data.keys()),
-                                 set(["welcome", "channel-id"]))
-            self.failUnlessIsInstance(data["channel-id"], int)
-            self.cid = data["channel-id"]
+                                 set(["welcome", "channelid"]))
+            self.failUnlessIsInstance(data["channelid"], int)
+            self.cid = data["channelid"]
         d.addCallback(_allocated)
 
         d.addCallback(lambda _: self.get("list"))
         def _check_list_2(data):
-            self.failUnlessEqual(data["channel-ids"], [self.cid])
+            self.failUnlessEqual(data["channelids"], [self.cid])
         d.addCallback(_check_list_2)
 
         d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
@@ -100,7 +100,7 @@ class API(ServerBase, unittest.TestCase):
 
         d.addCallback(lambda _: self.get("list"))
         def _check_list_3(data):
-            self.failUnlessEqual(data["channel-ids"], [])
+            self.failUnlessEqual(data["channelids"], [])
         d.addCallback(_check_list_3)
 
         return d
@@ -108,7 +108,7 @@ class API(ServerBase, unittest.TestCase):
     def test_allocate_2(self):
         d = self.post("allocate", {"side": "abc"})
         def _allocated(data):
-            self.cid = data["channel-id"]
+            self.cid = data["channelid"]
         d.addCallback(_allocated)
 
         # second caller increases the number of known sides to 2
@@ -119,7 +119,7 @@ class API(ServerBase, unittest.TestCase):
 
         d.addCallback(lambda _: self.get("list"))
         d.addCallback(lambda data:
-                      self.failUnlessEqual(data["channel-ids"], [self.cid]))
+                      self.failUnlessEqual(data["channelids"], [self.cid]))
 
         d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
                                           {"side": "abc"}))
@@ -138,7 +138,7 @@ class API(ServerBase, unittest.TestCase):
 
         d.addCallback(lambda _: self.get("list"))
         d.addCallback(lambda data:
-                      self.failUnlessEqual(data["channel-ids"], []))
+                      self.failUnlessEqual(data["channelids"], []))
 
         return d
 
@@ -166,7 +166,7 @@ class API(ServerBase, unittest.TestCase):
     def test_messages(self):
         d = self.post("allocate", {"side": "abc"})
         def _allocated(data):
-            self.cid = data["channel-id"]
+            self.cid = data["channelid"]
         d.addCallback(_allocated)
 
         d.addCallback(lambda _: self.add_message("msg1A"))
@@ -211,7 +211,7 @@ class API(ServerBase, unittest.TestCase):
 
         d = self.post("allocate", {"side": "abc"})
         def _allocated(data):
-            self.cid = data["channel-id"]
+            self.cid = data["channelid"]
             url = (self.relayurl+str(self.cid)).encode("utf-8")
             self.o = OneEventAtATime(url, parser=json.loads)
             return self.o.wait_for_connection()
