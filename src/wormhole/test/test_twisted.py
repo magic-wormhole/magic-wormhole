@@ -128,8 +128,8 @@ class Basic(ServerBase, unittest.TestCase):
     def test_fixed_code(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        w1.set_code("123-purple-elephant")
-        w2.set_code("123-purple-elephant")
+        w1.set_code(u"123-purple-elephant")
+        w2.set_code(u"123-purple-elephant")
         d = self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
         def _sent(res):
             return self.doBoth(w1.get_data(), w2.get_data())
@@ -188,7 +188,7 @@ class Basic(ServerBase, unittest.TestCase):
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.send_data, b"data")
         self.assertRaises(UsageError, w1.get_data)
-        w1.set_code("123-purple-elephant")
+        w1.set_code(u"123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
         w2 = Wormhole(APPID, self.relayurl)

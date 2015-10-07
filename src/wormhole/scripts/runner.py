@@ -69,7 +69,8 @@ p = subparsers.add_parser("send",
                           usage="wormhole send [FILENAME]")
 p.add_argument("--text", metavar="MESSAGE",
                help="text message to send, instead of a file")
-p.add_argument("--code", metavar="CODE", help="human-generated code phrase")
+p.add_argument("--code", metavar="CODE", help="human-generated code phrase",
+               type=type(u""))
 p.add_argument("-0", dest="zeromode", action="store_true",
                help="enable no-code anything-goes mode")
 p.add_argument("what", nargs="?", default=None, metavar="[FILENAME]",
@@ -95,6 +96,7 @@ p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                help=dedent("""\
                The magic-wormhole code, from the sender. If omitted, the
                program will ask for it, using tab-completion."""),
+               type=type(u""),
                )
 p.set_defaults(func=cmd_receive.receive)
 

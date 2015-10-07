@@ -11,7 +11,7 @@ def make_code(channel_id, code_length):
             words.append(byte_to_odd_word[os.urandom(1)].lower())
         else:
             words.append(byte_to_even_word[os.urandom(1)].lower())
-    return str(channel_id) + "-" + "-".join(words)
+    return u"%d-%s" % (channel_id, u"-".join(words))
 
 def extract_channel_id(code):
     channel_id = int(code.split("-")[0])
@@ -82,7 +82,7 @@ def input_code_with_completion(prompt, get_channel_ids, code_length):
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
     code = six.moves.input(prompt)
-    return code
+    return code.decode("utf-8")
 
 if __name__ == "__main__":
     code = input_code_with_completion("Enter wormhole code: ", lambda: [], 2)

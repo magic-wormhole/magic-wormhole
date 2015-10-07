@@ -46,7 +46,7 @@ def send(args):
     w = Wormhole(APPID, args.relay_url)
     if args.zeromode:
         assert not args.code
-        args.code = "0-"
+        args.code = u"0-"
     if args.code:
         w.set_code(args.code)
         code = args.code

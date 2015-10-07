@@ -15,7 +15,7 @@ def receive(args):
     w = Wormhole(APPID, args.relay_url)
     if args.zeromode:
         assert not args.code
-        args.code = "0-"
+        args.code = u"0-"
     code = args.code
     if not code:
         code = w.input_code("Enter receive wormhole code: ", args.code_length)

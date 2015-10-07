@@ -82,7 +82,7 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
     def test_send_text_pre_generated_code(self):
         wormhole = self.find_executable()
         server_args = ["--relay-url", self.relayurl]
-        code = "1-abc"
+        code = u"1-abc"
         message = "test message"
         send_args = server_args + [
             "send",
@@ -120,7 +120,7 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_send_file_pre_generated_code(self):
         self.maxDiff=None
-        code = "1-abc"
+        code = u"1-abc"
         filename = "testfile"
         message = "test message"
 

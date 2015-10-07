@@ -186,7 +186,7 @@ class Wormhole:
         if self.code is not None: raise UsageError
         channelid = self._channel_manager.allocate()
         code = codes.make_code(channelid, code_length)
-        assert isinstance(code, str), type(code)
+        assert isinstance(code, type(u"")), type(code)
         self._set_code_and_channelid(code)
         self._start()
         return code
@@ -198,7 +198,7 @@ class Wormhole:
         return code
 
     def set_code(self, code): # used for human-made pre-generated codes
-        if not isinstance(code, str): raise UsageError
+        if not isinstance(code, type(u"")): raise UsageError
         if self.code is not None: raise UsageError
         self._set_code_and_channelid(code)
         self._start()
@@ -215,7 +215,7 @@ class Wormhole:
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
-        self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
+        self.sp = SPAKE2_Symmetric(to_bytes(self.code),
                                    idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 

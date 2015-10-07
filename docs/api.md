@@ -157,8 +157,8 @@ include randomly-selected words or characters. Dice, coin flips, shuffled
 cards, or repeated sampling of a high-resolution stopwatch are all useful
 techniques.
 
-Note that the code is a human-readable string (the python "str" type: so
-unicode in python3, plain bytes in python2).
+Note that the code is a human-readable string (the python "unicode" type in
+python2, "str" in python3).
 
 ## Application Identifier
 
@@ -248,13 +248,10 @@ python2, "bytes" in python3):
 * data in/out
 * transit records in/out
 
-Some human-readable parameters are passed as strings: "str" in python2, "str"
-(i.e. unicode) in python3:
+Other (human-facing) values are always unicode ("unicode" in python2, "str"
+in python3):
 
 * wormhole code
-
-And some are always unicode, in both python2 and python3:
-
 * relay URL
 * transit URLs
 * transit connection hints (e.g. "host:port")

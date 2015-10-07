@@ -223,7 +223,7 @@ class Wormhole:
         d = self._channel_manager.allocate()
         def _got_channelid(channelid):
             code = codes.make_code(channelid, code_length)
-            assert isinstance(code, str), type(code)
+            assert isinstance(code, type(u"")), type(code)
             self._set_code_and_channelid(code)
             self._start()
             return code
@@ -231,7 +231,7 @@ class Wormhole:
         return d
 
     def set_code(self, code):
-        if not isinstance(code, str): raise UsageError
+        if not isinstance(code, type(u"")): raise UsageError
         if self.code is not None: raise UsageError
         self._set_code_and_channelid(code)
         self._start()
@@ -248,7 +248,7 @@ class Wormhole:
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
-        self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
+        self.sp = SPAKE2_Symmetric(to_bytes(self.code),
                                    idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
@@ -274,7 +274,7 @@ class Wormhole:
         d = json.loads(data)
         self = klass(d["appid"], d["relay_url"])
         self._set_side(d["side"].encode("ascii"))
-        self._set_code_and_channelid(d["code"].encode("ascii"))
+        self._set_code_and_channelid(d["code"])
         self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))
         self.msg1 = d["msg1"].decode("hex")
         return self
