@@ -28,7 +28,7 @@ if sys.argv[1] == "send":
             print("error sending text: %r" % (them_d,))
     d.addCallback(_got_data)
 elif sys.argv[1] == "receive":
-    code = sys.argv[2]
+    code = sys.argv[2].decode("utf-8")
     w.set_code(code)
     d = w.get_data()
     def _got_data(them_bytes):
