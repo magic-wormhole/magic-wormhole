@@ -106,6 +106,28 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    def test_same_message(self):
+        # the two sides use random nonces for their messages, so it's ok for
+        # both to try and send the same body: they'll result in distinct
+        # encrypted messages
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
+        d = w1.get_code()
+        def _got_code(code):
+            w2.set_code(code)
+            return self.doBoth(w1.send_data(b"data"), w2.send_data(b"data"))
+        d.addCallback(_got_code)
+        def _sent(res):
+            return self.doBoth(w1.get_data(), w2.get_data())
+        d.addCallback(_sent)
+        def _done(dl):
+            (dataX, dataY) = dl
+            self.assertEqual(dataX, b"data")
+            self.assertEqual(dataY, b"data")
+            return self.doBoth(w1.close(), w2.close())
+        d.addCallback(_done)
+        return d
+
     def test_interleaved(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
