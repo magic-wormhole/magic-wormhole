@@ -4,15 +4,16 @@ from twisted.internet.defer import gatherResults
 from ..twisted.transcribe import Wormhole, UsageError
 from .common import ServerBase
 
+APPID = u"appid"
+
 class Basic(ServerBase, unittest.TestCase):
 
     def doBoth(self, d1, d2):
         return gatherResults([d1, d2], True)
 
     def test_basic(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
-        w2 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
@@ -30,9 +31,8 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_interleaved(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
-        w2 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
@@ -51,9 +51,8 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_fixed_code(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
-        w2 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
         d = self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
@@ -69,9 +68,8 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
-        w2 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code)
@@ -95,9 +93,8 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier_mismatch(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
-        w2 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w1.get_code()
         def _got_code(code):
             w2.set_code(code+"not")
@@ -112,15 +109,14 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_errors(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.send_data, b"data")
         self.assertRaises(UsageError, w1.get_data)
         w1.set_code("123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
-        w2 = Wormhole(appid, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w2.get_code()
         self.assertRaises(UsageError, w2.get_code)
         def _got_code(code):
@@ -129,10 +125,9 @@ class Basic(ServerBase, unittest.TestCase):
         return d
 
     def test_serialize(self):
-        appid = b"appid"
-        w1 = Wormhole(appid, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
-        w2 = Wormhole(appid, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = w1.get_code()
         def _got_code(code):
             self.assertRaises(UsageError, w2.serialize) # too early

@@ -5,6 +5,8 @@ from twisted.internet.threads import deferToThread
 from ..blocking.transcribe import Wormhole as BlockingWormhole, UsageError
 from .common import ServerBase
 
+APPID = u"appid"
+
 class Blocking(ServerBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
@@ -18,9 +20,8 @@ class Blocking(ServerBase, unittest.TestCase):
                               deferToThread(f2, *f2args)], True)
 
     def test_basic(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -39,9 +40,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_interleaved(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -61,9 +61,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_fixed_code(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
         d = self.doBoth([w1.send_data, b"data1"], [w2.send_data, b"data2"])
@@ -79,9 +78,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -106,9 +104,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier_mismatch(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code+"not")
@@ -123,15 +120,14 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_errors(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.get_data)
         self.assertRaises(UsageError, w1.send_data, b"data")
         w1.set_code("123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w2.get_code)
         def _done(code):
             self.assertRaises(UsageError, w2.get_code)
@@ -140,10 +136,9 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_serialize(self):
-        appid = b"appid"
-        w1 = BlockingWormhole(appid, self.relayurl)
+        w1 = BlockingWormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
-        w2 = BlockingWormhole(appid, self.relayurl)
+        w2 = BlockingWormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             self.assertRaises(UsageError, w2.serialize) # too early

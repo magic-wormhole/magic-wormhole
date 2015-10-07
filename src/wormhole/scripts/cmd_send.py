@@ -2,7 +2,7 @@ from __future__ import print_function
 import os, sys, json, binascii, six
 from ..errors import handle_server_error
 
-APPID = b"lothar.com/wormhole/text-or-file-xfer"
+APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 @handle_server_error
 def send(args):
@@ -109,7 +109,7 @@ def send(args):
     w.close()
 
     tdata = them_phase1["transit"]
-    transit_key = w.derive_key(APPID+b"/transit-key")
+    transit_key = w.derive_key(APPID+"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])

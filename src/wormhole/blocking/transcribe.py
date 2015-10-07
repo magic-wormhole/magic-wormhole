@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, time, re, requests, json
+import os, sys, time, re, requests, json, unicodedata
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
@@ -14,6 +14,9 @@ from ..channel_monitor import monitor
 
 SECOND = 1
 MINUTE = 60*SECOND
+
+def to_bytes(u):
+    return unicodedata.normalize("NFC", u).encode("utf-8")
 
 # relay URLs are:
 #  GET /list                           -> {channelids: [INT..]}
@@ -130,7 +133,7 @@ class Wormhole:
     version_warning_displayed = False
 
     def __init__(self, appid, relay_url):
-        if not isinstance(appid, type(b"")): raise UsageError
+        if not isinstance(appid, type(u"")): raise UsageError
         if not isinstance(relay_url, type(u"")): raise UsageError
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
@@ -201,12 +204,12 @@ class Wormhole:
     def _start(self):
         # allocate the rest now too, so it can be serialized
         self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
-                                   idSymmetric=self._appid)
+                                   idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        if not isinstance(purpose, type(b"")): raise UsageError
-        return HKDF(self.key, length, CTXinfo=purpose)
+        if not isinstance(purpose, type(u"")): raise UsageError
+        return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
 
     def _encrypt_data(self, key, data):
         assert isinstance(key, type(b"")), type(key)
@@ -230,7 +233,7 @@ class Wormhole:
             self.channel.send(u"pake", self.msg1)
             pake_msg = self.channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
-            self.verifier = self.derive_key(self._appid+b":Verifier")
+            self.verifier = self.derive_key(self._appid+u":Verifier")
 
     def get_verifier(self):
         if self.code is None: raise UsageError
@@ -248,7 +251,7 @@ class Wormhole:
         # nonces to keep the messages distinct, and the Channel automatically
         # ignores reflections.
         self._get_key()
-        data_key = self.derive_key(b"data-key")
+        data_key = self.derive_key(u"data-key")
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         self.channel.send(u"data", outbound_encrypted)
 
@@ -257,7 +260,7 @@ class Wormhole:
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
         self._get_key()
-        data_key = self.derive_key(b"data-key")
+        data_key = self.derive_key(u"data-key")
         inbound_encrypted = self.channel.get(u"data")
         try:
             inbound_data = self._decrypt_data(data_key, inbound_encrypted)

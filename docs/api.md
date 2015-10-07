@@ -63,7 +63,7 @@ The synchronous+blocking flow looks like this:
 from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"initiator's data"
-i = Wormhole(b"appid", RENDEZVOUS_RELAY)
+i = Wormhole(u"appid", RENDEZVOUS_RELAY)
 code = i.get_code()
 print("Invitation Code: %s" % code)
 i.send_data(mydata)
@@ -78,7 +78,7 @@ from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"receiver's data"
 code = sys.argv[1]
-r = Wormhole(b"appid", RENDEZVOUS_RELAY)
+r = Wormhole(u"appid", RENDEZVOUS_RELAY)
 r.set_code(code)
 r.send_data(mydata)
 theirdata = r.get_data()
@@ -95,7 +95,7 @@ from twisted.internet import reactor
 from wormhole.public_relay import RENDEZVOUS_RELAY
 from wormhole.twisted.transcribe import Wormhole
 outbound_message = b"outbound data"
-w1 = Wormhole(b"appid", RENDEZVOUS_RELAY)
+w1 = Wormhole(u"appid", RENDEZVOUS_RELAY)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
@@ -113,7 +113,7 @@ reactor.run()
 On the other side, you call `set_code()` instead of waiting for `get_code()`:
 
 ```python
-w2 = Wormhole(b"appid", RENDEZVOUS_RELAY)
+w2 = Wormhole(u"appid", RENDEZVOUS_RELAY)
 w2.set_code(code)
 d = w2.send_data(my_message)
 ...
@@ -163,12 +163,12 @@ unicode in python3, plain bytes in python2).
 ## Application Identifier
 
 Applications using this library must provide an "application identifier", a
-simple bytestring that distinguishes one application from another. To ensure
-uniqueness, use a domain name. To use multiple apps for a single domain, just
-use a string like `example.com/app1`. This string must be the same on both
-clients, otherwise they will not see each other. The invitation codes are
-scoped to the app-id. Note that the app-id must be a bytestring, not unicode,
-so on python3 use `b"appid"`.
+simple string that distinguishes one application from another. To ensure
+uniqueness, use a domain name. To use multiple apps for a single domain,
+append a URL-like slash and path, like `example.com/app1`. This string must
+be the same on both clients, otherwise they will not see each other. The
+invitation codes are scoped to the app-id. Note that the app-id must be
+unicode, not bytes, so on python2 use `u"appid"`.
 
 Distinct app-ids reduce the size of the connection-id numbers. If fewer than
 ten initiators are active for a given app-id, the connection-id will only
@@ -244,10 +244,8 @@ re-send it if necessary.
 All cryptographically-sensitive parameters are passed as bytes ("str" in
 python2, "bytes" in python3):
 
-* application identifier
 * verifier string
 * data in/out
-* derived-key "purpose" string
 * transit records in/out
 
 Some human-readable parameters are passed as strings: "str" in python2, "str"
@@ -260,6 +258,8 @@ Some human-readable parameters are passed as strings: "str" in python2, "str"
 And some are always unicode, in both python2 and python3:
 
 * relay URL
+* application identifier
+* derived-key "purpose" string: `w.derive_key(PURPOSE)`
 
 ## Detailed Example
 

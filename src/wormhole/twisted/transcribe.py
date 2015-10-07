@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, re
+import os, sys, json, re, unicodedata
 from binascii import hexlify, unhexlify
 from zope.interface import implementer
 from twisted.internet import reactor, defer
@@ -16,6 +16,9 @@ from .. import codes
 from ..errors import ServerError, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
 from ..channel_monitor import monitor
+
+def to_bytes(u):
+    return unicodedata.normalize("NFC", u).encode("utf-8")
 
 @implementer(IBodyProducer)
 class DataProducer:
@@ -146,7 +149,7 @@ class Wormhole:
     version_warning_displayed = False
 
     def __init__(self, appid, relay_url):
-        if not isinstance(appid, type(b"")): raise UsageError
+        if not isinstance(appid, type(u"")): raise UsageError
         if not isinstance(relay_url, type(u"")): raise UsageError
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
@@ -219,7 +222,7 @@ class Wormhole:
     def _start(self):
         # allocate the rest now too, so it can be serialized
         self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
-                                   idSymmetric=self._appid)
+                                   idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
     def serialize(self):
@@ -242,7 +245,7 @@ class Wormhole:
     @classmethod
     def from_serialized(klass, data):
         d = json.loads(data)
-        self = klass(d["appid"].encode("ascii"), d["relay_url"])
+        self = klass(d["appid"], d["relay_url"])
         self._set_side(d["side"].encode("ascii"))
         self._set_code_and_channelid(d["code"].encode("ascii"))
         self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))
@@ -250,11 +253,11 @@ class Wormhole:
         return self
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        if not isinstance(purpose, type(u"")): raise UsageError
         if self.key is None:
             # call after get_verifier() or get_data()
             raise UsageError
-        if not isinstance(purpose, type(b"")): raise UsageError
-        return HKDF(self.key, length, CTXinfo=purpose)
+        return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
 
     def _encrypt_data(self, key, data):
         assert isinstance(key, type(b"")), type(key)
@@ -282,7 +285,7 @@ class Wormhole:
         def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
-            self.verifier = self.derive_key(self._appid+b":Verifier")
+            self.verifier = self.derive_key(self._appid+u":Verifier")
             return key
         d.addCallback(_got_pake)
         return d
@@ -304,7 +307,7 @@ class Wormhole:
         # ignores reflections.
         d = self._get_key()
         def _send(key):
-            data_key = self.derive_key(b"data-key")
+            data_key = self.derive_key(u"data-key")
             outbound_encrypted = self._encrypt_data(data_key, outbound_data)
             return self.channel.send(u"data", outbound_encrypted)
         d.addCallback(_send)
@@ -316,7 +319,7 @@ class Wormhole:
         if self.channel is None: raise UsageError
         d = self._get_key()
         def _get(key):
-            data_key = self.derive_key(b"data-key")
+            data_key = self.derive_key(u"data-key")
             d1 = self.channel.get(u"data")
             def _decrypt(inbound_encrypted):
                 try:
