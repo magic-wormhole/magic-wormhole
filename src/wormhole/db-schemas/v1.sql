@@ -9,16 +9,18 @@ CREATE TABLE `version`
 
 CREATE TABLE `messages`
 (
+ `appid` VARCHAR,
  `channelid` INTEGER,
  `side` VARCHAR,
  `phase` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
  `body` VARCHAR,
  `when` INTEGER
 );
-CREATE INDEX `messages_idx` ON `messages` (`channelid`, `side`, `phase`);
+CREATE INDEX `messages_idx` ON `messages` (`appid`, `channelid`);
 
 CREATE TABLE `allocations`
 (
+ `appid` VARCHAR,
  `channelid` INTEGER,
  `side` VARCHAR
 );

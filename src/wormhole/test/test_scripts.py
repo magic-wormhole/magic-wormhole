@@ -99,28 +99,27 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             out, err, rc = res
             out = out.decode("utf-8")
             err = err.decode("utf-8")
-            self.failUnlessEqual(out,
-                                 "Sending text message (%d bytes)\n"
-                                 "On the other computer, please run: "
-                                 "wormhole receive\n"
-                                 "Wormhole code is: %s\n\n"
-                                 "text message sent\n" % (len(message), code)
-                                 )
-            self.failUnlessEqual(err, "")
-            self.failUnlessEqual(rc, 0)
+            self.maxDiff = None
+            expected = ("Sending text message (%d bytes)\n"
+                        "On the other computer, please run: "
+                        "wormhole receive\n"
+                        "Wormhole code is: %s\n\n"
+                        "text message sent\n" % (len(message), code))
+            self.failUnlessEqual( (expected, "", 0),
+                                  (out, err, rc) )
             return d2
         d1.addCallback(_check_sender)
         def _check_receiver(res):
             out, err, rc = res
             out = out.decode("utf-8")
             err = err.decode("utf-8")
-            self.failUnlessEqual(out, message+"\n")
-            self.failUnlessEqual(err, "")
-            self.failUnlessEqual(rc, 0)
+            self.failUnlessEqual( (message+"\n", "", 0),
+                                  (out, err, rc) )
         d1.addCallback(_check_receiver)
         return d1
 
     def test_send_file_pre_generated_code(self):
+        self.maxDiff=None
         code = "1-abc"
         filename = "testfile"
         message = "test message"
@@ -150,6 +149,7 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             out, err, rc = res
             out = out.decode("utf-8")
             err = err.decode("utf-8")
+            self.failUnlessEqual(err, "")
             self.failUnlessIn("Sending %d byte file named '%s'\n" %
                               (len(message), filename), out)
             self.failUnlessIn("On the other computer, please run: "
@@ -159,7 +159,6 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("File sent.. waiting for confirmation\n"
                               "Confirmation received. Transfer complete.\n",
                               out)
-            self.failUnlessEqual(err, "")
             self.failUnlessEqual(rc, 0)
             return d2
         d1.addCallback(_check_sender)

@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os, sys, time, re, requests, json, unicodedata
+from six.moves.urllib_parse import urlencode
 from binascii import hexlify, unhexlify
 from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
@@ -18,19 +19,21 @@ MINUTE = 60*SECOND
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
-# relay URLs are:
-#  GET /list                           -> {channelids: [INT..]}
-#  POST /allocate {side: SIDE}         -> {channelid: INT}
-#   these return all messages (base64) for CID= :
-#  POST /CID {side:, phase:, body:}    -> {messages: [{phase:, body:}..]}
-#  GET  /CID (no-eventsource)          -> {messages: [{phase:, body:}..]}
-#  GET  /CID (eventsource)             -> {phase:, body:}..
-#  POST /CID/deallocate {side: SIDE}   -> {status: waiting | deleted}
+# relay URLs are as follows:   (MESSAGES=[{phase:,body:}..])
+#  GET /list?appid=                                 -> {channelids: [INT..]}
+#  POST /allocate {appid:,side:}                    -> {channelid: INT}
+#   these return all messages (base64) for appid=/channelid= :
+#  POST /add {appid:,channelid:,side:,phase:,body:} -> {messages: MESSAGES}
+#  GET  /get?appid=&channelid= (no-eventsource)     -> {messages: MESSAGES}
+#  GET  /get?appid=&channelid= (eventsource)        -> {phase:, body:}..
+#  POST /deallocate {appid:,channelid:,side:} -> {status: waiting | deleted}
 # all JSON responses include a "welcome:{..}" key
 
 class Channel:
-    def __init__(self, relay_url, channelid, side, handle_welcome):
-        self._channel_url = u"%s%d" % (relay_url, channelid)
+    def __init__(self, relay_url, appid, channelid, side, handle_welcome):
+        self._relay_url = relay_url
+        self._appid = appid
+        self._channelid = channelid
         self._side = side
         self._handle_welcome = handle_welcome
         self._messages = set() # (phase,body) , body is bytes
@@ -57,11 +60,13 @@ class Channel:
         if not isinstance(phase, type(u"")): raise UsageError(type(phase))
         if not isinstance(msg, type(b"")): raise UsageError(type(msg))
         self._sent_messages.add( (phase,msg) )
-        payload = {"side": self._side,
+        payload = {"appid": self._appid,
+                   "channelid": self._channelid,
+                   "side": self._side,
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
-        r = requests.post(self._channel_url, data=data)
+        r = requests.post(self._relay_url+"add", data=data)
         r.raise_for_status()
         resp = r.json()
         self._add_inbound_messages(resp["messages"])
@@ -80,7 +85,10 @@ class Channel:
             remaining = self._started + self._timeout - time.time()
             if remaining < 0:
                 return Timeout
-            f = EventSourceFollower(self._channel_url, remaining)
+            queryargs = urlencode([("appid", self._appid),
+                                   ("channelid", self._channelid)])
+            f = EventSourceFollower(self._relay_url+"get?%s" % queryargs,
+                                    remaining)
             # we loop here until the connection is lost, or we see the
             # message we want
             for (eventtype, data) in f.iter_events():
@@ -98,25 +106,30 @@ class Channel:
 
     def deallocate(self):
         # only try once, no retries
-        data = json.dumps({"side": self._side}).encode("utf-8")
-        requests.post(self._channel_url+"/deallocate", data=data)
+        data = json.dumps({"appid": self._appid,
+                           "channelid": self._channelid,
+                           "side": self._side}).encode("utf-8")
+        requests.post(self._relay_url+"deallocate", data=data)
         # ignore POST failure, don't call r.raise_for_status()
 
 class ChannelManager:
-    def __init__(self, relay_url, side, handle_welcome):
+    def __init__(self, relay_url, appid, side, handle_welcome):
         self._relay_url = relay_url
+        self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
 
     def list_channels(self):
-        r = requests.get(self._relay_url + "list")
+        queryargs = urlencode([("appid", self._appid)])
+        r = requests.get(self._relay_url+"list?%s" % queryargs)
         r.raise_for_status()
         channelids = r.json()["channelids"]
         return channelids
 
     def allocate(self):
-        data = json.dumps({"side": self._side}).encode("utf-8")
-        r = requests.post(self._relay_url + "allocate", data=data)
+        data = json.dumps({"appid": self._appid,
+                           "side": self._side}).encode("utf-8")
+        r = requests.post(self._relay_url+"allocate", data=data)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
@@ -125,7 +138,7 @@ class ChannelManager:
         return channelid
 
     def connect(self, channelid):
-        return Channel(self._relay_url, channelid, self._side,
+        return Channel(self._relay_url, self._appid, channelid, self._side,
                        self._handle_welcome)
 
 class Wormhole:
@@ -139,7 +152,7 @@ class Wormhole:
         self._appid = appid
         self._relay_url = relay_url
         side = hexlify(os.urandom(5)).decode("ascii")
-        self._channel_manager = ChannelManager(relay_url, side,
+        self._channel_manager = ChannelManager(relay_url, appid, side,
                                                self.handle_welcome)
         self.code = None
         self.key = None
@@ -152,8 +165,7 @@ class Wormhole:
             not self.motd_displayed):
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
-            print("Server (at %s) says:\n %s" % (self._relay_url,
-                                                 motd_formatted),
+            print("Server (at %s) says:\n %s" % (self._relay_url, motd_formatted),
                   file=sys.stderr)
             self.motd_displayed = True
 

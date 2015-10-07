@@ -1,11 +1,88 @@
+from __future__ import print_function
 import json
 from twisted.trial import unittest
-from twisted.internet.defer import gatherResults
+from twisted.internet.defer import gatherResults, succeed
 from twisted.internet.threads import deferToThread
-from ..blocking.transcribe import Wormhole as BlockingWormhole, UsageError
+from ..blocking.transcribe import (Wormhole as BlockingWormhole, UsageError,
+                                   ChannelManager)
 from .common import ServerBase
 
 APPID = u"appid"
+
+class Channel(ServerBase, unittest.TestCase):
+    def ignore(self, welcome):
+        pass
+
+    def test_allocate(self):
+        cm = ChannelManager(self.relayurl, APPID, u"side", self.ignore)
+        d = deferToThread(cm.list_channels)
+        def _got_channels(channels):
+            self.failUnlessEqual(channels, [])
+        d.addCallback(_got_channels)
+        d.addCallback(lambda _: deferToThread(cm.allocate))
+        def _allocated(channelid):
+            self.failUnlessEqual(type(channelid), int)
+            self._channelid = channelid
+        d.addCallback(_allocated)
+        d.addCallback(lambda _: deferToThread(cm.connect, self._channelid))
+        def _connected(c):
+            self._channel = c
+        d.addCallback(_connected)
+        d.addCallback(lambda _: deferToThread(self._channel.deallocate))
+        return d
+
+    def test_messages(self):
+        cm1 = ChannelManager(self.relayurl, APPID, u"side1", self.ignore)
+        cm2 = ChannelManager(self.relayurl, APPID, u"side2", self.ignore)
+        c1 = cm1.connect(1)
+        c2 = cm2.connect(1)
+
+        d = succeed(None)
+        d.addCallback(lambda _: deferToThread(c1.send, u"phase1", b"msg1"))
+        d.addCallback(lambda _: deferToThread(c2.get, u"phase1"))
+        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1"))
+        d.addCallback(lambda _: deferToThread(c2.send, u"phase1", b"msg2"))
+        d.addCallback(lambda _: deferToThread(c1.get, u"phase1"))
+        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg2"))
+        # it's legal to fetch a phase multiple times, should be idempotent
+        d.addCallback(lambda _: deferToThread(c1.get, u"phase1"))
+        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg2"))
+        # deallocating one side is not enough to destroy the channel
+        d.addCallback(lambda _: deferToThread(c2.deallocate))
+        def _not_yet(_):
+            self._relay_server.prune()
+            self.failUnlessEqual(len(self._relay_server._apps), 1)
+        d.addCallback(_not_yet)
+        # but deallocating both will make the messages go away
+        d.addCallback(lambda _: deferToThread(c1.deallocate))
+        def _gone(_):
+            self._relay_server.prune()
+            self.failUnlessEqual(len(self._relay_server._apps), 0)
+        d.addCallback(_gone)
+
+        return d
+
+    def test_appid_independence(self):
+        APPID_A = u"appid_A"
+        APPID_B = u"appid_B"
+        cm1a = ChannelManager(self.relayurl, APPID_A, u"side1", self.ignore)
+        cm2a = ChannelManager(self.relayurl, APPID_A, u"side2", self.ignore)
+        c1a = cm1a.connect(1)
+        c2a = cm2a.connect(1)
+        cm1b = ChannelManager(self.relayurl, APPID_B, u"side1", self.ignore)
+        cm2b = ChannelManager(self.relayurl, APPID_B, u"side2", self.ignore)
+        c1b = cm1b.connect(1)
+        c2b = cm2b.connect(1)
+
+        d = succeed(None)
+        d.addCallback(lambda _: deferToThread(c1a.send, u"phase1", b"msg1a"))
+        d.addCallback(lambda _: deferToThread(c1b.send, u"phase1", b"msg1b"))
+        d.addCallback(lambda _: deferToThread(c2a.get, u"phase1"))
+        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1a"))
+        d.addCallback(lambda _: deferToThread(c2b.get, u"phase1"))
+        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1b"))
+        return d
+
 
 class Blocking(ServerBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver

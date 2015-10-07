@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys, json
 import requests
+from six.moves.urllib_parse import urlencode
 from twisted.trial import unittest
 from twisted.internet import reactor, defer
 from twisted.internet.threads import deferToThread
@@ -55,15 +56,26 @@ def unjson(data):
     return json.loads(data.decode("utf-8"))
 
 class API(ServerBase, unittest.TestCase):
-    def get(self, path, is_json=True):
-        url = (self.relayurl+path).encode("ascii")
-        d = getPage(url)
-        if is_json:
-            d.addCallback(unjson)
+    def build_url(self, path, appid, channelid):
+        url = self.relayurl+path
+        queryargs = []
+        if appid:
+            queryargs.append(("appid", appid))
+        if channelid:
+            queryargs.append(("channelid", channelid))
+        if queryargs:
+            url += "?" + urlencode(queryargs)
+        return url
+
+    def get(self, path, appid=None, channelid=None):
+        url = self.build_url(path, appid, channelid)
+        d = getPage(url.encode("ascii"))
+        d.addCallback(unjson)
         return d
+
     def post(self, path, data):
-        url = (self.relayurl+path).encode("ascii")
-        d = getPage(url, method=b"POST",
+        url = self.relayurl+path
+        d = getPage(url.encode("ascii"), method=b"POST",
                     postdata=json.dumps(data).encode("utf-8"))
         d.addCallback(unjson)
         return d
@@ -73,13 +85,14 @@ class API(ServerBase, unittest.TestCase):
         self.failUnlessEqual(data["welcome"], {"current_version": __version__})
 
     def test_allocate_1(self):
-        d = self.get("list")
+        d = self.get("list", "app1")
         def _check_list_1(data):
             self.check_welcome(data)
             self.failUnlessEqual(data["channelids"], [])
         d.addCallback(_check_list_1)
 
-        d.addCallback(lambda _: self.post("allocate", {"side": "abc"}))
+        d.addCallback(lambda _: self.post("allocate", {"appid": "app1",
+                                                       "side": "abc"}))
         def _allocated(data):
             self.failUnlessEqual(set(data.keys()),
                                  set(["welcome", "channelid"]))
@@ -87,18 +100,20 @@ class API(ServerBase, unittest.TestCase):
             self.cid = data["channelid"]
         d.addCallback(_allocated)
 
-        d.addCallback(lambda _: self.get("list"))
+        d.addCallback(lambda _: self.get("list", "app1"))
         def _check_list_2(data):
             self.failUnlessEqual(data["channelids"], [self.cid])
         d.addCallback(_check_list_2)
 
-        d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
-                                          {"side": "abc"}))
+        d.addCallback(lambda _: self.post("deallocate",
+                                          {"appid": "app1",
+                                           "channelid": str(self.cid),
+                                           "side": "abc"}))
         def _check_deallocate(res):
             self.failUnlessEqual(res["status"], "deleted")
         d.addCallback(_check_deallocate)
 
-        d.addCallback(lambda _: self.get("list"))
+        d.addCallback(lambda _: self.get("list", "app1"))
         def _check_list_3(data):
             self.failUnlessEqual(data["channelids"], [])
         d.addCallback(_check_list_3)
@@ -106,45 +121,57 @@ class API(ServerBase, unittest.TestCase):
         return d
 
     def test_allocate_2(self):
-        d = self.post("allocate", {"side": "abc"})
+        d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
         d.addCallback(_allocated)
 
         # second caller increases the number of known sides to 2
-        d.addCallback(lambda _: self.post("%d" % self.cid,
-                                          {"side": "def",
+        d.addCallback(lambda _: self.post("add",
+                                          {"appid": "app1",
+                                           "channelid": str(self.cid),
+                                           "side": "def",
                                            "phase": "1",
                                            "body": ""}))
 
-        d.addCallback(lambda _: self.get("list"))
+        d.addCallback(lambda _: self.get("list", "app1"))
         d.addCallback(lambda data:
                       self.failUnlessEqual(data["channelids"], [self.cid]))
 
-        d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
-                                          {"side": "abc"}))
+        d.addCallback(lambda _: self.post("deallocate",
+                                          {"appid": "app1",
+                                           "channelid": str(self.cid),
+                                           "side": "abc"}))
         d.addCallback(lambda res:
                       self.failUnlessEqual(res["status"], "waiting"))
 
-        d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
-                                          {"side": "NOT"}))
+        d.addCallback(lambda _: self.post("deallocate",
+                                          {"appid": "app1",
+                                           "channelid": str(self.cid),
+                                           "side": "NOT"}))
         d.addCallback(lambda res:
                       self.failUnlessEqual(res["status"], "waiting"))
 
-        d.addCallback(lambda _: self.post("%d/deallocate" % self.cid,
-                                          {"side": "def"}))
+        d.addCallback(lambda _: self.post("deallocate",
+                                          {"appid": "app1",
+                                           "channelid": str(self.cid),
+                                           "side": "def"}))
         d.addCallback(lambda res:
                       self.failUnlessEqual(res["status"], "deleted"))
 
-        d.addCallback(lambda _: self.get("list"))
+        d.addCallback(lambda _: self.get("list", "app1"))
         d.addCallback(lambda data:
                       self.failUnlessEqual(data["channelids"], []))
 
         return d
 
     def add_message(self, message, side="abc", phase="1"):
-        return self.post(str(self.cid), {"side": side, "phase": phase,
-                                         "body": message})
+        return self.post("add",
+                         {"appid": "app1",
+                          "channelid": str(self.cid),
+                         "side": side,
+                          "phase": phase,
+                          "body": message})
 
     def parse_messages(self, messages):
         out = set()
@@ -164,7 +191,7 @@ class API(ServerBase, unittest.TestCase):
             self.failUnlessIn(d, two)
 
     def test_messages(self):
-        d = self.post("allocate", {"side": "abc"})
+        d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
         d.addCallback(_allocated)
@@ -175,12 +202,16 @@ class API(ServerBase, unittest.TestCase):
             self.failUnlessEqual(data["messages"],
                                  [{"phase": "1", "body": "msg1A"}])
         d.addCallback(_check1)
+        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
+        d.addCallback(_check1)
         d.addCallback(lambda _: self.add_message("msg1B", side="def"))
         def _check2(data):
             self.check_welcome(data)
             self.failUnlessEqual(self.parse_messages(data["messages"]),
                                  set([("1", "msg1A"),
                                       ("1", "msg1B")]))
+        d.addCallback(_check2)
+        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
         d.addCallback(_check2)
 
         # adding a duplicate message is not an error, is ignored by clients
@@ -190,6 +221,8 @@ class API(ServerBase, unittest.TestCase):
             self.failUnlessEqual(self.parse_messages(data["messages"]),
                                  set([("1", "msg1A"),
                                       ("1", "msg1B")]))
+        d.addCallback(_check3)
+        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
         d.addCallback(_check3)
 
         d.addCallback(lambda _: self.add_message("msg2A", side="abc",
@@ -202,6 +235,8 @@ class API(ServerBase, unittest.TestCase):
                                       ("2", "msg2A"),
                                       ]))
         d.addCallback(_check4)
+        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
+        d.addCallback(_check4)
 
         return d
 
@@ -209,10 +244,10 @@ class API(ServerBase, unittest.TestCase):
         if sys.version_info[0] >= 3:
             raise unittest.SkipTest("twisted vs py3")
 
-        d = self.post("allocate", {"side": "abc"})
+        d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
-            url = self.relayurl+str(self.cid)
+            url = self.build_url("get", "app1", self.cid)
             self.o = OneEventAtATime(url, parser=json.loads)
             return self.o.wait_for_connection()
         d.addCallback(_allocated)

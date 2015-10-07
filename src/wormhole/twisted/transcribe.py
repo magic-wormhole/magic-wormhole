@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os, sys, json, re, unicodedata
+from six.moves.urllib_parse import urlencode
 from binascii import hexlify, unhexlify
 from zope.interface import implementer
 from twisted.internet import reactor, defer
@@ -50,10 +51,24 @@ def post_json(agent, url, request_body):
     d.addCallback(lambda data: json.loads(data))
     return d
 
+def get_json(agent, url):
+    # GET from a URL, parsing the response as JSON
+    d = agent.request("GET", url.encode("utf-8"))
+    def _check_error(resp):
+        if resp.code != 200:
+            raise web_error.Error(resp.code, resp.phrase)
+        return resp
+    d.addCallback(_check_error)
+    d.addCallback(web_client.readBody)
+    d.addCallback(lambda data: json.loads(data))
+    return d
+
 class Channel:
-    def __init__(self, relay_url, channelid, side, handle_welcome,
+    def __init__(self, relay_url, appid, channelid, side, handle_welcome,
                  agent):
-        self._channel_url = u"%s%d" % (relay_url, channelid)
+        self._relay_url = relay_url
+        self._appid = appid
+        self._channelid = channelid
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = agent
@@ -78,10 +93,12 @@ class Channel:
         if not isinstance(phase, type(u"")): raise UsageError(type(phase))
         if not isinstance(msg, type(b"")): raise UsageError(type(msg))
         self._sent_messages.add( (phase,msg) )
-        payload = {"side": self._side,
+        payload = {"appid": self._appid,
+                   "channelid": self._channelid,
+                   "side": self._side,
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
-        d = post_json(self._agent, self._channel_url, payload)
+        d = post_json(self._agent, self._relay_url+"add", payload)
         d.addCallback(lambda resp: self._add_inbound_messages(resp["messages"]))
         return d
 
@@ -104,7 +121,10 @@ class Channel:
                     msgs.append(body)
                     d.callback(None)
         # TODO: use agent=self._agent
-        es = ReconnectingEventSource(self._channel_url, _handle)
+        queryargs = urlencode([("appid", self._appid),
+                               ("channelid", self._channelid)])
+        es = ReconnectingEventSource(self._relay_url+"get?%s" % queryargs,
+                                     _handle)
         es.startService() # TODO: .setServiceParent(self)
         es.activate()
         d.addCallback(lambda _: es.deactivate())
@@ -114,22 +134,26 @@ class Channel:
 
     def deallocate(self):
         # only try once, no retries
-        d = post_json(self._agent, self._channel_url+"/deallocate",
-                      {"side": self._side})
+        d = post_json(self._agent, self._relay_url+"deallocate",
+                      {"appid": self._appid,
+                       "channelid": self._channelid,
+                       "side": self._side})
         d.addBoth(lambda _: None) # ignore POST failure
         return d
 
 class ChannelManager:
-    def __init__(self, relay_url, side, handle_welcome):
-        assert isinstance(relay_url, type(u""))
-        self._relay_url = relay_url
+    def __init__(self, relay, appid, side, handle_welcome):
+        assert isinstance(relay, type(u""))
+        self._relay = relay
+        self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
         self._agent = web_client.Agent(reactor)
 
     def allocate(self):
-        url = self._relay_url + "allocate"
-        d = post_json(self._agent, url, {"side": self._side})
+        url = self._relay + "allocate"
+        d = post_json(self._agent, url, {"appid": self._appid,
+                                         "side": self._side})
         def _got_channel(data):
             if "welcome" in data:
                 self._handle_welcome(data["welcome"])
@@ -138,10 +162,14 @@ class ChannelManager:
         return d
 
     def list_channels(self):
-        raise NotImplementedError
+        queryargs = urlencode([("appid", self._appid)])
+        url = self._relay + u"list?%s" % queryargs
+        d = get_json(self._agent, url)
+        d.addCallback(lambda r: r["channelids"])
+        return d
 
     def connect(self, channelid):
-        return Channel(self._relay_url, channelid, self._side,
+        return Channel(self._relay, self._appid, channelid, self._side,
                        self._handle_welcome, self._agent)
 
 class Wormhole:
@@ -163,17 +191,16 @@ class Wormhole:
 
     def _set_side(self, side):
         self._side = side
-        self._channel_manager = ChannelManager(self._relay_url, self._side,
-                                               self.handle_welcome)
+        self._channel_manager = ChannelManager(self._relay_url, self._appid,
+                                               self._side, self.handle_welcome)
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
             not self.motd_displayed):
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
-            print("Server (at %s) says:\n %s" % (self._relay_url,
-                                                 motd_formatted),
-                  file=sys.stderr)
+            print("Server (at %s) says:\n %s" %
+                  (self._relay_url, motd_formatted), file=sys.stderr)
             self.motd_displayed = True
 
         # Only warn if we're running a release version (e.g. 0.0.6, not
