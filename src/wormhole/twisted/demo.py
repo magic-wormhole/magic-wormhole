@@ -6,8 +6,9 @@ from .transcribe import Wormhole
 from .. import public_relay
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
+relay_url = public_relay.RENDEZVOUS_RELAY
 
-w = Wormhole(APPID, public_relay.RENDEZVOUS_RELAY)
+w = Wormhole(APPID, relay_url)
 
 if sys.argv[1] == "send":
     message = sys.argv[2]
