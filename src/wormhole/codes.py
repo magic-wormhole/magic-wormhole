@@ -82,7 +82,10 @@ def input_code_with_completion(prompt, get_channel_ids, code_length):
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
     code = six.moves.input(prompt)
-    return code.decode("utf-8")
+    # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
+    if isinstance(code, bytes):
+        code = code.decode("utf-8")
+    return code
 
 if __name__ == "__main__":
     code = input_code_with_completion("Enter wormhole code: ", lambda: [], 2)
