@@ -20,7 +20,8 @@ g = parser.add_argument_group("wormhole configuration options")
 g.add_argument("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
                metavar="URL", help="rendezvous relay to use", type=type(u""))
 g.add_argument("--transit-helper", default=public_relay.TRANSIT_RELAY,
-               metavar="tcp:HOST:PORT", help="transit relay to use")
+               metavar="tcp:HOST:PORT", help="transit relay to use",
+               type=type(u""))
 g.add_argument("-c", "--code-length", type=int, default=2,
                metavar="WORDS", help="length of code (in bytes/words)")
 g.add_argument("-v", "--verify", action="store_true",

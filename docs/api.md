@@ -252,12 +252,12 @@ Some human-readable parameters are passed as strings: "str" in python2, "str"
 (i.e. unicode) in python3:
 
 * wormhole code
-* transit URLs
-* transit connection hints (e.g. "host:port")
 
 And some are always unicode, in both python2 and python3:
 
 * relay URL
+* transit URLs
+* transit connection hints (e.g. "host:port")
 * application identifier
 * derived-key "purpose" string: `w.derive_key(PURPOSE)`
 

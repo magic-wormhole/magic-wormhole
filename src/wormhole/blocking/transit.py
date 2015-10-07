@@ -84,7 +84,7 @@ def wait_for(skt, expected, description):
 # publisher wants anonymity, their only hint's ADDR will end in .onion .
 
 def parse_hint_tcp(hint):
-    assert isinstance(hint, str)
+    assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
@@ -269,6 +269,7 @@ class RecordPipe:
 
 class Common:
     def __init__(self, transit_relay):
+        if not isinstance(transit_relay, type(u"")): raise UsageError
         self._transit_relay = transit_relay
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
@@ -279,7 +280,7 @@ class Common:
     def _start_server(self):
         server = MyTCPServer(("", 0), None)
         _, port = server.server_address
-        self.my_direct_hints = ["tcp:%s:%d" % (addr, port)
+        self.my_direct_hints = [u"tcp:%s:%d" % (addr, port)
                                 for addr in ipaddrs.find_addresses()]
         server.owner = self
         server_thread = threading.Thread(target=server.serve_forever)
@@ -293,9 +294,17 @@ class Common:
         return [self._transit_relay]
 
     def add_their_direct_hints(self, hints):
-        self._their_direct_hints = [str(h) for h in hints]
+        for h in hints:
+            if not isinstance(h, type(u"")):
+                raise TypeError("hint '%r' should be unicode, not %s"
+                                % (h, type(h)))
+        self._their_direct_hints = list(hints)
     def add_their_relay_hints(self, hints):
-        self._their_relay_hints = [str(h) for h in hints]
+        for h in hints:
+            if not isinstance(h, type(u"")):
+                raise TypeError("hint '%r' should be unicode, not %s"
+                                % (h, type(h)))
+        self._their_relay_hints = list(hints)
 
     def _send_this(self):
         if self.is_sender:
