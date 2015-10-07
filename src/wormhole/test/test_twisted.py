@@ -3,6 +3,7 @@ import sys, json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from ..twisted.transcribe import Wormhole, UsageError, ChannelManager
+from ..twisted.eventsource_twisted import EventSourceParser
 from .common import ServerBase
 
 APPID = u"appid"
@@ -284,9 +285,41 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+data1 = u"""\
+event: welcome
+data: one and a
+data: two
+data:.
+
+data: three
+
+: this line is ignored
+event: e2
+: this line is ignored too
+i am a dataless field name
+data: four
+
+"""
+
+class FakeTransport:
+    disconnecting = False
+
+class EventSourceClient(unittest.TestCase):
+    def test_parser(self):
+        events = []
+        p = EventSourceParser(lambda t,d: events.append((t,d)))
+        p.transport = FakeTransport()
+        p.dataReceived(data1)
+        self.failUnlessEqual(events,
+                             [(u"welcome", u"one and a\ntwo\n."),
+                              (u"message", u"three"),
+                              (u"e2", u"four"),
+                              ])
+
 if sys.version_info[0] >= 3:
     Channel.skip = "twisted is not yet sufficiently ported to py3"
     Basic.skip = "twisted is not yet sufficiently ported to py3"
+    EventSourceClient.skip = "twisted is not yet sufficiently ported to py3"
     # as of 15.4.0, Twisted is still missing:
     # * web.client.Agent (for all non-EventSource POSTs in transcribe.py)
     # * python.logfile (to allow daemonization of 'wormhole server')

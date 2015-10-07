@@ -14,6 +14,7 @@ from ..util.eventual import eventually
 #    to_unicode = str
 
 class EventSourceParser(basic.LineOnlyReceiver):
+    # http://www.w3.org/TR/eventsource/
     delimiter = "\n"
 
     def __init__(self, handler):
@@ -21,7 +22,7 @@ class EventSourceParser(basic.LineOnlyReceiver):
         self.current_lines = []
         self.handler = handler
         self.done_deferred = defer.Deferred()
-        self.eventtype = "message"
+        self.eventtype = u"message"
         self.encoding = "utf-8"
 
     def set_encoding(self, encoding):
@@ -44,27 +45,28 @@ class EventSourceParser(basic.LineOnlyReceiver):
             raise
 
     def lineReceived(self, line):
+        #line = to_unicode(line, self.encoding)
+        line = line.decode(self.encoding)
         if not line:
-            # blank line ends the field
-            self.fieldReceived(self.current_field,
-                               "\n".join(self.current_lines))
-            self.current_field = None
+            # blank line ends the field: deliver event, reset for next
+            self.eventReceived(self.eventtype, "\n".join(self.current_lines))
+            self.eventtype = u"message"
             self.current_lines[:] = []
             return
-        line = line.decode(self.encoding)
-        #line = to_unicode(line, self.encoding)
-        if self.current_field is None:
-            self.current_field, data = line.split(": ", 1)
-            self.current_lines.append(data)
+        if u":" in line:
+            fieldname, data = line.split(u":", 1)
+            if data.startswith(u" "):
+                data = data[1:]
         else:
-            self.current_lines.append(line)
-
-    def fieldReceived(self, fieldname, data):
-        if fieldname == "event":
+            fieldname = line
+            data = u""
+        if fieldname == u"event":
             self.eventtype = data
-        elif fieldname == "data":
-            self.eventReceived(self.eventtype, data)
-            self.eventtype = "message"
+        elif fieldname == u"data":
+            self.current_lines.append(data)
+        elif fieldname in (u"id", u"retry"):
+            # documented but unhandled
+            pass
         else:
             log.msg("weird fieldname", fieldname, data)
 

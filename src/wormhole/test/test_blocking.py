@@ -4,6 +4,7 @@ from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from twisted.internet.threads import deferToThread
 from ..blocking.transcribe import Wormhole, UsageError, ChannelManager
+from ..blocking.eventsource import EventSourceFollower
 from .common import ServerBase
 
 APPID = u"appid"
@@ -297,3 +298,34 @@ class Blocking(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
     test_serialize.skip = "not yet implemented for the blocking flavor"
+
+data1 = u"""\
+event: welcome
+data: one and a
+data: two
+data:.
+
+data: three
+
+: this line is ignored
+event: e2
+: this line is ignored too
+i am a dataless field name
+data: four
+
+"""
+
+class NoNetworkESF(EventSourceFollower):
+    def __init__(self, text):
+        self._lines_iter = iter(text.splitlines())
+
+class EventSourceClient(unittest.TestCase):
+    def test_parser(self):
+        events = []
+        f = NoNetworkESF(data1)
+        events = list(f.iter_events())
+        self.failUnlessEqual(events,
+                             [(u"welcome", u"one and a\ntwo\n."),
+                              (u"message", u"three"),
+                              (u"e2", u"four"),
+                              ])
