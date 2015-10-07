@@ -217,7 +217,7 @@ class Basic(ServerBase, unittest.TestCase):
         self.assertRaises(UsageError, w1.send_data, b"data")
         self.assertRaises(UsageError, w1.get_data)
         w1.set_code(u"123-purple-elephant")
-        self.assertRaises(UsageError, w1.set_code, "123-nope")
+        self.assertRaises(UsageError, w1.set_code, u"123-nope")
         self.assertRaises(UsageError, w1.get_code)
         w2 = Wormhole(APPID, self.relayurl)
         d = w2.get_code()

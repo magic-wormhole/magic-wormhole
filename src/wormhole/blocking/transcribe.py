@@ -57,8 +57,8 @@ class Channel:
     def send(self, phase, msg):
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
-        if not isinstance(phase, type(u"")): raise UsageError(type(phase))
-        if not isinstance(msg, type(b"")): raise UsageError(type(msg))
+        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+        if not isinstance(msg, type(b"")): raise TypeError(type(msg))
         self._sent_messages.add( (phase,msg) )
         payload = {"appid": self._appid,
                    "channelid": self._channelid,
@@ -72,7 +72,7 @@ class Channel:
         self._add_inbound_messages(resp["messages"])
 
     def get(self, phase):
-        if not isinstance(phase, type(u"")): raise UsageError(type(phase))
+        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
@@ -146,8 +146,9 @@ class Wormhole:
     version_warning_displayed = False
 
     def __init__(self, appid, relay_url):
-        if not isinstance(appid, type(u"")): raise UsageError
-        if not isinstance(relay_url, type(u"")): raise UsageError
+        if not isinstance(appid, type(u"")): raise TypeError(type(appid))
+        if not isinstance(relay_url, type(u"")):
+            raise TypeError(type(relay_url))
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
@@ -198,7 +199,7 @@ class Wormhole:
         return code
 
     def set_code(self, code): # used for human-made pre-generated codes
-        if not isinstance(code, type(u"")): raise UsageError
+        if not isinstance(code, type(u"")): raise TypeError(type(code))
         if self.code is not None: raise UsageError
         self._set_code_and_channelid(code)
         self._start()
@@ -220,13 +221,13 @@ class Wormhole:
         self.msg1 = self.sp.start()
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
-        if not isinstance(purpose, type(u"")): raise UsageError
+        if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
 
     def _encrypt_data(self, key, data):
         assert isinstance(key, type(b"")), type(key)
         assert isinstance(data, type(b"")), type(data)
-        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        assert len(key) == SecretBox.KEY_SIZE, len(key)
         box = SecretBox(key)
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
@@ -234,7 +235,7 @@ class Wormhole:
     def _decrypt_data(self, key, encrypted):
         assert isinstance(key, type(b"")), type(key)
         assert isinstance(encrypted, type(b"")), type(encrypted)
-        if len(key) != SecretBox.KEY_SIZE: raise UsageError
+        assert len(key) == SecretBox.KEY_SIZE, len(key)
         box = SecretBox(key)
         data = box.decrypt(encrypted)
         return data
@@ -254,8 +255,9 @@ class Wormhole:
         return self.verifier
 
     def send_data(self, outbound_data, phase=u"data"):
-        if not isinstance(outbound_data, type(b"")): raise UsageError
-        if not isinstance(phase, type(u"")): raise UsageError
+        if not isinstance(outbound_data, type(b"")):
+            raise TypeError(type(outbound_data))
+        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._sent_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
@@ -270,7 +272,7 @@ class Wormhole:
         self.channel.send(phase, outbound_encrypted)
 
     def get_data(self, phase=u"data"):
-        if not isinstance(phase, type(u"")): raise UsageError
+        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
