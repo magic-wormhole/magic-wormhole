@@ -45,15 +45,16 @@ Transit class currently distinguishes "Sender" from "Receiver", so the
 programs on each side must have some way to decide (ahead of time) which is
 which.
 
-Each side gets to do one `send_data()` call and one `get_data()` call.
-`get_data` will wait until the other side has done `send_data`, so the
-application developer must be careful to avoid deadlocks (don't get before
-you send on both sides in the same protocol). When both sides are done, they
-must call `close()`, to let the library know that the connection is complete
-and it can deallocate the channel. If you forget to call `close()`, the
-server will not free the channel, and other users will suffer longer
-invitation codes as a result. To encourage `close()`, the library will log an
-error if a Wormhole object is destroyed before being closed.
+Each side gets to do one `send_data()` call and one `get_data()` call per
+phase (see below). `get_data` will wait until the other side has done
+`send_data`, so the application developer must be careful to avoid deadlocks
+(don't get before you send on both sides in the same protocol). When both
+sides are done, they must call `close()`, to let the library know that the
+connection is complete and it can deallocate the channel. If you forget to
+call `close()`, the server will not free the channel, and other users will
+suffer longer invitation codes as a result. To encourage `close()`, the
+library will log an error if a Wormhole object is destroyed before being
+closed.
 
 ## Examples
 
@@ -122,6 +123,23 @@ d = w2.send_data(my_message)
 Note that the Twisted-form `close()` accepts (and returns) an optional
 argument, so you can use `d.addCallback(w.close)` instead of
 `d.addCallback(lambda _: w.close())`.
+
+## Phases
+
+If necessary, more than one message can be exchanged through the relay
+server. It is not meant as a long-term communication channel, but some
+protocols work better if they can exchange an initial pair of messages
+(perhaps offering some set of negotiable capabilities), and then follow up
+with a second pair (to reveal the results of the negotiation).
+
+To support this, `send_data()/get_data()` accept a "phase" argument: an
+arbitrary (unicode) string. It must match the other side: calling
+`send_data(data, phase=u"offer")` on one side will deliver that data to
+`get_data(phase=u"offer")` on the other.
+
+It is a UsageError to call `send_data()` or `get_data()` twice with the same
+phase name. The relay server may limit the number of phases that may be
+exchanged, however it will always allow at least two.
 
 ## Verifier
 

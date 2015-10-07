@@ -186,8 +186,8 @@ class Wormhole:
         self.code = None
         self.key = None
         self._started_get_code = False
-        self._sent_data = False
-        self._got_data = False
+        self._sent_data = set() # phases
+        self._got_data = set()
 
     def _set_side(self, side):
         self._side = side
@@ -312,7 +312,7 @@ class Wormhole:
         def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
-            self.verifier = self.derive_key(self._appid+u":Verifier")
+            self.verifier = self.derive_key(u"wormhole:verifier")
             return key
         d.addCallback(_got_pake)
         return d
@@ -323,31 +323,35 @@ class Wormhole:
         d.addCallback(lambda _: self.verifier)
         return d
 
-    def send_data(self, outbound_data):
-        if self._sent_data: raise UsageError # only call this once
+    def send_data(self, outbound_data, phase=u"data"):
         if not isinstance(outbound_data, type(b"")): raise UsageError
+        if not isinstance(phase, type(u"")): raise UsageError
+        if phase in self._sent_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and the Channel automatically
         # ignores reflections.
+        self._sent_data.add(phase)
         d = self._get_key()
         def _send(key):
-            data_key = self.derive_key(u"data-key")
+            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
             outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-            return self.channel.send(u"data", outbound_encrypted)
+            return self.channel.send(phase, outbound_encrypted)
         d.addCallback(_send)
         return d
 
-    def get_data(self):
-        if self._got_data: raise UsageError # only call this once
+    def get_data(self, phase=u"data"):
+        if not isinstance(phase, type(u"")): raise UsageError
+        if phase in self._got_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
+        self._got_data.add(phase)
         d = self._get_key()
         def _get(key):
-            data_key = self.derive_key(u"data-key")
-            d1 = self.channel.get(u"data")
+            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
+            d1 = self.channel.get(phase)
             def _decrypt(inbound_encrypted):
                 try:
                     inbound_data = self._decrypt_data(data_key,

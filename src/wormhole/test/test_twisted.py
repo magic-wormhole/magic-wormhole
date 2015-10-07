@@ -142,6 +142,34 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    def test_phases(self):
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
+        w1.set_code(u"123-purple-elephant")
+        w2.set_code(u"123-purple-elephant")
+        d = self.doBoth(w1.send_data(b"data1", u"p1"),
+                        w2.send_data(b"data2", u"p1"))
+        d.addCallback(lambda _:
+                      self.doBoth(w1.send_data(b"data3", u"p2"),
+                                  w2.send_data(b"data4", u"p2")))
+        d.addCallback(lambda _:
+                      self.doBoth(w1.get_data(u"p2"),
+                                  w2.get_data(u"p1")))
+        def _got_1(dl):
+            (dataX, dataY) = dl
+            self.assertEqual(dataX, b"data4")
+            self.assertEqual(dataY, b"data1")
+            return self.doBoth(w1.get_data(u"p1"),
+                               w2.get_data(u"p2"))
+        d.addCallback(_got_1)
+        def _got_2(dl):
+            (dataX, dataY) = dl
+            self.assertEqual(dataX, b"data2")
+            self.assertEqual(dataY, b"data3")
+            return self.doBoth(w1.close(), w2.close())
+        d.addCallback(_got_2)
+        return d
+
     def test_verifier(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
@@ -197,6 +225,34 @@ class Basic(ServerBase, unittest.TestCase):
         def _got_code(code):
             return self.doBoth(w1.close(), w2.close())
         d.addCallback(_got_code)
+        return d
+
+    def test_repeat_phases(self):
+        w1 = Wormhole(APPID, self.relayurl)
+        w1.set_code(u"123-purple-elephant")
+        w2 = Wormhole(APPID, self.relayurl)
+        w2.set_code(u"123-purple-elephant")
+        # we must let them establish a key before we can send data
+        d = self.doBoth(w1.get_verifier(), w2.get_verifier())
+        d.addCallback(lambda _: w1.send_data(b"data1", phase=u"1"))
+        def _sent(res):
+            # you can't send twice to the same phase
+            self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"1")
+            # but you can send to a different one
+            return w1.send_data(b"data2", phase=u"2")
+        d.addCallback(_sent)
+        d.addCallback(lambda _: w2.get_data(phase=u"1"))
+        def _got1(res):
+            self.failUnlessEqual(res, b"data1")
+            # and you can't read twice from the same phase
+            self.assertRaises(UsageError, w2.get_data, phase=u"1")
+            # but you can read from a different one
+            return w2.get_data(phase=u"2")
+        d.addCallback(_got1)
+        def _got2(res):
+            self.failUnlessEqual(res, b"data2")
+            return self.doBoth(w1.close(), w2.close())
+        d.addCallback(_got2)
         return d
 
     def test_serialize(self):
