@@ -3,8 +3,7 @@ import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from twisted.internet.threads import deferToThread
-from ..blocking.transcribe import (Wormhole as BlockingWormhole, UsageError,
-                                   ChannelManager)
+from ..blocking.transcribe import Wormhole, UsageError, ChannelManager
 from .common import ServerBase
 
 APPID = u"appid"
@@ -97,8 +96,8 @@ class Blocking(ServerBase, unittest.TestCase):
                               deferToThread(f2, *f2args)], True)
 
     def test_basic(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -117,8 +116,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_interleaved(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -138,8 +137,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_fixed_code(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2.set_code(u"123-purple-elephant")
         d = self.doBoth([w1.send_data, b"data1"], [w2.send_data, b"data2"])
@@ -155,8 +154,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_phases(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2.set_code(u"123-purple-elephant")
         d = self.doBoth([w1.send_data, b"data1", u"p1"],
@@ -183,8 +182,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code)
@@ -209,8 +208,8 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_verifier_mismatch(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             w2.set_code(code+"not")
@@ -225,14 +224,14 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_errors(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.get_verifier)
         self.assertRaises(UsageError, w1.get_data)
         self.assertRaises(UsageError, w1.send_data, b"data")
         w1.set_code(u"123-purple-elephant")
         self.assertRaises(UsageError, w1.set_code, "123-nope")
         self.assertRaises(UsageError, w1.get_code)
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w2.get_code)
         def _done(code):
             self.assertRaises(UsageError, w2.get_code)
@@ -241,9 +240,9 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_repeat_phases(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         w2.set_code(u"123-purple-elephant")
         # we must let them establish a key before we can send data
         d = self.doBoth([w1.get_verifier], [w2.get_verifier])
@@ -270,9 +269,9 @@ class Blocking(ServerBase, unittest.TestCase):
         return d
 
     def test_serialize(self):
-        w1 = BlockingWormhole(APPID, self.relayurl)
+        w1 = Wormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
-        w2 = BlockingWormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
         d = deferToThread(w1.get_code)
         def _got_code(code):
             self.assertRaises(UsageError, w2.serialize) # too early
@@ -282,7 +281,7 @@ class Blocking(ServerBase, unittest.TestCase):
             self.assertEqual(type(s), type(""))
             unpacked = json.loads(s) # this is supposed to be JSON
             self.assertEqual(type(unpacked), dict)
-            self.new_w1 = BlockingWormhole.from_serialized(s)
+            self.new_w1 = Wormhole.from_serialized(s)
             return self.doBoth([self.new_w1.send_data, b"data1"],
                                [w2.send_data, b"data2"])
         d.addCallback(_got_code)
