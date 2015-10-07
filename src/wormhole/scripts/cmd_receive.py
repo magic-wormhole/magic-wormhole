@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii, six
+import os, sys, json, binascii, six, tempfile, zipfile
 from ..errors import handle_server_error
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
@@ -77,6 +77,89 @@ def accept_file(args, them_d, w):
     record_pipe.close()
     return 0
 
+def accept_directory(args, them_d, w):
+    from ..blocking.transit import TransitReceiver, TransitError
+    from .progress import start_progress, update_progress, finish_progress
+
+    file_data = them_d["directory"]
+    mode = file_data["mode"]
+    if mode != "zipfile/deflated":
+        print("Error: unknown directory-transfer mode '%s'" % (mode,))
+        data = json.dumps({"error": "unknown mode"}).encode("utf-8")
+        w.send_data(data)
+        return 1
+
+    # the basename() is intended to protect us against
+    # "~/.ssh/authorized_keys" and other attacks
+    dirname = os.path.basename(file_data["dirname"]) # unicode
+    filesize = file_data["zipsize"]
+    num_files = file_data["numfiles"]
+    num_bytes = file_data["numbytes"]
+
+    if os.path.exists(dirname):
+        print("Error: refusing to overwrite existing directory %s" % (dirname,))
+        data = json.dumps({"error": "directory already exists"}).encode("utf-8")
+        w.send_data(data)
+        return 1
+
+    print("Receiving directory into: %s/" % (dirname,))
+    print("%d files, %d bytes (%d compressed)" % (num_files, num_bytes,
+                                                  filesize))
+    while True and not args.accept_file:
+        ok = six.moves.input("ok? (y/n): ")
+        if ok.lower().startswith("y"):
+            break
+        print("transfer rejected", file=sys.stderr)
+        data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
+        w.send_data(data)
+        return 1
+
+    transit_receiver = TransitReceiver(args.transit_helper)
+    data = json.dumps({
+        "file_ack": "ok",
+        "transit": {
+            "direct_connection_hints": transit_receiver.get_direct_hints(),
+            "relay_connection_hints": transit_receiver.get_relay_hints(),
+            },
+        }).encode("utf-8")
+    w.send_data(data)
+    # now done with the Wormhole object
+
+    # now receive the rest of the owl
+    tdata = them_d["transit"]
+    transit_key = w.derive_key(APPID+u"/transit-key")
+    transit_receiver.set_transit_key(transit_key)
+    transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
+    transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
+    record_pipe = transit_receiver.connect()
+
+    print("Receiving %d bytes for '%s' (%s).." % (filesize, dirname,
+                                                  transit_receiver.describe()))
+    f = tempfile.SpooledTemporaryFile()
+    received = 0
+    next_update = start_progress(filesize)
+    while received < filesize:
+        try:
+            plaintext = record_pipe.receive_record()
+        except TransitError:
+            print()
+            print("Connection dropped before full file received")
+            print("got %d bytes, wanted %d" % (received, filesize))
+            return 1
+        f.write(plaintext)
+        received += len(plaintext)
+        next_update = update_progress(next_update, received, filesize)
+    finish_progress(filesize)
+    assert received == filesize
+    print("Unpacking zipfile..")
+    with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+        zf.extractall(path=dirname)
+
+    print("Received files written to %s/" % dirname)
+    record_pipe.send_record(b"ok\n")
+    record_pipe.close()
+    return 0
+
 @handle_server_error
 def receive(args):
     # we're receiving text, or a file
@@ -119,6 +202,9 @@ def receive(args):
 
         if "file" in them_d:
             return accept_file(args, them_d, w)
+
+        if "directory" in them_d:
+            return accept_directory(args, them_d, w)
 
         print("I don't know what they're offering\n")
         print("Offer details:", them_d)
