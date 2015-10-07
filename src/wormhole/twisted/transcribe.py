@@ -145,7 +145,7 @@ class Wormhole:
 
     def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
-        self.appid = appid
+        self._appid = appid
         self._relay_url = relay_url
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
         self.code = None
@@ -215,7 +215,7 @@ class Wormhole:
     def _start(self):
         # allocate the rest now too, so it can be serialized
         self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
-                                   idSymmetric=self.appid)
+                                   idSymmetric=self._appid)
         self.msg1 = self.sp.start()
 
     def serialize(self):
@@ -226,7 +226,7 @@ class Wormhole:
         if self._sent_data: raise UsageError
         if self._got_data: raise UsageError
         data = {
-            "appid": self.appid,
+            "appid": self._appid,
             "relay_url": self._relay_url,
             "code": self.code,
             "side": self._side,
@@ -278,7 +278,7 @@ class Wormhole:
         def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
-            self.verifier = self.derive_key(self.appid+b":Verifier")
+            self.verifier = self.derive_key(self._appid+b":Verifier")
             return key
         d.addCallback(_got_pake)
         return d

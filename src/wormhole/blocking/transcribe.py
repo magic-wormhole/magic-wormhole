@@ -131,7 +131,7 @@ class Wormhole:
 
     def __init__(self, appid, relay_url):
         if not isinstance(appid, type(b"")): raise UsageError
-        self.appid = appid
+        self._appid = appid
         self._relay_url = relay_url
         if not self._relay_url.endswith("/"): raise UsageError
         side = hexlify(os.urandom(5)).decode("ascii")
@@ -200,7 +200,7 @@ class Wormhole:
     def _start(self):
         # allocate the rest now too, so it can be serialized
         self.sp = SPAKE2_Symmetric(self.code.encode("ascii"),
-                                   idSymmetric=self.appid)
+                                   idSymmetric=self._appid)
         self.msg1 = self.sp.start()
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
@@ -229,7 +229,7 @@ class Wormhole:
             self.channel.send(u"pake", self.msg1)
             pake_msg = self.channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
-            self.verifier = self.derive_key(self.appid+b":Verifier")
+            self.verifier = self.derive_key(self._appid+b":Verifier")
 
     def get_verifier(self):
         if self.code is None: raise UsageError
