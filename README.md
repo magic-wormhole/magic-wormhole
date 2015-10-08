@@ -22,19 +22,20 @@ and do not need to be memorized.
 * Supplying an SSH public key for future login use
 
 Copying files onto a USB stick requires physical proximity, and is
-uncomfortable for transferring secrets because flash memory is hard to erase.
-Copying files with ssh/scp is fine, but requires previous arrangements and an
-account on the target machine, and how do you bootstrap the account? Copying
-files through email first requires transcribing an email address in the
-opposite direction, and is even worse for secrets, because email is
-unencrypted. Copying files through encrypted email requires bootstrapping a
-GPG key as well as an email address. Copying files through Dropbox is not
-secure against the Dropbox server and results in a large URL that must be
-transcribed.
+uncomfortable for transferring long-term secrets because flash memory is hard
+to erase. Copying files with ssh/scp is fine, but requires previous
+arrangements and an account on the target machine, and how do you bootstrap
+the account? Copying files through email first requires transcribing an email
+address in the opposite direction, and is even worse for secrets, because
+email is unencrypted. Copying files through encrypted email requires
+bootstrapping a GPG key as well as an email address. Copying files through
+Dropbox is not secure against the Dropbox server and results in a large URL
+that must be transcribed. Using a URL shortener adds an extra step and
+reveals the URL to the shortening service.
 
 Many common use cases start with a human-mediated communication channel, such
-as IRC, IM, email, a phone call, or a face-to-face converation. Some of these
-are basically secret, or are "secret enough" to last until the code is
+as IRC, IM, email, a phone call, or a face-to-face conversation. Some of
+these are basically secret, or are "secret enough" to last until the code is
 delivered and used. If this does not feel strong enough, users can turn on
 additional verification that doesn't depend upon the secrecy of the channel.
 
@@ -86,7 +87,7 @@ to use it instead. Code for the Rendezvous Server is included in the library.
 
 The file-transfer commands also use a "Transit Relay", which is another
 simple server that glues together two inbound TCP connections and transfers
-data on each to the other. The `wormhole send-file` mode shares the IP
+data on each to the other. The `wormhole send` file mode shares the IP
 addresses of each client with the other (inside the encrypted message), and
 both clients first attempt to connect directly. If this fails, they fall back
 to using the transit relay. As before, the host/port of a public server is
@@ -98,11 +99,11 @@ provide information about alternatives.
 
 ## CLI tool
 
-* `wormhole send TEXT`
+* `wormhole send --text TEXT`
 * `wormhole send FILENAME`
 * `wormhole receive`
 
-All four commands accept:
+Both commands accept:
 
 * `--relay-url URL` : override the rendezvous server URL
 * `--transit-helper tcp:HOST:PORT`: override the Transit Relay
@@ -125,17 +126,19 @@ attempts them all in parallel. `TransitSender` and `TransitReceiver` are
 distinct, although once the connection is established, data can flow in
 either direction. All data is encrypted (using nacl/libsodium "secretbox")
 using a key derived from the PAKE phase. See
-`src/wormhole/scripts/cmd_send_file.py` for examples.
+`src/wormhole/scripts/cmd_send.py` for examples.
 
 ## License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is intended to be compatible with python2.6, 2.7, 3.3, and 3.4,
-although proper tests have not yet been implemented.
+This library is compatible with python2.6, 2.7, 3.3, 3.4, and 3.5 . The async
+support does not yet work with py3, but will in the future once Twisted
+itself is finished being ported.
 
-It depends upon the SPAKE2, pynacl, requests, and argparse libraries. To run
-a relay server or use the async support, you must also install Twisted.
+This package depends upon the SPAKE2, pynacl, requests, and argparse
+libraries. To run a relay server, use the async support, or run the unit
+tests, you must also install Twisted.
 
 
 #### footnotes
