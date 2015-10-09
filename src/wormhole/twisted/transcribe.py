@@ -133,12 +133,13 @@ class Channel:
         d.addCallback(lambda _: msgs[0])
         return d
 
-    def deallocate(self):
+    def deallocate(self, mood=u"unknown"):
         # only try once, no retries
         d = post_json(self._agent, self._relay_url+"deallocate",
                       {"appid": self._appid,
                        "channelid": self._channelid,
-                       "side": self._side})
+                       "side": self._side,
+                       "mood": mood})
         d.addBoth(lambda _: None) # ignore POST failure
         return d
 

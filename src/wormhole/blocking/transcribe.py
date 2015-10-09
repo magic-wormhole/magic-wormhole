@@ -104,11 +104,12 @@ class Channel:
                 time.sleep(self._wait)
         return body
 
-    def deallocate(self):
+    def deallocate(self, mood=u"unknown"):
         # only try once, no retries
         data = json.dumps({"appid": self._appid,
                            "channelid": self._channelid,
-                           "side": self._side}).encode("utf-8")
+                           "side": self._side,
+                           "mood": mood}).encode("utf-8")
         requests.post(self._relay_url+"deallocate", data=data)
         # ignore POST failure, don't call r.raise_for_status()
 

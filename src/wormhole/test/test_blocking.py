@@ -28,7 +28,8 @@ class Channel(ServerBase, unittest.TestCase):
         def _connected(c):
             self._channel = c
         d.addCallback(_connected)
-        d.addCallback(lambda _: deferToThread(self._channel.deallocate))
+        d.addCallback(lambda _: deferToThread(self._channel.deallocate,
+                                              u"happy"))
         return d
 
     def test_messages(self):
@@ -54,7 +55,7 @@ class Channel(ServerBase, unittest.TestCase):
             self.failUnlessEqual(len(self._relay_server._apps), 1)
         d.addCallback(_not_yet)
         # but deallocating both will make the messages go away
-        d.addCallback(lambda _: deferToThread(c1.deallocate))
+        d.addCallback(lambda _: deferToThread(c1.deallocate, u"sad"))
         def _gone(_):
             self._relay_server.prune()
             self.failUnlessEqual(len(self._relay_server._apps), 0)
