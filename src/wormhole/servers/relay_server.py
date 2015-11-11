@@ -63,6 +63,9 @@ class ChannelLister(resource.Resource):
         self._relay = relay
 
     def render_GET(self, request):
+        if b"appid" not in request.args:
+            e = NeedToUpgradeErrorResource(self._relay.welcome)
+            return e.get_message()
         appid = request.args[b"appid"][0].decode("utf-8")
         #print("LIST", appid)
         app = self._relay.get_app(appid)
@@ -94,6 +97,29 @@ class Allocator(resource.Resource):
         data = {"welcome": self._relay.welcome,
                 "channelid": channelid}
         return (json.dumps(data)+"\n").encode("utf-8")
+
+    def getChild(self, path, req):
+        # wormhole-0.4.0 "send" started with "POST /allocate/SIDE".
+        # wormhole-0.5.0 changed that to "POST /allocate". We catch the old
+        # URL here to deliver a nicer error message (with upgrade
+        # instructions) than an ugly 404.
+        return NeedToUpgradeErrorResource(self._relay.welcome)
+
+class NeedToUpgradeErrorResource(resource.Resource):
+    def __init__(self, welcome):
+        resource.Resource.__init__(self)
+        w = welcome.copy()
+        w["error"] = "Sorry, you must upgrade your client to use this server."
+        message = {"welcome": w}
+        self._message = (json.dumps(message)+"\n").encode("utf-8")
+    def get_message(self):
+        return self._message
+    def render_POST(self, request):
+        return self._message
+    def render_GET(self, request):
+        return self._message
+    def getChild(self, path, req):
+        return self
 
 class Adder(resource.Resource):
     def __init__(self, relay):
@@ -310,6 +336,15 @@ class Relay(resource.Resource, service.MultiService):
         self.putChild(b"add", Adder(self))
         self.putChild(b"get", Getter(self))
         self.putChild(b"deallocate", Deallocator(self))
+
+    def getChild(self, path, req):
+        # 0.4.0 used "POST /CID/SIDE/post/MSGNUM"
+        # 0.5.0 replaced it with "POST /add (json body)"
+        # give a nicer error message to old clients
+        if (len(req.postpath) >= 2
+            and req.postpath[1] in (b"post", b"poll", b"deallocate")):
+            return NeedToUpgradeErrorResource(self.welcome)
+        return resource.NoResource("No such child resource.")
 
     def get_app(self, appid):
         assert isinstance(appid, type(u""))

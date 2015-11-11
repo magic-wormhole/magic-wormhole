@@ -165,6 +165,35 @@ class API(ServerBase, unittest.TestCase):
 
         return d
 
+    UPGRADE_ERROR = "Sorry, you must upgrade your client to use this server."
+    def test_old_allocate(self):
+        # 0.4.0 used "POST /allocate/SIDE".
+        # 0.5.0 replaced it with "POST /allocate".
+        # test that an old client gets a useful error message, not a 404.
+        d = self.post("allocate/abc", {})
+        def _check(data):
+            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
+        d.addCallback(_check)
+        return d
+
+    def test_old_list(self):
+        # 0.4.0 used "GET /list".
+        # 0.5.0 replaced it with "GET /list?appid="
+        d = self.get("list", {}) # no appid
+        def _check(data):
+            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
+        d.addCallback(_check)
+        return d
+
+    def test_old_post(self):
+        # 0.4.0 used "POST /CID/SIDE/post/MSGNUM"
+        # 0.5.0 replaced it with "POST /add (json body)"
+        d = self.post("1/abc/post/pake", {})
+        def _check(data):
+            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
+        d.addCallback(_check)
+        return d
+
     def add_message(self, message, side="abc", phase="1"):
         return self.post("add",
                          {"appid": "app1",
