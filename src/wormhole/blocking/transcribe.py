@@ -168,13 +168,13 @@ def close_on_error(f): # method decorator
             self.close(u"lonely")
             raise
         except WrongPasswordError:
-            self.close(u"scared")
+            self.close(u"scary")
             raise
         except (TypeError, UsageError):
             # preconditions don't warrant _close_with_error()
             raise
         except:
-            self.close(u"other-error")
+            self.close(u"errory")
             raise
     return _f
 
@@ -341,7 +341,7 @@ class Wormhole:
         except CryptoError:
             raise WrongPasswordError
 
-    def close(self, mood=None):
+    def close(self, mood=u"happy"):
         if not isinstance(mood, (type(None), type(u""))):
             raise TypeError(type(mood))
         self._closed = True
