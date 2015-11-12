@@ -106,7 +106,7 @@ class Channel:
                 time.sleep(self._wait)
         return body
 
-    def deallocate(self, mood=u"unknown"):
+    def deallocate(self, mood=None):
         # only try once, no retries
         data = json.dumps({"appid": self._appid,
                            "channelid": self._channelid,
@@ -177,6 +177,7 @@ class Wormhole:
         self.verifier = None
         self._sent_data = set() # phases
         self._got_data = set()
+        self._closed = False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -266,6 +267,7 @@ class Wormhole:
             self.verifier = self.derive_key(u"wormhole:verifier")
 
     def get_verifier(self):
+        if self._closed: raise UsageError
         if self.code is None: raise UsageError
         if self._channel is None: raise UsageError
         self._get_key()
@@ -275,6 +277,7 @@ class Wormhole:
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+        if self._closed: raise UsageError
         if phase in self._sent_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
         if self._channel is None: raise UsageError
@@ -291,6 +294,7 @@ class Wormhole:
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
+        if self._closed: raise UsageError
         if self.code is None: raise UsageError
         if self._channel is None: raise UsageError
         self._got_data.add(phase)
@@ -303,6 +307,9 @@ class Wormhole:
         except CryptoError:
             raise WrongPasswordError
 
-    def close(self):
-        monitor.close(self._channel)
-        self._channel.deallocate()
+    def close(self, mood=None):
+        self._closed = True
+        if self._channel:
+            c, self._channel = self._channel, None
+            monitor.close(c)
+            c.deallocate(mood)
