@@ -156,6 +156,7 @@ class Wormhole:
         side = hexlify(os.urandom(5)).decode("ascii")
         self._channel_manager = ChannelManager(relay_url, appid, side,
                                                self.handle_welcome)
+        self._channel = None
         self.code = None
         self.key = None
         self.verifier = None
@@ -212,8 +213,8 @@ class Wormhole:
             raise ValueError("code (%s) must start with NN-" % code)
         self.code = code
         channelid = int(mo.group(1))
-        self.channel = self._channel_manager.connect(channelid)
-        monitor.add(self.channel)
+        self._channel = self._channel_manager.connect(channelid)
+        monitor.add(self._channel)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -244,14 +245,14 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            self.channel.send(u"pake", self.msg1)
-            pake_msg = self.channel.get(u"pake")
+            self._channel.send(u"pake", self.msg1)
+            pake_msg = self._channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
 
     def get_verifier(self):
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         self._get_key()
         return self.verifier
 
@@ -261,7 +262,7 @@ class Wormhole:
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._sent_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and the Channel automatically
@@ -270,17 +271,17 @@ class Wormhole:
         self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        self.channel.send(phase, outbound_encrypted)
+        self._channel.send(phase, outbound_encrypted)
 
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         self._got_data.add(phase)
         self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-        inbound_encrypted = self.channel.get(phase)
+        inbound_encrypted = self._channel.get(phase)
         try:
             inbound_data = self._decrypt_data(data_key, inbound_encrypted)
             return inbound_data
@@ -288,5 +289,5 @@ class Wormhole:
             raise WrongPasswordError
 
     def close(self):
-        monitor.close(self.channel)
-        self.channel.deallocate()
+        monitor.close(self._channel)
+        self._channel.deallocate()
