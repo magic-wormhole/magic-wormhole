@@ -7,6 +7,7 @@ User-visible changes in "magic-wormhole":
   current (0.5.0) server, instead of an ugly stack trace. Unfortunately 0.4.0
   receivers still display the traceback, since they don't check the welcome
   message before using a missing API.
+* Fix `wormhole send --text -` to read the text message from stdin.
 
 ## Release 0.5.0 (07-Oct-2015)
 

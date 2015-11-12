@@ -68,7 +68,7 @@ p = subparsers.add_parser("send",
                           description="Send text message or file",
                           usage="wormhole send [FILENAME]")
 p.add_argument("--text", metavar="MESSAGE",
-               help="text message to send, instead of a file")
+               help="text message to send, instead of a file. Use '-' to read from stdin.")
 p.add_argument("--code", metavar="CODE", help="human-generated code phrase",
                type=type(u""))
 p.add_argument("-0", dest="zeromode", action="store_true",

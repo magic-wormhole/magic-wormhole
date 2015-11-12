@@ -13,6 +13,9 @@ def send(args):
     assert isinstance(args.relay_url, type(u""))
 
     text = args.text
+    if text == "-":
+        print("Reading text message from stdin..")
+        text = sys.stdin.read()
     if not text and not args.what:
         text = six.moves.input("Text to send: ")
 
