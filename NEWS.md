@@ -1,9 +1,25 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.5.0 (07-Oct-2015)
+
+* Change the CLI to merge send-file with send-text, and receive-file with
+  receive-text. Add confirmation before accepting a file.
+* Change the remote server API significantly, breaking compatibility with
+  0.4.0 peers. Fix EventSource to match W3C spec and real browser behavior.
+* Add py3 (3.3, 3.4, 3.5) compatibility for blocking calls (but not Twisted).
+* internals
+ * Introduce Channel and ChannelManager to factor out the HTTP/EventSource
+   technology in use (making room for WebSocket or Tor in the future).
+ * Change app-visible API to allow multiple message phases.
+ * Change most API arguments from bytes to unicode strings (appid, URLs,
+   wormhole code, derive_key purpose string, message phase). Derived keys are
+   bytes, of course.
+* Add proper unit tests.
+
 ## Release 0.4.0 (22-Sep-2015)
 
-Change the protocol used (to a symmetric form), breaking compatibility with
+This changes the protocol (to a symmetric form), breaking compatibility with
 0.3.0 peers. Now both blocking-style and Twisted-style use a symmetric
 protocol, and the two sides do not need to figure out (ahead of time) which
 one goes first. The internal layout was rearranged, so applications that
