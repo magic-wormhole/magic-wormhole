@@ -203,6 +203,12 @@ class Wormhole:
         self._got_data = set()
         self._closed = False
 
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
             not self.motd_displayed):

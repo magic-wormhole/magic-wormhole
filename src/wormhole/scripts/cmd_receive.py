@@ -12,8 +12,7 @@ def receive(args):
     from .progress import start_progress, update_progress, finish_progress
     assert isinstance(args.relay_url, type(u""))
 
-    if True:
-        w = Wormhole(APPID, args.relay_url)
+    with Wormhole(APPID, args.relay_url) as w:
         if args.zeromode:
             assert not args.code
             args.code = u"0-"
@@ -30,12 +29,10 @@ def receive(args):
             them_bytes = w.get_data()
         except WrongPasswordError as e:
             print("ERROR: " + e.explain(), file=sys.stderr)
-            w.close()
             return 1
         them_d = json.loads(them_bytes.decode("utf-8"))
         if "error" in them_d:
             print("ERROR: " + them_d["error"], file=sys.stderr)
-            w.close()
             return 1
 
         if "message" in them_d:
@@ -43,18 +40,15 @@ def receive(args):
             print(them_d["message"])
             data = json.dumps({"message_ack": "ok"}).encode("utf-8")
             w.send_data(data)
-            w.close()
             return 0
 
         if not "file" in them_d:
             print("I don't know what they're offering\n")
             print(them_d)
-            w.close()
             return 1
 
         if "error" in them_d:
             print("ERROR: " + data["error"], file=sys.stderr)
-            w.close()
             return 1
 
         file_data = them_d["file"]
@@ -68,7 +62,6 @@ def receive(args):
             print("Error: refusing to overwrite existing file %s" % (filename,))
             data = json.dumps({"error": "file already exists"}).encode("utf-8")
             w.send_data(data)
-            w.close()
             return 1
 
         print("Receiving file (%d bytes) into: %s" % (filesize, filename))
@@ -79,7 +72,6 @@ def receive(args):
             print("transfer rejected", file=sys.stderr)
             data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
             w.send_data(data)
-            w.close()
             return 1
 
         transit_receiver = TransitReceiver(args.transit_helper)
@@ -91,7 +83,6 @@ def receive(args):
                 },
             }).encode("utf-8")
         w.send_data(data)
-        w.close()
 
     # now receive the rest of the owl
     tdata = them_d["transit"]

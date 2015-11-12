@@ -46,8 +46,7 @@ def send(args):
                 },
             }
 
-    if True:
-        w = Wormhole(APPID, args.relay_url)
+    with Wormhole(APPID, args.relay_url) as w:
         if args.zeromode:
             assert not args.code
             args.code = u"0-"
@@ -78,7 +77,6 @@ def send(args):
                     reject_data = json.dumps({"error": "verification rejected",
                                               }).encode("utf-8")
                     w.send_data(reject_data)
-                    w.close()
                     return 1
 
         my_phase1_bytes = json.dumps(phase1).encode("utf-8")
@@ -87,30 +85,24 @@ def send(args):
             them_phase1_bytes = w.get_data()
         except WrongPasswordError as e:
             print("ERROR: " + e.explain(), file=sys.stderr)
-            w.close()
             return 1
         them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
 
         if sending_message:
             if them_phase1["message_ack"] == "ok":
                 print("text message sent")
-                w.close()
                 return 0
             print("error sending text: %r" % (them_phase1,))
-            w.close()
             return 1
 
         if "error" in them_phase1:
             print("remote error: %s" % them_phase1["error"])
             print("transfer abandoned")
-            w.close()
             return 1
         if them_phase1.get("file_ack") != "ok":
             print("ambiguous response from remote: %s" % (them_phase1,))
             print("transfer abandoned")
-            w.close()
             return 1
-        w.close()
 
     tdata = them_phase1["transit"]
     transit_key = w.derive_key(APPID+"/transit-key")
