@@ -22,7 +22,7 @@ the second ("receiver") machine. In the "human-generated" variant, the two
 humans come up with the code (possibly without computers), then later
 transcribe it into both machines.
 
-When the initator machine generates the invitation code, the initiator
+When the initiator machine generates the invitation code, the initiator
 contacts the rendezvous server and allocates a "channel ID", which is a small
 integer. The initiator then displays the invitation code, which is the
 channel-ID plus a few secret words. The user copies the code to the second
