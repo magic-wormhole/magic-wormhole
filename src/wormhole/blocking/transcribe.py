@@ -117,8 +117,7 @@ class Channel:
             # short timeout and ignore failures
             requests.post(self._relay_url+"deallocate", data=data,
                           timeout=5)
-        except (requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout):
+        except requests.exceptions.RequestException:
             pass
 
 class ChannelManager:
