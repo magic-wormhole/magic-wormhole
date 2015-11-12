@@ -86,7 +86,7 @@ class Channel:
         while body is None:
             remaining = self._started + self._timeout - time.time()
             if remaining < 0:
-                return Timeout
+                raise Timeout
             queryargs = urlencode([("appid", self._appid),
                                    ("channelid", self._channelid)])
             f = EventSourceFollower(self._relay_url+"get?%s" % queryargs,
