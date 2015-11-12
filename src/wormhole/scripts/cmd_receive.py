@@ -12,85 +12,77 @@ def receive(args):
     from .progress import start_progress, update_progress, finish_progress
     assert isinstance(args.relay_url, type(u""))
 
-    w = Wormhole(APPID, args.relay_url)
-    if args.zeromode:
-        assert not args.code
-        args.code = u"0-"
-    code = args.code
-    if not code:
-        code = w.input_code("Enter receive wormhole code: ", args.code_length)
-    w.set_code(code)
+    with Wormhole(APPID, args.relay_url) as w:
+        if args.zeromode:
+            assert not args.code
+            args.code = u"0-"
+        code = args.code
+        if not code:
+            code = w.input_code("Enter receive wormhole code: ", args.code_length)
+        w.set_code(code)
 
-    if args.verify:
-        verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
-        print("Verifier %s." % verifier)
+        if args.verify:
+            verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
+            print("Verifier %s." % verifier)
 
-    try:
-        them_bytes = w.get_data()
-    except WrongPasswordError as e:
-        print("ERROR: " + e.explain(), file=sys.stderr)
-        w.close()
-        return 1
-    them_d = json.loads(them_bytes.decode("utf-8"))
-    if "error" in them_d:
-        print("ERROR: " + them_d["error"], file=sys.stderr)
-        w.close()
-        return 1
+        try:
+            them_bytes = w.get_data()
+        except WrongPasswordError as e:
+            print("ERROR: " + e.explain(), file=sys.stderr)
+            return 1
+        them_d = json.loads(them_bytes.decode("utf-8"))
+        if "error" in them_d:
+            print("ERROR: " + them_d["error"], file=sys.stderr)
+            return 1
 
-    if "message" in them_d:
-        # we're receiving a text message
-        print(them_d["message"])
-        data = json.dumps({"message_ack": "ok"}).encode("utf-8")
+        if "message" in them_d:
+            # we're receiving a text message
+            print(them_d["message"])
+            data = json.dumps({"message_ack": "ok"}).encode("utf-8")
+            w.send_data(data)
+            return 0
+
+        if not "file" in them_d:
+            print("I don't know what they're offering\n")
+            print(them_d)
+            return 1
+
+        if "error" in them_d:
+            print("ERROR: " + data["error"], file=sys.stderr)
+            return 1
+
+        file_data = them_d["file"]
+        # the basename() is intended to protect us against
+        # "~/.ssh/authorized_keys" and other attacks
+        filename = os.path.basename(file_data["filename"]) # unicode
+        filesize = file_data["filesize"]
+
+        # get confirmation from the user before writing to the local directory
+        if os.path.exists(filename):
+            print("Error: refusing to overwrite existing file %s" % (filename,))
+            data = json.dumps({"error": "file already exists"}).encode("utf-8")
+            w.send_data(data)
+            return 1
+
+        print("Receiving file (%d bytes) into: %s" % (filesize, filename))
+        while True and not args.accept_file:
+            ok = six.moves.input("ok? (y/n): ")
+            if ok.lower().startswith("y"):
+                break
+            print("transfer rejected", file=sys.stderr)
+            data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
+            w.send_data(data)
+            return 1
+
+        transit_receiver = TransitReceiver(args.transit_helper)
+        data = json.dumps({
+            "file_ack": "ok",
+            "transit": {
+                "direct_connection_hints": transit_receiver.get_direct_hints(),
+                "relay_connection_hints": transit_receiver.get_relay_hints(),
+                },
+            }).encode("utf-8")
         w.send_data(data)
-        w.close()
-        return 0
-
-    if not "file" in them_d:
-        print("I don't know what they're offering\n")
-        print(them_d)
-        w.close()
-        return 1
-
-    if "error" in them_d:
-        print("ERROR: " + data["error"], file=sys.stderr)
-        w.close()
-        return 1
-
-    file_data = them_d["file"]
-    # the basename() is intended to protect us against
-    # "~/.ssh/authorized_keys" and other attacks
-    filename = os.path.basename(file_data["filename"]) # unicode
-    filesize = file_data["filesize"]
-
-    # get confirmation from the user before writing to the local directory
-    if os.path.exists(filename):
-        print("Error: refusing to overwrite existing file %s" % (filename,))
-        data = json.dumps({"error": "file already exists"}).encode("utf-8")
-        w.send_data(data)
-        w.close()
-        return 1
-
-    print("Receiving file (%d bytes) into: %s" % (filesize, filename))
-    while True and not args.accept_file:
-        ok = six.moves.input("ok? (y/n): ")
-        if ok.lower().startswith("y"):
-            break
-        print("transfer rejected", file=sys.stderr)
-        data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
-        w.send_data(data)
-        w.close()
-        return 1
-
-    transit_receiver = TransitReceiver(args.transit_helper)
-    data = json.dumps({
-        "file_ack": "ok",
-        "transit": {
-            "direct_connection_hints": transit_receiver.get_direct_hints(),
-            "relay_connection_hints": transit_receiver.get_relay_hints(),
-            },
-        }).encode("utf-8")
-    w.send_data(data)
-    w.close()
 
     # now receive the rest of the owl
     tdata = them_d["transit"]

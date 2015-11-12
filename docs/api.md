@@ -56,6 +56,11 @@ suffer longer invitation codes as a result. To encourage `close()`, the
 library will log an error if a Wormhole object is destroyed before being
 closed.
 
+To make it easier to call `close()`, the blocking Wormhole objects can be
+used as a context manager. Just put your code in the body of a `with
+Wormhole(ARGS) as w:` statement, and `close()` will automatically be called
+when the block exits (either successfully or due to an exception).
+
 ## Examples
 
 The synchronous+blocking flow looks like this:
@@ -64,13 +69,12 @@ The synchronous+blocking flow looks like this:
 from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"initiator's data"
-i = Wormhole(u"appid", RENDEZVOUS_RELAY)
-code = i.get_code()
-print("Invitation Code: %s" % code)
-i.send_data(mydata)
-theirdata = i.get_data()
-i.close()
-print("Their data: %s" % theirdata.decode("ascii"))
+with Wormhole(u"appid", RENDEZVOUS_RELAY) as i:
+    code = i.get_code()
+    print("Invitation Code: %s" % code)
+    i.send_data(mydata)
+    theirdata = i.get_data()
+    print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
 ```python
@@ -79,12 +83,11 @@ from wormhole.blocking.transcribe import Wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"receiver's data"
 code = sys.argv[1]
-r = Wormhole(u"appid", RENDEZVOUS_RELAY)
-r.set_code(code)
-r.send_data(mydata)
-theirdata = r.get_data()
-r.close()
-print("Their data: %s" % theirdata.decode("ascii"))
+with Wormhole(u"appid", RENDEZVOUS_RELAY) as r:
+    r.set_code(code)
+    r.send_data(mydata)
+    theirdata = r.get_data()
+    print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
 ## Twisted

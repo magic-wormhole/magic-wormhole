@@ -30,7 +30,8 @@ def to_bytes(u):
 # all JSON responses include a "welcome:{..}" key
 
 class Channel:
-    def __init__(self, relay_url, appid, channelid, side, handle_welcome):
+    def __init__(self, relay_url, appid, channelid, side, handle_welcome,
+                 wait, timeout):
         self._relay_url = relay_url
         self._appid = appid
         self._channelid = channelid
@@ -39,8 +40,8 @@ class Channel:
         self._messages = set() # (phase,body) , body is bytes
         self._sent_messages = set() # (phase,body)
         self._started = time.time()
-        self._wait = 0.5*SECOND
-        self._timeout = 3*MINUTE
+        self._wait = wait
+        self._timeout = timeout
 
     def _add_inbound_messages(self, messages):
         for msg in messages:
@@ -66,7 +67,8 @@ class Channel:
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
-        r = requests.post(self._relay_url+"add", data=data)
+        r = requests.post(self._relay_url+"add", data=data,
+                          timeout=self._timeout)
         r.raise_for_status()
         resp = r.json()
         self._add_inbound_messages(resp["messages"])
@@ -84,7 +86,7 @@ class Channel:
         while body is None:
             remaining = self._started + self._timeout - time.time()
             if remaining < 0:
-                return Timeout
+                raise Timeout
             queryargs = urlencode([("appid", self._appid),
                                    ("channelid", self._channelid)])
             f = EventSourceFollower(self._relay_url+"get?%s" % queryargs,
@@ -104,25 +106,35 @@ class Channel:
                 time.sleep(self._wait)
         return body
 
-    def deallocate(self, mood=u"unknown"):
+    def deallocate(self, mood=None):
         # only try once, no retries
         data = json.dumps({"appid": self._appid,
                            "channelid": self._channelid,
                            "side": self._side,
                            "mood": mood}).encode("utf-8")
-        requests.post(self._relay_url+"deallocate", data=data)
-        # ignore POST failure, don't call r.raise_for_status()
+        try:
+            # ignore POST failure, don't call r.raise_for_status(), set a
+            # short timeout and ignore failures
+            requests.post(self._relay_url+"deallocate", data=data,
+                          timeout=5)
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout):
+            pass
 
 class ChannelManager:
-    def __init__(self, relay_url, appid, side, handle_welcome):
+    def __init__(self, relay_url, appid, side, handle_welcome,
+                 wait=0.5*SECOND, timeout=3*MINUTE):
         self._relay_url = relay_url
         self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
+        self._wait = wait
+        self._timeout = timeout
 
     def list_channels(self):
         queryargs = urlencode([("appid", self._appid)])
-        r = requests.get(self._relay_url+"list?%s" % queryargs)
+        r = requests.get(self._relay_url+"list?%s" % queryargs,
+                         timeout=self._timeout)
         r.raise_for_status()
         channelids = r.json()["channelids"]
         return channelids
@@ -130,7 +142,8 @@ class ChannelManager:
     def allocate(self):
         data = json.dumps({"appid": self._appid,
                            "side": self._side}).encode("utf-8")
-        r = requests.post(self._relay_url+"allocate", data=data)
+        r = requests.post(self._relay_url+"allocate", data=data,
+                          timeout=self._timeout)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
@@ -140,27 +153,61 @@ class ChannelManager:
 
     def connect(self, channelid):
         return Channel(self._relay_url, self._appid, channelid, self._side,
-                       self._handle_welcome)
+                       self._handle_welcome, self._wait, self._timeout)
+
+def close_on_error(f): # method decorator
+    # Clients report certain errors as "moods", so the server can make a
+    # rough count failed connections (due to mismatched passwords, attacks,
+    # or timeouts). We don't report precondition failures, as those are the
+    # responsibility/fault of the local application code. We count
+    # non-precondition errors in case they represent server-side problems.
+    def _f(self, *args, **kwargs):
+        try:
+            return f(self, *args, **kwargs)
+        except Timeout:
+            self.close(u"lonely")
+            raise
+        except WrongPasswordError:
+            self.close(u"scared")
+            raise
+        except (TypeError, UsageError):
+            # preconditions don't warrant _close_with_error()
+            raise
+        except:
+            self.close(u"other-error")
+            raise
+    return _f
 
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
 
-    def __init__(self, appid, relay_url):
+    def __init__(self, appid, relay_url, wait=0.5*SECOND, timeout=3*MINUTE):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
+        self._wait = wait
+        self._timeout = timeout
         side = hexlify(os.urandom(5)).decode("ascii")
         self._channel_manager = ChannelManager(relay_url, appid, side,
-                                               self.handle_welcome)
+                                               self.handle_welcome,
+                                               self._wait, self._timeout)
+        self._channel = None
         self.code = None
         self.key = None
         self.verifier = None
         self._sent_data = set() # phases
         self._got_data = set()
+        self._closed = False
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -212,8 +259,8 @@ class Wormhole:
             raise ValueError("code (%s) must start with NN-" % code)
         self.code = code
         channelid = int(mo.group(1))
-        self.channel = self._channel_manager.connect(channelid)
-        monitor.add(self.channel)
+        self._channel = self._channel_manager.connect(channelid)
+        monitor.add(self._channel)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -221,6 +268,7 @@ class Wormhole:
                                    idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
+    @close_on_error
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
@@ -244,24 +292,28 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            self.channel.send(u"pake", self.msg1)
-            pake_msg = self.channel.get(u"pake")
+            self._channel.send(u"pake", self.msg1)
+            pake_msg = self._channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
 
+    @close_on_error
     def get_verifier(self):
+        if self._closed: raise UsageError
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         self._get_key()
         return self.verifier
 
+    @close_on_error
     def send_data(self, outbound_data, phase=u"data"):
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+        if self._closed: raise UsageError
         if phase in self._sent_data: raise UsageError # only call this once
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and the Channel automatically
@@ -270,23 +322,30 @@ class Wormhole:
         self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        self.channel.send(phase, outbound_encrypted)
+        self._channel.send(phase, outbound_encrypted)
 
+    @close_on_error
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
+        if self._closed: raise UsageError
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         self._got_data.add(phase)
         self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-        inbound_encrypted = self.channel.get(phase)
+        inbound_encrypted = self._channel.get(phase)
         try:
             inbound_data = self._decrypt_data(data_key, inbound_encrypted)
             return inbound_data
         except CryptoError:
             raise WrongPasswordError
 
-    def close(self):
-        monitor.close(self.channel)
-        self.channel.deallocate()
+    def close(self, mood=None):
+        if not isinstance(mood, (type(None), type(u""))):
+            raise TypeError(type(mood))
+        self._closed = True
+        if self._channel:
+            c, self._channel = self._channel, None
+            monitor.close(c)
+            c.deallocate(mood)
