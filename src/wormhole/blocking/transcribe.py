@@ -30,7 +30,8 @@ def to_bytes(u):
 # all JSON responses include a "welcome:{..}" key
 
 class Channel:
-    def __init__(self, relay_url, appid, channelid, side, handle_welcome):
+    def __init__(self, relay_url, appid, channelid, side, handle_welcome,
+                 wait, timeout):
         self._relay_url = relay_url
         self._appid = appid
         self._channelid = channelid
@@ -39,8 +40,8 @@ class Channel:
         self._messages = set() # (phase,body) , body is bytes
         self._sent_messages = set() # (phase,body)
         self._started = time.time()
-        self._wait = 0.5*SECOND
-        self._timeout = 3*MINUTE
+        self._wait = wait
+        self._timeout = timeout
 
     def _add_inbound_messages(self, messages):
         for msg in messages:
@@ -114,11 +115,14 @@ class Channel:
         # ignore POST failure, don't call r.raise_for_status()
 
 class ChannelManager:
-    def __init__(self, relay_url, appid, side, handle_welcome):
+    def __init__(self, relay_url, appid, side, handle_welcome,
+                 wait=0.5*SECOND, timeout=3*MINUTE):
         self._relay_url = relay_url
         self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
+        self._wait = wait
+        self._timeout = timeout
 
     def list_channels(self):
         queryargs = urlencode([("appid", self._appid)])
@@ -140,22 +144,25 @@ class ChannelManager:
 
     def connect(self, channelid):
         return Channel(self._relay_url, self._appid, channelid, self._side,
-                       self._handle_welcome)
+                       self._handle_welcome, self._wait, self._timeout)
 
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
 
-    def __init__(self, appid, relay_url):
+    def __init__(self, appid, relay_url, wait=0.5*SECOND, timeout=3*MINUTE):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
+        self._wait = wait
+        self._timeout = timeout
         side = hexlify(os.urandom(5)).decode("ascii")
         self._channel_manager = ChannelManager(relay_url, appid, side,
-                                               self.handle_welcome)
+                                               self.handle_welcome,
+                                               self._wait, self._timeout)
         self._channel = None
         self.code = None
         self.key = None
