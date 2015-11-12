@@ -117,7 +117,8 @@ class Channel:
             # short timeout and ignore failures
             requests.post(self._relay_url+"deallocate", data=data,
                           timeout=5)
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout):
             pass
 
 class ChannelManager:
@@ -153,6 +154,29 @@ class ChannelManager:
     def connect(self, channelid):
         return Channel(self._relay_url, self._appid, channelid, self._side,
                        self._handle_welcome, self._wait, self._timeout)
+
+def close_on_error(f): # method decorator
+    # Clients report certain errors as "moods", so the server can make a
+    # rough count failed connections (due to mismatched passwords, attacks,
+    # or timeouts). We don't report precondition failures, as those are the
+    # responsibility/fault of the local application code. We count
+    # non-precondition errors in case they represent server-side problems.
+    def _f(self, *args, **kwargs):
+        try:
+            return f(self, *args, **kwargs)
+        except Timeout:
+            self.close(u"lonely")
+            raise
+        except WrongPasswordError:
+            self.close(u"scared")
+            raise
+        except (TypeError, UsageError):
+            # preconditions don't warrant _close_with_error()
+            raise
+        except:
+            self.close(u"other-error")
+            raise
+    return _f
 
 class Wormhole:
     motd_displayed = False
@@ -238,6 +262,7 @@ class Wormhole:
                                    idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
+    @close_on_error
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
@@ -266,6 +291,7 @@ class Wormhole:
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
 
+    @close_on_error
     def get_verifier(self):
         if self._closed: raise UsageError
         if self.code is None: raise UsageError
@@ -273,6 +299,7 @@ class Wormhole:
         self._get_key()
         return self.verifier
 
+    @close_on_error
     def send_data(self, outbound_data, phase=u"data"):
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
@@ -291,6 +318,7 @@ class Wormhole:
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         self._channel.send(phase, outbound_encrypted)
 
+    @close_on_error
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
@@ -308,6 +336,8 @@ class Wormhole:
             raise WrongPasswordError
 
     def close(self, mood=None):
+        if not isinstance(mood, (type(None), type(u""))):
+            raise TypeError(type(mood))
         self._closed = True
         if self._channel:
             c, self._channel = self._channel, None
