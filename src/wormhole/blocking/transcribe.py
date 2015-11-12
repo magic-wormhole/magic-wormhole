@@ -67,7 +67,8 @@ class Channel:
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
-        r = requests.post(self._relay_url+"add", data=data)
+        r = requests.post(self._relay_url+"add", data=data,
+                          timeout=self._timeout)
         r.raise_for_status()
         resp = r.json()
         self._add_inbound_messages(resp["messages"])
@@ -111,8 +112,13 @@ class Channel:
                            "channelid": self._channelid,
                            "side": self._side,
                            "mood": mood}).encode("utf-8")
-        requests.post(self._relay_url+"deallocate", data=data)
-        # ignore POST failure, don't call r.raise_for_status()
+        try:
+            # ignore POST failure, don't call r.raise_for_status(), set a
+            # short timeout and ignore failures
+            requests.post(self._relay_url+"deallocate", data=data,
+                          timeout=5)
+        except requests.exceptions.Timeout:
+            pass
 
 class ChannelManager:
     def __init__(self, relay_url, appid, side, handle_welcome,
@@ -126,7 +132,8 @@ class ChannelManager:
 
     def list_channels(self):
         queryargs = urlencode([("appid", self._appid)])
-        r = requests.get(self._relay_url+"list?%s" % queryargs)
+        r = requests.get(self._relay_url+"list?%s" % queryargs,
+                         timeout=self._timeout)
         r.raise_for_status()
         channelids = r.json()["channelids"]
         return channelids
@@ -134,7 +141,8 @@ class ChannelManager:
     def allocate(self):
         data = json.dumps({"appid": self._appid,
                            "side": self._side}).encode("utf-8")
-        r = requests.post(self._relay_url+"allocate", data=data)
+        r = requests.post(self._relay_url+"allocate", data=data,
+                          timeout=self._timeout)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
