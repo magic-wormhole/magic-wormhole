@@ -13,15 +13,8 @@ CREATE TABLE `messages`
  `channelid` INTEGER,
  `side` VARCHAR,
  `phase` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
+ -- phase="_allocate" and "_deallocate" are used internally
  `body` VARCHAR,
  `when` INTEGER
 );
 CREATE INDEX `messages_idx` ON `messages` (`appid`, `channelid`);
-
-CREATE TABLE `allocations`
-(
- `appid` VARCHAR,
- `channelid` INTEGER,
- `side` VARCHAR
-);
-CREATE INDEX `allocations_idx` ON `allocations` (`channelid`);
