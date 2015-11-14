@@ -175,28 +175,31 @@ class Deallocator(RelayResource):
             response = {"status": "deleted"}
         return json_response(request, response)
 
-class Channel(resource.Resource):
-    def __init__(self, relay, appid, channelid):
-        resource.Resource.__init__(self)
-        self._relay = relay
+
+
+class Channel:
+    def __init__(self, app, db, welcome, appid, channelid):
+        self._app = app
+        self._db = db
+        self._welcome = welcome
         self._appid = appid
         self._channelid = channelid
         self._listeners = set() # callbacks that take JSONable object
 
     def get_messages(self):
         messages = []
-        db = self._relay.db
+        db = self._db
         for row in db.execute("SELECT * FROM `messages`"
                               " WHERE `appid`=? AND `channelid`=?"
                               " ORDER BY `when` ASC",
                               (self._appid, self._channelid)).fetchall():
             messages.append({"phase": row["phase"], "body": row["body"]})
-        data = {"welcome": self._relay.welcome, "messages": messages}
+        data = {"welcome": self._welcome, "messages": messages}
         return data
 
     def add_listener(self, listener):
         self._listeners.add(listener)
-        db = self._relay.db
+        db = self._db
         for row in db.execute("SELECT * FROM `messages`"
                               " WHERE `appid`=? AND `channelid`=?"
                               " ORDER BY `when` ASC",
@@ -211,7 +214,7 @@ class Channel(resource.Resource):
             listener(data)
 
     def add_message(self, side, phase, body):
-        db = self._relay.db
+        db = self._db
         db.execute("INSERT INTO `messages`"
                    " (`appid`, `channelid`, `side`, `phase`,  `body`, `when`)"
                    " VALUES (?,?,?,?, ?,?)",
@@ -225,15 +228,15 @@ class Channel(resource.Resource):
         self.broadcast_message(phase, body)
         return self.get_messages()
 
-class AppNamespace(resource.Resource):
-    def __init__(self, relay, appid):
-        resource.Resource.__init__(self)
-        self._relay = relay
+class AppNamespace:
+    def __init__(self, db, welcome, appid):
+        self._db = db
+        self._welcome = welcome
         self._appid = appid
         self._channels = {}
 
     def get_allocated(self):
-        db = self._relay.db
+        db = self._db
         c = db.execute("SELECT DISTINCT `channelid` FROM `allocations`"
                        " WHERE `appid`=?", (self._appid,))
         return set([row["channelid"] for row in c.fetchall()])
@@ -255,7 +258,7 @@ class AppNamespace(resource.Resource):
         raise ValueError("unable to find a free channel-id")
 
     def allocate_channel(self, channelid, side):
-        db = self._relay.db
+        db = self._db
         db.execute("INSERT INTO `allocations` VALUES (?,?,?)",
                    (self._appid, channelid, side))
         db.commit()
@@ -264,12 +267,12 @@ class AppNamespace(resource.Resource):
         assert isinstance(channelid, int)
         if not channelid in self._channels:
             log.msg("spawning #%d for appid %s" % (channelid, self._appid))
-            self._channels[channelid] = Channel(self._relay,
+            self._channels[channelid] = Channel(self, self._db, self._welcome,
                                                 self._appid, channelid)
         return self._channels[channelid]
 
     def maybe_free_child(self, channelid, side):
-        db = self._relay.db
+        db = self._db
         db.execute("DELETE FROM `allocations`"
                    " WHERE `appid`=? AND `channelid`=? AND `side`=?",
                    (self._appid, channelid, side))
@@ -283,7 +286,7 @@ class AppNamespace(resource.Resource):
         return True
 
     def _free_child(self, channelid):
-        db = self._relay.db
+        db = self._db
         db.execute("DELETE FROM `allocations`"
                    " WHERE `appid`=? AND `channelid`=?",
                    (self._appid, channelid))
@@ -297,7 +300,7 @@ class AppNamespace(resource.Resource):
                 (channelid, len(self.get_allocated()), len(self._channels)))
 
     def prune_old_channels(self):
-        db = self._relay.db
+        db = self._db
         old = time.time() - CHANNEL_EXPIRATION_TIME
         for channelid in self.get_allocated():
             c = db.execute("SELECT `when` FROM `messages`"
@@ -314,8 +317,8 @@ class Relay(resource.Resource, service.MultiService):
     def __init__(self, db, welcome):
         resource.Resource.__init__(self)
         service.MultiService.__init__(self)
-        self.db = db
-        self.welcome = welcome
+        self._db = db
+        self._welcome = welcome
         self._apps = {}
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune)
         t.setServiceParent(self)
@@ -331,14 +334,14 @@ class Relay(resource.Resource, service.MultiService):
         # give a nicer error message to old clients
         if (len(req.postpath) >= 2
             and req.postpath[1] in (b"post", b"poll", b"deallocate")):
-            return NeedToUpgradeErrorResource(self.welcome)
+            return NeedToUpgradeErrorResource(self._welcome)
         return resource.NoResource("No such child resource.")
 
     def get_app(self, appid):
         assert isinstance(appid, type(u""))
         if not appid in self._apps:
             log.msg("spawning appid %s" % (appid,))
-            self._apps[appid] = AppNamespace(self, appid)
+            self._apps[appid] = AppNamespace(self._db, self._welcome, appid)
         return self._apps[appid]
 
     def prune(self):
