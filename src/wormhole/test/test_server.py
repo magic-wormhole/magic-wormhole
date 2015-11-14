@@ -8,6 +8,7 @@ from twisted.internet.threads import deferToThread
 from twisted.web.client import getPage, Agent, readBody
 from .. import __version__
 from .common import ServerBase
+from ..servers import relay_server
 from ..twisted.eventsource_twisted import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):
@@ -354,3 +355,61 @@ class OneEventAtATime:
     def disconnected(self, why):
         self.disconnected_d.callback((why,))
 
+class Summary(unittest.TestCase):
+    def test_summarize(self):
+        c = relay_server.Channel(None, None, None, None, None)
+        A = relay_server.ALLOCATE
+        D = relay_server.DEALLOCATE
+
+        messages = [{"when": 1, "side": "a", "phase": A}]
+        self.failUnlessEqual(c._summarize(messages, 2),
+                             (1, "lonely", 1, None))
+
+        messages = [{"when": 1, "side": "a", "phase": A},
+                    {"when": 2, "side": "a", "phase": D, "body": "lonely"},
+                    ]
+        self.failUnlessEqual(c._summarize(messages, 3),
+                             (1, "lonely", 2, None))
+
+        messages = [{"when": 1, "side": "a", "phase": A},
+                    {"when": 2, "side": "b", "phase": A},
+                    {"when": 3, "side": "c", "phase": A},
+                    ]
+        self.failUnlessEqual(c._summarize(messages, 4),
+                             (1, "crowded", 3, None))
+
+        base = [{"when": 1, "side": "a", "phase": A},
+                {"when": 2, "side": "a", "phase": "pake", "body": "msg1"},
+                {"when": 10, "side": "b", "phase": "pake", "body": "msg2"},
+                {"when": 11, "side": "b", "phase": "data", "body": "msg3"},
+                {"when": 20, "side": "a", "phase": "data", "body": "msg4"},
+                ]
+        def make_moods(A_mood, B_mood):
+            return base + [
+                {"when": 21, "side": "a", "phase": D, "body": A_mood},
+                {"when": 30, "side": "b", "phase": D, "body": B_mood},
+                ]
+
+        self.failUnlessEqual(c._summarize(make_moods("happy", "happy"), 41),
+                             (1, "happy", 40, 9))
+
+        self.failUnlessEqual(c._summarize(make_moods("scary", "happy"), 41),
+                             (1, "scary", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods("happy", "scary"), 41),
+                             (1, "scary", 40, 9))
+
+        self.failUnlessEqual(c._summarize(make_moods("lonely", "happy"), 41),
+                             (1, "lonely", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods("happy", "lonely"), 41),
+                             (1, "lonely", 40, 9))
+
+        self.failUnlessEqual(c._summarize(make_moods("errory", "happy"), 41),
+                             (1, "errory", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods("happy", "errory"), 41),
+                             (1, "errory", 40, 9))
+
+        # scary trumps other moods
+        self.failUnlessEqual(c._summarize(make_moods("scary", "lonely"), 41),
+                             (1, "scary", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods("scary", "errory"), 41),
+                             (1, "scary", 40, 9))
