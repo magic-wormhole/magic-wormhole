@@ -413,3 +413,13 @@ class Summary(unittest.TestCase):
                              (1, "scary", 40, 9))
         self.failUnlessEqual(c._summarize(make_moods("scary", "errory"), 41),
                              (1, "scary", 40, 9))
+
+        # older clients don't send a mood
+        self.failUnlessEqual(c._summarize(make_moods(None, None), 41),
+                             (1, "quiet", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods(None, "happy"), 41),
+                             (1, "quiet", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods(None, "happy"), 41),
+                             (1, "quiet", 40, 9))
+        self.failUnlessEqual(c._summarize(make_moods(None, "scary"), 41),
+                             (1, "scary", 40, 9))

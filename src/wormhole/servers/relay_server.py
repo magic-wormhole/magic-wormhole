@@ -318,9 +318,9 @@ class Channel:
             return (started, "pruney", total_time, None)
 
         # ok, both sides closed. figure out the mood
-        A_mood = A_deallocs[0]["body"]
-        B_mood = B_deallocs[0]["body"]
-        mood = "errory"
+        A_mood = A_deallocs[0]["body"] # maybe None
+        B_mood = B_deallocs[0]["body"] # maybe None
+        mood = "quiet"
         if A_mood == u"happy" and B_mood == u"happy":
             mood = "happy"
         if A_mood == u"lonely" or B_mood == u"lonely":
