@@ -274,9 +274,72 @@ class Channel:
             return True
         return False
 
+    def _store_summary(self, summary):
+        (started, result, total_time, waiting_time) = summary
+        self._db.execute("INSERT INTO `usage`"
+                         " (`started`, `result`, `total_time`, `waiting_time`)"
+                         " VALUES (?,?,?,?)",
+                         (started, result, total_time, waiting_time))
+        self._db.commit()
+
+    def _summarize(self, messages, delete_time):
+        all_sides = set([m["side"] for m in messages])
+        if len(all_sides) == 0:
+            log.msg("_summarize was given zero messages") # shouldn't happen
+            return
+
+        started = min([m["when"] for m in messages])
+        # 'total_time' is how long the channel was occupied. That ends now,
+        # both for channels that got pruned for inactivity, and for channels
+        # that got pruned because of two DEALLOCATE messages
+        total_time = delete_time - started
+
+        if len(all_sides) == 1:
+            return (started, "lonely", total_time, None)
+        if len(all_sides) > 2:
+            # TODO: it'll be useful to have more detail here
+            return (started, "crowded", total_time, None)
+
+        # exactly two sides were involved
+        A_side = sorted(messages, key=lambda m: m["when"])[0]["side"]
+        B_side = list(all_sides - set([A_side]))[0]
+
+        # How long did the first side wait until the second side showed up?
+        first_A = min([m["when"] for m in messages if m["side"] == A_side])
+        first_B = min([m["when"] for m in messages if m["side"] == B_side])
+        waiting_time = first_B - first_A
+
+        # now, were all sides closed? If not, this is "pruney"
+        A_deallocs = [m for m in messages
+                      if m["phase"] == DEALLOCATE and m["side"] == A_side]
+        B_deallocs = [m for m in messages
+                      if m["phase"] == DEALLOCATE and m["side"] == B_side]
+        if not A_deallocs or not B_deallocs:
+            return (started, "pruney", total_time, None)
+
+        # ok, both sides closed. figure out the mood
+        A_mood = A_deallocs[0]["body"] # maybe None
+        B_mood = B_deallocs[0]["body"] # maybe None
+        mood = "quiet"
+        if A_mood == u"happy" and B_mood == u"happy":
+            mood = "happy"
+        if A_mood == u"lonely" or B_mood == u"lonely":
+            mood = "lonely"
+        if A_mood == u"errory" or B_mood == u"errory":
+            mood = "errory"
+        if A_mood == u"scary" or B_mood == u"scary":
+            mood = "scary"
+        return (started, mood, total_time, waiting_time)
+
     def delete_and_summarize(self):
-        # TODO: summarize usage, write into DB
         db = self._db
+        c = self._db.execute("SELECT * FROM `messages`"
+                             " WHERE `appid`=? AND `channelid`=?"
+                             " ORDER BY `when`",
+                             (self._appid, self._channelid))
+        messages = c.fetchall()
+        summary = self._summarize(messages, time.time())
+        self._store_summary(summary)
         db.execute("DELETE FROM `messages`"
                    " WHERE `appid`=? AND `channelid`=?",
                    (self._appid, self._channelid))
