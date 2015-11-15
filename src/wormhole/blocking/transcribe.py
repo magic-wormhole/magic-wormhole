@@ -135,7 +135,10 @@ class ChannelManager:
         r = requests.get(self._relay_url+"list?%s" % queryargs,
                          timeout=self._timeout)
         r.raise_for_status()
-        channelids = r.json()["channelids"]
+        data = r.json()
+        if "welcome" in data:
+            self._handle_welcome(data["welcome"])
+        channelids = data["channelids"]
         return channelids
 
     def allocate(self):
@@ -241,7 +244,12 @@ class Wormhole:
 
     def input_code(self, prompt="Enter wormhole code: ", code_length=2):
         lister = self._channel_manager.list_channels
-        code = codes.input_code_with_completion(prompt, lister,
+        # fetch the list of channels ahead of time, to give us a chance to
+        # discover the welcome message (and warn the user about an obsolete
+        # client)
+        initial_channelids = lister()
+        code = codes.input_code_with_completion(prompt,
+                                                initial_channelids, lister,
                                                 code_length)
         return code
 

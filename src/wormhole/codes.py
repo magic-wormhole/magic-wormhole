@@ -21,11 +21,19 @@ import readline
 #import sys
 
 class CodeInputter:
-    def __init__(self, get_channel_ids, code_length):
-        self.get_channel_ids = get_channel_ids
+    def __init__(self, initial_channelids, get_channel_ids, code_length):
+        self._initial_channelids = initial_channelids
+        self._get_channel_ids = get_channel_ids
         self.code_length = code_length
         self.last_text = None # memoize for a speedup
         self.last_matches = None
+
+    def get_current_channel_ids(self):
+        if self._initial_channelids is not None:
+            channelids = self._initial_channelids
+            self._initial_channelids = None
+            return channelids
+        return self._get_channel_ids()
 
     def wrap_completer(self, text, state):
         try:
@@ -52,7 +60,7 @@ class CodeInputter:
             #print(" old matches", len(matches), file=sys.stderr)
         else:
             if len(pieces) <= 1:
-                channel_ids = self.get_channel_ids()
+                channel_ids = self.get_current_channel_ids()
                 matches = [str(channel_id) for channel_id in channel_ids
                            if str(channel_id).startswith(last)]
             else:
@@ -76,8 +84,9 @@ class CodeInputter:
         return match
 
 
-def input_code_with_completion(prompt, get_channel_ids, code_length):
-    c = CodeInputter(get_channel_ids, code_length)
+def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
+                               code_length):
+    c = CodeInputter(initial_channelids, get_channel_ids, code_length)
     readline.parse_and_bind("tab: complete")
     readline.set_completer(c.wrap_completer)
     readline.set_completer_delims("")
