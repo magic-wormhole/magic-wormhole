@@ -259,6 +259,9 @@ class Basic(ServerBase, unittest.TestCase):
         d = self.doBoth(w1.get_verifier(), w2.get_verifier())
         d.addCallback(lambda _: w1.send_data(b"data1", phase=u"1"))
         def _sent(res):
+            # underscore-prefixed phases are reserved
+            self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"_1")
+            self.assertRaises(UsageError, w1.get_data, phase=u"_1")
             # you can't send twice to the same phase
             self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"1")
             # but you can send to a different one

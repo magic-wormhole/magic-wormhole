@@ -331,6 +331,7 @@ class Wormhole:
             raise TypeError(type(outbound_data))
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._sent_data: raise UsageError # only call this once
+        if phase.startswith(u"_"): raise UsageError # reserved for internals
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
@@ -349,6 +350,7 @@ class Wormhole:
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if phase in self._got_data: raise UsageError # only call this once
+        if phase.startswith(u"_"): raise UsageError # reserved for internals
         if self.code is None: raise UsageError
         if self.channel is None: raise UsageError
         self._got_data.add(phase)

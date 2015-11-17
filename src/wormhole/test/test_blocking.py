@@ -274,6 +274,9 @@ class Blocking(ServerBase, unittest.TestCase):
         d.addCallback(lambda _:
                       deferToThread(w1.send_data, b"data1", phase=u"1"))
         def _sent(res):
+            # underscore-prefixed phases are reserved
+            self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"_1")
+            self.assertRaises(UsageError, w1.get_data, phase=u"_1")
             # you can't send twice to the same phase
             self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"1")
             # but you can send to a different one
