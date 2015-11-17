@@ -49,10 +49,12 @@ class Channel:
             body = unhexlify(msg["body"].encode("ascii"))
             self._messages.add( (phase, body) )
 
-    def _find_inbound_message(self, phase):
-        for (their_phase,body) in self._messages - self._sent_messages:
-            if their_phase == phase:
-                return body
+    def _find_inbound_message(self, phases):
+        their_messages = self._messages - self._sent_messages
+        for phase in phases:
+            for (their_phase,body) in their_messages:
+                if their_phase == phase:
+                    return (phase, body)
         return None
 
     def send(self, phase, msg):
@@ -73,17 +75,21 @@ class Channel:
         resp = r.json()
         self._add_inbound_messages(resp["messages"])
 
-    def get(self, phase):
-        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+    def get_first_of(self, phases):
+        if not isinstance(phases, (list, set)): raise TypeError(type(phases))
+        for phase in phases:
+            if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+
         # For now, server errors cause the client to fail. TODO: don't. This
         # will require changing the client to re-post messages when the
         # server comes back up.
 
-        # fire with a bytestring of the first message for 'phase' that wasn't
-        # one of ours. It will either come from previously-received messages,
-        # or from an EventSource that we attach to the corresponding URL
-        body = self._find_inbound_message(phase)
-        while body is None:
+        # fire with a bytestring of the first message for any 'phase' that
+        # wasn't one of our own messages. It will either come from
+        # previously-received messages, or from an EventSource that we attach
+        # to the corresponding URL
+        phase_and_body = self._find_inbound_message(phases)
+        while phase_and_body is None:
             remaining = self._started + self._timeout - time.time()
             if remaining < 0:
                 raise Timeout
@@ -98,12 +104,17 @@ class Channel:
                     self._handle_welcome(json.loads(data))
                 if eventtype == "message":
                     self._add_inbound_messages([json.loads(data)])
-                    body = self._find_inbound_message(phase)
-                    if body:
+                    phase_and_body = self._find_inbound_message(phases)
+                    if phase_and_body:
                         f.close()
                         break
-            if not body:
+            if not phase_and_body:
                 time.sleep(self._wait)
+        return phase_and_body
+
+    def get(self, phase):
+        (got_phase, body) = self.get_first_of([phase])
+        assert got_phase == phase
         return body
 
     def deallocate(self, mood=None):

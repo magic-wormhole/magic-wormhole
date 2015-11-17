@@ -63,6 +63,46 @@ class Channel(ServerBase, unittest.TestCase):
 
         return d
 
+    def test_get_multiple_phases(self):
+        cm1 = ChannelManager(self.relayurl, APPID, u"side1", self.ignore)
+        cm2 = ChannelManager(self.relayurl, APPID, u"side2", self.ignore)
+        c1 = cm1.connect(1)
+        c2 = cm2.connect(1)
+
+        self.failUnlessRaises(TypeError, c2.get_first_of, u"phase1")
+        self.failUnlessRaises(TypeError, c2.get_first_of, [u"phase1", 7])
+
+        d = succeed(None)
+        d.addCallback(lambda _: deferToThread(c1.send, u"phase1", b"msg1"))
+
+        d.addCallback(lambda _: deferToThread(c2.get_first_of, [u"phase1",
+                                                                u"phase2"]))
+        d.addCallback(lambda phase_and_body:
+                      self.failUnlessEqual(phase_and_body,
+                                           (u"phase1", b"msg1")))
+        d.addCallback(lambda _: deferToThread(c2.get_first_of, [u"phase2",
+                                                                u"phase1"]))
+        d.addCallback(lambda phase_and_body:
+                      self.failUnlessEqual(phase_and_body,
+                                           (u"phase1", b"msg1")))
+
+        d.addCallback(lambda _: deferToThread(c1.send, u"phase2", b"msg2"))
+        d.addCallback(lambda _: deferToThread(c2.get, u"phase2"))
+
+        # if both are present, it should prefer the first one we asked for
+        d.addCallback(lambda _: deferToThread(c2.get_first_of, [u"phase1",
+                                                                u"phase2"]))
+        d.addCallback(lambda phase_and_body:
+                      self.failUnlessEqual(phase_and_body,
+                                           (u"phase1", b"msg1")))
+        d.addCallback(lambda _: deferToThread(c2.get_first_of, [u"phase2",
+                                                                u"phase1"]))
+        d.addCallback(lambda phase_and_body:
+                      self.failUnlessEqual(phase_and_body,
+                                           (u"phase2", b"msg2")))
+
+        return d
+
     def test_appid_independence(self):
         APPID_A = u"appid_A"
         APPID_B = u"appid_B"

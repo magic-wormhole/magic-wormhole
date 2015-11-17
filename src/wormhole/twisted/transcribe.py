@@ -81,10 +81,12 @@ class Channel:
             body = unhexlify(msg["body"].encode("ascii"))
             self._messages.add( (phase, body) )
 
-    def _find_inbound_message(self, phase):
-        for (their_phase,body) in self._messages - self._sent_messages:
-            if their_phase == phase:
-                return body
+    def _find_inbound_message(self, phases):
+        their_messages = self._messages - self._sent_messages
+        for phase in phases:
+            for (their_phase,body) in their_messages:
+                if their_phase == phase:
+                    return (phase, body)
         return None
 
     def send(self, phase, msg):
@@ -102,14 +104,18 @@ class Channel:
         d.addCallback(lambda resp: self._add_inbound_messages(resp["messages"]))
         return d
 
-    def get(self, phase):
-        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
-        # fire with a bytestring of the first message for 'phase' that wasn't
-        # one of ours. It will either come from previously-received messages,
-        # or from an EventSource that we attach to the corresponding URL
-        body = self._find_inbound_message(phase)
-        if body is not None:
-            return defer.succeed(body)
+    def get_first_of(self, phases):
+        if not isinstance(phases, (list, set)): raise TypeError(type(phases))
+        for phase in phases:
+            if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+
+        # fire with a bytestring of the first message for any 'phase' that
+        # wasn't one of our own messages. It will either come from
+        # previously-received messages, or from an EventSource that we attach
+        # to the corresponding URL
+        phase_and_body = self._find_inbound_message(phases)
+        if phase_and_body is not None:
+            return defer.succeed(phase_and_body)
         d = defer.Deferred()
         msgs = []
         def _handle(name, data):
@@ -117,9 +123,9 @@ class Channel:
                 self._handle_welcome(json.loads(data))
             if name == "message":
                 self._add_inbound_messages([json.loads(data)])
-                body = self._find_inbound_message(phase)
-                if body is not None and not msgs:
-                    msgs.append(body)
+                phase_and_body = self._find_inbound_message(phases)
+                if phase_and_body is not None and not msgs:
+                    msgs.append(phase_and_body)
                     d.callback(None)
         # TODO: use agent=self._agent
         queryargs = urlencode([("appid", self._appid),
@@ -131,6 +137,15 @@ class Channel:
         d.addCallback(lambda _: es.deactivate())
         d.addCallback(lambda _: es.stopService())
         d.addCallback(lambda _: msgs[0])
+        return d
+
+    def get(self, phase):
+        d = self.get_first_of([phase])
+        def _got(res):
+            (got_phase, body) = res
+            assert got_phase == phase
+            return body
+        d.addCallback(_got)
         return d
 
     def deallocate(self, mood=u"unknown"):
