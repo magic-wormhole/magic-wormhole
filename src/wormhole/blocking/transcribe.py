@@ -314,6 +314,8 @@ class Wormhole:
             pake_msg = self._channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
+            conf = self.derive_key(u"wormhole:confirmation")
+            self._channel.send(u"_confirm", conf)
 
     @close_on_error
     def get_verifier(self):

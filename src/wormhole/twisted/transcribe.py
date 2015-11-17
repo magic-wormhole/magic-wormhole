@@ -332,7 +332,10 @@ class Wormhole:
             key = self.sp.finish(pake_msg)
             self.key = key
             self.verifier = self.derive_key(u"wormhole:verifier")
-            return key
+            conf = self.derive_key(u"wormhole:confirmation")
+            d1 = self._channel.send(u"_confirm", conf)
+            d1.addCallback(lambda _: key)
+            return d1
         d.addCallback(_got_pake)
         return d
 
