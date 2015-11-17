@@ -211,6 +211,7 @@ class Wormhole:
         self._side = side
         self._channel_manager = ChannelManager(self._relay_url, self._appid,
                                                self._side, self.handle_welcome)
+        self._channel = None
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -261,8 +262,8 @@ class Wormhole:
             raise ValueError("code (%s) must start with NN-" % code)
         self.code = code
         channelid = int(mo.group(1))
-        self.channel = self._channel_manager.connect(channelid)
-        monitor.add(self.channel)
+        self._channel = self._channel_manager.connect(channelid)
+        monitor.add(self._channel)
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
@@ -325,8 +326,8 @@ class Wormhole:
         # TODO: prevent multiple invocation
         if self.key:
             return defer.succeed(self.key)
-        d = self.channel.send(u"pake", self.msg1)
-        d.addCallback(lambda _: self.channel.get(u"pake"))
+        d = self._channel.send(u"pake", self.msg1)
+        d.addCallback(lambda _: self._channel.get(u"pake"))
         def _got_pake(pake_msg):
             key = self.sp.finish(pake_msg)
             self.key = key
@@ -348,7 +349,7 @@ class Wormhole:
         if phase in self._sent_data: raise UsageError # only call this once
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and the Channel automatically
@@ -358,7 +359,7 @@ class Wormhole:
         def _send(key):
             data_key = self.derive_key(u"wormhole:phase:%s" % phase)
             outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-            return self.channel.send(phase, outbound_encrypted)
+            return self._channel.send(phase, outbound_encrypted)
         d.addCallback(_send)
         return d
 
@@ -367,12 +368,12 @@ class Wormhole:
         if phase in self._got_data: raise UsageError # only call this once
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if self.code is None: raise UsageError
-        if self.channel is None: raise UsageError
+        if self._channel is None: raise UsageError
         self._got_data.add(phase)
         d = self._get_key()
         def _get(key):
             data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-            d1 = self.channel.get(phase)
+            d1 = self._channel.get(phase)
             def _decrypt(inbound_encrypted):
                 try:
                     inbound_data = self._decrypt_data(data_key,
@@ -386,6 +387,6 @@ class Wormhole:
         return d
 
     def close(self, res=None):
-        monitor.close(self.channel)
-        d = self.channel.deallocate()
+        monitor.close(self._channel)
+        d = self._channel.deallocate()
         return d
