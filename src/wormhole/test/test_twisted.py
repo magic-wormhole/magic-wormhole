@@ -256,6 +256,24 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    def test_no_confirm(self):
+        # newer versions (which check confirmations) should will work with
+        # older versions (that don't send confirmations)
+        w1 = Wormhole(APPID, self.relayurl)
+        w1._send_confirm = False
+        w2 = Wormhole(APPID, self.relayurl)
+
+        d = w1.get_code()
+        d.addCallback(lambda code: w2.set_code(code))
+        d.addCallback(lambda _: self.doBoth(w1.send_data(b"data1"),
+                                            w2.get_data()))
+        d.addCallback(lambda dl: self.assertEqual(dl[1], b"data1"))
+        d.addCallback(lambda _: self.doBoth(w1.get_data(),
+                                            w2.send_data(b"data2")))
+        d.addCallback(lambda dl: self.assertEqual(dl[0], b"data2"))
+        d.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
+        return d
+
     def test_verifier(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)

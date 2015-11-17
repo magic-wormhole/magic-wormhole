@@ -194,6 +194,7 @@ def close_on_error(f): # method decorator
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
+    _send_confirm = True
 
     def __init__(self, appid, relay_url, wait=0.5*SECOND, timeout=3*MINUTE):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
@@ -315,6 +316,8 @@ class Wormhole:
             pake_msg = self._channel.get(u"pake")
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
+            if not self._send_confirm:
+                return
             conf = self.derive_key(u"wormhole:confirmation")
             self._channel.send(u"_confirm", conf)
 
