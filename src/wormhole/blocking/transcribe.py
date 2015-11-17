@@ -214,6 +214,7 @@ class Wormhole:
         self.verifier = None
         self._sent_data = set() # phases
         self._got_data = set()
+        self._got_confirmation = False
         self._closed = False
 
     def __enter__(self):
@@ -355,10 +356,20 @@ class Wormhole:
         if self._channel is None: raise UsageError
         self._got_data.add(phase)
         self._get_key()
-        data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-        inbound_encrypted = self._channel.get(phase)
+        phases = []
+        if not self._got_confirmation:
+            phases.append(u"_confirm")
+        phases.append(phase)
+        (got_phase, body) = self._channel.get_first_of(phases)
+        if got_phase == u"_confirm":
+            if body != self.derive_key(u"wormhole:confirmation"):
+                raise WrongPasswordError
+            self._got_confirmation = True
+            (got_phase, body) = self._channel.get_first_of([phase])
+        assert got_phase == phase
         try:
-            inbound_data = self._decrypt_data(data_key, inbound_encrypted)
+            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
+            inbound_data = self._decrypt_data(data_key, body)
             return inbound_data
         except CryptoError:
             raise WrongPasswordError
