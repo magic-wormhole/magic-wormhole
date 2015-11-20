@@ -18,6 +18,11 @@ from ..errors import ServerError, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
 from ..channel_monitor import monitor
 
+CONFMSG_NONCE_LENGTH = 128//8
+CONFMSG_MAC_LENGTH = 256//8
+def make_confmsg(confkey, nonce):
+    return nonce+HKDF(confkey, CONFMSG_MAC_LENGTH, nonce)
+
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
@@ -192,6 +197,7 @@ class ChannelManager:
 class Wormhole:
     motd_displayed = False
     version_warning_displayed = False
+    _send_confirm = True
 
     def __init__(self, appid, relay_url):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
@@ -206,6 +212,7 @@ class Wormhole:
         self._started_get_code = False
         self._sent_data = set() # phases
         self._got_data = set()
+        self._got_confirmation = False
 
     def _set_side(self, side):
         self._side = side
@@ -332,8 +339,12 @@ class Wormhole:
             key = self.sp.finish(pake_msg)
             self.key = key
             self.verifier = self.derive_key(u"wormhole:verifier")
-            conf = self.derive_key(u"wormhole:confirmation")
-            d1 = self._channel.send(u"_confirm", conf)
+            if not self._send_confirm:
+                return key
+            confkey = self.derive_key(u"wormhole:confirmation")
+            nonce = os.urandom(CONFMSG_NONCE_LENGTH)
+            confmsg = make_confmsg(confkey, nonce)
+            d1 = self._channel.send(u"_confirm", confmsg)
             d1.addCallback(lambda _: key)
             return d1
         d.addCallback(_got_pake)
@@ -375,16 +386,32 @@ class Wormhole:
         self._got_data.add(phase)
         d = self._get_key()
         def _get(key):
-            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-            d1 = self._channel.get(phase)
-            def _decrypt(inbound_encrypted):
+            phases = []
+            if not self._got_confirmation:
+                phases.append(u"_confirm")
+            phases.append(phase)
+            d1 = self._channel.get_first_of(phases)
+            def _maybe_got_confirm(phase_and_body):
+                (got_phase, body) = phase_and_body
+                if got_phase == u"_confirm":
+                    confkey = self.derive_key(u"wormhole:confirmation")
+                    nonce = body[:CONFMSG_NONCE_LENGTH]
+                    if body != make_confmsg(confkey, nonce):
+                        raise WrongPasswordError
+                    self._got_confirmation = True
+                    return self._channel.get_first_of([phase])
+                return phase_and_body
+            d1.addCallback(_maybe_got_confirm)
+            def _got(phase_and_body):
+                (got_phase, body) = phase_and_body
+                assert got_phase == phase
                 try:
-                    inbound_data = self._decrypt_data(data_key,
-                                                      inbound_encrypted)
+                    data_key = self.derive_key(u"wormhole:phase:%s" % phase)
+                    inbound_data = self._decrypt_data(data_key, body)
                     return inbound_data
                 except CryptoError:
                     raise WrongPasswordError
-            d1.addCallback(_decrypt)
+            d1.addCallback(_got)
             return d1
         d.addCallback(_get)
         return d

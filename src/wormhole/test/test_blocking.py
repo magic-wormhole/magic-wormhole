@@ -3,7 +3,8 @@ import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from twisted.internet.threads import deferToThread
-from ..blocking.transcribe import Wormhole, UsageError, ChannelManager
+from ..blocking.transcribe import (Wormhole, UsageError, ChannelManager,
+                                   WrongPasswordError)
 from ..blocking.eventsource import EventSourceFollower
 from .common import ServerBase
 
@@ -244,6 +245,53 @@ class Blocking(ServerBase, unittest.TestCase):
             self.assertEqual(dataY, b"data3")
             return self.doBoth([w1.close], [w2.close])
         d.addCallback(_got_2)
+        return d
+
+    def test_wrong_password(self):
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
+
+        # make sure we can detect WrongPasswordError even if one side only
+        # does get_data() and not send_data(), like "wormhole receive" does
+        d = deferToThread(w1.get_code)
+        d.addCallback(lambda code: w2.set_code(code+"not"))
+
+        # w2 can't throw WrongPasswordError until it sees a CONFIRM message,
+        # and w1 won't send CONFIRM until it sees a PAKE message, which w2
+        # won't send until we call get_data. So we need both sides to be
+        # running at the same time for this test.
+        def _w1_sends():
+            w1.send_data(b"data1")
+        def _w2_gets():
+            self.assertRaises(WrongPasswordError, w2.get_data)
+        d.addCallback(lambda _: self.doBoth([_w1_sends], [_w2_gets]))
+
+        # and now w1 should have enough information to throw too
+        d.addCallback(lambda _: deferToThread(self.assertRaises,
+                                              WrongPasswordError, w1.get_data))
+        def _done(_):
+            # both sides are closed automatically upon error, but it's still
+            # legal to call .close(), and should be idempotent
+            return self.doBoth([w1.close], [w2.close])
+        d.addCallback(_done)
+        return d
+
+    def test_no_confirm(self):
+        # newer versions (which check confirmations) should will work with
+        # older versions (that don't send confirmations)
+        w1 = Wormhole(APPID, self.relayurl)
+        w1._send_confirm = False
+        w2 = Wormhole(APPID, self.relayurl)
+
+        d = deferToThread(w1.get_code)
+        d.addCallback(lambda code: w2.set_code(code))
+        d.addCallback(lambda _: self.doBoth([w1.send_data, b"data1"],
+                                            [w2.get_data]))
+        d.addCallback(lambda dl: self.assertEqual(dl[1], b"data1"))
+        d.addCallback(lambda _: self.doBoth([w1.get_data],
+                                            [w2.send_data, b"data2"]))
+        d.addCallback(lambda dl: self.assertEqual(dl[0], b"data2"))
+        d.addCallback(lambda _: self.doBoth([w1.close], [w2.close]))
         return d
 
     def test_verifier(self):
