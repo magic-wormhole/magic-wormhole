@@ -331,7 +331,6 @@ class Wormhole:
         self.msg1 = d["msg1"].decode("hex")
         return self
 
-    #@close_on_error # XXX
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         if self.key is None:

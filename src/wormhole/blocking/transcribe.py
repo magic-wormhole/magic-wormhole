@@ -293,7 +293,6 @@ class Wormhole:
                                    idSymmetric=to_bytes(self._appid))
         self.msg1 = self.sp.start()
 
-    @close_on_error
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         return HKDF(self.key, length, CTXinfo=to_bytes(purpose))
