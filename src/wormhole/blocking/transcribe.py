@@ -16,6 +16,11 @@ from ..channel_monitor import monitor
 SECOND = 1
 MINUTE = 60*SECOND
 
+CONFMSG_NONCE_LENGTH = 128//8
+CONFMSG_MAC_LENGTH = 256//8
+def make_confmsg(confkey, nonce):
+    return nonce+HKDF(confkey, CONFMSG_MAC_LENGTH, nonce)
+
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
@@ -318,8 +323,10 @@ class Wormhole:
             self.verifier = self.derive_key(u"wormhole:verifier")
             if not self._send_confirm:
                 return
-            conf = self.derive_key(u"wormhole:confirmation")
-            self._channel.send(u"_confirm", conf)
+            confkey = self.derive_key(u"wormhole:confirmation")
+            nonce = os.urandom(CONFMSG_NONCE_LENGTH)
+            confmsg = make_confmsg(confkey, nonce)
+            self._channel.send(u"_confirm", confmsg)
 
     @close_on_error
     def get_verifier(self):
@@ -365,7 +372,9 @@ class Wormhole:
         phases.append(phase)
         (got_phase, body) = self._channel.get_first_of(phases)
         if got_phase == u"_confirm":
-            if body != self.derive_key(u"wormhole:confirmation"):
+            confkey = self.derive_key(u"wormhole:confirmation")
+            nonce = body[:CONFMSG_NONCE_LENGTH]
+            if body != make_confmsg(confkey, nonce):
                 raise WrongPasswordError
             self._got_confirmation = True
             (got_phase, body) = self._channel.get_first_of([phase])

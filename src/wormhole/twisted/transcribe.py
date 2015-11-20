@@ -18,6 +18,11 @@ from ..errors import ServerError, WrongPasswordError, UsageError
 from ..util.hkdf import HKDF
 from ..channel_monitor import monitor
 
+CONFMSG_NONCE_LENGTH = 128//8
+CONFMSG_MAC_LENGTH = 256//8
+def make_confmsg(confkey, nonce):
+    return nonce+HKDF(confkey, CONFMSG_MAC_LENGTH, nonce)
+
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
@@ -336,8 +341,10 @@ class Wormhole:
             self.verifier = self.derive_key(u"wormhole:verifier")
             if not self._send_confirm:
                 return key
-            conf = self.derive_key(u"wormhole:confirmation")
-            d1 = self._channel.send(u"_confirm", conf)
+            confkey = self.derive_key(u"wormhole:confirmation")
+            nonce = os.urandom(CONFMSG_NONCE_LENGTH)
+            confmsg = make_confmsg(confkey, nonce)
+            d1 = self._channel.send(u"_confirm", confmsg)
             d1.addCallback(lambda _: key)
             return d1
         d.addCallback(_got_pake)
@@ -387,7 +394,9 @@ class Wormhole:
             def _maybe_got_confirm(phase_and_body):
                 (got_phase, body) = phase_and_body
                 if got_phase == u"_confirm":
-                    if body != self.derive_key(u"wormhole:confirmation"):
+                    confkey = self.derive_key(u"wormhole:confirmation")
+                    nonce = body[:CONFMSG_NONCE_LENGTH]
+                    if body != make_confmsg(confkey, nonce):
                         raise WrongPasswordError
                     self._got_confirmation = True
                     return self._channel.get_first_of([phase])
