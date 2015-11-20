@@ -317,18 +317,20 @@ class Basic(ServerBase, unittest.TestCase):
 
     def test_errors(self):
         w1 = Wormhole(APPID, self.relayurl)
-        self.assertRaises(UsageError, w1.get_verifier)
-        self.assertRaises(UsageError, w1.send_data, b"data")
-        self.assertRaises(UsageError, w1.get_data)
-        w1.set_code(u"123-purple-elephant")
-        self.assertRaises(UsageError, w1.set_code, u"123-nope")
-        self.assertRaises(UsageError, w1.get_code)
-        w2 = Wormhole(APPID, self.relayurl)
-        d = w2.get_code()
-        self.assertRaises(UsageError, w2.get_code)
-        def _got_code(code):
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_got_code)
+        d = self.assertFailure(w1.get_verifier(), UsageError)
+        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data"), UsageError))
+        d.addCallback(lambda _: self.assertFailure(w1.get_data(), UsageError))
+        d.addCallback(lambda _: w1.set_code(u"123-purple-elephant"))
+        # these two UsageErrors are synchronous, although most of the rest are async
+        d.addCallback(lambda _: self.assertRaises(UsageError, w1.set_code, u"123-nope"))
+        d.addCallback(lambda _: self.assertRaises(UsageError, w1.get_code))
+        def _then(_):
+            w2 = Wormhole(APPID, self.relayurl)
+            d2 = w2.get_code()
+            d2.addCallback(lambda _: self.assertRaises(UsageError, w2.get_code))
+            d2.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
+            return d2
+        d.addCallback(_then)
         return d
 
     def test_repeat_phases(self):
@@ -339,27 +341,23 @@ class Basic(ServerBase, unittest.TestCase):
         # we must let them establish a key before we can send data
         d = self.doBoth(w1.get_verifier(), w2.get_verifier())
         d.addCallback(lambda _: w1.send_data(b"data1", phase=u"1"))
-        def _sent(res):
-            # underscore-prefixed phases are reserved
-            self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"_1")
-            self.assertRaises(UsageError, w1.get_data, phase=u"_1")
-            # you can't send twice to the same phase
-            self.assertRaises(UsageError, w1.send_data, b"data1", phase=u"1")
-            # but you can send to a different one
-            return w1.send_data(b"data2", phase=u"2")
-        d.addCallback(_sent)
+        # underscore-prefixed phases are reserved
+        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data1", phase=u"_1"),
+                                                   UsageError))
+        d.addCallback(lambda _: self.assertFailure(w1.get_data(phase=u"_1"), UsageError))
+        # you can't send twice to the same phase
+        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data1", phase=u"1"),
+                                                   UsageError))
+        # but you can send to a different one
+        d.addCallback(lambda _: w1.send_data(b"data2", phase=u"2"))
         d.addCallback(lambda _: w2.get_data(phase=u"1"))
-        def _got1(res):
-            self.failUnlessEqual(res, b"data1")
-            # and you can't read twice from the same phase
-            self.assertRaises(UsageError, w2.get_data, phase=u"1")
-            # but you can read from a different one
-            return w2.get_data(phase=u"2")
-        d.addCallback(_got1)
-        def _got2(res):
-            self.failUnlessEqual(res, b"data2")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_got2)
+        d.addCallback(lambda res: self.failUnlessEqual(res, b"data1"))
+        # and you can't read twice from the same phase
+        d.addCallback(lambda _: self.assertFailure(w2.get_data(phase=u"1"), UsageError))
+        # but you can read from a different one
+        d.addCallback(lambda _: w2.get_data(phase=u"2"))
+        d.addCallback(lambda res: self.failUnlessEqual(res, b"data2"))
+        d.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
         return d
 
     def test_serialize(self):
