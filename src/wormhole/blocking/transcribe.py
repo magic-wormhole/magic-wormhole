@@ -52,31 +52,22 @@ class Channel:
                     return (phase, body)
         return None
 
-    def send(self, phase, body):
-        return self.send_many([(phase, body)])
-
-    def send_many(self, messages):
+    def send(self, phase, msg):
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
-        payload_messages = []
-        for (phase, body) in messages:
-            if not isinstance(phase, type(u"")): raise TypeError(type(phase))
-            if not isinstance(body, type(b"")): raise TypeError(type(body))
-            self._sent_messages.add( (phase,body) )
-            payload_messages.append({"phase": phase,
-                                     "body": hexlify(body).decode("ascii")})
+        if not isinstance(phase, type(u"")): raise TypeError(type(phase))
+        if not isinstance(msg, type(b"")): raise TypeError(type(msg))
+        self._sent_messages.add( (phase,msg) )
         payload = {"appid": self._appid,
                    "channelid": self._channelid,
                    "side": self._side,
-                   "messages": payload_messages,
-                   }
+                   "phase": phase,
+                   "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
-        r = requests.post(self._relay_url+"add_messages", data=data,
+        r = requests.post(self._relay_url+"add", data=data,
                           timeout=self._timeout)
         r.raise_for_status()
         resp = r.json()
-        if "welcome" in resp:
-            self._handle_welcome(resp["welcome"])
         self._add_inbound_messages(resp["messages"])
 
     def get_first_of(self, phases):
@@ -99,15 +90,15 @@ class Channel:
                 raise Timeout
             queryargs = urlencode([("appid", self._appid),
                                    ("channelid", self._channelid)])
-            url = self._relay_url + "watch_messages?%s" % queryargs
-            f = EventSourceFollower(url, remaining)
+            f = EventSourceFollower(self._relay_url+"get?%s" % queryargs,
+                                    remaining)
             # we loop here until the connection is lost, or we see the
             # message we want
             for (eventtype, data) in f.iter_events():
                 if eventtype == "welcome":
                     self._handle_welcome(json.loads(data))
                 if eventtype == "message":
-                    self._add_inbound_messages(json.loads(data))
+                    self._add_inbound_messages([json.loads(data)])
                     phase_and_body = self._find_inbound_message(phases)
                     if phase_and_body:
                         f.close()
