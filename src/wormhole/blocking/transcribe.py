@@ -24,16 +24,6 @@ def make_confmsg(confkey, nonce):
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
-# relay URLs are as follows:   (MESSAGES=[{phase:,body:}..])
-#  GET /list?appid=                                 -> {channelids: [INT..]}
-#  POST /allocate {appid:,side:}                    -> {channelid: INT}
-#   these return all messages (base64) for appid=/channelid= :
-#  POST /add {appid:,channelid:,side:,phase:,body:} -> {messages: MESSAGES}
-#  GET  /get?appid=&channelid= (no-eventsource)     -> {messages: MESSAGES}
-#  GET  /get?appid=&channelid= (eventsource)        -> {phase:, body:}..
-#  POST /deallocate {appid:,channelid:,side:} -> {status: waiting | deleted}
-# all JSON responses include a "welcome:{..}" key
-
 class Channel:
     def __init__(self, relay_url, appid, channelid, side, handle_welcome,
                  wait, timeout):
