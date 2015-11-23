@@ -203,6 +203,15 @@ class API(ServerBase, unittest.TestCase):
                           "phase": phase,
                           "body": message})
 
+    def add_messages(self, messages, side="abc"):
+        return self.post("add_messages",
+                         {"appid": "app1",
+                          "channelid": str(self.cid),
+                          "side": side,
+                          "messages": [{"phase": phase, "body": body}
+                                       for (phase, body) in messages],
+                          })
+
     def parse_messages(self, messages):
         out = set()
         for m in messages:
@@ -271,6 +280,71 @@ class API(ServerBase, unittest.TestCase):
 
         return d
 
+    def test_messages(self):
+        # exercise POST /add_messages and GET /get_messages
+        d = self.post("allocate", {"appid": "app1", "side": "abc"})
+        def _allocated(data):
+            self.cid = data["channelid"]
+        d.addCallback(_allocated)
+
+        d.addCallback(lambda _: self.add_messages([("1", "msg1A")]))
+        def _check1(data):
+            self.check_welcome(data)
+            self.failUnlessEqual(data["messages"],
+                                 [{"phase": "1", "body": "msg1A"}])
+        d.addCallback(_check1)
+        d.addCallback(lambda _: self.get("get_messages", "app1", str(self.cid)))
+        d.addCallback(_check1)
+        d.addCallback(lambda _: self.add_messages([("1", "msg1B")], side="def"))
+        def _check2(data):
+            self.check_welcome(data)
+            self.failUnlessEqual(self.parse_messages(data["messages"]),
+                                 set([("1", "msg1A"),
+                                      ("1", "msg1B")]))
+        d.addCallback(_check2)
+        d.addCallback(lambda _: self.get("get_messages", "app1", str(self.cid)))
+        d.addCallback(_check2)
+
+        # adding a duplicate message is not an error, is ignored by clients
+        d.addCallback(lambda _: self.add_messages([("1", "msg1B")], side="def"))
+        def _check3(data):
+            self.check_welcome(data)
+            self.failUnlessEqual(self.parse_messages(data["messages"]),
+                                 set([("1", "msg1A"),
+                                      ("1", "msg1B")]))
+        d.addCallback(_check3)
+        d.addCallback(lambda _: self.get("get_messages", "app1", str(self.cid)))
+        d.addCallback(_check3)
+
+        d.addCallback(lambda _: self.add_messages([("2", "msg2A")], side="abc"))
+        def _check4(data):
+            self.check_welcome(data)
+            self.failUnlessEqual(self.parse_messages(data["messages"]),
+                                 set([("1", "msg1A"),
+                                      ("1", "msg1B"),
+                                      ("2", "msg2A"),
+                                      ]))
+        d.addCallback(_check4)
+        d.addCallback(lambda _: self.get("get_messages", "app1", str(self.cid)))
+        d.addCallback(_check4)
+
+        d.addCallback(lambda _: self.add_messages([("3", "msg3A"),
+                                                   ("4", "msg4A")], side="abc"))
+        def _check5(data):
+            self.check_welcome(data)
+            self.failUnlessEqual(self.parse_messages(data["messages"]),
+                                 set([("1", "msg1A"),
+                                      ("1", "msg1B"),
+                                      ("2", "msg2A"),
+                                      ("3", "msg3A"),
+                                      ("4", "msg4A"),
+                                      ]))
+        d.addCallback(_check5)
+        d.addCallback(lambda _: self.get("get_messages", "app1", str(self.cid)))
+        d.addCallback(_check5)
+
+        return d
+
     def test_watch_message(self):
         # exercise GET /get (the EventSource version)
         if sys.version_info[0] >= 3:
@@ -311,6 +385,62 @@ class API(ServerBase, unittest.TestCase):
             self.failUnlessEqual(eventtype, "message")
             self.failUnlessEqual(data, {"phase": "2", "body": "msg2A"})
         d.addCallback(_check_msg3)
+
+        d.addCallback(lambda _: self.o.close())
+        d.addCallback(lambda _: self.o.wait_for_disconnection())
+        return d
+
+    def test_watch_messages(self):
+        # exercise GET /watch_messages (the EventSource version)
+        if sys.version_info[0] >= 3:
+            raise unittest.SkipTest("twisted vs py3")
+
+        d = self.post("allocate", {"appid": "app1", "side": "abc"})
+        def _allocated(data):
+            self.cid = data["channelid"]
+            url = self.build_url("watch_messages", "app1", self.cid)
+            self.o = OneEventAtATime(url, parser=json.loads)
+            return self.o.wait_for_connection()
+        d.addCallback(_allocated)
+        d.addCallback(lambda _: self.o.wait_for_next_event())
+        def _check_welcome(ev):
+            eventtype, data = ev
+            self.failUnlessEqual(eventtype, "welcome")
+            self.failUnlessEqual(data, {"current_version": __version__})
+        d.addCallback(_check_welcome)
+        d.addCallback(lambda _: self.add_message("msg1A"))
+        d.addCallback(lambda _: self.o.wait_for_next_event())
+        def _check_msg1(ev):
+            eventtype, data = ev
+            self.failUnlessEqual(eventtype, "message")
+            self.failUnlessEqual(data, [{"phase": "1", "body": "msg1A"}])
+        d.addCallback(_check_msg1)
+
+        d.addCallback(lambda _: self.add_message("msg1B"))
+        d.addCallback(lambda _: self.add_message("msg2A", phase="2"))
+        d.addCallback(lambda _: self.o.wait_for_next_event())
+        def _check_msg2(ev):
+            eventtype, data = ev
+            self.failUnlessEqual(eventtype, "message")
+            self.failUnlessEqual(data, [{"phase": "1", "body": "msg1B"}])
+        d.addCallback(_check_msg2)
+        d.addCallback(lambda _: self.o.wait_for_next_event())
+        def _check_msg3(ev):
+            eventtype, data = ev
+            self.failUnlessEqual(eventtype, "message")
+            self.failUnlessEqual(data, [{"phase": "2", "body": "msg2A"}])
+        d.addCallback(_check_msg3)
+
+        d.addCallback(lambda _: self.add_messages([("2", "msg2B"),
+                                                   ("3", "msg3A")]))
+        d.addCallback(lambda _: self.o.wait_for_next_event())
+        def _check_msg4(ev):
+            eventtype, data = ev
+            self.failUnlessEqual(eventtype, "message")
+            self.failUnlessEqual(data, [{"phase": "2", "body": "msg2B"},
+                                        {"phase": "3", "body": "msg3A"},
+                                        ])
+        d.addCallback(_check_msg4)
 
         d.addCallback(lambda _: self.o.close())
         d.addCallback(lambda _: self.o.wait_for_disconnection())
