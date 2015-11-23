@@ -220,7 +220,8 @@ class API(ServerBase, unittest.TestCase):
         for d in one:
             self.failUnlessIn(d, two)
 
-    def test_messages(self):
+    def test_message(self):
+        # exercise POST /add
         d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
@@ -270,7 +271,8 @@ class API(ServerBase, unittest.TestCase):
 
         return d
 
-    def test_eventsource(self):
+    def test_watch_message(self):
+        # exercise GET /get (the EventSource version)
         if sys.version_info[0] >= 3:
             raise unittest.SkipTest("twisted vs py3")
 
