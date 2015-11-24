@@ -328,6 +328,7 @@ class OneEventAtATime:
     def __init__(self, url, parser=lambda e: e):
         self.parser = parser
         self.d = None
+        self._connected = False
         self.connected_d = defer.Deferred()
         self.disconnected_d = defer.Deferred()
         self.events = []
@@ -358,11 +359,14 @@ class OneEventAtATime:
     def wait_for_connection(self):
         return self.connected_d
     def connected(self):
+        self._connected = True
         self.connected_d.callback(None)
 
     def wait_for_disconnection(self):
         return self.disconnected_d
     def disconnected(self, why):
+        if not self._connected:
+            self.connected_d.errback(why)
         self.disconnected_d.callback((why,))
 
 class Summary(unittest.TestCase):
