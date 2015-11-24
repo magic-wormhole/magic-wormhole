@@ -51,12 +51,14 @@ class EventsProtocol:
 # note: no versions of IE (including the current IE11) support EventSource
 
 # relay URLs are as follows:   (MESSAGES=[{phase:,body:}..])
+# ("-" indicates a deprecated URL)
 #  GET /list?appid=                                 -> {channelids: [INT..]}
 #  POST /allocate {appid:,side:}                    -> {channelid: INT}
 #   these return all messages (base64) for appid=/channelid= :
 #  POST /add {appid:,channelid:,side:,phase:,body:} -> {messages: MESSAGES}
 #  GET  /get?appid=&channelid= (no-eventsource)     -> {messages: MESSAGES}
-#  GET  /get?appid=&channelid= (eventsource)        -> {phase:, body:}..
+#- GET  /get?appid=&channelid= (eventsource)        -> {phase:, body:}..
+#  GET  /watch?appid=&channelid= (eventsource)      -> {phase:, body:}..
 #  POST /deallocate {appid:,channelid:,side:} -> {status: waiting | deleted}
 # all JSON responses include a "welcome:{..}" key
 
@@ -141,7 +143,7 @@ class Adder(RelayResource):
         # 'welcome' and 'messages'
         return json_response(request, response)
 
-class Getter(RelayResource):
+class GetterOrWatcher(RelayResource):
     def render_GET(self, request):
         appid = request.args[b"appid"][0].decode("utf-8")
         channelid = int(request.args[b"channelid"][0])
@@ -152,6 +154,25 @@ class Getter(RelayResource):
         if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
             response = channel.get_messages()
             return json_response(request, response)
+
+        request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
+        ep = EventsProtocol(request)
+        ep.sendEvent(json.dumps(self._welcome), name="welcome")
+        old_events = channel.add_listener(ep.sendEvent)
+        request.notifyFinish().addErrback(lambda f:
+                                          channel.remove_listener(ep.sendEvent))
+        for old_event in old_events:
+            ep.sendEvent(old_event)
+        return server.NOT_DONE_YET
+
+class Watcher(RelayResource):
+    def render_GET(self, request):
+        appid = request.args[b"appid"][0].decode("utf-8")
+        channelid = int(request.args[b"channelid"][0])
+        app = self._relay.get_app(appid)
+        channel = app.get_channel(channelid)
+        if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
+            raise TypeError("/watch is for EventSource only")
 
         request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
         ep = EventsProtocol(request)
@@ -436,7 +457,8 @@ class Relay(resource.Resource, service.MultiService):
         self.putChild(b"list", ChannelLister(self, welcome))
         self.putChild(b"allocate", Allocator(self, welcome))
         self.putChild(b"add", Adder(self, welcome))
-        self.putChild(b"get", Getter(self, welcome))
+        self.putChild(b"get", GetterOrWatcher(self, welcome))
+        self.putChild(b"watch", Watcher(self, welcome))
         self.putChild(b"deallocate", Deallocator(self, welcome))
 
     def getChild(self, path, req):

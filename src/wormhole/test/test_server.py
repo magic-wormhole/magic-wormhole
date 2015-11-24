@@ -273,13 +273,21 @@ class API(ServerBase, unittest.TestCase):
 
     def test_watch_message(self):
         # exercise GET /get (the EventSource version)
+        # this API is scheduled to be removed after 0.6.0
+        return self._do_watch("get")
+
+    def test_watch(self):
+        # exercise GET /watch (the EventSource version)
+        return self._do_watch("watch")
+
+    def _do_watch(self, endpoint_name):
         if sys.version_info[0] >= 3:
             raise unittest.SkipTest("twisted vs py3")
 
         d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]
-            url = self.build_url("get", "app1", self.cid)
+            url = self.build_url(endpoint_name, "app1", self.cid)
             self.o = OneEventAtATime(url, parser=json.loads)
             return self.o.wait_for_connection()
         d.addCallback(_allocated)
