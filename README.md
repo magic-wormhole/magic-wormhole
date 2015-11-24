@@ -112,7 +112,7 @@ Both commands accept:
 * `--relay-url URL` : override the rendezvous server URL
 * `--transit-helper tcp:HOST:PORT`: override the Transit Relay
 * `--code-length WORDS`: use more or fewer than 2 words for the code
-* `--verify` : add extra verification
+* `--verify` : print (and ask user to compare) extra verification string
 
 ## Library
 

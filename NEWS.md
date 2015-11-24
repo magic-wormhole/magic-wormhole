@@ -1,13 +1,25 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release ?? (??)
+## Release 0.6.0 (23-Nov-2015)
 
+* Add key-confirmation message so "wormhole send" doesn't hang when the
+  receiver mistypes the code.
+* Fix `wormhole send --text -` to read the text message from stdin. `wormhole
+  receive >outfile` works, but currently appends an extra newline, which may
+  be removed in a future release.
 * Arrange for 0.4.0 senders to print an error message when connecting to a
   current (0.5.0) server, instead of an ugly stack trace. Unfortunately 0.4.0
   receivers still display the traceback, since they don't check the welcome
-  message before using a missing API.
-* Fix `wormhole send --text -` to read the text message from stdin.
+  message before using a missing API. 0.5.0 and 0.6.0 will do better.
+* Improve channel deallocation upon error.
+* Inform the server of our "mood" when the connection closes, so it can track
+  the rate of successful/unsuccessful transfers. The server DB now stores a
+  summary of each transfer (waiting time and reported outcome).
+* Rename (and deprecate) one server API (the non-EventSource form of "get"),
+  leaving it in place until after the next release. 0.5.0 clients should
+  interoperate with both the 0.6.0 server and 0.6.0 clients, but eventually
+  they'll stop working.
 
 ## Release 0.5.0 (07-Oct-2015)
 
