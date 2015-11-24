@@ -92,7 +92,7 @@ class Channel:
                 raise Timeout
             queryargs = urlencode([("appid", self._appid),
                                    ("channelid", self._channelid)])
-            f = EventSourceFollower(self._relay_url+"get?%s" % queryargs,
+            f = EventSourceFollower(self._relay_url+"watch?%s" % queryargs,
                                     remaining)
             # we loop here until the connection is lost, or we see the
             # message we want
