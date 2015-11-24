@@ -4,7 +4,7 @@ from textwrap import dedent
 from .. import public_relay
 from .. import __version__
 from . import cmd_send, cmd_receive
-from ..servers import cmd_server
+from ..servers import cmd_server, cmd_usage
 
 parser = argparse.ArgumentParser(
     usage="wormhole SUBCOMMAND (subcommand-options)",
@@ -63,6 +63,12 @@ sp_restart.add_argument("--advertise-version", metavar="VERSION",
                         help="version to recommend to clients")
 sp_restart.add_argument("-n", "--no-daemon", action="store_true")
 sp_restart.set_defaults(func=cmd_server.restart_server)
+
+sp_usage = sp.add_parser("show-usage", description="Display usage data",
+                         usage="wormhole server usage")
+sp_usage.add_argument("-n", default=100, type=int, help="show last N entries")
+sp_usage.add_argument("-f", "--follow", action="store_true", help="wait for more usage")
+sp_usage.set_defaults(func=cmd_usage.show_usage)
 
 # CLI: send
 p = subparsers.add_parser("send",
