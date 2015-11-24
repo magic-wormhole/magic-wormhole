@@ -106,6 +106,11 @@ class Channel:
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         d = post_json(self._agent, self._relay_url+"add", payload)
+        def _maybe_handle_welcome(resp):
+            if "welcome" in resp:
+                self._handle_welcome(resp["welcome"])
+            return resp
+        d.addCallback(_maybe_handle_welcome)
         d.addCallback(lambda resp: self._add_inbound_messages(resp["messages"]))
         return d
 

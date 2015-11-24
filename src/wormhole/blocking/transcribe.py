@@ -68,6 +68,8 @@ class Channel:
                           timeout=self._timeout)
         r.raise_for_status()
         resp = r.json()
+        if "welcome" in resp:
+            self._handle_welcome(resp["welcome"])
         self._add_inbound_messages(resp["messages"])
 
     def get_first_of(self, phases):
