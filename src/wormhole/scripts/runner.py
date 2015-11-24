@@ -64,11 +64,15 @@ sp_restart.add_argument("--advertise-version", metavar="VERSION",
 sp_restart.add_argument("-n", "--no-daemon", action="store_true")
 sp_restart.set_defaults(func=cmd_server.restart_server)
 
-sp_usage = sp.add_parser("show-usage", description="Display usage data",
-                         usage="wormhole server usage")
-sp_usage.add_argument("-n", default=100, type=int, help="show last N entries")
-sp_usage.add_argument("-f", "--follow", action="store_true", help="wait for more usage")
-sp_usage.set_defaults(func=cmd_usage.show_usage)
+sp_show_usage = sp.add_parser("show-usage", description="Display usage data",
+                              usage="wormhole server show-usage")
+sp_show_usage.add_argument("-n", default=100, type=int,
+                           help="show last N entries")
+sp_show_usage.set_defaults(func=cmd_usage.show_usage)
+
+sp_tail_usage = sp.add_parser("tail-usage", description="Follow latest usage",
+                              usage="wormhole server tail-usage")
+sp_tail_usage.set_defaults(func=cmd_usage.tail_usage)
 
 # CLI: send
 p = subparsers.add_parser("send",
