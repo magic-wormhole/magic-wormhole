@@ -31,19 +31,20 @@ def send(args):
             return 1
         # we're sending a file
         sending_message = False
-        filesize = os.stat(args.what).st_size
-        basename = os.path.basename(args.what)
-        print("Sending %d byte file named '%s'" % (filesize, basename))
         transit_sender = TransitSender(args.transit_helper)
         phase1 = {
-            "file": {
-                "filename": basename,
-                "filesize": filesize,
-                },
             "transit": {
                 "direct_connection_hints": transit_sender.get_direct_hints(),
                 "relay_connection_hints": transit_sender.get_relay_hints(),
                 },
+            }
+        filesize = os.stat(args.what).st_size
+        basename = os.path.basename(args.what)
+        print("Sending %d byte file named '%s'" % (filesize, basename))
+        fd_to_send = open(args.what, "rb")
+        phase1["file"] = {
+            "filename": basename,
+            "filesize": filesize,
             }
 
     with Wormhole(APPID, args.relay_url) as w:
@@ -114,7 +115,7 @@ def send(args):
     print("Sending (%s).." % transit_sender.describe())
 
     CHUNKSIZE = 64*1024
-    with open(args.what, "rb") as f:
+    with fd_to_send as f:
         sent = 0
         next_update = start_progress(filesize)
         while sent < filesize:
