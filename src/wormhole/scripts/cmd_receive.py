@@ -9,9 +9,12 @@ def accept_file(args, them_d, w):
     from .progress import start_progress, update_progress, finish_progress
 
     file_data = them_d["file"]
-    # the basename() is intended to protect us against
-    # "~/.ssh/authorized_keys" and other attacks
-    filename = os.path.basename(file_data["filename"]) # unicode
+    if args.output_file:
+        filename = args.output_file
+    else:
+        # the basename() is intended to protect us against
+        # "~/.ssh/authorized_keys" and other attacks
+        filename = os.path.basename(file_data["filename"]) # unicode
     filesize = file_data["filesize"]
 
     # get confirmation from the user before writing to the local directory
