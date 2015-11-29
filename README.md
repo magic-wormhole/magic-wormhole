@@ -136,7 +136,8 @@ using a key derived from the PAKE phase. See
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.6, 2.7, 3.3, 3.4, and 3.5 . The async
+This library is compatible with python2.7, 3.3, 3.4, and 3.5 . It is probably
+compatible with py2.6, but the latest Twisted (15.5.0) is not. The async
 support does not yet work with py3, but will in the future once Twisted
 itself is finished being ported.
 
