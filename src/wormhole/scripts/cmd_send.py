@@ -1,12 +1,12 @@
 from __future__ import print_function
-import os, sys, json, binascii, six
+import os, sys, json, binascii, six, tempfile, zipfile
 from ..errors import handle_server_error
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 @handle_server_error
 def send(args):
-    # we're sending text, or a file
+    # we're sending text, or a file/directory
     from ..blocking.transcribe import Wormhole, WrongPasswordError
     from ..blocking.transit import TransitSender
     from .progress import start_progress, update_progress, finish_progress
@@ -26,25 +26,60 @@ def send(args):
             "message": text,
             }
     else:
-        if not os.path.isfile(args.what):
-            print("Cannot send: no file named '%s'" % args.what)
+        if not os.path.exists(args.what):
+            print("Cannot send: no file/directory named '%s'" % args.what)
             return 1
-        # we're sending a file
         sending_message = False
-        filesize = os.stat(args.what).st_size
-        basename = os.path.basename(args.what)
-        print("Sending %d byte file named '%s'" % (filesize, basename))
         transit_sender = TransitSender(args.transit_helper)
         phase1 = {
-            "file": {
-                "filename": basename,
-                "filesize": filesize,
-                },
             "transit": {
                 "direct_connection_hints": transit_sender.get_direct_hints(),
                 "relay_connection_hints": transit_sender.get_relay_hints(),
                 },
             }
+        basename = os.path.basename(args.what)
+        if os.path.isfile(args.what):
+            # we're sending a file
+            filesize = os.stat(args.what).st_size
+            phase1["file"] = {
+                "filename": basename,
+                "filesize": filesize,
+                }
+            print("Sending %d byte file named '%s'" % (filesize, basename))
+            fd_to_send = open(args.what, "rb")
+        elif os.path.isdir(args.what):
+            print("Building zipfile..")
+            # We're sending a directory. Create a zipfile in a tempdir and
+            # send that.
+            fd_to_send = tempfile.SpooledTemporaryFile()
+            # TODO: I think ZIP_DEFLATED means compressed.. check it
+            num_files = 0
+            num_bytes = 0
+            tostrip = len(args.what.split(os.sep))
+            with zipfile.ZipFile(fd_to_send, "w", zipfile.ZIP_DEFLATED) as zf:
+                for path,dirs,files in os.walk(args.what):
+                    # path always starts with args.what, then sometimes might
+                    # have "/subdir" appended. We want the zipfile to contain
+                    # "" or "subdir"
+                    localpath = list(path.split(os.sep)[tostrip:])
+                    for fn in files:
+                        archivename = os.path.join(*tuple(localpath+[fn]))
+                        localfilename = os.path.join(path, fn)
+                        zf.write(localfilename, archivename)
+                        num_bytes += os.stat(localfilename).st_size
+                        num_files += 1
+            fd_to_send.seek(0,2)
+            filesize = fd_to_send.tell()
+            fd_to_send.seek(0,0)
+            phase1["directory"] = {
+                "mode": "zipfile/deflated",
+                "dirname": basename,
+                "zipsize": filesize,
+                "numbytes": num_bytes,
+                "numfiles": num_files,
+                }
+            print("Sending directory (%d bytes compressed) named '%s'"
+                  % (filesize, basename))
 
     with Wormhole(APPID, args.relay_url) as w:
         if args.zeromode:
@@ -114,7 +149,7 @@ def send(args):
     print("Sending (%s).." % transit_sender.describe())
 
     CHUNKSIZE = 64*1024
-    with open(args.what, "rb") as f:
+    with fd_to_send as f:
         sent = 0
         next_update = start_progress(filesize)
         while sent < filesize:
