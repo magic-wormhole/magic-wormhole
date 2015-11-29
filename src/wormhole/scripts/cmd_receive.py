@@ -89,9 +89,12 @@ def accept_directory(args, them_d, w):
         w.send_data(data)
         return 1
 
-    # the basename() is intended to protect us against
-    # "~/.ssh/authorized_keys" and other attacks
-    dirname = os.path.basename(file_data["dirname"]) # unicode
+    if args.output_file:
+        dirname = args.output_file
+    else:
+        # the basename() is intended to protect us against
+        # "~/.ssh/authorized_keys" and other attacks
+        dirname = os.path.basename(file_data["dirname"]) # unicode
     filesize = file_data["zipsize"]
     num_files = file_data["numfiles"]
     num_bytes = file_data["numbytes"]
@@ -154,6 +157,9 @@ def accept_directory(args, them_d, w):
     print("Unpacking zipfile..")
     with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
         zf.extractall(path=dirname)
+        # extractall() appears to offer some protection against malicious
+        # pathnames. For example, "/tmp/oops" and "../tmp/oops" both do the
+        # same thing as the (safe) "tmp/oops".
 
     print("Received files written to %s/" % dirname)
     record_pipe.send_record(b"ok\n")
