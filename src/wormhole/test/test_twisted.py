@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, json
+import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from ..twisted.transcribe import (Wormhole, UsageError, ChannelManager,
@@ -389,7 +389,7 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(_done)
         return d
 
-data1 = u"""\
+data1 = b"""\
 event: welcome
 data: one and a
 data: two
@@ -420,10 +420,9 @@ class EventSourceClient(unittest.TestCase):
                               (u"e2", u"four"),
                               ])
 
-if sys.version_info[0] >= 3:
-    Channel.skip = "twisted is not yet sufficiently ported to py3"
-    Basic.skip = "twisted is not yet sufficiently ported to py3"
-    EventSourceClient.skip = "twisted is not yet sufficiently ported to py3"
-    # as of 15.4.0, Twisted is still missing:
-    # * web.client.Agent (for all non-EventSource POSTs in transcribe.py)
-    # * python.logfile (to allow daemonization of 'wormhole server')
+# new py3 support in 15.5.0: web.client.Agent, w.c.downloadPage, twistd
+
+# However trying 'wormhole server start' with py3/twisted-15.5.0 throws an
+# error in t.i._twistd_unix.UnixApplicationRunner.postApplication, it calls
+# os.write with str, not bytes. This file does not cover that test (testing
+# daemonization is hard).

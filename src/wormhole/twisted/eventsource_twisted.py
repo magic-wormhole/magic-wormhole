@@ -15,7 +15,7 @@ from ..util.eventual import eventually
 
 class EventSourceParser(basic.LineOnlyReceiver):
     # http://www.w3.org/TR/eventsource/
-    delimiter = "\n"
+    delimiter = b"\n"
 
     def __init__(self, handler):
         self.current_field = None
@@ -97,8 +97,8 @@ class EventSource: # TODO: service.Service
         assert not self.started, "single-use"
         self.started = True
         assert self.url
-        d = self.agent.request("GET", self.url.encode("utf-8"),
-                               Headers({"accept": ["text/event-stream"]}))
+        d = self.agent.request(b"GET", self.url.encode("utf-8"),
+                               Headers({b"accept": [b"text/event-stream"]}))
         d.addCallback(self._connected)
         return d
 

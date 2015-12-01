@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, json
+import json
 import requests
 from six.moves.urllib_parse import urlencode
 from twisted.trial import unittest
@@ -14,7 +14,7 @@ from ..twisted.eventsource_twisted import EventSource
 class Reachable(ServerBase, unittest.TestCase):
 
     def test_getPage(self):
-        # client.getPage requires str/unicode URL, returns bytes
+        # client.getPage requires bytes URL, returns bytes
         url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
         d = getPage(url)
         def _got(res):
@@ -23,14 +23,9 @@ class Reachable(ServerBase, unittest.TestCase):
         return d
 
     def test_agent(self):
-        # client.Agent is not yet ported: it wants URLs to be both unicode
-        # and bytes at the same time.
-        # https://twistedmatrix.com/trac/ticket/7407
-        if sys.version_info[0] > 2:
-            raise unittest.SkipTest("twisted.web.client.Agent does not yet support py3")
         url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
         agent = Agent(reactor)
-        d = agent.request("GET", url)
+        d = agent.request(b"GET", url)
         def _check(resp):
             self.failUnlessEqual(resp.code, 200)
             return readBody(resp)
@@ -281,9 +276,6 @@ class API(ServerBase, unittest.TestCase):
         return self._do_watch("watch")
 
     def _do_watch(self, endpoint_name):
-        if sys.version_info[0] >= 3:
-            raise unittest.SkipTest("twisted vs py3")
-
         d = self.post("allocate", {"appid": "app1", "side": "abc"})
         def _allocated(data):
             self.cid = data["channelid"]

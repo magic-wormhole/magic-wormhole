@@ -6,7 +6,7 @@ python:
   - "3.4"
   - "3.5"
 install:
-  - pip install . Twisted pyflakes
+  - pip install . "Twisted>=15.5.0" pyflakes
 script:
   - pyflakes src
   - trial wormhole

@@ -1,5 +1,4 @@
 from __future__ import print_function
-import sys
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults
 from twisted.internet.threads import deferToThread
@@ -56,9 +55,3 @@ class Basic(ServerBase, unittest.TestCase):
             return self.doBoth([bw.close], tw.close())
         d.addCallback(_done)
         return d
-
-if sys.version_info[0] >= 3:
-    Basic.skip = "twisted is not yet sufficiently ported to py3"
-    # as of 15.4.0, Twisted is still missing:
-    # * web.client.Agent (for all non-EventSource POSTs in transcribe.py)
-    # * python.logfile (to allow daemonization of 'wormhole server')

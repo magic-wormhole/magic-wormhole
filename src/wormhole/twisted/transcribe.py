@@ -45,7 +45,7 @@ class DataProducer:
 def post_json(agent, url, request_body):
     # POST a JSON body to a URL, parsing the response as JSON
     data = json.dumps(request_body).encode("utf-8")
-    d = agent.request("POST", url.encode("utf-8"),
+    d = agent.request(b"POST", url.encode("utf-8"),
                       bodyProducer=DataProducer(data))
     def _check_error(resp):
         if resp.code != 200:
@@ -53,19 +53,19 @@ def post_json(agent, url, request_body):
         return resp
     d.addCallback(_check_error)
     d.addCallback(web_client.readBody)
-    d.addCallback(lambda data: json.loads(data))
+    d.addCallback(lambda data: json.loads(data.decode("utf-8")))
     return d
 
 def get_json(agent, url):
     # GET from a URL, parsing the response as JSON
-    d = agent.request("GET", url.encode("utf-8"))
+    d = agent.request(b"GET", url.encode("utf-8"))
     def _check_error(resp):
         if resp.code != 200:
             raise web_error.Error(resp.code, resp.phrase)
         return resp
     d.addCallback(_check_error)
     d.addCallback(web_client.readBody)
-    d.addCallback(lambda data: json.loads(data))
+    d.addCallback(lambda data: json.loads(data.decode("utf-8")))
     return d
 
 class Channel:
@@ -100,6 +100,7 @@ class Channel:
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if not isinstance(msg, type(b"")): raise TypeError(type(msg))
         self._sent_messages.add( (phase,msg) )
+        assert isinstance(self._side, type(u"")), type(self._side)
         payload = {"appid": self._appid,
                    "channelid": self._channelid,
                    "side": self._side,
@@ -321,8 +322,8 @@ class Wormhole:
             "relay_url": self._relay_url,
             "code": self.code,
             "side": self._side,
-            "spake2": json.loads(self.sp.serialize()),
-            "msg1": self.msg1.encode("hex"),
+            "spake2": json.loads(self.sp.serialize().decode("ascii")),
+            "msg1": hexlify(self.msg1).decode("ascii"),
         }
         return json.dumps(data)
 
@@ -330,10 +331,11 @@ class Wormhole:
     def from_serialized(klass, data):
         d = json.loads(data)
         self = klass(d["appid"], d["relay_url"])
-        self._set_side(d["side"].encode("ascii"))
+        self._set_side(d["side"])
         self._set_code_and_channelid(d["code"])
-        self.sp = SPAKE2_Symmetric.from_serialized(json.dumps(d["spake2"]))
-        self.msg1 = d["msg1"].decode("hex")
+        sp_data = json.dumps(d["spake2"]).encode("ascii")
+        self.sp = SPAKE2_Symmetric.from_serialized(sp_data)
+        self.msg1 = unhexlify(d["msg1"].encode("ascii"))
         return self
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
