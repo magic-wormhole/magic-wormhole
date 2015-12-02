@@ -1,5 +1,6 @@
 from __future__ import print_function
 import re
+from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import service
 
@@ -24,27 +25,27 @@ class TransitConnection(protocol.Protocol):
             self.buddy.transport.write(data)
             return
         if self.got_token: # but not yet sent_ok
-            self.transport.write("impatient\n")
-            print("transit impatience failure")
+            self.transport.write(b"impatient\n")
+            log.msg("transit impatience failure")
             return self.disconnect() # impatience yields failure
         # else this should be (part of) the token
         self.token_buffer += data
         buf = self.token_buffer
         wanted = len("please relay \n")+32*2
         if len(buf) < wanted-1 and "\n" in buf:
-            self.transport.write("bad handshake\n")
-            print("transit handshake early failure")
+            self.transport.write(b"bad handshake\n")
+            log.msg("transit handshake early failure")
             return self.disconnect()
         if len(buf) < wanted:
             return
         if len(buf) > wanted:
-            self.transport.write("impatient\n")
-            print("transit impatience failure")
+            self.transport.write(b"impatient\n")
+            log.msg("transit impatience failure")
             return self.disconnect() # impatience yields failure
-        mo = re.search(r"^please relay (\w{64})\n", buf, re.M)
+        mo = re.search(br"^please relay (\w{64})\n", buf, re.M)
         if not mo:
-            self.transport.write("bad handshake\n")
-            print("transit handshake failure")
+            self.transport.write(b"bad handshake\n")
+            log.msg("transit handshake failure")
             return self.disconnect() # incorrectness yields failure
         token = mo.group(1)
 
@@ -58,12 +59,12 @@ class TransitConnection(protocol.Protocol):
         # TODO: connect as producer/consumer
 
     def buddy_disconnected(self):
-        print("buddy_disconnected %r" % self)
+        log.msg("buddy_disconnected %r" % self)
         self.buddy = None
         self.transport.loseConnection()
 
     def connectionLost(self, reason):
-        print("connectionLost %r %s" % (self, reason))
+        log.msg("connectionLost %r %s" % (self, reason))
         if self.buddy:
             self.buddy.buddy_disconnected()
         self.factory.transitFinished(self, self.total_sent)
@@ -106,7 +107,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
 
     def connection_got_token(self, token, p):
         if token in self.pending_requests:
-            print("transit relay 2: %r" % token)
+            log.msg("transit relay 2: %r" % token)
             buddy = self.pending_requests.pop(token)
             self.active_connections.add(p)
             self.active_connections.add(buddy)
@@ -114,10 +115,10 @@ class Transit(protocol.ServerFactory, service.MultiService):
             buddy.buddy_connected(p)
         else:
             self.pending_requests[token] = p
-            print("transit relay 1: %r" % token)
+            log.msg("transit relay 1: %r" % token)
             # TODO: timer
     def transitFinished(self, p, total_sent):
-        print("transitFinished (%dB) %r" % (total_sent, p))
+        log.msg("transitFinished (%dB) %r" % (total_sent, p))
         for token,tc in self.pending_requests.items():
             if tc is p:
                 del self.pending_requests[token]
@@ -125,5 +126,5 @@ class Transit(protocol.ServerFactory, service.MultiService):
         self.active_connections.discard(p)
 
     def transitFailed(self, p):
-        print("transitFailed %r" % p)
+        log.msg("transitFailed %r" % p)
         pass
