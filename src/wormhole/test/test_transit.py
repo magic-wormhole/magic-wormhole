@@ -36,8 +36,8 @@ class Transit(ServerBase, unittest.TestCase):
         a2 = yield connectProtocol(ep, Accumulator())
 
         token1 = b"\x00"*32
-        a1.transport.write(b"please relay %s\n" % hexlify(token1))
-        a2.transport.write(b"please relay %s\n" % hexlify(token1))
+        a1.transport.write(b"please relay " + hexlify(token1) + b"\n")
+        a2.transport.write(b"please relay " + hexlify(token1) + b"\n")
 
         # a correct handshake yields an ack, after which we can send
         exp = b"ok\n"
@@ -66,7 +66,7 @@ class Transit(ServerBase, unittest.TestCase):
         token1 = b"\x00"*32
         # the server waits for the exact number of bytes in the expected
         # handshake message. to trigger "bad handshake", we must match.
-        a1.transport.write(b"please DELAY %s\n" % hexlify(token1))
+        a1.transport.write(b"please DELAY " + hexlify(token1) + b"\n")
 
         exp = b"bad handshake\n"
         yield a1.waitForBytes(len(exp))
@@ -81,7 +81,7 @@ class Transit(ServerBase, unittest.TestCase):
 
         token1 = b"\x00"*32
         # sending too many bytes is impatience.
-        a1.transport.write(b"please RELAY NOWNOW %s\n" % hexlify(token1))
+        a1.transport.write(b"please RELAY NOWNOW " + hexlify(token1) + b"\n")
 
         exp = b"impatient\n"
         yield a1.waitForBytes(len(exp))
