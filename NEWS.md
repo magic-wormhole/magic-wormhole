@@ -1,6 +1,24 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release ?? (??)
+
+* `wormhole` can now send/receive entire directories. They are zipped before
+  transport.
+* Python 3 is now supported for async (Twisted) library use, requiring at
+  least Twisted-15.5.0.
+* A bug was fixed which prevented py3-based clients from using the relay
+  transit server (not used if the two sides can reach each other directly).
+* The `--output-file=` argument was finally implemented, which allows the
+  receiver to override the filename that it writes. This may help scripted
+  usage.
+* Support for Python-2.6 was removed, since the recent Twisted-15.5.0 removed
+  it too. It might still work, but is no longer automatically tested.
+* The transit relay now implements proper flow control (Producer/Consumer),
+  so it won't buffer the entire file when the sender can push data faster
+  than the receiver can accept it. The sender should now throttle down to the
+  receiver's maximum rate.
+
 ## Release 0.6.0 (23-Nov-2015)
 
 * Add key-confirmation message so "wormhole send" doesn't hang when the
