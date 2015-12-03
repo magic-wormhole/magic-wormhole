@@ -70,11 +70,12 @@ def send_to(skt, data):
         sent += skt.send(data[sent:])
 
 def wait_for(skt, expected, description):
+    assert isinstance(expected, type(b""))
     got = b""
     while len(got) < len(expected):
         got += skt.recv(1)
         if expected[:len(got)] != got:
-            raise BadHandshake("got '%r' want '%r' on %s" %
+            raise BadHandshake("got %r want %r on %s" %
                                (got, expected, description))
 
 # The hint format is: TYPE,VALUE= /^([a-zA-Z0-9]+):(.*)$/ . VALUE depends
@@ -130,13 +131,13 @@ def connector(owner, hint, description,
         if relay_handshake:
             debug(" - sending relay_handshake")
             send_to(skt, relay_handshake)
-            wait_for(skt, "ok\n", description)
+            wait_for(skt, b"ok\n", description)
             debug(" - relay ready CT+%.1f" % (since(start),))
         send_to(skt, send_handshake)
         wait_for(skt, expected_handshake, description)
         debug(" + connector(%s) ready CT+%.1f" % (hint, since(start)))
     except Exception as e:
-        debug(" - timeout(%s) CT+%.1f" % (hint, since(start)))
+        debug(" - error(%s)(%r) CT+%.1f" % (hint, e, since(start)))
         try:
             if skt:
                 skt.shutdown(socket.SHUT_WR)
