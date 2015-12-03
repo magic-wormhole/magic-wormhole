@@ -348,12 +348,18 @@ class Common:
 
     def _start_outbound(self):
         self._active_connectors = set(self._their_direct_hints)
+        self._attempted_connectors = set()
         for hint in self._their_direct_hints:
             self._start_connector(hint)
         if not self._their_direct_hints:
             self._start_relay_connectors()
 
     def _start_connector(self, hint, is_relay=False):
+        # Don't try any hint more than once. If all hints fail, we'll
+        # eventually timeout. We make no attempt to fail any faster.
+        if hint in self._attempted_connectors:
+            return
+        self._attempted_connectors.add(hint)
         description = "->%s" % (hint,)
         if is_relay:
             description = "->relay:%s" % (hint,)
