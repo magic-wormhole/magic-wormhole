@@ -5,9 +5,10 @@ Get things from one computer to another, safely.
 
 This package provides a library and a command-line tool named `wormhole`,
 which makes it possible to get short pieces of text (and arbitrary-sized
-files) from one computer to another. The two endpoints are identified by
-using identical "wormhole codes": in general, the sending machine generates
-and displays the code, which must then be typed into the receiving machine.
+files and directories) from one computer to another. The two endpoints are
+identified by using identical "wormhole codes": in general, the sending
+machine generates and displays the code, which must then be typed into the
+receiving machine.
 
 The codes are short and human-pronounceable, using a phonetically-distinct
 wordlist. The receiving side offers tab-completion on the codewords, so
@@ -105,6 +106,7 @@ provide information about alternatives.
 
 * `wormhole send --text TEXT`
 * `wormhole send FILENAME`
+* `wormhole send DIRNAME`
 * `wormhole receive`
 
 Both commands accept:
