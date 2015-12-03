@@ -1,11 +1,12 @@
 from __future__ import print_function
 import json
 from twisted.trial import unittest
-from twisted.internet.defer import gatherResults, succeed
+from twisted.internet.defer import gatherResults, succeed, inlineCallbacks
 from twisted.internet.threads import deferToThread
 from ..blocking.transcribe import (Wormhole, UsageError, ChannelManager,
                                    WrongPasswordError)
 from ..blocking.eventsource import EventSourceFollower
+from ..blocking.transit import TransitSender, TransitReceiver
 from .common import ServerBase
 
 APPID = u"appid"
@@ -125,11 +126,7 @@ class Channel(ServerBase, unittest.TestCase):
         d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1b"))
         return d
 
-
-class Blocking(ServerBase, unittest.TestCase):
-    # we need Twisted to run the server, but we run the sender and receiver
-    # with deferToThread()
-
+class _DoBothMixin:
     def doBoth(self, call1, call2):
         f1 = call1[0]
         f1args = call1[1:]
@@ -137,6 +134,10 @@ class Blocking(ServerBase, unittest.TestCase):
         f2args = call2[1:]
         return gatherResults([deferToThread(f1, *f1args),
                               deferToThread(f2, *f2args)], True)
+
+class Blocking(_DoBothMixin, ServerBase, unittest.TestCase):
+    # we need Twisted to run the server, but we run the sender and receiver
+    # with deferToThread()
 
     def test_basic(self):
         w1 = Wormhole(APPID, self.relayurl)
@@ -444,3 +445,66 @@ class EventSourceClient(unittest.TestCase):
                               (u"message", u"three"),
                               (u"e2", u"four"),
                               ])
+
+class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
+    @inlineCallbacks
+    def test_direct_to_receiver(self):
+        s = TransitSender(self.transit)
+        r = TransitReceiver(self.transit)
+        key = b"\x00"*32
+
+        # force the connection to be sender->receiver
+        s.set_transit_key(key)
+        s.add_their_direct_hints(r.get_direct_hints())
+        s.add_their_relay_hints([])
+        r.set_transit_key(key)
+        r.add_their_direct_hints([])
+        r.add_their_relay_hints([])
+
+        (sp, rp) = yield self.doBoth([s.connect], [r.connect])
+        yield deferToThread(sp.send_record, b"01234")
+        rec = yield deferToThread(rp.receive_record)
+        self.assertEqual(rec, b"01234")
+        yield deferToThread(sp.close)
+        yield deferToThread(rp.close)
+
+    @inlineCallbacks
+    def test_direct_to_sender(self):
+        s = TransitSender(self.transit)
+        r = TransitReceiver(self.transit)
+        key = b"\x00"*32
+
+        # force the connection to be receiver->sender
+        s.set_transit_key(key)
+        s.add_their_direct_hints([])
+        s.add_their_relay_hints([])
+        r.set_transit_key(key)
+        r.add_their_direct_hints(s.get_direct_hints())
+        r.add_their_relay_hints([])
+
+        (sp, rp) = yield self.doBoth([s.connect], [r.connect])
+        yield deferToThread(sp.send_record, b"01234")
+        rec = yield deferToThread(rp.receive_record)
+        self.assertEqual(rec, b"01234")
+        yield deferToThread(sp.close)
+        yield deferToThread(rp.close)
+
+    @inlineCallbacks
+    def test_relay(self):
+        s = TransitSender(self.transit)
+        r = TransitReceiver(self.transit)
+        key = b"\x00"*32
+        # force the connection to use the relay by not revealing direct hints
+        s.set_transit_key(key)
+        s.add_their_direct_hints([])
+        s.add_their_relay_hints(r.get_relay_hints())
+        r.set_transit_key(key)
+        r.add_their_direct_hints([])
+        r.add_their_relay_hints(s.get_relay_hints())
+
+        (sp, rp) = yield self.doBoth([s.connect], [r.connect])
+        yield deferToThread(sp.send_record, b"01234")
+        rec = yield deferToThread(rp.receive_record)
+        self.assertEqual(rec, b"01234")
+        yield deferToThread(sp.close)
+        yield deferToThread(rp.close)
