@@ -20,7 +20,12 @@ class TransitConnection(protocol.Protocol):
 
     def dataReceived(self, data):
         if self.sent_ok:
-            # TODO: connect as producer/consumer
+            # We are an IPushProducer to our buddy's IConsumer, so they'll
+            # throttle us (by calling pauseProducing()) when their outbound
+            # buffer is full (e.g. when their downstream pipe is full). In
+            # practice, this buffers about 10MB per connection, after which
+            # point the sender will only transmit data as fast as the
+            # receiver can handle it.
             self.total_sent += len(data)
             self.buddy.transport.write(data)
             return
@@ -56,7 +61,12 @@ class TransitConnection(protocol.Protocol):
         self.buddy = them
         self.transport.write(b"ok\n")
         self.sent_ok = True
-        # TODO: connect as producer/consumer
+        # Connect the two as a producer/consumer pair. We use streaming=True,
+        # so this expects the IPushProducer interface, and uses
+        # pauseProducing() to throttle, and resumeProducing() to unthrottle.
+        self.buddy.transport.registerProducer(self.transport, True)
+        # The Transit object calls buddy_connected() on both protocols, so
+        # there will be two producer/consumer pairs.
 
     def buddy_disconnected(self):
         log.msg("buddy_disconnected %r" % self)
