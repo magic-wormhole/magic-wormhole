@@ -1,7 +1,7 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release ?? (??)
+## Release 0.6.1 (03-Dec-2015)
 
 * `wormhole` can now send/receive entire directories. They are zipped before
   transport.
