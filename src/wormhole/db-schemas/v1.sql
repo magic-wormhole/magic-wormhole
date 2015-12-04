@@ -21,14 +21,17 @@ CREATE INDEX `messages_idx` ON `messages` (`appid`, `channelid`);
 
 CREATE TABLE `usage`
 (
+ `type` VARCHAR, -- "rendezvous"
  `started` INTEGER, -- seconds since epoch, rounded to one day
  `result` VARCHAR, -- happy, scary, lonely, errory, pruney
- -- "happy": both sides close with mood=happy
- -- "scary": any side closes with mood=scary (bad MAC, probably wrong pw)
- -- "lonely": any side closes with mood=lonely (no response from 2nd side)
- -- "errory": any side closes with mood=errory (other errors)
- -- "pruney": channels which get pruned for inactivity
- -- "crowded": three or more sides were involved
+ -- rendezvous moods:
+ --  "happy": both sides close with mood=happy
+ --  "scary": any side closes with mood=scary (bad MAC, probably wrong pw)
+ --  "lonely": any side closes with mood=lonely (no response from 2nd side)
+ --  "errory": any side closes with mood=errory (other errors)
+ --  "pruney": channels which get pruned for inactivity
+ --  "crowded": three or more sides were involved
+ `total_bytes` INTEGER, -- not yet used
  `total_time` INTEGER, -- seconds from start to closed, or None
  `waiting_time` INTEGER -- seconds from start to 2nd side appearing, or None
 );

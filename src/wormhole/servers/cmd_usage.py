@@ -32,8 +32,9 @@ def show_usage(args):
     newest = None
     counters = defaultdict(int)
     db = get_db("relay.sqlite")
-    c = db.execute("SELECT * FROM `usage` ORDER BY `started` ASC LIMIT ?",
-                   (args.n,))
+    c = db.execute("SELECT * FROM `usage` WHERE `type`=?"
+                   " ORDER BY `started` ASC LIMIT ?",
+                   (u"rendezvous", args.n))
     for row in c.fetchall():
         counters["total"] += 1
         counters[row["result"]] += 1
@@ -65,8 +66,9 @@ def tail_usage(args):
     seen = set()
     while True:
         old = time.time() - 2*60*60
-        c = db.execute("SELECT * FROM `usage` WHERE `started` > ?"
-                       " ORDER BY `started` ASC", (old,))
+        c = db.execute("SELECT * FROM `usage`"
+                       " WHERE `type`=? AND `started` > ?"
+                       " ORDER BY `started` ASC", (u"rendezvous", old))
         for row in c.fetchall():
             event = (row["started"], row["result"],
                      row["waiting_time"], row["total_time"])
