@@ -19,6 +19,11 @@ class TransitConnection(protocol.Protocol):
         self._had_buddy = False
         self._total_sent = 0
 
+    def describeToken(self):
+        if self._got_token:
+            return self._got_token[:16].decode("ascii")
+        return "-"
+
     def connectionMade(self):
         self._started = time.time()
 
@@ -60,7 +65,7 @@ class TransitConnection(protocol.Protocol):
             return self.disconnect() # incorrectness yields failure
         token = mo.group(1)
 
-        self._got_token = True
+        self._got_token = token
         self.factory.connection_got_token(token, self)
 
     def buddy_connected(self, them):
@@ -76,15 +81,15 @@ class TransitConnection(protocol.Protocol):
         # there will be two producer/consumer pairs.
 
     def buddy_disconnected(self):
-        log.msg("buddy_disconnected %r" % self)
+        log.msg("buddy_disconnected %s" % self.describeToken())
         self._buddy = None
         self.transport.loseConnection()
 
     def connectionLost(self, reason):
-        log.msg("connectionLost %r %s" % (self, reason))
         if self._buddy:
             self._buddy.buddy_disconnected()
-        self.factory.transitFinished(self)
+        self.factory.transitFinished(self, self._got_token,
+                                     self.describeToken())
 
         # Record usage. There are four cases:
         # * 1: we connected, never had a buddy
@@ -151,7 +156,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
 
     def connection_got_token(self, token, p):
         if token in self._pending_requests:
-            log.msg("transit relay 2: %r" % token)
+            log.msg("transit relay 2: %s" % p.describeToken())
             buddy = self._pending_requests.pop(token)
             self._active_connections.add(p)
             self._active_connections.add(buddy)
@@ -159,7 +164,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
             buddy.buddy_connected(p)
         else:
             self._pending_requests[token] = p
-            log.msg("transit relay 1: %r" % token)
+            log.msg("transit relay 1: %s" % p.describeToken())
             # TODO: timer
 
     def recordUsage(self, started, result, total_bytes,
@@ -173,12 +178,12 @@ class Transit(protocol.ServerFactory, service.MultiService):
                           total_time, waiting_time))
         self._db.commit()
 
-    def transitFinished(self, p):
-        log.msg("transitFinished %r" % (p,))
+    def transitFinished(self, p, token, description):
         for token,tc in self._pending_requests.items():
             if tc is p:
                 del self._pending_requests[token]
                 break
+        log.msg("transitFinished %s" % (description,))
         self._active_connections.discard(p)
 
     def transitFailed(self, p):
