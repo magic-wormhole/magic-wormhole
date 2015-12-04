@@ -12,30 +12,30 @@ MB = 1000*1000
 
 class TransitConnection(protocol.Protocol):
     def __init__(self):
-        self.got_token = False
-        self.token_buffer = b""
-        self.sent_ok = False
-        self.buddy = None
-        self.total_sent = 0
+        self._got_token = False
+        self._token_buffer = b""
+        self._sent_ok = False
+        self._buddy = None
+        self._total_sent = 0
 
     def dataReceived(self, data):
-        if self.sent_ok:
+        if self._sent_ok:
             # We are an IPushProducer to our buddy's IConsumer, so they'll
             # throttle us (by calling pauseProducing()) when their outbound
             # buffer is full (e.g. when their downstream pipe is full). In
             # practice, this buffers about 10MB per connection, after which
             # point the sender will only transmit data as fast as the
             # receiver can handle it.
-            self.total_sent += len(data)
-            self.buddy.transport.write(data)
+            self._total_sent += len(data)
+            self._buddy.transport.write(data)
             return
-        if self.got_token: # but not yet sent_ok
+        if self._got_token: # but not yet sent_ok
             self.transport.write(b"impatient\n")
             log.msg("transit impatience failure")
             return self.disconnect() # impatience yields failure
         # else this should be (part of) the token
-        self.token_buffer += data
-        buf = self.token_buffer
+        self._token_buffer += data
+        buf = self._token_buffer
         wanted = len("please relay \n")+32*2
         if len(buf) < wanted-1 and "\n" in buf:
             self.transport.write(b"bad handshake\n")
@@ -54,30 +54,30 @@ class TransitConnection(protocol.Protocol):
             return self.disconnect() # incorrectness yields failure
         token = mo.group(1)
 
-        self.got_token = True
+        self._got_token = True
         self.factory.connection_got_token(token, self)
 
     def buddy_connected(self, them):
-        self.buddy = them
+        self._buddy = them
         self.transport.write(b"ok\n")
-        self.sent_ok = True
+        self._sent_ok = True
         # Connect the two as a producer/consumer pair. We use streaming=True,
         # so this expects the IPushProducer interface, and uses
         # pauseProducing() to throttle, and resumeProducing() to unthrottle.
-        self.buddy.transport.registerProducer(self.transport, True)
+        self._buddy.transport.registerProducer(self.transport, True)
         # The Transit object calls buddy_connected() on both protocols, so
         # there will be two producer/consumer pairs.
 
     def buddy_disconnected(self):
         log.msg("buddy_disconnected %r" % self)
-        self.buddy = None
+        self._buddy = None
         self.transport.loseConnection()
 
     def connectionLost(self, reason):
         log.msg("connectionLost %r %s" % (self, reason))
-        if self.buddy:
-            self.buddy.buddy_disconnected()
-        self.factory.transitFinished(self, self.total_sent)
+        if self._buddy:
+            self._buddy.buddy_disconnected()
+        self.factory.transitFinished(self, self._total_sent)
 
     def disconnect(self):
         self.transport.loseConnection()
@@ -112,28 +112,28 @@ class Transit(protocol.ServerFactory, service.MultiService):
 
     def __init__(self):
         service.MultiService.__init__(self)
-        self.pending_requests = {} # token -> TransitConnection
-        self.active_connections = set() # TransitConnection
+        self._pending_requests = {} # token -> TransitConnection
+        self._active_connections = set() # TransitConnection
 
     def connection_got_token(self, token, p):
-        if token in self.pending_requests:
+        if token in self._pending_requests:
             log.msg("transit relay 2: %r" % token)
-            buddy = self.pending_requests.pop(token)
-            self.active_connections.add(p)
-            self.active_connections.add(buddy)
+            buddy = self._pending_requests.pop(token)
+            self._active_connections.add(p)
+            self._active_connections.add(buddy)
             p.buddy_connected(buddy)
             buddy.buddy_connected(p)
         else:
-            self.pending_requests[token] = p
+            self._pending_requests[token] = p
             log.msg("transit relay 1: %r" % token)
             # TODO: timer
     def transitFinished(self, p, total_sent):
         log.msg("transitFinished (%dB) %r" % (total_sent, p))
-        for token,tc in self.pending_requests.items():
+        for token,tc in self._pending_requests.items():
             if tc is p:
-                del self.pending_requests[token]
+                del self._pending_requests[token]
                 break
-        self.active_connections.discard(p)
+        self._active_connections.discard(p)
 
     def transitFailed(self, p):
         log.msg("transitFailed %r" % p)
