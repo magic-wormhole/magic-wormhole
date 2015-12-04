@@ -69,6 +69,15 @@ def send_to(skt, data):
     while sent < len(data):
         sent += skt.send(data[sent:])
 
+def wait_for_line(skt, max_length, description):
+    got = b""
+    while len(got) < max_length:
+        got += skt.recv(1)
+        if got.endswith(b"\n"):
+            return got[:-1]
+    raise BadHandshake("exceeded max_length, got %r on %s" %
+                       (got, description))
+
 def wait_for(skt, expected, description):
     assert isinstance(expected, type(b""))
     got = b""
@@ -131,7 +140,9 @@ def connector(owner, hint, description,
         if relay_handshake:
             debug(" - sending relay_handshake")
             send_to(skt, relay_handshake)
-            wait_for(skt, b"ok\n", description)
+            relay_msg = wait_for_line(skt, 10000, description)
+            if relay_msg != b"ok":
+                raise BadHandshake(relay_msg)
             debug(" - relay ready CT+%.1f" % (since(start),))
         send_to(skt, send_handshake)
         wait_for(skt, expected_handshake, description)
