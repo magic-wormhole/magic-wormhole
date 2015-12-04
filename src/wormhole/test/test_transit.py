@@ -26,7 +26,7 @@ class Accumulator(protocol.Protocol):
             d.callback(self)
     def connectionLost(self, why):
         if self._wait:
-            self._wait.errback("closed")
+            self._wait.errback(RuntimeError("closed"))
 
 class Transit(ServerBase, unittest.TestCase):
     @defer.inlineCallbacks
