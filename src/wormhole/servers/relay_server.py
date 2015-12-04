@@ -207,10 +207,11 @@ class Deallocator(RelayResource):
 
 
 class Channel:
-    def __init__(self, app, db, welcome, appid, channelid):
+    def __init__(self, app, db, welcome, blur_usage, appid, channelid):
         self._app = app
         self._db = db
         self._welcome = welcome
+        self._blur_usage = blur_usage
         self._appid = appid
         self._channelid = channelid
         self._listeners = set() # callbacks that take JSONable object
@@ -297,6 +298,8 @@ class Channel:
 
     def _store_summary(self, summary):
         (started, result, total_time, waiting_time) = summary
+        if self._blur_usage:
+            started = self._blur_usage * (started // self._blur_usage)
         self._db.execute("INSERT INTO `usage`"
                          " (`type`, `started`, `result`,"
                          "  `total_time`, `waiting_time`)"
@@ -382,9 +385,10 @@ class Channel:
 
 
 class AppNamespace:
-    def __init__(self, db, welcome, appid):
+    def __init__(self, db, welcome, blur_usage, appid):
         self._db = db
         self._welcome = welcome
+        self._blur_usage = blur_usage
         self._appid = appid
         self._channels = {}
 
@@ -420,6 +424,7 @@ class AppNamespace:
         if not channelid in self._channels:
             log.msg("spawning #%d for appid %s" % (channelid, self._appid))
             self._channels[channelid] = Channel(self, self._db, self._welcome,
+                                                self._blur_usage,
                                                 self._appid, channelid)
         return self._channels[channelid]
 
@@ -448,11 +453,12 @@ class AppNamespace:
         return bool(self._channels)
 
 class Relay(resource.Resource, service.MultiService):
-    def __init__(self, db, welcome):
+    def __init__(self, db, welcome, blur_usage):
         resource.Resource.__init__(self)
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
+        self._blur_usage = blur_usage
         self._apps = {}
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune)
         t.setServiceParent(self)
@@ -476,7 +482,8 @@ class Relay(resource.Resource, service.MultiService):
         assert isinstance(appid, type(u""))
         if not appid in self._apps:
             log.msg("spawning appid %s" % (appid,))
-            self._apps[appid] = AppNamespace(self._db, self._welcome, appid)
+            self._apps[appid] = AppNamespace(self._db, self._welcome,
+                                             self._blur_usage, appid)
         return self._apps[appid]
 
     def prune(self):
