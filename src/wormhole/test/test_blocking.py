@@ -6,7 +6,9 @@ from twisted.internet.threads import deferToThread
 from ..blocking.transcribe import (Wormhole, UsageError, ChannelManager,
                                    WrongPasswordError)
 from ..blocking.eventsource import EventSourceFollower
-from ..blocking.transit import TransitSender, TransitReceiver
+from ..blocking.transit import (TransitSender, TransitReceiver,
+                                build_sender_handshake,
+                                build_receiver_handshake)
 from .common import ServerBase
 
 APPID = u"appid"
@@ -461,6 +463,8 @@ class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
         r.add_their_direct_hints([])
         r.add_their_relay_hints([])
 
+        # it'd be nice to factor this chunk out with 'yield from', but that
+        # didn't appear until python-3.3, and isn't in py2 at all.
         (sp, rp) = yield self.doBoth([s.connect], [r.connect])
         yield deferToThread(sp.send_record, b"01234")
         rec = yield deferToThread(rp.receive_record)
@@ -508,3 +512,28 @@ class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
         self.assertEqual(rec, b"01234")
         yield deferToThread(sp.close)
         yield deferToThread(rp.close)
+        # TODO: this may be racy if we don't poll the server to make sure
+        # it's witnessed the first connection closing before querying the DB
+        #import time
+        #yield deferToThread(time.sleep, 1)
+
+        # check the transit relay's DB, make sure it counted the bytes
+        db = self._transit_server._db
+        c = db.execute("SELECT * FROM `usage` WHERE `type`=?", (u"transit",))
+        rows = c.fetchall()
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["result"], u"happy")
+        # Sender first writes relay_handshake and waits for OK, but that's
+        # not counted by the transit server. Then sender writes
+        # sender_handshake and waits for receiver_handshake. Then sender
+        # writes GO and the body. Body is length-prefixed SecretBox, so
+        # includes 4-byte length, 24-byte nonce, and 16-byte MAC.
+        sender_count = (len(build_sender_handshake(b""))+
+                        len(b"go\n")+
+                        4+24+len(b"01234")+16)
+        # Receiver first writes relay_handshake and waits for OK, but that's
+        # not counted. Then receiver writes receiver_handshake and waits for
+        # sender_handshake+GO.
+        receiver_count = len(build_receiver_handshake(b""))
+        self.assertEqual(row["total_bytes"], sender_count+receiver_count)

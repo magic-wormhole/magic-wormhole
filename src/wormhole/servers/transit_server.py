@@ -1,5 +1,5 @@
 from __future__ import print_function
-import re
+import re, time
 from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import service
@@ -16,7 +16,11 @@ class TransitConnection(protocol.Protocol):
         self._token_buffer = b""
         self._sent_ok = False
         self._buddy = None
+        self._had_buddy = False
         self._total_sent = 0
+
+    def connectionMade(self):
+        self._started = time.time()
 
     def dataReceived(self, data):
         if self._sent_ok:
@@ -29,10 +33,12 @@ class TransitConnection(protocol.Protocol):
             self._total_sent += len(data)
             self._buddy.transport.write(data)
             return
+
         if self._got_token: # but not yet sent_ok
             self.transport.write(b"impatient\n")
             log.msg("transit impatience failure")
             return self.disconnect() # impatience yields failure
+
         # else this should be (part of) the token
         self._token_buffer += data
         buf = self._token_buffer
@@ -59,6 +65,7 @@ class TransitConnection(protocol.Protocol):
 
     def buddy_connected(self, them):
         self._buddy = them
+        self._had_buddy = True
         self.transport.write(b"ok\n")
         self._sent_ok = True
         # Connect the two as a producer/consumer pair. We use streaming=True,
@@ -77,11 +84,37 @@ class TransitConnection(protocol.Protocol):
         log.msg("connectionLost %r %s" % (self, reason))
         if self._buddy:
             self._buddy.buddy_disconnected()
-        self.factory.transitFinished(self, self._total_sent)
+        self.factory.transitFinished(self)
+
+        # Record usage. There are four cases:
+        # * 1: we connected, never had a buddy
+        # * 2: we connected first, we disconnect before the buddy
+        # * 3: we connected first, buddy disconnects first
+        # * 4: buddy connected first, we disconnect before buddy
+        # * 5: buddy connected first, buddy disconnects first
+
+        # whoever disconnects first gets to write the usage record (1,2,4)
+
+        finished = time.time()
+        if not self._had_buddy: # 1
+            total_time = finished - self._started
+            self.factory.recordUsage(self._started, u"lonely", 0,
+                                     total_time, None)
+        if self._had_buddy and self._buddy: # 2,4
+            total_bytes = self._total_sent + self._buddy._total_sent
+            starts = [self._started, self._buddy._started]
+            total_time = finished - min(starts)
+            waiting_time = max(starts) - min(starts)
+            self.factory.recordUsage(self._started, u"happy", total_bytes,
+                                     total_time, waiting_time)
 
     def disconnect(self):
         self.transport.loseConnection()
         self.factory.transitFailed(self)
+        finished = time.time()
+        total_time = finished - self._started
+        self.factory.recordUsage(self._started, u"errory", 0,
+                                 total_time, None)
 
 class Transit(protocol.ServerFactory, service.MultiService):
     # I manage pairs of simultaneous connections to a secondary TCP port,
@@ -110,8 +143,9 @@ class Transit(protocol.ServerFactory, service.MultiService):
     MAXTIME = 60*SECONDS
     protocol = TransitConnection
 
-    def __init__(self):
+    def __init__(self, db):
         service.MultiService.__init__(self)
+        self._db = db
         self._pending_requests = {} # token -> TransitConnection
         self._active_connections = set() # TransitConnection
 
@@ -127,8 +161,20 @@ class Transit(protocol.ServerFactory, service.MultiService):
             self._pending_requests[token] = p
             log.msg("transit relay 1: %r" % token)
             # TODO: timer
-    def transitFinished(self, p, total_sent):
-        log.msg("transitFinished (%dB) %r" % (total_sent, p))
+
+    def recordUsage(self, started, result, total_bytes,
+                    total_time, waiting_time):
+        log.msg("Transit.recordUsage (%dB)" % total_bytes)
+        self._db.execute("INSERT INTO `usage`"
+                         " (`type`, `started`, `result`, `total_bytes`,"
+                         "  `total_time`, `waiting_time`)"
+                         " VALUES (?,?,?,?, ?,?)",
+                         (u"transit", started, result, total_bytes,
+                          total_time, waiting_time))
+        self._db.commit()
+
+    def transitFinished(self, p):
+        log.msg("transitFinished %r" % (p,))
         for token,tc in self._pending_requests.items():
             if tc is p:
                 del self._pending_requests[token]

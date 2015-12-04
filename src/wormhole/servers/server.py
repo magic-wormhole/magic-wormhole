@@ -38,7 +38,7 @@ class RelayServer(service.MultiService):
         self.relay = Relay(self.db, welcome) # accessible from tests
         self.root.putChild(b"wormhole-relay", self.relay)
         if transitport:
-            self.transit = Transit()
+            self.transit = Transit(self.db)
             self.transit.setServiceParent(self) # for the timer
             t = endpoints.serverFromString(reactor, transitport)
             self.transport_service = ServerEndpointService(t, self.transit)
