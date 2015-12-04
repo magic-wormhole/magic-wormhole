@@ -298,9 +298,11 @@ class Channel:
     def _store_summary(self, summary):
         (started, result, total_time, waiting_time) = summary
         self._db.execute("INSERT INTO `usage`"
-                         " (`started`, `result`, `total_time`, `waiting_time`)"
-                         " VALUES (?,?,?,?)",
-                         (started, result, total_time, waiting_time))
+                         " (`type`, `started`, `result`,"
+                         "  `total_time`, `waiting_time`)"
+                         " VALUES (?,?,?, ?,?)",
+                         (u"rendezvous", started, result,
+                          total_time, waiting_time))
         self._db.commit()
 
     def _summarize(self, messages, delete_time):
