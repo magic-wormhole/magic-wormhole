@@ -63,10 +63,11 @@ class EventsProtocol:
 # all JSON responses include a "welcome:{..}" key
 
 class RelayResource(resource.Resource):
-    def __init__(self, relay, welcome):
+    def __init__(self, relay, welcome, log_requests):
         resource.Resource.__init__(self)
         self._relay = relay
         self._welcome = welcome
+        self._log_requests = log_requests
 
 class ChannelLister(RelayResource):
     def render_GET(self, request):
@@ -93,8 +94,9 @@ class Allocator(RelayResource):
         app = self._relay.get_app(appid)
         channelid = app.find_available_channelid()
         app.allocate_channel(channelid, side)
-        log.msg("allocated #%d, now have %d DB channels" %
-                (channelid, len(app.get_allocated())))
+        if self._log_requests:
+            log.msg("allocated #%d, now have %d DB channels" %
+                    (channelid, len(app.get_allocated())))
         request.setHeader(b"content-type", b"application/json; charset=utf-8")
         data = {"welcome": self._welcome, "channelid": channelid}
         return (json.dumps(data)+"\n").encode("utf-8")
@@ -207,11 +209,13 @@ class Deallocator(RelayResource):
 
 
 class Channel:
-    def __init__(self, app, db, welcome, blur_usage, appid, channelid):
+    def __init__(self, app, db, welcome, blur_usage, log_requests,
+                 appid, channelid):
         self._app = app
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
+        self._log_requests = log_requests
         self._appid = appid
         self._channelid = channelid
         self._listeners = set() # callbacks that take JSONable object
@@ -385,10 +389,11 @@ class Channel:
 
 
 class AppNamespace:
-    def __init__(self, db, welcome, blur_usage, appid):
+    def __init__(self, db, welcome, blur_usage, log_requests, appid):
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
+        self._log_requests = log_requests
         self._appid = appid
         self._channels = {}
 
@@ -422,9 +427,11 @@ class AppNamespace:
     def get_channel(self, channelid):
         assert isinstance(channelid, int)
         if not channelid in self._channels:
-            log.msg("spawning #%d for appid %s" % (channelid, self._appid))
+            if self._log_requests:
+                log.msg("spawning #%d for appid %s" % (channelid, self._appid))
             self._channels[channelid] = Channel(self, self._db, self._welcome,
                                                 self._blur_usage,
+                                                self._log_requests,
                                                 self._appid, channelid)
         return self._channels[channelid]
 
@@ -434,10 +441,16 @@ class AppNamespace:
 
         if channelid in self._channels:
             self._channels.pop(channelid)
-        log.msg("freed+killed #%d, now have %d DB channels, %d live" %
-                (channelid, len(self.get_allocated()), len(self._channels)))
+        if self._log_requests:
+            log.msg("freed+killed #%d, now have %d DB channels, %d live" %
+                    (channelid, len(self.get_allocated()), len(self._channels)))
 
     def prune_old_channels(self):
+        # For now, pruning is logged even if log_requests is False, to debug
+        # the pruning process, and since pruning is triggered by a timer
+        # instead of by user action. It does reveal which channels were
+        # present when the pruning process began, though, so in the log run
+        # it should do less logging.
         log.msg("  channel prune begins")
         # a channel is deleted when there are no listeners and there have
         # been no messages added in CHANNEL_EXPIRATION_TIME seconds
@@ -459,15 +472,17 @@ class Relay(resource.Resource, service.MultiService):
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
+        log_requests = blur_usage is None
+        self._log_requests = log_requests
         self._apps = {}
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune)
         t.setServiceParent(self)
-        self.putChild(b"list", ChannelLister(self, welcome))
-        self.putChild(b"allocate", Allocator(self, welcome))
-        self.putChild(b"add", Adder(self, welcome))
-        self.putChild(b"get", GetterOrWatcher(self, welcome))
-        self.putChild(b"watch", Watcher(self, welcome))
-        self.putChild(b"deallocate", Deallocator(self, welcome))
+        self.putChild(b"list", ChannelLister(self, welcome, log_requests))
+        self.putChild(b"allocate", Allocator(self, welcome, log_requests))
+        self.putChild(b"add", Adder(self, welcome, log_requests))
+        self.putChild(b"get", GetterOrWatcher(self, welcome, log_requests))
+        self.putChild(b"watch", Watcher(self, welcome, log_requests))
+        self.putChild(b"deallocate", Deallocator(self, welcome, log_requests))
 
     def getChild(self, path, req):
         # 0.4.0 used "POST /CID/SIDE/post/MSGNUM"
@@ -481,12 +496,15 @@ class Relay(resource.Resource, service.MultiService):
     def get_app(self, appid):
         assert isinstance(appid, type(u""))
         if not appid in self._apps:
-            log.msg("spawning appid %s" % (appid,))
+            if self._log_requests:
+                log.msg("spawning appid %s" % (appid,))
             self._apps[appid] = AppNamespace(self._db, self._welcome,
-                                             self._blur_usage, appid)
+                                             self._blur_usage,
+                                             self._log_requests, appid)
         return self._apps[appid]
 
     def prune(self):
+        # As with AppNamespace.prune_old_channels, we log for now.
         log.msg("beginning app prune")
         c = self._db.execute("SELECT DISTINCT `appid` FROM `messages`")
         apps = set([row["appid"] for row in c.fetchall()]) # these have messages
