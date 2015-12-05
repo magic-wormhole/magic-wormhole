@@ -11,7 +11,7 @@ class MyPlugin:
         from .server import RelayServer
         return RelayServer(self.args.rendezvous, self.args.transit,
                            self.args.advertise_version,
-                           "relay.sqlite")
+                           "relay.sqlite", self.args.blur_usage)
 
 def start_server(args):
     from twisted.python import usage

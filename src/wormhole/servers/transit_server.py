@@ -148,9 +148,10 @@ class Transit(protocol.ServerFactory, service.MultiService):
     MAXTIME = 60*SECONDS
     protocol = TransitConnection
 
-    def __init__(self, db):
+    def __init__(self, db, blur_usage):
         service.MultiService.__init__(self)
         self._db = db
+        self._blur_usage = blur_usage
         self._pending_requests = {} # token -> TransitConnection
         self._active_connections = set() # TransitConnection
 
@@ -170,6 +171,8 @@ class Transit(protocol.ServerFactory, service.MultiService):
     def recordUsage(self, started, result, total_bytes,
                     total_time, waiting_time):
         log.msg("Transit.recordUsage (%dB)" % total_bytes)
+        if self._blur_usage:
+            started = self._blur_usage * (started // self._blur_usage)
         self._db.execute("INSERT INTO `usage`"
                          " (`type`, `started`, `result`, `total_bytes`,"
                          "  `total_time`, `waiting_time`)"

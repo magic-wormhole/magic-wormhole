@@ -363,7 +363,7 @@ class OneEventAtATime:
 
 class Summary(unittest.TestCase):
     def test_summarize(self):
-        c = relay_server.Channel(None, None, None, None, None)
+        c = relay_server.Channel(None, None, None, None, False, None, None)
         A = relay_server.ALLOCATE
         D = relay_server.DEALLOCATE
 
