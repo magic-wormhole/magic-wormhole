@@ -19,6 +19,9 @@ and do not need to be memorized.
 
 ```$ pip install magic-wormhole```
 
+On Debian/Ubuntu systems, you may first need `apt-get python-dev libffi-dev`.
+On OS-X, you may need to install `pip`.
+
 ## Motivation
 
 * Moving a file to a friend's machine, when the humans can speak to each
