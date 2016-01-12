@@ -25,7 +25,7 @@ On OS-X, you may need to install `pip`.
 ## Motivation
 
 * Moving a file to a friend's machine, when the humans can speak to each
-  other but the computers cannot
+  other (directly) but the computers cannot
 * Delivering a properly-random password to a new user via the phone
 * Supplying an SSH public key for future login use
 
@@ -38,8 +38,9 @@ address in the opposite direction, and is even worse for secrets, because
 email is unencrypted. Copying files through encrypted email requires
 bootstrapping a GPG key as well as an email address. Copying files through
 Dropbox is not secure against the Dropbox server and results in a large URL
-that must be transcribed. Using a URL shortener adds an extra step and
-reveals the URL to the shortening service.
+that must be transcribed. Using a URL shortener adds an extra step, reveals
+the full URL to the shortening service, and leaves a short URL that can be
+guessed by outsiders.
 
 Many common use cases start with a human-mediated communication channel, such
 as IRC, IM, email, a phone call, or a face-to-face conversation. Some of
@@ -63,11 +64,11 @@ PAKE effectively trades off interaction against offline attacks. The only way
 for a network attacker to learn the shared key is to perform a
 man-in-the-middle attack during the initial connection attempt, and to
 correctly guess the code being used by both sides. Their chance of doing this
-is inversely proportional to the entropy of the wormhole code. The default
-(which can be changed) uses 16-bit codes, so for each use of the tool, an
-attacker gets a 1-in-65536 chance of success. As such, users can expect to
-see many error messages before the attacker has a reasonable chance of
-success.
+is inversely proportional to the entropy of the wormhole code. The default is
+to use a 16-bit code (use --code-length= to change this), so for each use of
+the tool, an attacker gets a 1-in-65536 chance of success. As such, users can
+expect to see many error messages before the attacker has a reasonable chance
+of success.
 
 ## Timing
 
