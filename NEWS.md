@@ -1,6 +1,12 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.6.2 (12-Jan-2015)
+
+* the server can now "blur" usage information: this turns off HTTP logging,
+  and rounds timestamps to coarse intervals
+* `wormhole server usage` now shows Transit usage too, not just Rendezvous
+
 ## Release 0.6.1 (03-Dec-2015)
 
 * `wormhole` can now send/receive entire directories. They are zipped before
