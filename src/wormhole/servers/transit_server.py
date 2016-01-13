@@ -10,6 +10,18 @@ HOUR = 60*MINUTE
 DAY = 24*HOUR
 MB = 1000*1000
 
+def round_to(size, coarseness):
+    return int(coarseness*(1+int((size-1)/coarseness)))
+
+def blur_size(size):
+    if size == 0:
+        return 0
+    if size < 1e6:
+        return round_to(size, 10e3)
+    if size < 1e9:
+        return round_to(size, 1e6)
+    return round_to(size, 100e6)
+
 class TransitConnection(protocol.Protocol):
     def __init__(self):
         self._got_token = False
@@ -173,6 +185,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
         log.msg("Transit.recordUsage (%dB)" % total_bytes)
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
+            total_bytes = blur_size(total_bytes)
         self._db.execute("INSERT INTO `usage`"
                          " (`type`, `started`, `result`, `total_bytes`,"
                          "  `total_time`, `waiting_time`)"

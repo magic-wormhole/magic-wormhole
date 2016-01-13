@@ -8,7 +8,7 @@ from twisted.internet.threads import deferToThread
 from twisted.web.client import getPage, Agent, readBody
 from .. import __version__
 from .common import ServerBase
-from ..servers import relay_server
+from ..servers import relay_server, transit_server
 from ..twisted.eventsource_twisted import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):
@@ -429,3 +429,23 @@ class Summary(unittest.TestCase):
                              (1, "quiet", 40, 9))
         self.failUnlessEqual(c._summarize(make_moods(None, "scary"), 41),
                              (1, "scary", 40, 9))
+
+class Transit(unittest.TestCase):
+    def test_blur_size(self):
+        blur = transit_server.blur_size
+        self.failUnlessEqual(blur(0), 0)
+        self.failUnlessEqual(blur(1), 10e3)
+        self.failUnlessEqual(blur(10e3), 10e3)
+        self.failUnlessEqual(blur(10e3+1), 20e3)
+        self.failUnlessEqual(blur(15e3), 20e3)
+        self.failUnlessEqual(blur(20e3), 20e3)
+        self.failUnlessEqual(blur(1e6), 1e6)
+        self.failUnlessEqual(blur(1e6+1), 2e6)
+        self.failUnlessEqual(blur(1.5e6), 2e6)
+        self.failUnlessEqual(blur(2e6), 2e6)
+        self.failUnlessEqual(blur(900e6), 900e6)
+        self.failUnlessEqual(blur(1000e6), 1000e6)
+        self.failUnlessEqual(blur(1050e6), 1100e6)
+        self.failUnlessEqual(blur(1100e6), 1100e6)
+        self.failUnlessEqual(blur(1150e6), 1200e6)
+
