@@ -44,7 +44,7 @@ def print_event(event):
     followthrough = None
     if waiting_time and total_time:
         followthrough = total_time - waiting_time
-    print(" %16s: total=%7s wait=%7s ft=%7s size=%s (%s)" %
+    print("%17s: total=%7s wait=%7s ft=%7s size=%s (%s)" %
           ("%s-%s" % (event_type, result),
            abbrev(total_time),
            abbrev(waiting_time),
