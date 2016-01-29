@@ -469,7 +469,7 @@ def there_can_be_only_one(contenders):
 class Common:
     RELAY_DELAY = 2.0
 
-    def __init__(self, transit_relay, no_listen=False,
+    def __init__(self, transit_relay, no_listen=False, tor_manager=None,
                  reactor=reactor, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
@@ -477,6 +477,7 @@ class Common:
             self._transit_relays = [transit_relay]
         else:
             self._transit_relays = []
+        self._tor_manager = tor_manager
         self._transit_key = None
         self._no_listen = no_listen
         self._waiting_for_transit_key = []
@@ -487,7 +488,7 @@ class Common:
         self._timing_started = self._timing.add_event("transit")
 
     def _build_listener(self):
-        if self._no_listen:
+        if self._no_listen or self._tor_manager:
             return ([], None)
         portnum = allocate_tcp_port()
         direct_hints = [u"tcp:%s:%d" % (addr, portnum)
@@ -686,10 +687,17 @@ class Common:
         # TODO: use transit_common.parse_hint_tcp
         if ":" not in hint:
             return None
+        pieces = hint.split(":")
         hint_type = hint.split(":")[0]
+        if hint_type == "tor" and self._tor_manager:
+            return self._tor_manager.get_endpoint_for(pieces[1], int(pieces[2]))
         if hint_type != "tcp":
             return None
         pieces = hint.split(":")
+        if self._tor_manager:
+            # our TorManager will return None for non-public IPv4 addresses
+            # and any IPv6 address
+            return self._tor_manager.get_endpoint_for(pieces[1], int(pieces[2]))
         return endpoints.HostnameEndpoint(self._reactor, pieces[1],
                                           int(pieces[2]))
 

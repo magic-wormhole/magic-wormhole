@@ -21,6 +21,8 @@ def dispatch(args):
         from ..servers import cmd_usage
         return cmd_usage.tail_usage(args)
 
+    if args.tor:
+        args.twisted = True
     if args.func == "send/send":
         if args.twisted:
             from . import cmd_send_twisted
