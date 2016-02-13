@@ -135,7 +135,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             f.write(message)
 
         wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl]
+        server_args = ["--relay-url", self.relayurl,
+                       "--transit-helper", self.transit]
         send_args = server_args + [
             "send",
             "--code", code,
@@ -212,7 +213,8 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         os.mkdir(target_parent_dir)
 
         wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl]
+        server_args = ["--relay-url", self.relayurl,
+                       "--transit-helper", self.transit]
         send_args = server_args + [
             "send",
             "--code", code,
