@@ -1,10 +1,10 @@
 from __future__ import print_function
-import sys, time, socket
+import sys, time, socket, collections
 from binascii import hexlify, unhexlify
 from zope.interface import implementer
 from twisted.python.runtime import platformType
 from twisted.internet import (reactor, interfaces, defer, protocol,
-                              endpoints, task, address)
+                              endpoints, task, address, error)
 from twisted.protocols import policies
 from nacl.secret import SecretBox
 from ..util import ipaddrs
@@ -34,6 +34,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.start = start
         self._negotiation_d = defer.Deferred(self._cancel)
         self._error = None
+        self._inbound_records = collections.deque()
+        self._waiting_reads = collections.deque()
 
     def connectionMade(self):
         debug("handle %r" %  (self.transport,))
@@ -171,10 +173,31 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.transport.write(encrypted)
 
     def recordReceived(self, record):
-        pass
+        self._inbound_records.append(record)
+        self._deliverRecords()
+        self._checkPause()
+
+    def _checkPause(self):
+        return # TODO
+
+    def receive_record(self):
+        d = defer.Deferred()
+        self._waiting_reads.append(d)
+        self._deliverRecords()
+        return d
+
+    def _deliverRecords(self):
+        while self._inbound_records and self._waiting_reads:
+            r = self._inbound_records.popleft()
+            d = self._waiting_reads.popleft()
+            d.callback(r)
+        self._checkPause()
 
     def close(self):
         self.transport.loseConnection()
+        while self._waiting_reads:
+            d = self._waiting_reads.popleft()
+            d.errback(error.ConnectionClosed())
 
     def timeoutConnection(self):
         self._error = BadHandshake("timeout")
