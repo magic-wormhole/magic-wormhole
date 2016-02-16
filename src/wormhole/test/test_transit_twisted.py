@@ -4,6 +4,7 @@ from twisted.trial import unittest
 from twisted.internet import defer, task, endpoints, protocol, address, error
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.python import log, failure
+from twisted.test import proto_helpers
 from ..twisted import transit
 from ..errors import UsageError
 from nacl.secret import SecretBox
@@ -990,6 +991,53 @@ class Connection(unittest.TestCase):
         f = closed[0]
         self.assertIsInstance(f, failure.Failure)
         self.assertIsInstance(f.value, error.ConnectionClosed)
+
+    def test_producer(self):
+        # a Transit object (receiving data from the remote peer) produces
+        # data and writes it into a local Consumer
+        c = transit.Connection(None, None, None)
+        c.transport = proto_helpers.StringTransport()
+        c.recordReceived(b"r1.")
+        c.recordReceived(b"r2.")
+
+        consumer = proto_helpers.StringTransport()
+        c.connectConsumer(consumer)
+        self.assertIs(c._consumer, consumer)
+        self.assertEqual(consumer.value(), b"r1.r2.")
+
+        self.assertRaises(RuntimeError, c.connectConsumer, consumer)
+
+        c.recordReceived(b"r3.")
+        self.assertEqual(consumer.value(), b"r1.r2.r3.")
+
+        c.pauseProducing()
+        self.assertEqual(c.transport.producerState, "paused")
+        c.resumeProducing()
+        self.assertEqual(c.transport.producerState, "producing")
+
+        c.disconnectConsumer()
+        self.assertEqual(consumer.producer, None)
+        c.connectConsumer(consumer)
+
+        c.stopProducing()
+        self.assertEqual(c.transport.producerState, "stopped")
+
+    def test_consumer(self):
+        # a local producer sends data to a consuming Transit object
+        c = transit.Connection(None, None, None)
+        c.transport = proto_helpers.StringTransport()
+        records = []
+        c.send_record = records.append
+
+        producer = proto_helpers.StringTransport()
+        c.registerProducer(producer, True)
+        self.assertIs(c.transport.producer, producer)
+
+        c.write(b"r1.")
+        self.assertEqual(records, [b"r1."])
+
+        c.unregisterProducer()
+        self.assertEqual(c.transport.producer, None)
 
 
 DIRECT_HINT = u"tcp:direct:1234"

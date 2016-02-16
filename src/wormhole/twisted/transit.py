@@ -34,6 +34,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.start = start
         self._negotiation_d = defer.Deferred(self._cancel)
         self._error = None
+        self._consumer = None
         self._inbound_records = collections.deque()
         self._waiting_reads = collections.deque()
 
@@ -173,12 +174,11 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.transport.write(encrypted)
 
     def recordReceived(self, record):
+        if self._consumer:
+            self._consumer.write(record)
+            return
         self._inbound_records.append(record)
         self._deliverRecords()
-        self._checkPause()
-
-    def _checkPause(self):
-        return # TODO
 
     def receive_record(self):
         d = defer.Deferred()
@@ -191,7 +191,6 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             r = self._inbound_records.popleft()
             d = self._waiting_reads.popleft()
             d.callback(r)
-        self._checkPause()
 
     def close(self):
         self.transport.loseConnection()
@@ -222,7 +221,41 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
             d.errback(self._error or BadHandshake("connection lost"))
 
+    # IConsumer methods, for outbound flow-control. We pass these through to
+    # the transport. The 'producer' is something like a t.p.basic.FileSender
+    def registerProducer(self, producer, streaming):
+        assert interfaces.IConsumer.providedBy(self.transport)
+        self.transport.registerProducer(producer, streaming)
+    def unregisterProducer(self):
+        self.transport.unregisterProducer()
+    def write(self, data):
+        self.send_record(data)
 
+    # IProducer methods, for inbound flow-control. We pass these through to
+    # the transport.
+    def stopProducing(self):
+        self.transport.stopProducing()
+    def pauseProducing(self):
+        self.transport.pauseProducing()
+    def resumeProducing(self):
+        self.transport.resumeProducing()
+
+    # Helper method to glue an instance of e.g. t.p.ftp.FileConsumer to us.
+    # Inbound records will be written as bytes to the consumer.
+    def connectConsumer(self, consumer):
+        if self._consumer:
+            raise RuntimeError("A consumer is already attached: %r" %
+                               self._consumer)
+        self._consumer = consumer
+        # drain any pending records
+        while self._inbound_records:
+            r = self._inbound_records.popleft()
+            consumer.write(r)
+        consumer.registerProducer(self, True)
+
+    def disconnectConsumer(self):
+        self._consumer.unregisterProducer()
+        self._consumer = None
 
 class OutboundConnectionFactory(protocol.ClientFactory):
     protocol = Connection
