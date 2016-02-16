@@ -36,3 +36,6 @@ class ReflectionAttack(Exception):
 
 class UsageError(Exception):
     """The programmer did something wrong."""
+
+class TransferError(Exception):
+    """Something bad happened and the transfer failed."""

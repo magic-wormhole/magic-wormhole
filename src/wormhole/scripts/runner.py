@@ -5,6 +5,7 @@ from .. import public_relay
 from .. import __version__
 from . import cmd_send, cmd_receive
 from ..servers import cmd_server, cmd_usage
+from ..errors import TransferError
 
 parser = argparse.ArgumentParser(
     usage="wormhole SUBCOMMAND (subcommand-options)",
@@ -133,6 +134,9 @@ def run(args, stdout, stderr, executable=None):
         #rc = command.func(args, stdout, stderr)
         rc = args.func(args)
         return rc
+    except TransferError as e:
+        print(e, file=stderr)
+        return 1
     except ImportError as e:
         print("--- ImportError ---", file=stderr)
         print(e, file=stderr)
