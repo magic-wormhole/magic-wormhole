@@ -204,4 +204,9 @@ class Transit(protocol.ServerFactory, service.MultiService):
 
     def transitFailed(self, p):
         log.msg("transitFailed %r" % p)
-        pass
+        self._active_connections.discard(p) # might not be there
+
+    def stopService(self):
+        for c in list(self._active_connections):
+            c.disconnect()
+        return service.MultiService.stopService(self)
