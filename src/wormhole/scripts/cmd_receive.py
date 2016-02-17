@@ -1,12 +1,12 @@
 from __future__ import print_function
 import os, sys, json, binascii, six, tempfile, zipfile
 from ..errors import handle_server_error
+from .progress import ProgressPrinter
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 def accept_file(args, them_d, w):
     from ..blocking.transit import TransitReceiver, TransitError
-    from .progress import start_progress, update_progress, finish_progress
 
     file_data = them_d["file"]
     if args.output_file:
@@ -58,7 +58,8 @@ def accept_file(args, them_d, w):
     tmp = filename + ".tmp"
     with open(tmp, "wb") as f:
         received = 0
-        next_update = start_progress(filesize)
+        p = ProgressPrinter(filesize, sys.stdout)
+        p.start()
         while received < filesize:
             try:
                 plaintext = record_pipe.receive_record()
@@ -69,8 +70,8 @@ def accept_file(args, them_d, w):
                 return 1
             f.write(plaintext)
             received += len(plaintext)
-            next_update = update_progress(next_update, received, filesize)
-        finish_progress(filesize)
+            p.update(received)
+        p.finish()
         assert received == filesize
 
     os.rename(tmp, filename)
@@ -82,7 +83,6 @@ def accept_file(args, them_d, w):
 
 def accept_directory(args, them_d, w):
     from ..blocking.transit import TransitReceiver, TransitError
-    from .progress import start_progress, update_progress, finish_progress
 
     file_data = them_d["directory"]
     mode = file_data["mode"]
@@ -143,7 +143,8 @@ def accept_directory(args, them_d, w):
                                                   transit_receiver.describe()))
     f = tempfile.SpooledTemporaryFile()
     received = 0
-    next_update = start_progress(filesize)
+    p = ProgressPrinter(filesize, sys.stdout)
+    p.start()
     while received < filesize:
         try:
             plaintext = record_pipe.receive_record()
@@ -154,8 +155,8 @@ def accept_directory(args, them_d, w):
             return 1
         f.write(plaintext)
         received += len(plaintext)
-        next_update = update_progress(next_update, received, filesize)
-    finish_progress(filesize)
+        p.update(received)
+    p.finish()
     assert received == filesize
     print("Unpacking zipfile..")
     with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:

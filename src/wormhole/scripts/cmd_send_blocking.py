@@ -1,7 +1,7 @@
 from __future__ import print_function
-import json, binascii, six
+import sys, json, binascii, six
 from ..errors import TransferError
-from .progress import start_progress, update_progress, finish_progress
+from .progress import ProgressPrinter
 
 def send_blocking(appid, args, phase1, fd_to_send):
     from ..blocking.transcribe import Wormhole, WrongPasswordError
@@ -83,15 +83,16 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender):
     fd_to_send.seek(0,2)
     filesize = fd_to_send.tell()
     fd_to_send.seek(0,0)
+    p = ProgressPrinter(filesize, sys.stdout)
     with fd_to_send as f:
         sent = 0
-        next_update = start_progress(filesize)
+        p.start()
         while sent < filesize:
             plaintext = f.read(CHUNKSIZE)
             record_pipe.send_record(plaintext)
             sent += len(plaintext)
-            next_update = update_progress(next_update, sent, filesize)
-        finish_progress(filesize)
+            p.update(sent)
+        p.finish()
 
     print("File sent.. waiting for confirmation")
     ack = record_pipe.receive_record()
