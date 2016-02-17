@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, json, binascii, six
+import json, binascii, six
 from ..errors import TransferError
 from .progress import ProgressPrinter
 
@@ -21,8 +21,8 @@ def send_blocking(appid, args, phase1, fd_to_send):
         else:
             code = w.get_code(args.code_length)
         if not args.zeromode:
-            print("Wormhole code is: %s" % code)
-        print("")
+            print(u"Wormhole code is: %s" % code, file=args.stdout)
+        print(u"", file=args.stdout)
 
         if args.verify:
             _do_verify(w)
@@ -40,12 +40,12 @@ def send_blocking(appid, args, phase1, fd_to_send):
 
     if fd_to_send is None:
         if them_phase1["message_ack"] == "ok":
-            print("text message sent")
+            print(u"text message sent", file=args.stdout)
             return 0
         raise TransferError("error sending text: %r" % (them_phase1,))
 
     return _send_file_blocking(w, appid, them_phase1, fd_to_send,
-                               transit_sender)
+                               transit_sender, args.stdout)
 
 def _do_verify(w):
     verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
@@ -59,7 +59,8 @@ def _do_verify(w):
             w.send_data(reject_data)
             raise TransferError("verification rejected, abandoning transfer")
 
-def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender):
+def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender,
+                        stdout):
 
     # we're sending a file, if they accept it
 
@@ -77,13 +78,13 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender):
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
     record_pipe = transit_sender.connect()
 
-    print("Sending (%s).." % transit_sender.describe())
+    print(u"Sending (%s).." % transit_sender.describe(), file=stdout)
 
     CHUNKSIZE = 64*1024
     fd_to_send.seek(0,2)
     filesize = fd_to_send.tell()
     fd_to_send.seek(0,0)
-    p = ProgressPrinter(filesize, sys.stdout)
+    p = ProgressPrinter(filesize, stdout)
     with fd_to_send as f:
         sent = 0
         p.start()
@@ -94,10 +95,10 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender):
             p.update(sent)
         p.finish()
 
-    print("File sent.. waiting for confirmation")
+    print(u"File sent.. waiting for confirmation", file=stdout)
     ack = record_pipe.receive_record()
     record_pipe.close()
     if ack == b"ok\n":
-        print("Confirmation received. Transfer complete.")
+        print(u"Confirmation received. Transfer complete.", file=stdout)
         return 0
     raise TransferError("Transfer failed (remote says: %r)" % ack)

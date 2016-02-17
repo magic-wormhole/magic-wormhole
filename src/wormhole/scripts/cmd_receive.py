@@ -15,21 +15,24 @@ def accept_file(args, them_d, w):
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
         filename = os.path.basename(file_data["filename"]) # unicode
+    abs_filename = os.path.join(args.cwd, filename)
     filesize = file_data["filesize"]
 
     # get confirmation from the user before writing to the local directory
-    if os.path.exists(filename):
-        print("Error: refusing to overwrite existing file %s" % (filename,))
+    if os.path.exists(abs_filename):
+        print(u"Error: refusing to overwrite existing file %s" % (filename,),
+              file=args.stdout)
         data = json.dumps({"error": "file already exists"}).encode("utf-8")
         w.send_data(data)
         return 1
 
-    print("Receiving file (%d bytes) into: %s" % (filesize, filename))
+    print(u"Receiving file (%d bytes) into: %s" % (filesize, filename),
+          file=args.stdout)
     while True and not args.accept_file:
         ok = six.moves.input("ok? (y/n): ")
         if ok.lower().startswith("y"):
             break
-        print("transfer rejected", file=sys.stderr)
+        print(u"transfer rejected", file=sys.stderr)
         data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
         w.send_data(data)
         return 1
@@ -53,9 +56,9 @@ def accept_file(args, them_d, w):
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
     record_pipe = transit_receiver.connect()
 
-    print("Receiving %d bytes for '%s' (%s).." % (filesize, filename,
-                                                  transit_receiver.describe()))
-    tmp = filename + ".tmp"
+    print(u"Receiving %d bytes for '%s' (%s).." %
+          (filesize, filename, transit_receiver.describe()), file=args.stdout)
+    tmp = abs_filename + ".tmp"
     with open(tmp, "wb") as f:
         received = 0
         p = ProgressPrinter(filesize, sys.stdout)
@@ -64,9 +67,11 @@ def accept_file(args, them_d, w):
             try:
                 plaintext = record_pipe.receive_record()
             except TransitError:
-                print()
-                print("Connection dropped before full file received")
-                print("got %d bytes, wanted %d" % (received, filesize))
+                print(u"", file=args.stdout)
+                print(u"Connection dropped before full file received",
+                      file=args.stdout)
+                print(u"got %d bytes, wanted %d" % (received, filesize),
+                      file=args.stdout)
                 return 1
             f.write(plaintext)
             received += len(plaintext)
@@ -74,9 +79,9 @@ def accept_file(args, them_d, w):
         p.finish()
         assert received == filesize
 
-    os.rename(tmp, filename)
+    os.rename(tmp, abs_filename)
 
-    print("Received file written to %s" % filename)
+    print(u"Received file written to %s" % filename, file=args.stdout)
     record_pipe.send_record(b"ok\n")
     record_pipe.close()
     return 0
@@ -87,7 +92,8 @@ def accept_directory(args, them_d, w):
     file_data = them_d["directory"]
     mode = file_data["mode"]
     if mode != "zipfile/deflated":
-        print("Error: unknown directory-transfer mode '%s'" % (mode,))
+        print(u"Error: unknown directory-transfer mode '%s'" % (mode,),
+              file=args.stdout)
         data = json.dumps({"error": "unknown mode"}).encode("utf-8")
         w.send_data(data)
         return 1
@@ -98,24 +104,26 @@ def accept_directory(args, them_d, w):
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
         dirname = os.path.basename(file_data["dirname"]) # unicode
+    abs_dirname = os.path.join(args.cwd, dirname)
     filesize = file_data["zipsize"]
     num_files = file_data["numfiles"]
     num_bytes = file_data["numbytes"]
 
-    if os.path.exists(dirname):
-        print("Error: refusing to overwrite existing directory %s" % (dirname,))
+    if os.path.exists(abs_dirname):
+        print(u"Error: refusing to overwrite existing directory %s" %
+              (dirname,), file=args.stdout)
         data = json.dumps({"error": "directory already exists"}).encode("utf-8")
         w.send_data(data)
         return 1
 
-    print("Receiving directory into: %s/" % (dirname,))
-    print("%d files, %d bytes (%d compressed)" % (num_files, num_bytes,
-                                                  filesize))
+    print(u"Receiving directory into: %s/" % (dirname,), file=args.stdout)
+    print(u"%d files, %d bytes (%d compressed)" %
+          (num_files, num_bytes, filesize), file=args.stdout)
     while True and not args.accept_file:
         ok = six.moves.input("ok? (y/n): ")
         if ok.lower().startswith("y"):
             break
-        print("transfer rejected", file=sys.stderr)
+        print(u"transfer rejected", file=sys.stderr)
         data = json.dumps({"error": "transfer rejected"}).encode("utf-8")
         w.send_data(data)
         return 1
@@ -139,8 +147,8 @@ def accept_directory(args, them_d, w):
     transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
     record_pipe = transit_receiver.connect()
 
-    print("Receiving %d bytes for '%s' (%s).." % (filesize, dirname,
-                                                  transit_receiver.describe()))
+    print(u"Receiving %d bytes for '%s' (%s).." %
+          (filesize, dirname, transit_receiver.describe()), file=args.stdout)
     f = tempfile.SpooledTemporaryFile()
     received = 0
     p = ProgressPrinter(filesize, sys.stdout)
@@ -149,23 +157,25 @@ def accept_directory(args, them_d, w):
         try:
             plaintext = record_pipe.receive_record()
         except TransitError:
-            print()
-            print("Connection dropped before full file received")
-            print("got %d bytes, wanted %d" % (received, filesize))
+            print(u"", file=args.stdout)
+            print(u"Connection dropped before full file received",
+                  file=args.stdout)
+            print(u"got %d bytes, wanted %d" % (received, filesize),
+                  file=args.stdout)
             return 1
         f.write(plaintext)
         received += len(plaintext)
         p.update(received)
     p.finish()
     assert received == filesize
-    print("Unpacking zipfile..")
+    print(u"Unpacking zipfile..", file=args.stdout)
     with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
-        zf.extractall(path=dirname)
+        zf.extractall(path=abs_dirname)
         # extractall() appears to offer some protection against malicious
         # pathnames. For example, "/tmp/oops" and "../tmp/oops" both do the
         # same thing as the (safe) "tmp/oops".
 
-    print("Received files written to %s/" % dirname)
+    print(u"Received files written to %s/" % dirname, file=args.stdout)
     record_pipe.send_record(b"ok\n")
     record_pipe.close()
     return 0
@@ -187,27 +197,27 @@ def receive(args):
 
         if args.verify:
             verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
-            print("Verifier %s." % verifier)
+            print(u"Verifier %s." % verifier, file=args.stdout)
 
         try:
             them_bytes = w.get_data()
         except WrongPasswordError as e:
-            print("ERROR: " + e.explain(), file=sys.stderr)
+            print(u"ERROR: " + e.explain(), file=sys.stderr)
             return 1
         them_d = json.loads(them_bytes.decode("utf-8"))
         if "error" in them_d:
-            print("ERROR: " + them_d["error"], file=sys.stderr)
+            print(u"ERROR: " + them_d["error"], file=sys.stderr)
             return 1
 
         if "message" in them_d:
             # we're receiving a text message
-            print(them_d["message"])
+            print(them_d["message"], file=args.stdout)
             data = json.dumps({"message_ack": "ok"}).encode("utf-8")
             w.send_data(data)
             return 0
 
         if "error" in them_d:
-            print("ERROR: " + data["error"], file=sys.stderr)
+            print(u"ERROR: " + data["error"], file=sys.stderr)
             return 1
 
         if "file" in them_d:
@@ -216,8 +226,8 @@ def receive(args):
         if "directory" in them_d:
             return accept_directory(args, them_d, w)
 
-        print("I don't know what they're offering\n")
-        print("Offer details:", them_d)
+        print(u"I don't know what they're offering\n", file=args.stdout)
+        print(u"Offer details:", them_d, file=args.stdout)
         data = json.dumps({"error": "unknown offer type"}).encode("utf-8")
         w.send_data(data)
         return 1

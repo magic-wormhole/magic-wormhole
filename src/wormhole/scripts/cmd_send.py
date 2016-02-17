@@ -11,17 +11,18 @@ def send(args):
 
     text = args.text
     if text == "-":
-        print("Reading text message from stdin..")
+        print(u"Reading text message from stdin..", file=args.stdout)
         text = sys.stdin.read()
     if not text and not args.what:
         text = six.moves.input("Text to send: ")
 
     if text is not None:
-        print("Sending text message (%d bytes)" % len(text))
+        print(u"Sending text message (%d bytes)" % len(text), file=args.stdout)
         phase1 = { "message": text }
         fd_to_send = None
     else:
-        if not os.path.exists(args.what):
+        what = os.path.join(args.cwd, args.what)
+        if not os.path.exists(what):
             raise TransferError("Cannot send: no file/directory named '%s'" %
                                 args.what)
         phase1, fd_to_send = _build_phase1_data(args)
@@ -36,7 +37,8 @@ def send(args):
         other_cmd = "wormhole --verify receive"
     if args.zeromode:
         other_cmd += " -0"
-    print("On the other computer, please run: %s" % other_cmd)
+    print(u"On the other computer, please run: %s" % other_cmd,
+          file=args.stdout)
 
     from .cmd_send_blocking import send_blocking
     rc = send_blocking(APPID, args, phase1, fd_to_send)
@@ -44,27 +46,29 @@ def send(args):
 
 def _build_phase1_data(args):
     phase1 = {}
-    basename = os.path.basename(args.what)
-    if os.path.isfile(args.what):
+    what = os.path.join(args.cwd, args.what)
+    basename = os.path.basename(what)
+    if os.path.isfile(what):
         # we're sending a file
-        filesize = os.stat(args.what).st_size
+        filesize = os.stat(what).st_size
         phase1["file"] = {
             "filename": basename,
             "filesize": filesize,
             }
-        print("Sending %d byte file named '%s'" % (filesize, basename))
-        fd_to_send = open(args.what, "rb")
-    elif os.path.isdir(args.what):
-        print("Building zipfile..")
+        print(u"Sending %d byte file named '%s'" % (filesize, basename),
+              file=args.stdout)
+        fd_to_send = open(what, "rb")
+    elif os.path.isdir(what):
+        print(u"Building zipfile..", file=args.stdout)
         # We're sending a directory. Create a zipfile in a tempdir and
         # send that.
         fd_to_send = tempfile.SpooledTemporaryFile()
         # TODO: I think ZIP_DEFLATED means compressed.. check it
         num_files = 0
         num_bytes = 0
-        tostrip = len(args.what.split(os.sep))
+        tostrip = len(what.split(os.sep))
         with zipfile.ZipFile(fd_to_send, "w", zipfile.ZIP_DEFLATED) as zf:
-            for path,dirs,files in os.walk(args.what):
+            for path,dirs,files in os.walk(what):
                 # path always starts with args.what, then sometimes might
                 # have "/subdir" appended. We want the zipfile to contain
                 # "" or "subdir"
@@ -85,8 +89,8 @@ def _build_phase1_data(args):
             "numbytes": num_bytes,
             "numfiles": num_files,
             }
-        print("Sending directory (%d bytes compressed) named '%s'"
-              % (filesize, basename))
+        print(u"Sending directory (%d bytes compressed) named '%s'"
+              % (filesize, basename), file=args.stdout)
     else:
-        raise TypeError("'%s' is neither file nor directory" % args.what)
+        raise TypeError("'%s' is neither file nor directory" % what)
     return phase1, fd_to_send

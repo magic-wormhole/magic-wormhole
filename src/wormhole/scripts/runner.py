@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys, argparse
+import os, sys, argparse
 from textwrap import dedent
 from .. import public_relay
 from .. import __version__
@@ -120,7 +120,7 @@ p.set_defaults(func=cmd_receive.receive)
 
 
 
-def run(args, stdout, stderr, executable=None):
+def run(args, cwd, stdout, stderr, executable=None):
     """This is invoked directly by the 'wormhole' entry-point script. It can
     also invoked by entry() below."""
 
@@ -130,6 +130,9 @@ def run(args, stdout, stderr, executable=None):
         # "error: too few arguments" during parse_args().
         parser.print_help()
         sys.exit(0)
+    args.cwd = cwd
+    args.stdout = stdout
+    args.stderr = stderr
     try:
         #rc = command.func(args, stdout, stderr)
         rc = args.func(args)
@@ -147,7 +150,8 @@ def run(args, stdout, stderr, executable=None):
 def entry():
     """This is used by a setuptools entry_point. When invoked this way,
     setuptools has already put the installed package on sys.path ."""
-    return run(sys.argv[1:], sys.stdout, sys.stderr, executable=sys.argv[0])
+    return run(sys.argv[1:], os.getcwd(), sys.stdout, sys.stderr,
+               executable=sys.argv[0])
 
 if __name__ == "__main__":
     args = parser.parse_args()
