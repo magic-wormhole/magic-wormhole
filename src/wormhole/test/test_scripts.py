@@ -84,17 +84,18 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, mode="text", override_filename=False):
         assert mode in ("text", "file", "directory")
         wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl,
+        common_args = ["--hide-progress",
+                       "--relay-url", self.relayurl,
                        "--transit-helper", ""]
         code = u"1-abc"
         message = "test message"
 
-        send_args = server_args + [
+        send_args = common_args + [
             "send",
             "--code", code,
             ]
 
-        receive_args = server_args + [
+        receive_args = common_args + [
             "receive",
             ]
 

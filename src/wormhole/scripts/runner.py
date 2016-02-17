@@ -27,6 +27,8 @@ g.add_argument("-c", "--code-length", type=int, default=2,
                metavar="WORDS", help="length of code (in bytes/words)")
 g.add_argument("-v", "--verify", action="store_true",
                help="display (and wait for acceptance of) verification string")
+g.add_argument("--hide-progress", action="store_true",
+               help="supress progress-bar display")
 subparsers = parser.add_subparsers(title="subcommands",
                                    dest="subcommand")
 

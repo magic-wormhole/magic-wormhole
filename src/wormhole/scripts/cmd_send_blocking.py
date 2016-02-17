@@ -45,7 +45,7 @@ def send_blocking(appid, args, phase1, fd_to_send):
         raise TransferError("error sending text: %r" % (them_phase1,))
 
     return _send_file_blocking(w, appid, them_phase1, fd_to_send,
-                               transit_sender, args.stdout)
+                               transit_sender, args.stdout, args.hide_progress)
 
 def _do_verify(w):
     verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
@@ -60,7 +60,7 @@ def _do_verify(w):
             raise TransferError("verification rejected, abandoning transfer")
 
 def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender,
-                        stdout):
+                        stdout, hide_progress):
 
     # we're sending a file, if they accept it
 
@@ -87,13 +87,16 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender,
     p = ProgressPrinter(filesize, stdout)
     with fd_to_send as f:
         sent = 0
-        p.start()
+        if not hide_progress:
+            p.start()
         while sent < filesize:
             plaintext = f.read(CHUNKSIZE)
             record_pipe.send_record(plaintext)
             sent += len(plaintext)
-            p.update(sent)
-        p.finish()
+            if not hide_progress:
+                p.update(sent)
+        if not hide_progress:
+            p.finish()
 
     print(u"File sent.. waiting for confirmation", file=stdout)
     ack = record_pipe.receive_record()

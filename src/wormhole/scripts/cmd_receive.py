@@ -61,8 +61,9 @@ def accept_file(args, them_d, w):
     tmp = abs_filename + ".tmp"
     with open(tmp, "wb") as f:
         received = 0
-        p = ProgressPrinter(filesize, sys.stdout)
-        p.start()
+        p = ProgressPrinter(filesize, args.stdout)
+        if not args.hide_progress:
+            p.start()
         while received < filesize:
             try:
                 plaintext = record_pipe.receive_record()
@@ -75,8 +76,10 @@ def accept_file(args, them_d, w):
                 return 1
             f.write(plaintext)
             received += len(plaintext)
-            p.update(received)
-        p.finish()
+            if not args.hide_progress:
+                p.update(received)
+        if not args.hide_progress:
+            p.finish()
         assert received == filesize
 
     os.rename(tmp, abs_filename)
@@ -151,8 +154,9 @@ def accept_directory(args, them_d, w):
           (filesize, dirname, transit_receiver.describe()), file=args.stdout)
     f = tempfile.SpooledTemporaryFile()
     received = 0
-    p = ProgressPrinter(filesize, sys.stdout)
-    p.start()
+    p = ProgressPrinter(filesize, args.stdout)
+    if not args.hide_progress:
+        p.start()
     while received < filesize:
         try:
             plaintext = record_pipe.receive_record()
@@ -165,8 +169,10 @@ def accept_directory(args, them_d, w):
             return 1
         f.write(plaintext)
         received += len(plaintext)
-        p.update(received)
-    p.finish()
+        if not args.hide_progress:
+            p.update(received)
+    if not args.hide_progress:
+        p.finish()
     assert received == filesize
     print(u"Unpacking zipfile..", file=args.stdout)
     with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
