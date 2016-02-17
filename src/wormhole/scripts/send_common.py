@@ -37,8 +37,6 @@ def build_phase1_data(args):
     if not os.path.exists(what):
         raise TransferError("Cannot send: no file/directory named '%s'" %
                             args.what)
-
-    what = os.path.join(args.cwd, args.what)
     basename = os.path.basename(what)
 
     if os.path.isfile(what):
@@ -88,4 +86,4 @@ def build_phase1_data(args):
               % (filesize, basename), file=args.stdout)
         return phase1, fd_to_send
 
-    raise TypeError("'%s' is neither file nor directory" % what)
+    raise TypeError("'%s' is neither file nor directory" % args.what)
