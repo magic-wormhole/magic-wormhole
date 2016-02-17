@@ -2,6 +2,7 @@ import os, sys, re
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
+from twisted.internet.defer import inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 
@@ -70,7 +71,7 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         d.addCallback(_check)
         return d
 
-class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
+class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
@@ -79,89 +80,94 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
         d.addCallback(lambda _: ServerBase.setUp(self))
         return d
 
-    def test_send_text_pre_generated_code(self):
+    @inlineCallbacks
+    def _do_test(self, mode="text", override_filename=False):
+        assert mode in ("text", "file", "directory")
         wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl]
+        server_args = ["--relay-url", self.relayurl,
+                       "--transit-helper", self.transit]
         code = u"1-abc"
         message = "test message"
+
         send_args = server_args + [
             "send",
             "--code", code,
-            "--text", message,
             ]
-        d1 = getProcessOutputAndValue(wormhole, send_args)
+
         receive_args = server_args + [
             "receive",
-            code,
             ]
-        d2 = getProcessOutputAndValue(wormhole, receive_args)
-        def _check_sender(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
-            self.maxDiff = None
+
+        send_dir = self.mktemp()
+        os.mkdir(send_dir)
+        receive_dir = self.mktemp()
+        os.mkdir(receive_dir)
+
+        if mode == "text":
+            send_args.extend(["--text", message])
+
+        elif mode == "file":
+            send_filename = "testfile"
+            with open(os.path.join(send_dir, send_filename), "w") as f:
+                f.write(message)
+            send_args.append(send_filename)
+            receive_filename = send_filename
+
+            receive_args.append("--accept-file")
+            if override_filename:
+                receive_args.extend(["-o", "outfile"])
+                receive_filename = "outfile"
+
+        elif mode == "directory":
+            # $send_dir/
+            # $send_dir/middle/
+            # $send_dir/middle/$dirname/
+            # $send_dir/middle/$dirname/[12345]
+            # cd $send_dir && wormhole send middle/$dirname
+            # cd $receive_dir && wormhole receive
+            # expect: $receive_dir/$dirname/[12345]
+
+            send_dirname = "testdir"
+            def message(i):
+                return "test message %d\n" % i
+            os.mkdir(os.path.join(send_dir, "middle"))
+            source_dir = os.path.join(send_dir, "middle", send_dirname)
+            os.mkdir(source_dir)
+            for i in range(5):
+                with open(os.path.join(source_dir, str(i)), "w") as f:
+                    f.write(message(i))
+            send_args.append(os.path.join("middle", send_dirname))
+            receive_dirname = send_dirname
+
+            receive_args.append("--accept-file")
+            if override_filename:
+                receive_args.extend(["-o", "outdir"])
+                receive_dirname = "outdir"
+
+        receive_args.append(code)
+
+        send_d = getProcessOutputAndValue(wormhole, send_args, path=send_dir)
+        receive_d = getProcessOutputAndValue(wormhole, receive_args,
+                                             path=receive_dir)
+
+        self.maxDiff = None # show full output for assertion failures
+
+        # check sender
+        send_res = yield send_d
+        out, err, rc = send_res
+        out = out.decode("utf-8")
+        err = err.decode("utf-8")
+        self.failUnlessEqual(err, "")
+        if mode == "text":
             expected = ("Sending text message (%d bytes)\n"
                         "On the other computer, please run: "
                         "wormhole receive\n"
                         "Wormhole code is: %s\n\n"
                         "text message sent\n" % (len(message), code))
-            self.failUnlessEqual( (expected, "", 0),
-                                  (out, err, rc) )
-            return d2
-        d1.addCallback(_check_sender)
-        def _check_receiver(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
-            self.failUnlessEqual( (message+"\n", "", 0),
-                                  (out, err, rc) )
-        d1.addCallback(_check_receiver)
-        return d1
-
-    def test_send_file_pre_generated_code(self):
-        return self._do_test_send_file_pre_generated_code(False)
-    def test_send_file_pre_generated_code_override(self):
-        return self._do_test_send_file_pre_generated_code(True)
-
-    def _do_test_send_file_pre_generated_code(self, override_filename):
-        self.maxDiff=None
-        code = u"1-abc"
-        filename = "testfile"
-        message = "test message"
-
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        with open(os.path.join(send_dir, filename), "w") as f:
-            f.write(message)
-
-        wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl,
-                       "--transit-helper", self.transit]
-        send_args = server_args + [
-            "send",
-            "--code", code,
-            filename,
-            ]
-
-        receive_dir = self.mktemp()
-        os.mkdir(receive_dir)
-        receive_args = server_args + [
-            "receive", "--accept-file",
-            ]
-        if override_filename:
-            receive_args.extend(["-o", "outfile"])
-            filename = "outfile"
-        receive_args.append(code)
-
-        d1 = getProcessOutputAndValue(wormhole, send_args, path=send_dir)
-        d2 = getProcessOutputAndValue(wormhole, receive_args, path=receive_dir)
-        def _check_sender(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
-            self.failUnlessEqual(err, "")
-            self.failUnlessIn("Sending %d byte file named 'testfile'\n" %
-                              len(message), out)
+            self.failUnlessEqual(out, expected)
+        elif mode == "file":
+            self.failUnlessIn("Sending %d byte file named '%s'\n" %
+                              (len(message), send_filename), out)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive\n"
                               "Wormhole code is: %s\n\n" % code,
@@ -169,76 +175,7 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("File sent.. waiting for confirmation\n"
                               "Confirmation received. Transfer complete.\n",
                               out)
-            self.failUnlessEqual(rc, 0)
-            return d2
-        d1.addCallback(_check_sender)
-        def _check_receiver(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
-            self.failUnlessIn("Receiving %d bytes for '%s'" %
-                              (len(message), filename), out)
-            self.failUnlessIn("Received file written to ", out)
-            self.failUnlessEqual(err, "")
-            self.failUnlessEqual(rc, 0)
-            fn = os.path.join(receive_dir, filename)
-            self.failUnless(os.path.exists(fn))
-            with open(fn, "r") as f:
-                self.failUnlessEqual(f.read(), message)
-        d1.addCallback(_check_receiver)
-        return d1
-
-    def test_send_directory_pre_generated_code(self):
-        return self._do_test_send_directory_pre_generated_code(False)
-    def test_send_directory_pre_generated_code_override(self):
-        return self._do_test_send_directory_pre_generated_code(True)
-
-    def _do_test_send_directory_pre_generated_code(self, override_dirname):
-        self.maxDiff=None
-        code = u"1-abc"
-        dirname = "testdir"
-        def message(i):
-            return "test message %d\n" % i
-
-        source_parent_dir = self.mktemp()
-        os.mkdir(source_parent_dir)
-        os.mkdir(os.path.join(source_parent_dir, "middle"))
-        source_dir = os.path.join(source_parent_dir, "middle", dirname)
-        os.mkdir(source_dir)
-        for i in range(5):
-            with open(os.path.join(source_dir, str(i)), "w") as f:
-                f.write(message(i))
-
-        target_parent_dir = self.mktemp()
-        os.mkdir(target_parent_dir)
-
-        wormhole = self.find_executable()
-        server_args = ["--relay-url", self.relayurl,
-                       "--transit-helper", self.transit]
-        send_args = server_args + [
-            "send",
-            "--code", code,
-            os.path.join("middle", dirname),
-            ]
-
-        receive_args = server_args + [
-            "receive", "--accept-file",
-            ]
-        if override_dirname:
-            receive_args.extend(["-o", "outdir"])
-            dirname = "outdir"
-        receive_args.append(code)
-
-        d1 = getProcessOutputAndValue(wormhole, send_args,
-                                      path=source_parent_dir)
-
-        d2 = getProcessOutputAndValue(wormhole, receive_args,
-                                      path=target_parent_dir)
-        def _check_sender(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
-            self.failUnlessEqual(err, "")
+        elif mode == "directory":
             self.failUnlessIn("Sending directory", out)
             self.failUnlessIn("named 'testdir'", out)
             self.failUnlessIn("On the other computer, please run: "
@@ -248,23 +185,46 @@ class Scripts(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("File sent.. waiting for confirmation\n"
                               "Confirmation received. Transfer complete.\n",
                               out)
-            self.failUnlessEqual(rc, 0)
-            return d2
-        d1.addCallback(_check_sender)
-        def _check_receiver(res):
-            out, err, rc = res
-            out = out.decode("utf-8")
-            err = err.decode("utf-8")
+        self.failUnlessEqual(rc, 0)
+
+        # check receiver
+        receive_res = yield receive_d
+        out, err, rc = receive_res
+        out = out.decode("utf-8")
+        err = err.decode("utf-8")
+        if mode == "text":
+            self.failUnlessEqual(out, message+"\n")
+        elif mode == "file":
+            self.failUnlessIn("Receiving %d bytes for '%s'" %
+                              (len(message), receive_filename), out)
+            self.failUnlessIn("Received file written to ", out)
+            fn = os.path.join(receive_dir, receive_filename)
+            self.failUnless(os.path.exists(fn))
+            with open(fn, "r") as f:
+                self.failUnlessEqual(f.read(), message)
+        elif mode == "directory":
             self.failUnless(re.search(r"Receiving \d+ bytes for '%s'" %
-                                      dirname, out))
-            self.failUnlessIn("Received files written to %s" % dirname, out)
-            self.failUnlessEqual(err, "")
-            self.failUnlessEqual(rc, 0)
-            fn = os.path.join(target_parent_dir, dirname)
+                                      receive_dirname, out))
+            self.failUnlessIn("Received files written to %s" %
+                              receive_dirname, out)
+            fn = os.path.join(receive_dir, receive_dirname)
             self.failUnless(os.path.exists(fn))
             for i in range(5):
-                fn = os.path.join(target_parent_dir, dirname, str(i))
+                fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
-        d1.addCallback(_check_receiver)
-        return d1
+        self.failUnlessEqual(err, "")
+        self.failUnlessEqual(rc, 0)
+
+    def test_text(self):
+        return self._do_test()
+
+    def test_file(self):
+        return self._do_test(mode="file")
+    def test_file_override(self):
+        return self._do_test(mode="file", override_filename=True)
+
+    def test_directory(self):
+        return self._do_test(mode="directory")
+    def test_directory_override(self):
+        return self._do_test(mode="directory", override_filename=True)
