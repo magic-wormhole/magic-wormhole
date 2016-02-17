@@ -96,6 +96,7 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender):
 
     print("File sent.. waiting for confirmation")
     ack = record_pipe.receive_record()
+    record_pipe.close()
     if ack == b"ok\n":
         print("Confirmation received. Transfer complete.")
         return 0
