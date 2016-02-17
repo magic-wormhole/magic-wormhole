@@ -87,4 +87,6 @@ def _build_phase1_data(args):
             }
         print("Sending directory (%d bytes compressed) named '%s'"
               % (filesize, basename))
+    else:
+        raise TypeError("'%s' is neither file nor directory" % args.what)
     return phase1, fd_to_send
