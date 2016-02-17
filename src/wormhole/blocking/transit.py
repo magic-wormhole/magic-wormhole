@@ -202,8 +202,12 @@ class RecordPipe:
 
 class Common:
     def __init__(self, transit_relay):
-        if not isinstance(transit_relay, type(u"")): raise UsageError
-        self._transit_relay = transit_relay
+        if transit_relay:
+            if not isinstance(transit_relay, type(u"")):
+                raise UsageError
+            self._transit_relays = [transit_relay]
+        else:
+            self._transit_relays = []
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
         self._have_transit_key = threading.Condition()
@@ -224,7 +228,7 @@ class Common:
     def get_direct_hints(self):
         return self.my_direct_hints
     def get_relay_hints(self):
-        return [self._transit_relay]
+        return self._transit_relays
 
     def add_their_direct_hints(self, hints):
         for h in hints:

@@ -403,9 +403,12 @@ class Common:
     RELAY_DELAY = 2.0
 
     def __init__(self, transit_relay, reactor=reactor):
-        if not isinstance(transit_relay, (type(None), type(u""))):
-            raise UsageError
-        self._transit_relay = transit_relay
+        if transit_relay:
+            if not isinstance(transit_relay, type(u"")):
+                raise UsageError
+            self._transit_relays = [transit_relay]
+        else:
+            self._transit_relays = []
         self._transit_key = None
         self._waiting_for_transit_key = []
         self._listener = None
@@ -459,9 +462,7 @@ class Common:
         self._listener_d.cancel()
 
     def get_relay_hints(self):
-        if self._transit_relay:
-            return [self._transit_relay]
-        return []
+        return self._transit_relays
 
     def add_their_direct_hints(self, hints):
         for h in hints:
