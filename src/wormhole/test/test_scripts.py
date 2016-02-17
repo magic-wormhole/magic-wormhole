@@ -234,7 +234,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("Received files written to %s" %
                               receive_dirname, receive_stdout)
             fn = os.path.join(receive_dir, receive_dirname)
-            self.failUnless(os.path.exists(fn))
+            self.failUnless(os.path.exists(fn), fn)
             for i in range(5):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
