@@ -35,8 +35,16 @@ def send_blocking(args):
             print(u"Wormhole code is: %s" % code, file=args.stdout)
         print(u"", file=args.stdout)
 
+        # get the verifier, because that also lets us derive the transit key,
+        # which we want to set before revealing the connection hints to the
+        # far side, so we'll be ready for them when they connect
+        verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
         if args.verify:
-            _do_verify(w)
+            _do_verify(verifier, w)
+
+        if fd_to_send is not None:
+            transit_key = w.derive_key(APPID+"/transit-key")
+            transit_sender.set_transit_key(transit_key)
 
         my_phase1_bytes = json.dumps(phase1).encode("utf-8")
         w.send_data(my_phase1_bytes)
@@ -44,8 +52,6 @@ def send_blocking(args):
             them_phase1_bytes = w.get_data()
         except WrongPasswordError as e:
             raise TransferError(e.explain())
-    # note: 'w' is still valid, and we use w.derive_key() below, which can't
-    # raise an error that needs to be handled in the 'with' block
 
     them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
 
@@ -55,11 +61,10 @@ def send_blocking(args):
             return 0
         raise TransferError("error sending text: %r" % (them_phase1,))
 
-    return _send_file_blocking(w, them_phase1, fd_to_send,
+    return _send_file_blocking(them_phase1, fd_to_send,
                                transit_sender, args.stdout, args.hide_progress)
 
-def _do_verify(w):
-    verifier = binascii.hexlify(w.get_verifier()).decode("ascii")
+def _do_verify(verifier, w):
     while True:
         ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
         if ok.lower() == "yes":
@@ -70,7 +75,7 @@ def _do_verify(w):
             w.send_data(reject_data)
             raise TransferError("verification rejected, abandoning transfer")
 
-def _send_file_blocking(w, them_phase1, fd_to_send, transit_sender,
+def _send_file_blocking(them_phase1, fd_to_send, transit_sender,
                         stdout, hide_progress):
 
     # we're sending a file, if they accept it
@@ -83,8 +88,6 @@ def _send_file_blocking(w, them_phase1, fd_to_send, transit_sender,
                             "transfer abandoned: %s" % (them_phase1,))
 
     tdata = them_phase1["transit"]
-    transit_key = w.derive_key(APPID+"/transit-key")
-    transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
     record_pipe = transit_sender.connect()
