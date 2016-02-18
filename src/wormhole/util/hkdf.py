@@ -4,9 +4,9 @@ import six
 
 def HKDF(SKM, dkLen, XTS=None, CTXinfo=b"", digest=sha256,
          _test_expected_PRK=None):
-    assert isinstance(SKM, six.binary_type)
-    assert isinstance(XTS, (six.binary_type,type(None)))
-    assert isinstance(CTXinfo, six.binary_type)
+    assert isinstance(SKM, six.binary_type), type(SKM)
+    assert isinstance(XTS, (six.binary_type,type(None))), type(XTS)
+    assert isinstance(CTXinfo, six.binary_type), type(CTXinfo)
     hlen = len(digest(b"").digest())
     assert dkLen <= hlen*255
     if XTS is None:
