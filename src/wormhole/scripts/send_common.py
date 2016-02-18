@@ -1,13 +1,24 @@
 from __future__ import print_function
 import os, sys, six, tempfile, zipfile
-from ..errors import handle_server_error, TransferError
+from ..errors import TransferError
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
-@handle_server_error
-def send(args):
-    # we're sending text, or a file/directory
-    assert isinstance(args.relay_url, type(u""))
+def handle_zero(args):
+    if args.zeromode:
+        assert not args.code
+        args.code = u"0-"
+
+def build_other_command(args):
+    other_cmd = "wormhole receive"
+    if args.verify:
+        other_cmd = "wormhole --verify receive"
+    if args.zeromode:
+        other_cmd += " -0"
+    return other_cmd
+
+def build_phase1_data(args):
+    phase1 = {}
 
     text = args.text
     if text == "-":
@@ -20,34 +31,16 @@ def send(args):
         print(u"Sending text message (%d bytes)" % len(text), file=args.stdout)
         phase1 = { "message": text }
         fd_to_send = None
-    else:
-        what = os.path.join(args.cwd, args.what)
-        if not os.path.exists(what):
-            raise TransferError("Cannot send: no file/directory named '%s'" %
-                                args.what)
-        phase1, fd_to_send = _build_phase1_data(args)
-        # transit_sender will be built in twisted/blocking-specific function
+        return phase1, fd_to_send
 
-    if args.zeromode:
-        assert not args.code
-        args.code = u"0-"
+    what = os.path.join(args.cwd, args.what)
+    if not os.path.exists(what):
+        raise TransferError("Cannot send: no file/directory named '%s'" %
+                            args.what)
 
-    other_cmd = "wormhole receive"
-    if args.verify:
-        other_cmd = "wormhole --verify receive"
-    if args.zeromode:
-        other_cmd += " -0"
-    print(u"On the other computer, please run: %s" % other_cmd,
-          file=args.stdout)
-
-    from .cmd_send_blocking import send_blocking
-    rc = send_blocking(APPID, args, phase1, fd_to_send)
-    return rc
-
-def _build_phase1_data(args):
-    phase1 = {}
     what = os.path.join(args.cwd, args.what)
     basename = os.path.basename(what)
+
     if os.path.isfile(what):
         # we're sending a file
         filesize = os.stat(what).st_size
@@ -58,7 +51,9 @@ def _build_phase1_data(args):
         print(u"Sending %d byte file named '%s'" % (filesize, basename),
               file=args.stdout)
         fd_to_send = open(what, "rb")
-    elif os.path.isdir(what):
+        return phase1, fd_to_send
+
+    if os.path.isdir(what):
         print(u"Building zipfile..", file=args.stdout)
         # We're sending a directory. Create a zipfile in a tempdir and
         # send that.
@@ -91,6 +86,6 @@ def _build_phase1_data(args):
             }
         print(u"Sending directory (%d bytes compressed) named '%s'"
               % (filesize, basename), file=args.stdout)
-    else:
-        raise TypeError("'%s' is neither file nor directory" % what)
-    return phase1, fd_to_send
+        return phase1, fd_to_send
+
+    raise TypeError("'%s' is neither file nor directory" % what)

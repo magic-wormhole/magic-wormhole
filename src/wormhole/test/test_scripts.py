@@ -6,7 +6,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
 from .. import __version__
 from .common import ServerBase
-from ..scripts import runner, cmd_send, cmd_receive
+from ..scripts import runner, cmd_send_blocking, cmd_receive
 
 class ScriptsBase:
     def find_executable(self):
@@ -172,7 +172,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             rargs.cwd = receive_dir
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
-            send_d = deferToThread(cmd_send.send, sargs)
+            send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
             receive_d = deferToThread(cmd_receive.receive, rargs)
 
             send_rc = yield send_d

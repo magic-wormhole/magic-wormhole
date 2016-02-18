@@ -20,8 +20,8 @@ def dispatch(args):
         from ..servers import cmd_usage
         return cmd_usage.tail_usage(args)
     if args.func == "send/send":
-        from . import cmd_send
-        return cmd_send.send(args)
+        from . import cmd_send_blocking
+        return cmd_send_blocking.send_blocking(args)
     if args.func == "receive/receive":
         from . import cmd_receive
         return cmd_receive.receive(args)

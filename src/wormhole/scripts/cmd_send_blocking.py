@@ -2,10 +2,20 @@ from __future__ import print_function
 import json, binascii, six
 from ..errors import TransferError
 from .progress import ProgressPrinter
+from ..blocking.transcribe import Wormhole, WrongPasswordError
+from ..blocking.transit import TransitSender
+from ..errors import handle_server_error
+from .send_common import (APPID, handle_zero, build_other_command,
+                          build_phase1_data)
 
-def send_blocking(appid, args, phase1, fd_to_send):
-    from ..blocking.transcribe import Wormhole, WrongPasswordError
-    from ..blocking.transit import TransitSender
+@handle_server_error
+def send_blocking(args):
+    assert isinstance(args.relay_url, type(u""))
+    handle_zero(args)
+    phase1, fd_to_send = build_phase1_data(args)
+    other_cmd = build_other_command(args)
+    print(u"On the other computer, please run: %s" % other_cmd,
+          file=args.stdout)
 
     transit_sender = TransitSender(args.transit_helper)
     transit_data = {
@@ -14,7 +24,7 @@ def send_blocking(appid, args, phase1, fd_to_send):
         }
     phase1["transit"] = transit_data
 
-    with Wormhole(appid, args.relay_url) as w:
+    with Wormhole(APPID, args.relay_url) as w:
         if args.code:
             w.set_code(args.code)
             code = args.code
@@ -44,7 +54,7 @@ def send_blocking(appid, args, phase1, fd_to_send):
             return 0
         raise TransferError("error sending text: %r" % (them_phase1,))
 
-    return _send_file_blocking(w, appid, them_phase1, fd_to_send,
+    return _send_file_blocking(w, them_phase1, fd_to_send,
                                transit_sender, args.stdout, args.hide_progress)
 
 def _do_verify(w):
@@ -59,7 +69,7 @@ def _do_verify(w):
             w.send_data(reject_data)
             raise TransferError("verification rejected, abandoning transfer")
 
-def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender,
+def _send_file_blocking(w, them_phase1, fd_to_send, transit_sender,
                         stdout, hide_progress):
 
     # we're sending a file, if they accept it
@@ -72,7 +82,7 @@ def _send_file_blocking(w, appid, them_phase1, fd_to_send, transit_sender,
                             "transfer abandoned: %s" % (them_phase1,))
 
     tdata = them_phase1["transit"]
-    transit_key = w.derive_key(appid+"/transit-key")
+    transit_key = w.derive_key(APPID+"/transit-key")
     transit_sender.set_transit_key(transit_key)
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
