@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os, sys, re, io, zipfile
 from twisted.trial import unittest
 from twisted.python import procutils, log
@@ -6,7 +7,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
 from .. import __version__
 from .common import ServerBase
-from ..scripts import runner, cmd_send_blocking, cmd_receive
+from ..scripts import runner, cmd_send_blocking, cmd_send_twisted, cmd_receive
 from ..scripts.send_common import build_phase1_data
 from ..errors import TransferError
 
@@ -207,7 +208,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
-                 mode="text", override_filename=False):
+                 mode="text", override_filename=False,
+                 sender_twisted=False, receiver_twisted=False):
         assert mode in ("text", "file", "directory")
         common_args = ["--hide-progress",
                        "--relay-url", self.relayurl,
@@ -295,7 +297,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             rargs.cwd = receive_dir
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
-            send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
+            if sender_twisted:
+                send_d = cmd_send_twisted.send_twisted(sargs)
+            else:
+                send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
+            assert not receiver_twisted # not importable yet
             receive_d = deferToThread(cmd_receive.receive, rargs)
 
             send_rc = yield send_d
@@ -308,8 +314,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None # show full output for assertion failures
 
-        # check sender
         self.failUnlessEqual(send_stderr, "")
+        self.failUnlessEqual(receive_stderr, "")
+
+        # check sender
         if mode == "text":
             expected = ("Sending text message (%d bytes)\n"
                         "On the other computer, please run: "
@@ -337,10 +345,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("File sent.. waiting for confirmation\n"
                               "Confirmation received. Transfer complete.\n",
                               send_stdout)
-        self.failUnlessEqual(send_rc, 0)
 
         # check receiver
-        self.failUnlessEqual(receive_stderr, "")
         if mode == "text":
             self.failUnlessEqual(receive_stdout, message+"\n")
         elif mode == "file":
@@ -362,19 +368,27 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
+
+        self.failUnlessEqual(send_rc, 0)
         self.failUnlessEqual(receive_rc, 0)
 
     def test_text(self):
         return self._do_test()
     def test_text_subprocess(self):
         return self._do_test(as_subprocess=True)
+    def test_text_twisted_to_blocking(self):
+        return self._do_test(sender_twisted=True)
 
     def test_file(self):
         return self._do_test(mode="file")
     def test_file_override(self):
         return self._do_test(mode="file", override_filename=True)
+    def test_file_twisted_to_blocking(self):
+        return self._do_test(mode="file", sender_twisted=True)
 
     def test_directory(self):
         return self._do_test(mode="directory")
     def test_directory_override(self):
         return self._do_test(mode="directory", override_filename=True)
+    def test_directory_twisted_to_blocking(self):
+        return self._do_test(mode="directory", sender_twisted=True)
