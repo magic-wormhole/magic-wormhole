@@ -55,9 +55,13 @@ def send_twisted(args):
         print(u"Wormhole code is: %s" % code, file=args.stdout)
     print(u"", file=args.stdout)
 
+    # get the verifier, because that also lets us derive the transit key,
+    # which we want to set before revealing the connection hints to the far
+    # side, so we'll be ready for them when they connect
+    verifier_bytes = yield w.get_verifier()
+    verifier = binascii.hexlify(verifier_bytes).decode("ascii")
+
     if args.verify:
-        verifier_bytes = yield w.get_verifier()
-        verifier = binascii.hexlify(verifier_bytes).decode("ascii")
         while True:
             ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
@@ -67,6 +71,9 @@ def send_twisted(args):
                                           }).encode("utf-8")
                 yield w.send_data(reject_data)
                 raise TransferError("verification rejected, abandoning transfer")
+    if fd_to_send is not None:
+        transit_key = w.derive_key(APPID+"/transit-key")
+        transit_sender.set_transit_key(transit_key)
 
     my_phase1_bytes = json.dumps(phase1).encode("utf-8")
     yield w.send_data(my_phase1_bytes)
@@ -92,10 +99,6 @@ def send_twisted(args):
         raise TransferError("ambiguous response from remote, "
                             "transfer abandoned: %s" % (them_phase1,))
     tdata = them_phase1["transit"]
-    # this is happening too late: the other side already connects to our
-    # server
-    transit_key = w.derive_key(APPID+"/transit-key")
-    transit_sender.set_transit_key(transit_key)
     yield w.close()
     yield _send_file_twisted(tdata, transit_sender, fd_to_send,
                              args.stdout, args.hide_progress)
