@@ -17,12 +17,13 @@ def send_blocking(args):
     print(u"On the other computer, please run: %s" % other_cmd,
           file=args.stdout)
 
-    transit_sender = TransitSender(args.transit_helper)
-    transit_data = {
-        "direct_connection_hints": transit_sender.get_direct_hints(),
-        "relay_connection_hints": transit_sender.get_relay_hints(),
-        }
-    phase1["transit"] = transit_data
+    if fd_to_send is not None:
+        transit_sender = TransitSender(args.transit_helper)
+        transit_data = {
+            "direct_connection_hints": transit_sender.get_direct_hints(),
+            "relay_connection_hints": transit_sender.get_relay_hints(),
+            }
+        phase1["transit"] = transit_data
 
     with Wormhole(APPID, args.relay_url) as w:
         if args.code:
