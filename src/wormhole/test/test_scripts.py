@@ -7,7 +7,8 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
 from .. import __version__
 from .common import ServerBase
-from ..scripts import runner, cmd_send_blocking, cmd_send_twisted, cmd_receive
+from ..scripts import (runner, cmd_send_blocking, cmd_send_twisted,
+                       cmd_receive_blocking)
 from ..scripts.send_common import build_phase1_data
 from ..errors import TransferError
 
@@ -302,7 +303,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             else:
                 send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
             assert not receiver_twisted # not importable yet
-            receive_d = deferToThread(cmd_receive.receive, rargs)
+            receive_d = deferToThread(cmd_receive_blocking.receive_blocking, rargs)
 
             send_rc = yield send_d
             send_stdout = sargs.stdout.getvalue()

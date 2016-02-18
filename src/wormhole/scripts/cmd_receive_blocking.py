@@ -187,7 +187,7 @@ def accept_directory(args, them_d, w):
     return 0
 
 @handle_server_error
-def receive(args):
+def receive_blocking(args):
     # we're receiving text, or a file
     from ..blocking.transcribe import Wormhole, WrongPasswordError
     assert isinstance(args.relay_url, type(u""))
