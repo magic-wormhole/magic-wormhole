@@ -3,6 +3,30 @@ import os, sys
 from ..errors import TransferError
 from .cli_args import parser
 
+def dispatch(args):
+    if args.func == "server/start":
+        from ..servers import cmd_server
+        return cmd_server.start_server(args)
+    if args.func == "server/stop":
+        from ..servers import cmd_server
+        return cmd_server.stop_server(args)
+    if args.func == "server/restart":
+        from ..servers import cmd_server
+        return cmd_server.restart_server(args)
+    if args.func == "usage/usage":
+        from ..servers import cmd_usage
+        return cmd_usage.show_usage(args)
+    if args.func == "usage/tail":
+        from ..servers import cmd_usage
+        return cmd_usage.tail_usage(args)
+    if args.func == "send/send":
+        from . import cmd_send
+        return cmd_send.send(args)
+    if args.func == "receive/receive":
+        from . import cmd_receive
+        return cmd_receive.receive(args)
+    raise ValueError("unknown args.func %s" % args.func)
+
 def run(args, cwd, stdout, stderr, executable=None):
     """This is invoked directly by the 'wormhole' entry-point script. It can
     also invoked by entry() below."""
@@ -17,8 +41,7 @@ def run(args, cwd, stdout, stderr, executable=None):
     args.stdout = stdout
     args.stderr = stderr
     try:
-        #rc = command.func(args, stdout, stderr)
-        rc = args.func(args)
+        rc = dispatch(args)
         return rc
     except TransferError as e:
         print(e, file=stderr)

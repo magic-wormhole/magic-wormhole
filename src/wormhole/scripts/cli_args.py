@@ -2,8 +2,6 @@ import argparse
 from textwrap import dedent
 from .. import public_relay
 from .. import __version__
-from . import cmd_send, cmd_receive
-from ..servers import cmd_server, cmd_usage
 
 parser = argparse.ArgumentParser(
     usage="wormhole SUBCOMMAND (subcommand-options)",
@@ -51,11 +49,11 @@ sp_start.add_argument("-n", "--no-daemon", action="store_true")
 #                      help=dedent("""\
 #                      Additional arguments to pass to twistd"""),
 #                      )
-sp_start.set_defaults(func=cmd_server.start_server)
+sp_start.set_defaults(func="server/start")
 
 sp_stop = sp.add_parser("stop", description="Stop the relay server",
                         usage="wormhole server stop")
-sp_stop.set_defaults(func=cmd_server.stop_server)
+sp_stop.set_defaults(func="server/stop")
 
 sp_restart = sp.add_parser("restart", description="Restart the relay server",
                            usage="wormhole server restart")
@@ -69,17 +67,17 @@ sp_restart.add_argument("--blur-usage", default=None, type=int,
                         metavar="SECONDS",
                         help="round logged access times to improve privacy")
 sp_restart.add_argument("-n", "--no-daemon", action="store_true")
-sp_restart.set_defaults(func=cmd_server.restart_server)
+sp_restart.set_defaults(func="server/restart")
 
 sp_show_usage = sp.add_parser("show-usage", description="Display usage data",
                               usage="wormhole server show-usage")
 sp_show_usage.add_argument("-n", default=100, type=int,
                            help="show last N entries")
-sp_show_usage.set_defaults(func=cmd_usage.show_usage)
+sp_show_usage.set_defaults(func="usage/usage")
 
 sp_tail_usage = sp.add_parser("tail-usage", description="Follow latest usage",
                               usage="wormhole server tail-usage")
-sp_tail_usage.set_defaults(func=cmd_usage.tail_usage)
+sp_tail_usage.set_defaults(func="usage/tail")
 
 # CLI: send
 p = subparsers.add_parser("send",
@@ -93,7 +91,7 @@ p.add_argument("-0", dest="zeromode", action="store_true",
                help="enable no-code anything-goes mode")
 p.add_argument("what", nargs="?", default=None, metavar="[FILENAME|DIRNAME]",
                help="the file/directory to send")
-p.set_defaults(func=cmd_send.send)
+p.set_defaults(func="send/send")
 
 # CLI: receive
 p = subparsers.add_parser("receive",
@@ -116,4 +114,4 @@ p.add_argument("code", nargs="?", default=None, metavar="[CODE]",
                program will ask for it, using tab-completion."""),
                type=type(u""),
                )
-p.set_defaults(func=cmd_receive.receive)
+p.set_defaults(func="receive/receive")
