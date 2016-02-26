@@ -32,7 +32,8 @@ def find_addresses():
         commands = _unix_commands
 
     for (pathtotool, args, regex) in commands:
-        assert os.path.isabs(pathtotool), pathtotool
+        if platform != 'win32':
+            assert os.path.isabs(pathtotool), pathtotool
         if not os.path.isfile(pathtotool):
             continue
         try:
