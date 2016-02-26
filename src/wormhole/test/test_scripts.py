@@ -117,7 +117,7 @@ class Phase1Data(unittest.TestCase):
 
         try:
             os.mkfifo(abs_filename)
-        except OSError:
+        except AttributeError:
             raise unittest.SkipTest("is mkfifo supported on this platform?")
         self.assertFalse(os.path.isfile(abs_filename))
         self.assertFalse(os.path.isdir(abs_filename))
