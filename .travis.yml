@@ -7,7 +7,13 @@ env:
   - TOXENV=py34
   - TOXENV=py35
   - TOXENV=meta
+
+# Pre-build the wheels so they'll be used from cache inside tox. This doesn't
+# reduce total build time on travis, but it should move about two minutes
+# from the "script" phase up into the "install" phase.
+
 install:
   - pip install tox
+  - pip wheel cffi coverage pycparser PyNaCl requests six spake2==0.3 Twisted zope.interface
 script:
   - tox
