@@ -3,7 +3,11 @@
 
 environment:
   # we tell Tox to use "twisted[windows]", to get pypiwin32 installed
-  TWISTED_EXTRAS: "[windows]"
+  #TWISTED_EXTRAS: "[windows]"
+  # that didn't work (it seems to work when I run it locally, but on appveyor
+  # it fails to install the pypiwin32 package). So don't bother telling
+  # Twisted to support windows: just install it ourselves.
+  EXTRA_DEPENDENCY: "pypiwin32"
   matrix:
     # For Python versions available on Appveyor, see
     # http://www.appveyor.com/docs/installed-software#python
