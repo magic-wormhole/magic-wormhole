@@ -22,6 +22,9 @@ and do not need to be memorized.
 On Debian/Ubuntu systems, you may first need `apt-get python-dev libffi-dev`.
 On OS-X, you may need to install `pip`.
 
+Developers can clone the source tree and run `tox` to run the unit tests on
+all supported (and installed) versions of python: 2.7, 3.3, 3.4, and 3.5.
+
 ## Motivation
 
 * Moving a file to a friend's machine, when the humans can speak to each

@@ -1,12 +1,13 @@
 sudo: false
 language: python
-python:
-  - "2.7"
-  - "3.3"
-  - "3.4"
-  - "3.5"
+python: 2.7
+env:
+  - TOXENV=py27
+  - TOXENV=py33
+  - TOXENV=py34
+  - TOXENV=py35
+  - TOXENV=meta
 install:
-  - pip install . "Twisted>=15.5.0" pyflakes
+  - pip install tox
 script:
-  - pyflakes src
-  - trial wormhole
+  - tox
