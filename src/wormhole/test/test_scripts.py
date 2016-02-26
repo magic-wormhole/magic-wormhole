@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, re, io, zipfile
+import os, sys, re, io, zipfile, six
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
@@ -95,7 +95,7 @@ class Phase1Data(unittest.TestCase):
         self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], type(123))
+        self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
 
         self.assertEqual(fd_to_send.tell(), 0)
         zdata = fd_to_send.read()
