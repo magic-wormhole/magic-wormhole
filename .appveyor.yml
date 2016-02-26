@@ -1,0 +1,60 @@
+# adapted from https://packaging.python.org/en/latest/appveyor/
+
+environment:
+
+  matrix:
+    # For Python versions available on Appveyor, see
+    # http://www.appveyor.com/docs/installed-software#python
+    - PYTHON: "C:\\Python27"
+    - PYTHON: "C:\\Python27-x64"
+    - PYTHON: "C:\\Python33"
+    - PYTHON: "C:\\Python33-x64"
+      DISTUTILS_USE_SDK: "1"
+    - PYTHON: "C:\\Python34"
+    - PYTHON: "C:\\Python34-x64"
+      DISTUTILS_USE_SDK: "1"
+    - PYTHON: "C:\\Python35"
+    - PYTHON: "C:\\Python35-x64"
+      DISTUTILS_USE_SDK: "1"
+
+# tox-2.3.1 has a windows bug (#314), fixed in hg but not yet released. When
+# the next release comes out, replace this with just:
+#   %PYTHON%\python.exe -m pip install wheel tox
+
+install:
+  - |
+    %PYTHON%\python.exe -m pip install -U pip virtualenv
+    %PYTHON%\python.exe -m pip install wheel "hg+https://bitbucket.org/hpk42/tox#egg=tox"
+
+# note:
+# %PYTHON% has: python.exe
+# %PYTHON%\Scripts has: pip.exe, tox.exe (and others installed by bare pip)
+
+
+build: off
+
+test_script:
+  # Put your test command here.
+  # Note that you must use the environment variable %PYTHON% to refer to
+  # the interpreter you're using - Appveyor does not do anything special
+  # to put the Python evrsion you want to use on PATH.
+  - |
+    misc\windows-build.cmd %PYTHON%\Scripts\tox.exe -e py,meta
+
+after_test:
+  # This step builds your wheels.
+  # Again, you only need build.cmd if you're building C extensions for
+  # 64-bit Python 3.3/3.4. And you need to use %PYTHON% to get the correct
+  # interpreter
+  - |
+    misc\windows-build.cmd %PYTHON%\python.exe setup.py bdist_wheel
+
+artifacts:
+  # bdist_wheel puts your built wheel in the dist directory
+  - path: dist\*
+
+#on_success:
+#  You can use this step to upload your artifacts to a public website.
+#  See Appveyor's documentation for more details. Or you can simply
+#  access your wheels from the Appveyor "artifacts" tab for your build.
+  
