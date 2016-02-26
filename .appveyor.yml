@@ -1,7 +1,9 @@
 # adapted from https://packaging.python.org/en/latest/appveyor/
 
-environment:
 
+environment:
+  # we tell Tox to use "twisted[windows]", to get pypiwin32 installed
+  TWISTED_EXTRAS: "[windows]"
   matrix:
     # For Python versions available on Appveyor, see
     # http://www.appveyor.com/docs/installed-software#python
