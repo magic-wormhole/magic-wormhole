@@ -193,9 +193,7 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
                 last = err.strip().split("\n")[-1]
                 self.fail("wormhole not runnable: %s" % last)
             ver = out.decode("utf-8") or err
-            self.failUnlessEqual(ver,
-                                 "magic-wormhole {ver}{NL}"
-                                 .format(ver=__version__, NL=os.linesep))
+            self.failUnlessEqual(ver, "magic-wormhole "+__version__+os.linesep)
             self.failUnlessEqual(rc, 0)
         d.addCallback(_check)
         return d
@@ -320,57 +318,55 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         self.failUnlessEqual(send_stderr, "")
         self.failUnlessEqual(receive_stderr, "")
 
+        # note: all output here comes from a StringIO, which uses \n for
+        # newlines, even if we're on windows where os.linesep="\r\n", so it's
+        # ok for the tests to be using \n.
+
         # check sender
         if mode == "text":
-            expected = ("Sending text message ({bytes:d} bytes){NL}"
+            expected = ("Sending text message (%d bytes)\n"
                         "On the other computer, please run: "
-                        "wormhole receive{NL}"
-                        "Wormhole code is: {code}{NL}{NL}"
-                        "text message sent{NL}").format(bytes=len(message),
-                                                        code=code,
-                                                        NL=os.linesep)
+                        "wormhole receive\n"
+                        "Wormhole code is: %s\n\n"
+                        "text message sent\n" % (len(message), code))
             self.failUnlessEqual(send_stdout, expected)
         elif mode == "file":
-            self.failUnlessIn("Sending {bytes:d} byte file named '{name}'{NL}"
-                              .format(bytes=len(message), name=send_filename,
-                                      NL=os.linesep), send_stdout)
+            self.failUnlessIn("Sending %d byte file named '%s'\n" %
+                              (len(message), send_filename), send_stdout)
             self.failUnlessIn("On the other computer, please run: "
-                              "wormhole receive{NL}"
-                              "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=code, NL=os.linesep),
+                              "wormhole receive\n"
+                              "Wormhole code is: %s\n\n" % code,
                               send_stdout)
-            self.failUnlessIn("File sent.. waiting for confirmation{NL}"
-                              "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=os.linesep), send_stdout)
+            self.failUnlessIn("File sent.. waiting for confirmation\n"
+                              "Confirmation received. Transfer complete.\n",
+                              send_stdout)
         elif mode == "directory":
             self.failUnlessIn("Sending directory", send_stdout)
             self.failUnlessIn("named 'testdir'", send_stdout)
             self.failUnlessIn("On the other computer, please run: "
-                              "wormhole receive{NL}"
-                              "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=code, NL=os.linesep), send_stdout)
-            self.failUnlessIn("File sent.. waiting for confirmation{NL}"
-                              "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=os.linesep), send_stdout)
+                              "wormhole receive\n"
+                              "Wormhole code is: %s\n\n" % code,
+                              send_stdout)
+            self.failUnlessIn("File sent.. waiting for confirmation\n"
+                              "Confirmation received. Transfer complete.\n",
+                              send_stdout)
 
         # check receiver
         if mode == "text":
-            self.failUnlessEqual(receive_stdout, message+os.linesep)
+            self.failUnlessEqual(receive_stdout, message+"\n")
         elif mode == "file":
-            self.failUnlessIn("Receiving {bytes:d} bytes for '{name}'"
-                              .format(bytes=len(message),
-                                      name=receive_filename), receive_stdout)
+            self.failUnlessIn("Receiving %d bytes for '%s'" %
+                              (len(message), receive_filename), receive_stdout)
             self.failUnlessIn("Received file written to ", receive_stdout)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
-            self.failUnless(re.search(r"Receiving \d+ bytes for '{name}'"
-                                      .format(name=receive_dirname),
-                                      receive_stdout))
-            self.failUnlessIn("Received files written to {name}"
-                              .format(name=receive_dirname), receive_stdout)
+            self.failUnless(re.search(r"Receiving \d+ bytes for '%s'" %
+                                      receive_dirname, receive_stdout))
+            self.failUnlessIn("Received files written to %s" %
+                              receive_dirname, receive_stdout)
             fn = os.path.join(receive_dir, receive_dirname)
             self.failUnless(os.path.exists(fn), fn)
             for i in range(5):
