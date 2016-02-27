@@ -5,8 +5,9 @@ python:
   - "3.3"
   - "3.4"
   - "3.5"
+env:
+  - TOXENV=py
 install:
-  - pip install . "Twisted>=15.5.0" pyflakes
+  - pip install tox
 script:
-  - pyflakes src
-  - trial wormhole
+  - tox
