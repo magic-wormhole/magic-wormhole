@@ -17,9 +17,6 @@ def extract_channel_id(code):
     channel_id = int(code.split("-")[0])
     return channel_id
 
-import readline
-#import sys
-
 class CodeInputter:
     def __init__(self, initial_channelids, get_channel_ids, code_length):
         self._initial_channelids = initial_channelids
@@ -86,10 +83,14 @@ class CodeInputter:
 
 def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
                                code_length):
-    c = CodeInputter(initial_channelids, get_channel_ids, code_length)
-    readline.parse_and_bind("tab: complete")
-    readline.set_completer(c.wrap_completer)
-    readline.set_completer_delims("")
+    try:
+        import readline
+        c = CodeInputter(initial_channelids, get_channel_ids, code_length)
+        readline.parse_and_bind("tab: complete")
+        readline.set_completer(c.wrap_completer)
+        readline.set_completer_delims("")
+    except ImportError:
+        pass
     code = six.moves.input(prompt)
     # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
     if isinstance(code, bytes):
