@@ -336,7 +336,7 @@ class Common:
             self.listener.shutdown() # TODO: waits up to 0.5s. push to thread
         if self.winning_skt:
             return self.winning_skt
-        raise TransitError
+        raise TransitError("timeout")
 
     def describe(self):
         if not self.winning_skt_description:
