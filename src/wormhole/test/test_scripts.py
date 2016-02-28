@@ -360,7 +360,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode == "text":
             self.failUnlessEqual(receive_stdout, message+NL)
         elif mode == "file":
-            self.failUnlessIn("Receiving {bytes:d} bytes for '{name}'"
+            self.failUnlessIn("Receiving file ({bytes:d} bytes) into: {name}"
                               .format(bytes=len(message),
                                       name=receive_filename), receive_stdout)
             self.failUnlessIn("Received file written to ", receive_stdout)
@@ -369,9 +369,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
-            self.failUnless(re.search(r"Receiving \d+ bytes for '{name}'"
-                                      .format(name=receive_dirname),
-                                      receive_stdout))
+            want = (r"Receiving directory \(\d+ bytes\) into: {name}/"
+                    .format(name=receive_dirname))
+            self.failUnless(re.search(want, receive_stdout),
+                            (want, receive_stdout))
             self.failUnlessIn("Received files written to {name}"
                               .format(name=receive_dirname), receive_stdout)
             fn = os.path.join(receive_dir, receive_dirname)
