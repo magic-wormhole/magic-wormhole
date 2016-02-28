@@ -449,6 +449,11 @@ class EventSourceClient(unittest.TestCase):
                               ])
 
 class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
+    def test_hints(self):
+        r = TransitReceiver(self.transit)
+        hints = r.get_direct_hints()
+        self.assertTrue(len(hints), hints)
+
     @inlineCallbacks
     def test_direct_to_receiver(self):
         s = TransitSender(self.transit)
@@ -457,7 +462,9 @@ class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
 
         # force the connection to be sender->receiver
         s.set_transit_key(key)
-        s.add_their_direct_hints(r.get_direct_hints())
+        # only use 127.0.0.1
+        hint = u"tcp:127.0.0.1:%d" % r.listener.server_address[1]
+        s.add_their_direct_hints([hint])
         s.add_their_relay_hints([])
         r.set_transit_key(key)
         r.add_their_direct_hints([])
@@ -483,7 +490,8 @@ class Transit(_DoBothMixin, ServerBase, unittest.TestCase):
         s.add_their_direct_hints([])
         s.add_their_relay_hints([])
         r.set_transit_key(key)
-        r.add_their_direct_hints(s.get_direct_hints())
+        hint = u"tcp:127.0.0.1:%d" % s.listener.server_address[1]
+        r.add_their_direct_hints([hint])
         r.add_their_relay_hints([])
 
         (sp, rp) = yield self.doBoth([s.connect], [r.connect])
