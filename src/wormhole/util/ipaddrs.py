@@ -42,7 +42,7 @@ def find_addresses():
             addresses = []
         if addresses:
             return addresses
-    return []
+    return ["127.0.0.1"]
 
 def _query(path, args, regex):
     env = {'LANG': 'en_US.UTF-8'}
