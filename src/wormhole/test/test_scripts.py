@@ -8,7 +8,7 @@ from twisted.internet.threads import deferToThread
 from .. import __version__
 from .common import ServerBase
 from ..scripts import (runner, cmd_send_blocking, cmd_send_twisted,
-                       cmd_receive_blocking)
+                       cmd_receive_blocking, cmd_receive_twisted)
 from ..scripts.send_common import build_phase1_data
 from ..errors import TransferError
 
@@ -303,8 +303,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 send_d = cmd_send_twisted.send_twisted(sargs)
             else:
                 send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
-            assert not receiver_twisted # not importable yet
-            receive_d = deferToThread(cmd_receive_blocking.receive_blocking, rargs)
+            if receiver_twisted:
+                receive_d = cmd_receive_twisted.receive_twisted(rargs)
+            else:
+                receive_d = deferToThread(cmd_receive_blocking.receive_blocking, rargs)
 
             send_rc = yield send_d
             send_stdout = sargs.stdout.getvalue()
@@ -391,6 +393,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(as_subprocess=True)
     def test_text_twisted_to_blocking(self):
         return self._do_test(sender_twisted=True)
+    def test_text_blocking_to_twisted(self):
+        return self._do_test(receiver_twisted=True)
+    def test_text_twisted_to_twisted(self):
+        return self._do_test(sender_twisted=True, receiver_twisted=True)
 
     def test_file(self):
         return self._do_test(mode="file")
@@ -398,6 +404,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="file", override_filename=True)
     def test_file_twisted_to_blocking(self):
         return self._do_test(mode="file", sender_twisted=True)
+    def test_file_blocking_to_twisted(self):
+        return self._do_test(mode="file", receiver_twisted=True)
+    def test_file_twisted_to_twisted(self):
+        return self._do_test(mode="file",
+                             sender_twisted=True, receiver_twisted=True)
 
     def test_directory(self):
         return self._do_test(mode="directory")
@@ -405,3 +416,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="directory", override_filename=True)
     def test_directory_twisted_to_blocking(self):
         return self._do_test(mode="directory", sender_twisted=True)
+    def test_directory_blocking_to_twisted(self):
+        return self._do_test(mode="directory", receiver_twisted=True)
+    def test_directory_twisted_to_twisted(self):
+        return self._do_test(mode="directory",
+                             sender_twisted=True, receiver_twisted=True)
