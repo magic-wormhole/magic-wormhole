@@ -153,6 +153,7 @@ def receive_blocking(args):
         assert received == xfersize
 
         if mode == "file":
+            f.close()
             os.rename(tmp_destname, abs_destname)
             print(u"Received file written to %s" % destname, file=args.stdout)
         else:
@@ -164,6 +165,7 @@ def receive_blocking(args):
                 # "../tmp/oops" both do the same thing as the (safe)
                 # "tmp/oops".
             print(u"Received files written to %s/" % destname, file=args.stdout)
+            f.close()
 
         record_pipe.send_record(b"ok\n")
         record_pipe.close()
