@@ -122,7 +122,7 @@ def receive_blocking(args):
         record_pipe = transit_receiver.connect()
 
         print(u"Receiving %d bytes for '%s' (%s).." %
-              (xfersize, destname, transit_receiver.describe()),
+              (xfersize, destname, record_pipe.describe()),
               file=args.stdout)
         if mode == "file":
             tmp_destname = abs_destname + ".tmp"

@@ -26,12 +26,13 @@ TIMEOUT=15
 
 @implementer(interfaces.IProducer, interfaces.IConsumer)
 class Connection(protocol.Protocol, policies.TimeoutMixin):
-    def __init__(self, owner, relay_handshake, start):
+    def __init__(self, owner, relay_handshake, start, description):
         self.state = "too-early"
         self.buf = b""
         self.owner = owner
         self.relay_handshake = relay_handshake
         self.start = start
+        self._description = description
         self._negotiation_d = defer.Deferred(self._cancel)
         self._error = None
         self._consumer = None
@@ -41,10 +42,9 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     def connectionMade(self):
         debug("handle %r" %  (self.transport,))
         self.setTimeout(TIMEOUT) # does timeoutConnection() when it expires
-        self.factory.connectionWasMade(self, self.transport.getPeer())
+        self.factory.connectionWasMade(self)
 
-    def startNegotiation(self, description):
-        self.description = description
+    def startNegotiation(self):
         if self.relay_handshake is not None:
             self.transport.write(self.relay_handshake)
             self.state = "relay"
@@ -104,7 +104,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         if self.state == "handshake":
             if not self._check_and_remove(self.owner._expect_this()):
                 return
-            self.state = self.owner.connection_ready(self, self.description)
+            self.state = self.owner.connection_ready(self)
             # If we're the receiver, we'll be moved to state
             # "wait-for-decision", which means we're waiting for the other
             # side (the sender) to make a decision. If we're the sender,
@@ -160,6 +160,9 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.next_receive_nonce += 1
         record = self.receive_box.decrypt(encrypted)
         return record
+
+    def describe(self):
+        return self._description
 
     def send_record(self, record):
         if not isinstance(record, type(b"")): raise UsageError
@@ -260,17 +263,19 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 class OutboundConnectionFactory(protocol.ClientFactory):
     protocol = Connection
 
-    def __init__(self, owner, relay_handshake):
+    def __init__(self, owner, relay_handshake, description):
         self.owner = owner
         self.relay_handshake = relay_handshake
+        self._description = description
         self.start = time.time()
 
     def buildProtocol(self, addr):
-        p = self.protocol(self.owner, self.relay_handshake, self.start)
+        p = self.protocol(self.owner, self.relay_handshake, self.start,
+                          self._description)
         p.factory = self
         return p
 
-    def connectionWasMade(self, p, addr):
+    def connectionWasMade(self, p):
         # outbound connections are handled via the endpoint
         pass
 
@@ -295,7 +300,7 @@ class InboundConnectionFactory(protocol.ClientFactory):
         for d in list(self._pending_connections):
             d.cancel() # that fires _remove and _proto_failed
 
-    def describePeer(self, addr):
+    def _describePeer(self, addr):
         if isinstance(addr, address.HostnameAddress):
             return "<-%s:%d" % (addr.hostname, addr.port)
         elif isinstance(addr, (address.IPv4Address, address.IPv6Address)):
@@ -303,12 +308,13 @@ class InboundConnectionFactory(protocol.ClientFactory):
         return "<-%r" % addr
 
     def buildProtocol(self, addr):
-        p = self.protocol(self.owner, None, self.start)
+        p = self.protocol(self.owner, None, self.start,
+                          self._describePeer(addr))
         p.factory = self
         return p
 
-    def connectionWasMade(self, p, addr):
-        d = p.startNegotiation(self.describePeer(addr))
+    def connectionWasMade(self, p):
+        d = p.startNegotiation()
         self._pending_connections.add(d)
         d.addBoth(self._remove, d)
         d.addCallbacks(self._proto_succeeded, self._proto_failed)
@@ -413,7 +419,6 @@ class Common:
         self._waiting_for_transit_key = []
         self._listener = None
         self._winner = None
-        self._winner_description = None
         self._reactor = reactor
 
     def _build_listener(self):
@@ -596,10 +601,10 @@ class Common:
         if is_relay:
             assert self._transit_key
             relay_handshake = build_relay_handshake(self._transit_key)
-        f = OutboundConnectionFactory(self, relay_handshake)
+        f = OutboundConnectionFactory(self, relay_handshake, description)
         d = ep.connect(f)
         # fires with protocol, or ConnectError
-        d.addCallback(lambda p: p.startNegotiation(description))
+        d.addCallback(lambda p: p.startNegotiation())
         return d
 
     def _endpoint_from_hint(self, hint):
@@ -613,7 +618,7 @@ class Common:
         return endpoints.HostnameEndpoint(self._reactor, pieces[1],
                                           int(pieces[2]))
 
-    def connection_ready(self, p, description):
+    def connection_ready(self, p):
         # inbound/outbound Connection protocols call this when they finish
         # negotiation. The first one wins and gets a "go". Any subsequent
         # ones lose and get a "nevermind" before being closed.
@@ -626,13 +631,7 @@ class Common:
             return "nevermind"
         # this one wins!
         self._winner = p
-        self._winner_description = description
         return "go"
-
-    def describe(self):
-        if not self._winner:
-            return "not yet established"
-        return self._winner_description
 
 class TransitSender(Common):
     is_sender = True

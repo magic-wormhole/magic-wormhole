@@ -197,24 +197,14 @@ class Basic(unittest.TestCase):
 
     def test_connection_ready(self):
         s = transit.TransitSender(u"")
-        self.assertEqual(s.describe(), "not yet established")
-
-        self.assertEqual(s.connection_ready("p1", "desc1"), "go")
-        self.assertEqual(s.describe(), "desc1")
+        self.assertEqual(s.connection_ready("p1"), "go")
         self.assertEqual(s._winner, "p1")
-
-        self.assertEqual(s.connection_ready("p2", "desc2"), "nevermind")
-        self.assertEqual(s.describe(), "desc1")
+        self.assertEqual(s.connection_ready("p2"), "nevermind")
         self.assertEqual(s._winner, "p1")
 
         r = transit.TransitReceiver(u"")
-        self.assertEqual(r.describe(), "not yet established")
-
-        self.assertEqual(r.connection_ready("p1", "desc1"), "wait-for-decision")
-        self.assertEqual(r.describe(), "not yet established")
-
-        self.assertEqual(r.connection_ready("p2", "desc2"), "wait-for-decision")
-        self.assertEqual(r.describe(), "not yet established")
+        self.assertEqual(r.connection_ready("p1"), "wait-for-decision")
+        self.assertEqual(r.connection_ready("p2"), "wait-for-decision")
 
 
 class Listener(unittest.TestCase):
@@ -305,32 +295,32 @@ class RandomError(Exception):
     pass
 
 class MockConnection:
-    def __init__(self, owner, relay_handshake, start):
+    def __init__(self, owner, relay_handshake, start, description):
         self.owner = owner
         self.relay_handshake = relay_handshake
         self.start = start
+        self._description = description
         def cancel(d):
             self._cancelled = True
         self._d = defer.Deferred(cancel)
         self._start_negotiation_called = False
         self._cancelled = False
 
-    def startNegotiation(self, description):
+    def startNegotiation(self):
         self._start_negotiation_called = True
-        self._description = description
         return self._d
 
 class InboundConnectionFactory(unittest.TestCase):
     def test_describe(self):
         f = transit.InboundConnectionFactory(None)
         addrH = address.HostnameAddress("example.com", 1234)
-        self.assertEqual(f.describePeer(addrH), "<-example.com:1234")
+        self.assertEqual(f._describePeer(addrH), "<-example.com:1234")
         addr4 = address.IPv4Address("TCP", "1.2.3.4", 1234)
-        self.assertEqual(f.describePeer(addr4), "<-1.2.3.4:1234")
+        self.assertEqual(f._describePeer(addr4), "<-1.2.3.4:1234")
         addr6 = address.IPv6Address("TCP", "::1", 1234)
-        self.assertEqual(f.describePeer(addr6), "<-::1:1234")
+        self.assertEqual(f._describePeer(addr6), "<-::1:1234")
         addrU = address.UNIXAddress("/dev/unlikely")
-        self.assertEqual(f.describePeer(addrU),
+        self.assertEqual(f._describePeer(addrU),
                          "<-UNIXAddress('/dev/unlikely')")
 
     def test_success(self):
@@ -350,7 +340,7 @@ class InboundConnectionFactory(unittest.TestCase):
         # meh .start
 
         # this is normally called from Connection.connectionMade
-        f.connectionWasMade(p, addr)
+        f.connectionWasMade(p)
         self.assertEqual(p._start_negotiation_called, True)
         self.assertEqual(results, [])
         self.assertEqual(p._description, "<-example.com:1234")
@@ -366,12 +356,13 @@ class InboundConnectionFactory(unittest.TestCase):
         d.addBoth(results.append)
         self.assertEqual(results, [])
 
-        addr = address.HostnameAddress("example.com", 1234)
-        p1 = f.buildProtocol(addr)
-        p2 = f.buildProtocol(addr)
+        addr1 = address.HostnameAddress("example.com", 1234)
+        addr2 = address.HostnameAddress("example.com", 5678)
+        p1 = f.buildProtocol(addr1)
+        p2 = f.buildProtocol(addr2)
 
-        f.connectionWasMade(p1, "desc1")
-        f.connectionWasMade(p2, "desc2")
+        f.connectionWasMade(p1)
+        f.connectionWasMade(p2)
         self.assertEqual(results, [])
 
         p1._d.errback(transit.BadHandshake("nope"))
@@ -387,12 +378,13 @@ class InboundConnectionFactory(unittest.TestCase):
         d.addBoth(results.append)
         self.assertEqual(results, [])
 
-        addr = address.HostnameAddress("example.com", 1234)
-        p1 = f.buildProtocol(addr)
-        p2 = f.buildProtocol(addr)
+        addr1 = address.HostnameAddress("example.com", 1234)
+        addr2 = address.HostnameAddress("example.com", 5678)
+        p1 = f.buildProtocol(addr1)
+        p2 = f.buildProtocol(addr2)
 
-        f.connectionWasMade(p1, "desc1")
-        f.connectionWasMade(p2, "desc2")
+        f.connectionWasMade(p1)
+        f.connectionWasMade(p2)
         self.assertEqual(results, [])
 
         p1._d.callback(p1)
@@ -414,7 +406,7 @@ class InboundConnectionFactory(unittest.TestCase):
         # if the Connection protocol throws an unexpected error, that should
         # get logged to the Twisted logs (as an Unhandled Error in Deferred)
         # so we can diagnose the bug
-        f.connectionWasMade(p1, "desc1")
+        f.connectionWasMade(p1)
         p1._d.errback(RandomError("boom"))
         self.assertEqual(len(results), 0)
 
@@ -433,12 +425,13 @@ class InboundConnectionFactory(unittest.TestCase):
         d.addBoth(results.append)
         self.assertEqual(results, [])
 
-        addr = address.HostnameAddress("example.com", 1234)
-        p1 = f.buildProtocol(addr)
-        p2 = f.buildProtocol(addr)
+        addr1 = address.HostnameAddress("example.com", 1234)
+        addr2 = address.HostnameAddress("example.com", 5678)
+        p1 = f.buildProtocol(addr1)
+        p2 = f.buildProtocol(addr2)
 
-        f.connectionWasMade(p1, "desc1")
-        f.connectionWasMade(p2, "desc2")
+        f.connectionWasMade(p1)
+        f.connectionWasMade(p2)
         self.assertEqual(results, [])
 
         d.cancel()
@@ -454,7 +447,8 @@ class InboundConnectionFactory(unittest.TestCase):
 
 class OutboundConnectionFactory(unittest.TestCase):
     def test_success(self):
-        f = transit.OutboundConnectionFactory("owner", "relay_handshake")
+        f = transit.OutboundConnectionFactory("owner", "relay_handshake",
+                                              "description")
         f.protocol = MockConnection
 
         addr = address.HostnameAddress("example.com", 1234)
@@ -466,16 +460,15 @@ class OutboundConnectionFactory(unittest.TestCase):
         # meh .start
 
         # this is normally called from Connection.connectionMade
-        f.connectionWasMade(p, "desc") # no-op for outbound
+        f.connectionWasMade(p) # no-op for outbound
         self.assertEqual(p._start_negotiation_called, False)
 
 
 class MockOwner:
     _connection_ready_called = False
-    def connection_ready(self, connection, description):
+    def connection_ready(self, connection):
         self._connection_ready_called = True
         self._connection = connection
-        self._description = description
         return self._state
     def _send_this(self):
         return b"send_this"
@@ -488,7 +481,7 @@ class MockOwner:
 
 class MockFactory:
     _connectionWasMade_called = False
-    def connectionWasMade(self, p, description):
+    def connectionWasMade(self, p):
         self._connectionWasMade_called = True
         self._p = p
 
@@ -496,7 +489,7 @@ class Connection(unittest.TestCase):
     # exercise the Connection protocol class
 
     def test_check_and_remove(self):
-        c = transit.Connection(None, None, None)
+        c = transit.Connection(None, None, None, "description")
         c.buf = b""
         EXP = b"expectation"
         self.assertFalse(c._check_and_remove(EXP))
@@ -525,7 +518,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, relay_handshake, None)
+        c = transit.Connection(owner, relay_handshake, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -534,7 +527,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._p, c)
 
         owner._state = "go"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -555,7 +548,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, relay_handshake, None)
+        c = transit.Connection(owner, relay_handshake, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -564,7 +557,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._p, c)
 
         owner._state = "nevermind"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -585,7 +578,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -593,7 +586,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._connectionWasMade_called, True)
         self.assertEqual(factory._p, c)
 
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -613,7 +606,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, relay_handshake, None)
+        c = transit.Connection(owner, relay_handshake, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -623,7 +616,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(t.read_buf(), b"") # quiet until startNegotiation
 
         owner._state = "go"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(t.read_buf(), relay_handshake)
         self.assertEqual(c.state, "relay") # waiting for OK from relay
 
@@ -646,7 +639,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, relay_handshake, None)
+        c = transit.Connection(owner, relay_handshake, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -656,7 +649,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(t.read_buf(), b"") # quiet until startNegotiation
 
         owner._state = "go"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(t.read_buf(), relay_handshake)
         self.assertEqual(c.state, "relay") # waiting for OK from relay
 
@@ -678,7 +671,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -687,7 +680,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._p, c)
 
         owner._state = "wait-for-decision"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -707,7 +700,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -716,7 +709,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._p, c)
 
         owner._state = "wait-for-decision"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -742,7 +735,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
@@ -751,7 +744,7 @@ class Connection(unittest.TestCase):
         self.assertEqual(factory._p, c)
 
         owner._state = "wait-for-decision"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         self.assertEqual(c.state, "handshake")
         self.assertEqual(t.read_buf(), b"send_this")
         results = []
@@ -775,13 +768,13 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
         c.connectionMade()
 
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         results = []
         d.addBoth(results.append)
         # while we're waiting for negotiation, we get cancelled
@@ -799,7 +792,7 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         def _callLater(period, func):
             clock.callLater(period, func)
         c.callLater = _callLater
@@ -808,7 +801,7 @@ class Connection(unittest.TestCase):
         c.factory = factory
         c.connectionMade()
         # the timer should now be running
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         results = []
         d.addBoth(results.append)
         # while we're waiting for negotiation, the timer expires
@@ -825,13 +818,13 @@ class Connection(unittest.TestCase):
         owner = MockOwner()
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
-        c = transit.Connection(owner, None, None)
+        c = transit.Connection(owner, None, None, "description")
         t = c.transport = FakeTransport(c, addr)
         c.factory = factory
         c.connectionMade()
 
         owner._state = "go"
-        d = c.startNegotiation("description")
+        d = c.startNegotiation()
         results = []
         d.addBoth(results.append)
         c.dataReceived(b"expect_this")
@@ -954,7 +947,7 @@ class Connection(unittest.TestCase):
         # the key is None.
 
     def test_receive_queue(self):
-        c = transit.Connection(None, None, None)
+        c = transit.Connection(None, None, None, "description")
         c.transport = FakeTransport(c, None)
         c.transport.signalConnectionLost = False
         results = [[] for i in range(5)]
@@ -995,7 +988,7 @@ class Connection(unittest.TestCase):
     def test_producer(self):
         # a Transit object (receiving data from the remote peer) produces
         # data and writes it into a local Consumer
-        c = transit.Connection(None, None, None)
+        c = transit.Connection(None, None, None, "description")
         c.transport = proto_helpers.StringTransport()
         c.recordReceived(b"r1.")
         c.recordReceived(b"r2.")
@@ -1024,7 +1017,7 @@ class Connection(unittest.TestCase):
 
     def test_consumer(self):
         # a local producer sends data to a consuming Transit object
-        c = transit.Connection(None, None, None)
+        c = transit.Connection(None, None, None, "description")
         c.transport = proto_helpers.StringTransport()
         records = []
         c.send_record = records.append

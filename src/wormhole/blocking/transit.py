@@ -166,13 +166,17 @@ class ReceiveBuffer:
         return rc
 
 class RecordPipe:
-    def __init__(self, skt, send_key, receive_key):
+    def __init__(self, skt, send_key, receive_key, description):
         self.skt = skt
         self.send_box = SecretBox(send_key)
         self.send_nonce = 0
         self.receive_buf = ReceiveBuffer(self.skt)
         self.receive_box = SecretBox(receive_key)
         self.next_receive_nonce = 0
+        self._description = description
+
+    def describe(self):
+        return self._description
 
     def send_record(self, record):
         if not isinstance(record, type(b"")): raise UsageError
@@ -338,11 +342,6 @@ class Common:
             return self.winning_skt
         raise TransitError("timeout")
 
-    def describe(self):
-        if not self.winning_skt_description:
-            return "not yet established"
-        return self.winning_skt_description
-
     def _connector_failed(self, hint):
         debug("- failed connector %s" % hint)
         # XXX this was .remove, and occasionally got KeyError
@@ -375,7 +374,8 @@ class Common:
     def connect(self):
         skt = self.establish_socket()
         return RecordPipe(skt, self._sender_record_key(),
-                          self._receiver_record_key())
+                          self._receiver_record_key(),
+                          self.winning_skt_description)
 
 class TransitSender(Common):
     is_sender = True

@@ -92,7 +92,7 @@ def _send_file_blocking(them_phase1, fd_to_send, transit_sender,
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
     record_pipe = transit_sender.connect()
 
-    print(u"Sending (%s).." % transit_sender.describe(), file=stdout)
+    print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
 
     CHUNKSIZE = 64*1024
     fd_to_send.seek(0,2)

@@ -138,7 +138,7 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
 
     record_pipe = yield transit_sender.connect()
     # record_pipe should implement IConsumer, chunks are just records
-    print(u"Sending (%s).." % transit_sender.describe(), file=stdout)
+    print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
     yield pfs.beginFileTransfer(fd_to_send, record_pipe)
     print(u"File sent.. waiting for confirmation", file=stdout)
     ack = yield record_pipe.receive_record()
