@@ -1,0 +1,3 @@
+[run]
+include = src/wormhole/*
+omit = src/wormhole/test/*
