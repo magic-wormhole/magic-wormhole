@@ -1,7 +1,21 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release 0.6.2 (12-Jan-2015)
+## Release 0.6.3 (29-Feb-2016)
+
+Mostly internal changes:
+
+* twisted.transit was added, so Twisted-based applications can use it now.
+  This includes Producer/Consumer -based flow control. The Transit protocol
+  and API are documented in docs/transit.md .
+* The transit relay server can blur filesizes, rounding them to some
+  roughly-logarithmic interval.
+* Use --relay-helper="" to disable use of the transit relay entirely,
+  limiting the file transfer to direct connections.
+* The new --hide-progress option disables the progress bar.
+* Made some windows-compatibility fixes, but all tests do not yet pass.
+
+## Release 0.6.2 (12-Jan-2016)
 
 * the server can now "blur" usage information: this turns off HTTP logging,
   and rounds timestamps to coarse intervals
