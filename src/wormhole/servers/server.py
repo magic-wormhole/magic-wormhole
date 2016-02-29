@@ -46,6 +46,7 @@ class RelayServer(service.MultiService):
         self.relayport_service = ServerEndpointService(r, site)
         self.relayport_service.setServiceParent(self)
         self.relay = Relay(self.db, welcome, blur_usage) # accessible from tests
+        self.relay.setServiceParent(self) # for the pruning timer
         self.root.putChild(b"wormhole-relay", self.relay)
         if transitport:
             self.transit = Transit(self.db, blur_usage)
