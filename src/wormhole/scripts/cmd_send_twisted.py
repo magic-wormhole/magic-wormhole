@@ -134,11 +134,11 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
     progress_stdout = stdout
     if hide_progress:
         progress_stdout = io.StringIO()
-    pfs = ProgressingFileSender(filesize, progress_stdout)
 
     record_pipe = yield transit_sender.connect()
     # record_pipe should implement IConsumer, chunks are just records
     print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
+    pfs = ProgressingFileSender(filesize, progress_stdout)
     _start = timing.add_event("tx file")
     yield pfs.beginFileTransfer(fd_to_send, record_pipe)
     timing.finish_event(_start)
