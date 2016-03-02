@@ -56,3 +56,4 @@ docs/_build/
 target/
 /twistd.pid
 /relay.sqlite
+/misc/node_modules/

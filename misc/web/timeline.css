@@ -1,0 +1,20 @@
+
+div.item-group-0 {
+    background-color: #fcc;
+}
+
+div.item-group-1 {
+    background-color: #cfc;
+}
+
+div.item-group-2 {
+    background-color: #ccf;
+}
+
+div.wait-user {
+    background-color: #ccc;
+}
+
+.vis-item .vis-item-overflow {
+    overflow: visible;
+}
