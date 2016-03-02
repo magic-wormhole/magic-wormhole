@@ -143,15 +143,16 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         d.callback(self)
 
     def dataReceivedRECORDS(self):
-        if len(self.buf) < 4:
-            return
-        length = int(hexlify(self.buf[:4]), 16)
-        if len(self.buf) < 4+length:
-            return
-        encrypted, self.buf = self.buf[4:4+length], self.buf[4+length:]
+        while True:
+            if len(self.buf) < 4:
+                return
+            length = int(hexlify(self.buf[:4]), 16)
+            if len(self.buf) < 4+length:
+                return
+            encrypted, self.buf = self.buf[4:4+length], self.buf[4+length:]
 
-        record = self._decrypt_record(encrypted)
-        self.recordReceived(record)
+            record = self._decrypt_record(encrypted)
+            self.recordReceived(record)
 
     def _decrypt_record(self, encrypted):
         nonce_buf = encrypted[:SecretBox.NONCE_SIZE] # assume it's prepended

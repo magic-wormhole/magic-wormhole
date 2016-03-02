@@ -867,9 +867,9 @@ class Connection(unittest.TestCase):
         # and that we can receive records properly
         inbound_records = []
         c.recordReceived = inbound_records.append
+        send_box = SecretBox(owner._receiver_record_key())
 
         RECORD3 = b"record3"
-        send_box = SecretBox(owner._receiver_record_key())
         nonce_buf = unhexlify("%048x" % 0) # first nonce must be 0
         encrypted = send_box.encrypt(RECORD3, nonce_buf)
         length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
@@ -881,7 +881,6 @@ class Connection(unittest.TestCase):
         self.assertEqual(inbound_records, [RECORD3])
 
         RECORD4 = b"record4"
-        send_box = SecretBox(owner._receiver_record_key())
         nonce_buf = unhexlify("%048x" % 1) # nonces increment
         encrypted = send_box.encrypt(RECORD4, nonce_buf)
         length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
@@ -891,6 +890,21 @@ class Connection(unittest.TestCase):
         self.assertEqual(inbound_records, [RECORD3])
         c.dataReceived(encrypted[-2:])
         self.assertEqual(inbound_records, [RECORD3, RECORD4])
+
+        # receiving two records at the same time: deliver both
+        inbound_records[:] = []
+        RECORD5 = b"record5"
+        nonce_buf = unhexlify("%048x" % 2) # nonces increment
+        encrypted = send_box.encrypt(RECORD5, nonce_buf)
+        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        r5 = length+encrypted
+        RECORD6 = b"record6"
+        nonce_buf = unhexlify("%048x" % 3) # nonces increment
+        encrypted = send_box.encrypt(RECORD6, nonce_buf)
+        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        r6 = length+encrypted
+        c.dataReceived(r5+r6)
+        self.assertEqual(inbound_records, [RECORD5, RECORD6])
 
     def corrupt(self, orig):
         last_byte = orig[-1:]
