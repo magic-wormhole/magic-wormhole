@@ -1,10 +1,8 @@
 from __future__ import print_function
 import io, json
-from zope.interface import implementer
-from twisted.internet import interfaces, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..twisted.transcribe import Wormhole, WrongPasswordError
-from ..twisted.transit import TransitReceiver #, TransitError
+from ..twisted.transit import TransitReceiver
 from .cmd_receive_blocking import BlockingReceiver, RespondError, APPID
 from ..errors import TransferError
 from .progress import ProgressPrinter
@@ -105,11 +103,14 @@ class TwistedReceiver(BlockingReceiver):
         progress_stdout = self.args.stdout
         if self.args.hide_progress:
             progress_stdout = io.StringIO()
-        pfc = ProgressingFileConsumer(f, self.xfersize, progress_stdout)
-        record_pipe.connectConsumer(pfc)
-        received = yield pfc.when_done
-        record_pipe.disconnectConsumer()
+        progress = ProgressPrinter(self.xfersize, progress_stdout)
+
+        progress.start()
+        received = yield record_pipe.writeToFile(f, self.xfersize,
+                                                 progress.update)
+        progress.finish()
         self.args.timing.finish_event(_start)
+
         # except TransitError
         if received < self.xfersize:
             self.msg()
@@ -124,36 +125,3 @@ class TwistedReceiver(BlockingReceiver):
         yield record_pipe.send_record(b"ok\n")
         yield record_pipe.close()
         self.args.timing.finish_event(_start)
-
-# based on twisted.protocols.ftp.FileConsumer, but:
-#  - finish after 'xfersize' bytes received, instead of connectionLost()
-#  - don't close the filehandle when done
-
-@implementer(interfaces.IConsumer)
-class ProgressingFileConsumer:
-    def __init__(self, f, xfersize, progress_stdout):
-        self._f = f
-        self._xfersize = xfersize
-        self._received = 0
-        self._progress = ProgressPrinter(xfersize, progress_stdout)
-        self._progress.start()
-        self.when_done = defer.Deferred()
-
-    def registerProducer(self, producer, streaming):
-        self.producer = producer
-        assert streaming
-
-    def write(self, bytes):
-        self._f.write(bytes)
-        self._received += len(bytes)
-        self._progress.update(self._received)
-        if self._received >= self._xfersize:
-            self._progress.finish()
-            d,self.when_done = self.when_done,None
-            d.callback(self._received)
-
-    def unregisterProducer(self):
-        self.producer = None
-        if self.when_done:
-            # connection was dropped before all bytes were received
-            self.when_done.callback(self._received)

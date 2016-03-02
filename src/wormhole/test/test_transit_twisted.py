@@ -1,4 +1,5 @@
 from __future__ import print_function
+import io
 from binascii import hexlify, unhexlify
 from twisted.trial import unittest
 from twisted.internet import defer, task, endpoints, protocol, address, error
@@ -1008,7 +1009,8 @@ class Connection(unittest.TestCase):
         c.recordReceived(b"r2.")
 
         consumer = proto_helpers.StringTransport()
-        c.connectConsumer(consumer)
+        rv = c.connectConsumer(consumer)
+        self.assertIs(rv, None)
         self.assertIs(c._consumer, consumer)
         self.assertEqual(consumer.value(), b"r1.r2.")
 
@@ -1029,6 +1031,109 @@ class Connection(unittest.TestCase):
         c.stopProducing()
         self.assertEqual(c.transport.producerState, "stopped")
 
+    def test_connectConsumer(self):
+        # connectConsumer() takes an optional number of bytes to expect, and
+        # fires a Deferred when that many have been written
+        c = transit.Connection(None, None, None, "description")
+        c._negotiation_d.addErrback(lambda err: None) # eat it
+        c.transport = proto_helpers.StringTransport()
+        c.recordReceived(b"r1.")
+
+        consumer = proto_helpers.StringTransport()
+        results = []
+        d = c.connectConsumer(consumer, expected=10)
+        d.addBoth(results.append)
+        self.assertEqual(consumer.value(), b"r1.")
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"r2.")
+        self.assertEqual(consumer.value(), b"r1.r2.")
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"r3.")
+        self.assertEqual(consumer.value(), b"r1.r2.r3.")
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"!")
+        self.assertEqual(consumer.value(), b"r1.r2.r3.!")
+        self.assertEqual(results, [10])
+
+        # that should automatically disconnect the consumer, and subsequent
+        # records should get queued, not delivered
+        self.assertIs(c._consumer, None)
+        c.recordReceived(b"overflow")
+        self.assertEqual(consumer.value(), b"r1.r2.r3.!")
+
+        # now test that the Deferred errbacks when the connection is lost
+        results = []
+        d = c.connectConsumer(consumer, expected=10)
+        d.addBoth(results.append)
+
+        c.connectionLost()
+        self.assertEqual(len(results), 1)
+        f = results[0]
+        self.assertIsInstance(f, failure.Failure)
+        self.assertIsInstance(f.value, error.ConnectionClosed)
+
+    def test_writeToFile(self):
+        c = transit.Connection(None, None, None, "description")
+        c._negotiation_d.addErrback(lambda err: None) # eat it
+        c.transport = proto_helpers.StringTransport()
+        c.recordReceived(b"r1.")
+
+        f = io.BytesIO()
+        progress = []
+        results = []
+        d = c.writeToFile(f, 10, progress.append)
+        d.addBoth(results.append)
+        self.assertEqual(f.getvalue(), b"r1.")
+        self.assertEqual(progress, [0, 3])
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"r2.")
+        self.assertEqual(f.getvalue(), b"r1.r2.")
+        self.assertEqual(progress, [0, 3, 6])
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"r3.")
+        self.assertEqual(f.getvalue(), b"r1.r2.r3.")
+        self.assertEqual(progress, [0, 3, 6, 9])
+        self.assertEqual(results, [])
+
+        c.recordReceived(b"!")
+        self.assertEqual(f.getvalue(), b"r1.r2.r3.!")
+        self.assertEqual(progress, [0, 3, 6, 9, 10])
+        self.assertEqual(results, [10])
+
+        # that should automatically disconnect the consumer, and subsequent
+        # records should get queued, not delivered
+        self.assertIs(c._consumer, None)
+        c.recordReceived(b"overflow.")
+        self.assertEqual(f.getvalue(), b"r1.r2.r3.!")
+        self.assertEqual(progress, [0, 3, 6, 9, 10])
+
+        # test what happens when enough data is queued ahead of time
+        c.recordReceived(b"second.") # now "overflow.second."
+        c.recordReceived(b"third.") # now "overflow.second.third."
+        f = io.BytesIO()
+        results = []
+        d = c.writeToFile(f, 10)
+        d.addBoth(results.append)
+        self.assertEqual(f.getvalue(), b"overflow.second.") # whole records
+        self.assertEqual(results, [16])
+        self.assertEqual(list(c._inbound_records), [b"third."])
+
+        # now test that the Deferred errbacks when the connection is lost
+        results = []
+        d = c.writeToFile(f, 10)
+        d.addBoth(results.append)
+
+        c.connectionLost()
+        self.assertEqual(len(results), 1)
+        f = results[0]
+        self.assertIsInstance(f, failure.Failure)
+        self.assertIsInstance(f.value, error.ConnectionClosed)
+
     def test_consumer(self):
         # a local producer sends data to a consuming Transit object
         c = transit.Connection(None, None, None, "description")
@@ -1045,6 +1150,20 @@ class Connection(unittest.TestCase):
 
         c.unregisterProducer()
         self.assertEqual(c.transport.producer, None)
+
+class FileConsumer(unittest.TestCase):
+    def test_basic(self):
+        f = io.BytesIO()
+        progress = []
+        fc = transit.FileConsumer(f, 100, progress.append)
+        self.assertEqual(progress, [0])
+        self.assertEqual(f.getvalue(), b"")
+        fc.write(b"."* 99)
+        self.assertEqual(progress, [0, 99])
+        self.assertEqual(f.getvalue(), b"."*99)
+        fc.write(b"!")
+        self.assertEqual(progress, [0, 99, 100])
+        self.assertEqual(f.getvalue(), b"."*99+b"!")
 
 
 DIRECT_HINT = u"tcp:direct:1234"

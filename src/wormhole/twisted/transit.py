@@ -38,6 +38,9 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self._negotiation_d = defer.Deferred(self._cancel)
         self._error = None
         self._consumer = None
+        self._consumer_bytes_written = 0
+        self._consumer_bytes_expected = None
+        self._consumer_deferred = None
         self._inbound_records = collections.deque()
         self._waiting_reads = collections.deque()
 
@@ -181,7 +184,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
     def recordReceived(self, record):
         if self._consumer:
-            self._consumer.write(record)
+            self._writeToConsumer(record)
             return
         self._inbound_records.append(record)
         self._deliverRecords()
@@ -226,6 +229,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             # timeout: BadHandshake("timeout")
 
             d.errback(self._error or BadHandshake("connection lost"))
+        if self._consumer_deferred:
+            self._consumer_deferred.errback(error.ConnectionClosed())
 
     # IConsumer methods, for outbound flow-control. We pass these through to
     # the transport. The 'producer' is something like a t.p.basic.FileSender
@@ -246,22 +251,75 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     def resumeProducing(self):
         self.transport.resumeProducing()
 
-    # Helper method to glue an instance of e.g. t.p.ftp.FileConsumer to us.
-    # Inbound records will be written as bytes to the consumer.
-    def connectConsumer(self, consumer):
+    # Helper methods
+
+    def connectConsumer(self, consumer, expected=None):
+        """Helper method to glue an instance of e.g. t.p.ftp.FileConsumer to
+        us. Inbound records will be written as bytes to the consumer.
+
+        Set 'expected' to an integer to automatically disconnect when at
+        least that number of bytes have been written. This function will then
+        return a Deferred (that fires with the number of bytes actually
+        received). If the connection is lost while this Deferred is
+        outstanding, it will errback.
+
+        If 'expected' is None, then this function returns None instead of a
+        Deferred, and you must call disconnectConsumer() when you are done."""
+
         if self._consumer:
             raise RuntimeError("A consumer is already attached: %r" %
                                self._consumer)
-        self._consumer = consumer
-        # drain any pending records
-        while self._inbound_records:
-            r = self._inbound_records.popleft()
-            consumer.write(r)
+
+        # be aware of an ordering hazard: when we call the consumer's
+        # .registerProducer method, they are likely to immediately call
+        # self.resumeProducing, which we'll deliver to self.transport, which
+        # might call our .dataReceived, which may cause more records to be
+        # available. By waiting to set self._consumer until *after* we drain
+        # any pending records, we avoid delivering records out of order,
+        # which would be bad.
         consumer.registerProducer(self, True)
+        # There might be enough data queued to exceed 'expected' before we
+        # leave this function. We must be sure to register the producer
+        # before it gets unregistered.
+
+        self._consumer = consumer
+        self._consumer_bytes_written = 0
+        self._consumer_bytes_expected = expected
+        d = None
+        if expected is not None:
+            d = defer.Deferred()
+        self._consumer_deferred = d
+        # drain any pending records
+        while self._consumer and self._inbound_records:
+            r = self._inbound_records.popleft()
+            self._writeToConsumer(r)
+        return d
+
+    def _writeToConsumer(self, record):
+        self._consumer.write(record)
+        self._consumer_bytes_written += len(record)
+        if self._consumer_bytes_expected is not None:
+            if self._consumer_bytes_written >= self._consumer_bytes_expected:
+                d = self._consumer_deferred
+                self.disconnectConsumer()
+                d.callback(self._consumer_bytes_written)
 
     def disconnectConsumer(self):
         self._consumer.unregisterProducer()
         self._consumer = None
+        self._consumer_bytes_expected = None
+        self._consumer_deferred = None
+
+    # Helper method to write a known number of bytes to a file. This has no
+    # flow control: the filehandle cannot push back. 'progress' is an
+    # optional callable which will be called frequently with the number of
+    # bytes transferred so far. Returns a Deferred that fires (with the
+    # number of bytes written) when the count is reached or the RecordPipe is
+    # closed.
+    def writeToFile(self, f, expected, progress=None):
+        progress = progress or (lambda n: None)
+        fc = FileConsumer(f, expected, progress)
+        return self.connectConsumer(fc, expected)
 
 class OutboundConnectionFactory(protocol.ClientFactory):
     protocol = Connection
@@ -646,6 +704,35 @@ class TransitSender(Common):
 
 class TransitReceiver(Common):
     is_sender = False
+
+
+# based on twisted.protocols.ftp.FileConsumer, but:
+#  - call a progress-tracking function
+#  - don't close the filehandle when done
+
+@implementer(interfaces.IConsumer)
+class FileConsumer:
+    def __init__(self, f, xfersize, progress_f):
+        self._f = f
+        self._xfersize = xfersize
+        self._received = 0
+        self._progress_f = progress_f
+        self._producer = None
+        self._progress_f(0)
+
+    def registerProducer(self, producer, streaming):
+        assert not self._producer
+        self._producer = producer
+        assert streaming
+
+    def write(self, bytes):
+        self._f.write(bytes)
+        self._received += len(bytes)
+        self._progress_f(self._received)
+
+    def unregisterProducer(self):
+        assert self._producer
+        self._producer = None
 
 # the TransitSender/Receiver.connect() yields a Connection, on which you can
 # do send_record(), but what should the receive API be? set a callback for
