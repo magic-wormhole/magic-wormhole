@@ -5,6 +5,7 @@ from zope.interface import implementer
 from twisted.python.runtime import platformType
 from twisted.internet import (reactor, interfaces, defer, protocol,
                               endpoints, task, address, error)
+from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from nacl.secret import SecretBox
 from ..util import ipaddrs
@@ -536,15 +537,16 @@ class Common:
         self._waiting_for_transit_key.append(d)
         return d
 
+    @inlineCallbacks
     def connect(self):
-        d = self._get_transit_key()
-        d.addCallback(self._connect)
+        yield self._get_transit_key()
         # we want to have the transit key before starting any outbound
         # connections, so those connections will know what to say when they
         # connect
-        return d
+        winner = yield self._connect()
+        returnValue(winner)
 
-    def _connect(self, _):
+    def _connect(self):
         # It might be nice to wire this so that a failure in the direct hints
         # causes the relay hints to be used right away (fast failover). But
         # none of our current use cases would take advantage of that: if we

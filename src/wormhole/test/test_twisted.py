@@ -321,13 +321,13 @@ class Basic(ServerBase, unittest.TestCase):
         d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data"), UsageError))
         d.addCallback(lambda _: self.assertFailure(w1.get_data(), UsageError))
         d.addCallback(lambda _: w1.set_code(u"123-purple-elephant"))
-        # these two UsageErrors are synchronous, although most of the rest are async
+        # this UsageError is synchronous, although most of the rest are async
         d.addCallback(lambda _: self.assertRaises(UsageError, w1.set_code, u"123-nope"))
-        d.addCallback(lambda _: self.assertRaises(UsageError, w1.get_code))
+        d.addCallback(lambda _: self.assertFailure(w1.get_code(), UsageError))
         def _then(_):
             w2 = Wormhole(APPID, self.relayurl)
             d2 = w2.get_code()
-            d2.addCallback(lambda _: self.assertRaises(UsageError, w2.get_code))
+            d2.addCallback(lambda _: self.assertFailure(w2.get_code(), UsageError))
             d2.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
             return d2
         d.addCallback(_then)
