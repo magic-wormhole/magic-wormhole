@@ -11,6 +11,7 @@ from ..scripts import (runner, cmd_send_blocking, cmd_send_twisted,
                        cmd_receive_blocking, cmd_receive_twisted)
 from ..scripts.send_common import build_phase1_data
 from ..errors import TransferError
+from ..timing import DebugTiming
 
 class Phase1Data(unittest.TestCase):
     def test_text(self):
@@ -295,10 +296,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             sargs.cwd = send_dir
             sargs.stdout = io.StringIO()
             sargs.stderr = io.StringIO()
+            sargs.timing = DebugTiming()
             rargs = runner.parser.parse_args(receive_args)
             rargs.cwd = receive_dir
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
+            rargs.timing = DebugTiming()
             if sender_twisted:
                 send_d = cmd_send_twisted.send_twisted(sargs)
             else:

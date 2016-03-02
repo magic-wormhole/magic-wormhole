@@ -18,14 +18,14 @@ def send_blocking(args):
           file=args.stdout)
 
     if fd_to_send is not None:
-        transit_sender = TransitSender(args.transit_helper)
+        transit_sender = TransitSender(args.transit_helper, timing=args.timing)
         transit_data = {
             "direct_connection_hints": transit_sender.get_direct_hints(),
             "relay_connection_hints": transit_sender.get_relay_hints(),
             }
         phase1["transit"] = transit_data
 
-    with Wormhole(APPID, args.relay_url) as w:
+    with Wormhole(APPID, args.relay_url, timing=args.timing) as w:
         if args.code:
             w.set_code(args.code)
             code = args.code
@@ -62,7 +62,8 @@ def send_blocking(args):
         raise TransferError("error sending text: %r" % (them_phase1,))
 
     return _send_file_blocking(them_phase1, fd_to_send,
-                               transit_sender, args.stdout, args.hide_progress)
+                               transit_sender, args.stdout, args.hide_progress,
+                               args.timing)
 
 def _do_verify(verifier, w):
     while True:
@@ -76,7 +77,7 @@ def _do_verify(verifier, w):
             raise TransferError("verification rejected, abandoning transfer")
 
 def _send_file_blocking(them_phase1, fd_to_send, transit_sender,
-                        stdout, hide_progress):
+                        stdout, hide_progress, timing):
 
     # we're sending a file, if they accept it
 
@@ -94,6 +95,7 @@ def _send_file_blocking(them_phase1, fd_to_send, transit_sender,
 
     print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
 
+    _start = timing.add_event("tx file")
     CHUNKSIZE = 64*1024
     fd_to_send.seek(0,2)
     filesize = fd_to_send.tell()
@@ -111,11 +113,15 @@ def _send_file_blocking(them_phase1, fd_to_send, transit_sender,
                 p.update(sent)
         if not hide_progress:
             p.finish()
+    timing.finish_event(_start)
 
+    _start = timing.add_event("get ack")
     print(u"File sent.. waiting for confirmation", file=stdout)
     ack = record_pipe.receive_record()
     record_pipe.close()
     if ack == b"ok\n":
         print(u"Confirmation received. Transfer complete.", file=stdout)
+        timing.finish_event(_start, ack="ok")
         return 0
+    timing.finish_event(_start, ack="failed")
     raise TransferError("Transfer failed (remote says: %r)" % ack)

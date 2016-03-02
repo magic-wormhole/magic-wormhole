@@ -24,7 +24,7 @@ class BlockingReceiver:
 
     @handle_server_error
     def go(self):
-        with Wormhole(APPID, self.args.relay_url) as w:
+        with Wormhole(APPID, self.args.relay_url, timing=self.args.timing) as w:
             self.handle_code(w)
             verifier = w.get_verifier()
             self.show_verifier(verifier)
@@ -131,16 +131,20 @@ class BlockingReceiver:
         return abs_destname
 
     def ask_permission(self):
+        _start = self.args.timing.add_event("permission", waiting="user")
         while True and not self.args.accept_file:
             ok = six.moves.input("ok? (y/n): ")
             if ok.lower().startswith("y"):
                 break
             print(u"transfer rejected", file=sys.stderr)
+            self.args.timing.finish_event(_start, answer="no")
             raise RespondError({"error": "transfer rejected"})
+        self.args.timing.finish_event(_start, answer="yes")
 
     def establish_transit(self, w, them_d):
         transit_key = w.derive_key(APPID+u"/transit-key")
-        transit_receiver = TransitReceiver(self.args.transit_helper)
+        transit_receiver = TransitReceiver(self.args.transit_helper,
+                                           timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         data = json.dumps({
             "file_ack": "ok",
@@ -161,6 +165,7 @@ class BlockingReceiver:
     def transfer_data(self, record_pipe, f):
         self.msg(u"Receiving (%s).." % record_pipe.describe())
 
+        _start = self.args.timing.add_event("rx file")
         progress_stdout = self.args.stdout
         if self.args.hide_progress:
             progress_stdout = io.StringIO()
@@ -179,6 +184,7 @@ class BlockingReceiver:
             received += len(plaintext)
             p.update(received)
         p.finish()
+        self.args.timing.finish_event(_start)
         assert received == self.xfersize
 
     def write_file(self, f):
@@ -190,6 +196,7 @@ class BlockingReceiver:
 
     def write_directory(self, f):
         self.msg(u"Unpacking zipfile..")
+        _start = self.args.timing.add_event("unpack zip")
         with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
             zf.extractall(path=self.abs_destname)
             # extractall() appears to offer some protection against
@@ -199,7 +206,10 @@ class BlockingReceiver:
         self.msg(u"Received files written to %s/" %
                  os.path.basename(self.abs_destname))
         f.close()
+        self.args.timing.finish_event(_start)
 
     def close_transit(self, record_pipe):
+        _start = self.args.timing.add_event("ack")
         record_pipe.send_record(b"ok\n")
         record_pipe.close()
+        self.args.timing.finish_event(_start)

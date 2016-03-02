@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os, sys
 from ..errors import TransferError
+from ..timing import DebugTiming
 from .cli_args import parser
 
 def dispatch(args):
@@ -40,11 +41,19 @@ def run(args, cwd, stdout, stderr, executable=None):
     args.cwd = cwd
     args.stdout = stdout
     args.stderr = stderr
+    args.timing = timing = DebugTiming()
+
     try:
+        timing.add_event("command dispatch")
         rc = dispatch(args)
+        timing.add_event("exit")
+        if args.dump_timing:
+            timing.write(args.dump_timing, stderr)
         return rc
     except TransferError as e:
         print(e, file=stderr)
+        if args.dump_timing:
+            timing.write(args.dump_timing, stderr)
         return 1
     except ImportError as e:
         print("--- ImportError ---", file=stderr)

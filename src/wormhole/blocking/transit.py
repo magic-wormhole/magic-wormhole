@@ -6,6 +6,7 @@ from nacl.secret import SecretBox
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
 from ..errors import UsageError
+from ..timing import DebugTiming
 from ..transit_common import (TransitError, BadHandshake, TransitClosed,
                               BadNonce,
                               build_receiver_handshake,
@@ -206,13 +207,15 @@ class RecordPipe:
         self.skt.close()
 
 class Common:
-    def __init__(self, transit_relay):
+    def __init__(self, transit_relay, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise UsageError
             self._transit_relays = [transit_relay]
         else:
             self._transit_relays = []
+        self._timing = timing or DebugTiming()
+        self._timing_started = self._timing.add_event("transit")
         self.winning = threading.Event()
         self._negotiation_check_lock = threading.Lock()
         self._ready_for_connections_lock = threading.Condition()
@@ -372,7 +375,9 @@ class Common:
             skt.close()
 
     def connect(self):
+        _start = self._timing.add_event("transit connect")
         skt = self.establish_socket()
+        self._timing.finish_event(_start)
         return RecordPipe(skt, self._sender_record_key(),
                           self._receiver_record_key(),
                           self.winning_skt_description)

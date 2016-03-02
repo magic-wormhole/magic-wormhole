@@ -11,6 +11,7 @@ from nacl.secret import SecretBox
 from ..util import ipaddrs
 from ..util.hkdf import HKDF
 from ..errors import UsageError
+from ..timing import DebugTiming
 from ..transit_common import (BadHandshake,
                               BadNonce,
                               build_receiver_handshake,
@@ -409,7 +410,7 @@ def there_can_be_only_one(contenders):
 class Common:
     RELAY_DELAY = 2.0
 
-    def __init__(self, transit_relay, reactor=reactor):
+    def __init__(self, transit_relay, reactor=reactor, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise UsageError
@@ -421,6 +422,8 @@ class Common:
         self._listener = None
         self._winner = None
         self._reactor = reactor
+        self._timing = timing or DebugTiming()
+        self._timing_started = self._timing.add_event("transit")
 
     def _build_listener(self):
         portnum = allocate_tcp_port()
@@ -539,11 +542,13 @@ class Common:
 
     @inlineCallbacks
     def connect(self):
+        _start = self._timing.add_event("transit connect")
         yield self._get_transit_key()
         # we want to have the transit key before starting any outbound
         # connections, so those connections will know what to say when they
         # connect
         winner = yield self._connect()
+        self._timing.finish_event(_start)
         returnValue(winner)
 
     def _connect(self):

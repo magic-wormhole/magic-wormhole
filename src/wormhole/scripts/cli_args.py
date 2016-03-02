@@ -25,6 +25,9 @@ g.add_argument("-v", "--verify", action="store_true",
                help="display (and wait for acceptance of) verification string")
 g.add_argument("--hide-progress", action="store_true",
                help="supress progress-bar display")
+g.add_argument("--dump-timing", type=type(u""), # TODO: hide from --help output
+               metavar="FILE", help="(debug) write timing data to file")
+parser.set_defaults(timing=None)
 subparsers = parser.add_subparsers(title="subcommands",
                                    dest="subcommand")
 

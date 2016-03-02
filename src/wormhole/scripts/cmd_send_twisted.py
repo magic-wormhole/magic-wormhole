@@ -36,10 +36,10 @@ def send_twisted(args):
     print(u"On the other computer, please run: %s" % other_cmd,
           file=args.stdout)
 
-    w = Wormhole(APPID, args.relay_url)
+    w = Wormhole(APPID, args.relay_url, timing=args.timing)
 
     if fd_to_send:
-        transit_sender = TransitSender(args.transit_helper)
+        transit_sender = TransitSender(args.transit_helper, timing=args.timing)
         phase1["transit"] = transit_data = {}
         transit_data["relay_connection_hints"] = transit_sender.get_relay_hints()
         direct_hints = yield transit_sender.get_direct_hints()
@@ -101,7 +101,7 @@ def send_twisted(args):
     tdata = them_phase1["transit"]
     yield w.close()
     yield _send_file_twisted(tdata, transit_sender, fd_to_send,
-                             args.stdout, args.hide_progress)
+                             args.stdout, args.hide_progress, args.timing)
     returnValue(0)
 
 class ProgressingFileSender(basic.FileSender):
@@ -124,7 +124,7 @@ class ProgressingFileSender(basic.FileSender):
 
 @inlineCallbacks
 def _send_file_twisted(tdata, transit_sender, fd_to_send,
-                       stdout, hide_progress):
+                       stdout, hide_progress, timing):
     transit_sender.add_their_direct_hints(tdata["direct_connection_hints"])
     transit_sender.add_their_relay_hints(tdata["relay_connection_hints"])
 
@@ -139,10 +139,16 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
     record_pipe = yield transit_sender.connect()
     # record_pipe should implement IConsumer, chunks are just records
     print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
+    _start = timing.add_event("tx file")
     yield pfs.beginFileTransfer(fd_to_send, record_pipe)
+    timing.finish_event(_start)
+
     print(u"File sent.. waiting for confirmation", file=stdout)
+    _start = timing.add_event("get ack")
     ack = yield record_pipe.receive_record()
     record_pipe.close()
     if ack != b"ok\n":
+        timing.finish_event(_start, ack="failed")
         raise TransferError("Transfer failed (remote says: %r)" % ack)
     print(u"Confirmation received. Transfer complete.", file=stdout)
+    timing.finish_event(_start, ack="ok")

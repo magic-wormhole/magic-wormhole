@@ -17,7 +17,7 @@ class TwistedReceiver(BlockingReceiver):
     # TODO: @handle_server_error
     @inlineCallbacks
     def go(self):
-        w = Wormhole(APPID, self.args.relay_url)
+        w = Wormhole(APPID, self.args.relay_url, timing=self.args.timing)
 
         rc = yield self._go(w)
         yield w.close()
@@ -76,7 +76,8 @@ class TwistedReceiver(BlockingReceiver):
     @inlineCallbacks
     def establish_transit(self, w, them_d):
         transit_key = w.derive_key(APPID+u"/transit-key")
-        transit_receiver = TransitReceiver(self.args.transit_helper)
+        transit_receiver = TransitReceiver(self.args.transit_helper,
+                                           timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         direct_hints = yield transit_receiver.get_direct_hints()
         relay_hints = yield transit_receiver.get_relay_hints()
@@ -100,6 +101,7 @@ class TwistedReceiver(BlockingReceiver):
     def transfer_data(self, record_pipe, f):
         self.msg(u"Receiving (%s).." % record_pipe.describe())
 
+        _start = self.args.timing.add_event("rx file")
         progress_stdout = self.args.stdout
         if self.args.hide_progress:
             progress_stdout = io.StringIO()
@@ -107,6 +109,7 @@ class TwistedReceiver(BlockingReceiver):
         record_pipe.connectConsumer(pfc)
         received = yield pfc.when_done
         record_pipe.disconnectConsumer()
+        self.args.timing.finish_event(_start)
         # except TransitError
         if received < self.xfersize:
             self.msg()
@@ -117,8 +120,10 @@ class TwistedReceiver(BlockingReceiver):
 
     @inlineCallbacks
     def close_transit(self, record_pipe):
+        _start = self.args.timing.add_event("ack")
         yield record_pipe.send_record(b"ok\n")
         yield record_pipe.close()
+        self.args.timing.finish_event(_start)
 
 # based on twisted.protocols.ftp.FileConsumer, but:
 #  - finish after 'xfersize' bytes received, instead of connectionLost()

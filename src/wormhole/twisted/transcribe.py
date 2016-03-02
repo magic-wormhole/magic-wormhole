@@ -16,6 +16,7 @@ from .eventsource_twisted import ReconnectingEventSource
 from .. import __version__
 from .. import codes
 from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
+from ..timing import DebugTiming
 from ..util.hkdf import HKDF
 from ..channel_monitor import monitor
 
@@ -227,13 +228,14 @@ class Wormhole:
     version_warning_displayed = False
     _send_confirm = True
 
-    def __init__(self, appid, relay_url):
+    def __init__(self, appid, relay_url, timing=None):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
+        self._timing = timing or DebugTiming()
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
         self.code = None
         self.key = None
@@ -242,6 +244,7 @@ class Wormhole:
         self._got_data = set()
         self._got_confirmation = False
         self._closed = False
+        self._timing_started = self._timing.add_event("wormhole")
 
     def _set_side(self, side):
         self._side = side
@@ -276,7 +279,9 @@ class Wormhole:
         if self.code is not None: raise UsageError
         if self._started_get_code: raise UsageError
         self._started_get_code = True
+        _start = self._timing.add_event("alloc channel")
         channelid = yield self._channel_manager.allocate()
+        self._timing.finish_event(_start)
         code = codes.make_code(channelid, code_length)
         assert isinstance(code, type(u"")), type(code)
         self._set_code_and_channelid(code)
@@ -291,6 +296,7 @@ class Wormhole:
 
     def _set_code_and_channelid(self, code):
         if self.code is not None: raise UsageError
+        self._timing.add_event("code established")
         mo = re.search(r'^(\d+)-', code)
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
@@ -361,17 +367,25 @@ class Wormhole:
         # TODO: prevent multiple invocation
         if self.key:
             returnValue(self.key)
+        _sent = self._timing.add_event("send pake")
         yield self._channel.send(u"pake", self.msg1)
+        self._timing.finish_event(_sent)
+        _sent = self._timing.add_event("get pake")
         pake_msg = yield self._channel.get(u"pake")
+        self._timing.finish_event(_sent)
         key = self.sp.finish(pake_msg)
         self.key = key
         self.verifier = self.derive_key(u"wormhole:verifier")
+        self._timing.add_event("key established")
+
         if not self._send_confirm:
             returnValue(key)
         confkey = self.derive_key(u"wormhole:confirmation")
         nonce = os.urandom(CONFMSG_NONCE_LENGTH)
         confmsg = make_confmsg(confkey, nonce)
+        _sent = self._timing.add_event("send confirmation")
         yield self._channel.send(u"_confirm", confmsg)
+        self._timing.finish_event(_sent)
         returnValue(key)
 
     @close_on_error
@@ -393,6 +407,7 @@ class Wormhole:
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if self.code is None: raise UsageError
         if self._channel is None: raise UsageError
+        _sent = self._timing.add_event("API send data", phase=phase)
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and the Channel automatically
@@ -401,7 +416,10 @@ class Wormhole:
         yield self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+        _sent2 = self._timing.add_event("send")
         yield self._channel.send(phase, outbound_encrypted)
+        self._timing.finish_event(_sent2)
+        self._timing.finish_event(_sent)
 
     @close_on_error
     @inlineCallbacks
@@ -412,13 +430,16 @@ class Wormhole:
         if self._closed: raise UsageError
         if self.code is None: raise UsageError
         if self._channel is None: raise UsageError
+        _sent = self._timing.add_event("API get data", phase=phase)
         self._got_data.add(phase)
         yield self._get_key()
         phases = []
         if not self._got_confirmation:
             phases.append(u"_confirm")
         phases.append(phase)
+        _sent2 = self._timing.add_event("get", phases=phases)
         phase_and_body = yield self._channel.get_first_of(phases)
+        self._timing.finish_event(_sent2)
         (got_phase, body) = phase_and_body
         if got_phase == u"_confirm":
             confkey = self.derive_key(u"wormhole:confirmation")
@@ -426,8 +447,11 @@ class Wormhole:
             if body != make_confmsg(confkey, nonce):
                 raise WrongPasswordError
             self._got_confirmation = True
+            _sent3 = self._timing.add_event("get", phases=[phase])
             phase_and_body = yield self._channel.get_first_of([phase])
+            self._timing.finish_event(_sent3)
             (got_phase, body) = phase_and_body
+        self._timing.finish_event(_sent)
         assert got_phase == phase
         try:
             data_key = self.derive_key(u"wormhole:phase:%s" % phase)
@@ -443,7 +467,10 @@ class Wormhole:
         self._closed = True
         if not self._channel:
             returnValue(None)
+        self._timing.finish_event(self._timing_started, mood=mood)
         c, self._channel = self._channel, None
         monitor.close(c)
+        _sent = self._timing.add_event("close")
         yield c.deallocate(mood)
+        self._timing.finish_event(_sent)
 
