@@ -308,6 +308,18 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             else:
                 receive_d = deferToThread(cmd_receive_blocking.receive_blocking, rargs)
 
+            # The sender might fail, leaving the receiver hanging, or vice
+            # versa. If either side fails, cancel the other, so it won't
+            # matter which Deferred we wait upon first.
+
+            def _oops(f, which):
+                log.msg("test_scripts: %s failed, cancelling both" % which)
+                send_d.cancel()
+                receive_d.cancel()
+                return f
+            send_d.addErrback(_oops, "send_d")
+            receive_d.addErrback(_oops, "receive_d")
+
             send_rc = yield send_d
             send_stdout = sargs.stdout.getvalue()
             send_stderr = sargs.stderr.getvalue()
