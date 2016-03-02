@@ -1,13 +1,26 @@
 sudo: false
 language: python
+cache: pip
+before_cache:
+  - rm -f $HOME/.cache/pip/log/debug.log
+branches:
+  except:
+    - /^WIP-.*$/
 python:
   - "2.7"
   - "3.3"
   - "3.4"
   - "3.5"
-env:
-  - TOXENV=py
 install:
-  - pip install tox
+  - pip install -U pip
+  - pip install pyflakes coverage codecov
+  - pip install "git+https://github.com/twisted/twisted#egg=twisted"
+#  - pip install "Twisted>=15.5.0"
+  - pip install --editable .
 script:
-  - tox
+  - pyflakes setup.py src
+  - wormhole --version
+  - coverage run --branch `which trial` wormhole
+after_success:
+  - coverage report
+  - codecov
