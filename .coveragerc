@@ -1,8 +1,11 @@
 [run]
 # only record trace data for wormhole.*
 source = wormhole
-# and don't trace the test files themselves
-omit = src/wormhole/test/*
+# and don't trace the test files themselves, or Versioneer's stuff
+omit =
+   src/wormhole/test/*
+   src/wormhole/_version.py
+
 
 # This allows 'coverage combine' to correlate the tracing data built while
 # running tests in multiple tox virtualenvs. To take advantage of this
