@@ -1,7 +1,7 @@
 from __future__ import print_function
 import io, json, binascii, six
 from twisted.protocols import basic
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
 from .progress import ProgressPrinter
@@ -11,9 +11,14 @@ from .send_common import (APPID, handle_zero, build_other_command,
                           build_phase1_data)
 
 def send_twisted_sync(args):
-    d = send_twisted(args)
     # try to use twisted.internet.task.react(f) here (but it calls sys.exit
     # directly)
+    d = defer.Deferred()
+    # don't call send_twisted() until after the reactor is running, so
+    # that if it raises an exception synchronously, we won't stop the reactor
+    # before it starts
+    reactor.callLater(0, d.callback, None)
+    d.addCallback(lambda _: send_twisted(args))
     rc = []
     def _done(res):
         rc.extend([True, res])

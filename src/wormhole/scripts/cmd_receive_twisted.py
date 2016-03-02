@@ -1,11 +1,34 @@
 from __future__ import print_function
 import io, json
+from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..twisted.transcribe import Wormhole, WrongPasswordError
 from ..twisted.transit import TransitReceiver
 from .cmd_receive_blocking import BlockingReceiver, RespondError, APPID
 from ..errors import TransferError
 from .progress import ProgressPrinter
+
+def receive_twisted_sync(args):
+    # try to use twisted.internet.task.react(f) here (but it calls sys.exit
+    # directly)
+    d = defer.Deferred()
+    # don't call receive_twisted() until after the reactor is running, so
+    # that if it raises an exception synchronously, we won't stop the reactor
+    # before it starts
+    reactor.callLater(0, d.callback, None)
+    d.addCallback(lambda _: receive_twisted(args))
+    rc = []
+    def _done(res):
+        rc.extend([True, res])
+        reactor.stop()
+    def _err(f):
+        rc.extend([False, f.value])
+        reactor.stop()
+    d.addCallbacks(_done, _err)
+    reactor.run()
+    if rc[0]:
+        return rc[1]
+    raise rc[1]
 
 def receive_twisted(args):
     return TwistedReceiver(args).go()
