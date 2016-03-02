@@ -20,12 +20,20 @@ def dispatch(args):
     if args.func == "usage/tail":
         from ..servers import cmd_usage
         return cmd_usage.tail_usage(args)
+
     if args.func == "send/send":
+        if args.twisted:
+            from . import cmd_send_twisted
+            return cmd_send_twisted.send_twisted_sync(args)
         from . import cmd_send_blocking
         return cmd_send_blocking.send_blocking(args)
     if args.func == "receive/receive":
+        if args.twisted:
+            from . import cmd_receive_twisted
+            return cmd_receive_twisted.receive_twisted_sync(args)
         from . import cmd_receive_blocking
         return cmd_receive_blocking.receive_blocking(args)
+
     raise ValueError("unknown args.func %s" % args.func)
 
 def run(args, cwd, stdout, stderr, executable=None):
