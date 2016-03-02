@@ -371,7 +371,13 @@ class Common:
             self.winning.set()
         else:
             if self.is_sender:
-                send_to(skt, b"nevermind\n")
+                try:
+                    send_to(skt, b"nevermind\n")
+                except socket.error:
+                    # They realized this connection is not going to win, and
+                    # closed it so fast we didn't get a chance to tell them
+                    # it lost. This happens in unit tests.
+                    pass
             skt.close()
 
     def connect(self):
