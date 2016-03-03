@@ -504,6 +504,10 @@ class Common:
         # listener will win.
         self._my_direct_hints, self._listener = self._build_listener()
 
+        if self._listener is None: # don't listen
+            self._listener_d = None
+            return defer.succeed(self._my_direct_hints) # empty
+
         # Start the server, so it will be running by the time anyone tries to
         # connect to the direct hints we return.
         f = InboundConnectionFactory(self)
@@ -617,7 +621,8 @@ class Common:
         # have any viable direct hints, then they're either going to succeed
         # quickly or hang for a long time.
         contenders = []
-        contenders.append(self._listener_d)
+        if self._listener_d:
+            contenders.append(self._listener_d)
         relay_delay = 0
 
         for hint in self._their_direct_hints:
