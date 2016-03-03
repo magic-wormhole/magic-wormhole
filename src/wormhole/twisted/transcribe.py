@@ -176,7 +176,8 @@ class ChannelManager:
         self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
-        self._agent = web_client.Agent(reactor)
+        self._pool = web_client.HTTPConnectionPool(reactor, True) # persistent
+        self._agent = web_client.Agent(reactor, pool=self._pool)
 
     @inlineCallbacks
     def allocate(self):
@@ -198,6 +199,8 @@ class ChannelManager:
         return Channel(self._relay, self._appid, channelid, self._side,
                        self._handle_welcome, self._agent)
 
+    def shutdown(self):
+        return self._pool.closeCachedConnections()
 
 def close_on_error(meth): # method decorator
     # Clients report certain errors as "moods", so the server can make a
@@ -472,5 +475,8 @@ class Wormhole:
         monitor.close(c)
         _sent = self._timing.add_event("close")
         yield c.deallocate(mood)
+        self._timing.finish_event(_sent)
+        _sent = self._timing.add_event("pool shutdown")
+        yield self._channel_manager.shutdown()
         self._timing.finish_event(_sent)
 

@@ -29,6 +29,7 @@ class Channel(ServerBase, unittest.TestCase):
             self._channel = c
         d.addCallback(_connected)
         d.addCallback(lambda _: self._channel.deallocate(u"happy"))
+        d.addCallback(lambda _: cm.shutdown())
         return d
 
     def test_messages(self):
@@ -59,6 +60,9 @@ class Channel(ServerBase, unittest.TestCase):
             self._relay_server.prune()
             self.failUnlessEqual(len(self._relay_server._apps), 0)
         d.addCallback(_gone)
+
+        d.addCallback(lambda _: cm1.shutdown())
+        d.addCallback(lambda _: cm2.shutdown())
 
         return d
 
@@ -96,6 +100,9 @@ class Channel(ServerBase, unittest.TestCase):
                       self.failUnlessEqual(phase_and_body,
                                            (u"phase2", b"msg2")))
 
+        d.addCallback(lambda _: cm1.shutdown())
+        d.addCallback(lambda _: cm2.shutdown())
+
         return d
 
     def test_appid_independence(self):
@@ -117,6 +124,11 @@ class Channel(ServerBase, unittest.TestCase):
         d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1a"))
         d.addCallback(lambda _: c2b.get(u"phase1"))
         d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1b"))
+
+        d.addCallback(lambda _: cm1a.shutdown())
+        d.addCallback(lambda _: cm2a.shutdown())
+        d.addCallback(lambda _: cm1b.shutdown())
+        d.addCallback(lambda _: cm2b.shutdown())
         return d
 
 class Basic(ServerBase, unittest.TestCase):
