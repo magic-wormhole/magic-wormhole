@@ -144,6 +144,7 @@ class BlockingReceiver:
     def establish_transit(self, w, them_d):
         transit_key = w.derive_key(APPID+u"/transit-key")
         transit_receiver = TransitReceiver(self.args.transit_helper,
+                                           no_listen=self.args.no_listen,
                                            timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         data = json.dumps({

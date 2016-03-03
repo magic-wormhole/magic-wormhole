@@ -18,7 +18,9 @@ def send_blocking(args):
           file=args.stdout)
 
     if fd_to_send is not None:
-        transit_sender = TransitSender(args.transit_helper, timing=args.timing)
+        transit_sender = TransitSender(args.transit_helper,
+                                       no_listen=args.no_listen,
+                                       timing=args.timing)
         transit_data = {
             "direct_connection_hints": transit_sender.get_direct_hints(),
             "relay_connection_hints": transit_sender.get_relay_hints(),

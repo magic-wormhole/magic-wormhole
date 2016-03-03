@@ -469,7 +469,8 @@ def there_can_be_only_one(contenders):
 class Common:
     RELAY_DELAY = 2.0
 
-    def __init__(self, transit_relay, reactor=reactor, timing=None):
+    def __init__(self, transit_relay, no_listen=False,
+                 reactor=reactor, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise UsageError
@@ -477,6 +478,7 @@ class Common:
         else:
             self._transit_relays = []
         self._transit_key = None
+        self._no_listen = no_listen
         self._waiting_for_transit_key = []
         self._listener = None
         self._winner = None
@@ -485,6 +487,8 @@ class Common:
         self._timing_started = self._timing.add_event("transit")
 
     def _build_listener(self):
+        if self._no_listen:
+            return ([], None)
         portnum = allocate_tcp_port()
         direct_hints = [u"tcp:%s:%d" % (addr, portnum)
                         for addr in ipaddrs.find_addresses()]

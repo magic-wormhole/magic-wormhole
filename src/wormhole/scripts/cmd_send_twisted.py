@@ -45,7 +45,9 @@ def send_twisted(args):
     w = Wormhole(APPID, args.relay_url, timing=args.timing)
 
     if fd_to_send:
-        transit_sender = TransitSender(args.transit_helper, timing=args.timing)
+        transit_sender = TransitSender(args.transit_helper,
+                                       no_listen=args.no_listen,
+                                       timing=args.timing)
         phase1["transit"] = transit_data = {}
         transit_data["relay_connection_hints"] = transit_sender.get_relay_hints()
         direct_hints = yield transit_sender.get_direct_hints()

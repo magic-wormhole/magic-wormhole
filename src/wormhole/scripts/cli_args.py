@@ -29,6 +29,8 @@ g.add_argument("--dump-timing", type=type(u""), # TODO: hide from --help output
                metavar="FILE", help="(debug) write timing data to file")
 g.add_argument("--twisted", action="store_true",
                help="use Twisted-based implementations, for testing")
+g.add_argument("--no-listen", action="store_true",
+               help="(debug) don't open a listening socket for Transit")
 parser.set_defaults(timing=None)
 subparsers = parser.add_subparsers(title="subcommands",
                                    dest="subcommand")

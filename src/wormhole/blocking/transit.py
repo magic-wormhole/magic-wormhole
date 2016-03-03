@@ -207,13 +207,14 @@ class RecordPipe:
         self.skt.close()
 
 class Common:
-    def __init__(self, transit_relay, timing=None):
+    def __init__(self, transit_relay, no_listen=False, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise UsageError
             self._transit_relays = [transit_relay]
         else:
             self._transit_relays = []
+        self._no_listen = no_listen
         self._timing = timing or DebugTiming()
         self._timing_started = self._timing.add_event("transit")
         self.winning = threading.Event()
@@ -224,6 +225,10 @@ class Common:
         self._start_server()
 
     def _start_server(self):
+        if self._no_listen:
+            self.my_direct_hints = []
+            self.listener = None
+            return
         server = MyTCPServer(("", 0), None)
         _, port = server.server_address
         self.my_direct_hints = [u"tcp:%s:%d" % (addr, port)

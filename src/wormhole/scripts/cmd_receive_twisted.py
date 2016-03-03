@@ -99,6 +99,7 @@ class TwistedReceiver(BlockingReceiver):
     def establish_transit(self, w, them_d):
         transit_key = w.derive_key(APPID+u"/transit-key")
         transit_receiver = TransitReceiver(self.args.transit_helper,
+                                           no_listen=self.args.no_listen,
                                            timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         direct_hints = yield transit_receiver.get_direct_hints()
