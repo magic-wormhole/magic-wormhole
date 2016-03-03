@@ -144,7 +144,7 @@ class Channel:
         queryargs = urlencode([("appid", self._appid),
                                ("channelid", self._channelid)])
         es = ReconnectingEventSource(self._relay_url+"watch?%s" % queryargs,
-                                     _handle)
+                                     _handle, self._agent)
         es.startService() # TODO: .setServiceParent(self)
         es.activate()
         d.addCallback(lambda _: es.deactivate())
