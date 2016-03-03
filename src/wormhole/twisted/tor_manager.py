@@ -8,6 +8,7 @@ from twisted.internet.error import ConnectError
 from twisted.web import iweb
 import txtorcon
 import ipaddr
+from ..timing import DebugTiming
 from .transit import allocate_tcp_port
 
 # based on twisted.web.client._StandardEndpointFactory
@@ -39,7 +40,8 @@ class TorWebAgentEndpointFactory(object):
             raise web_error.SchemeNotSupported("Unsupported scheme: %r" % (uri.scheme,))
 
 class TorManager:
-    def __init__(self, reactor, tor_socks_port=None, tor_control_port=9051):
+    def __init__(self, reactor, tor_socks_port=None, tor_control_port=9051,
+                 timing=None):
         """
         If tor_socks_port= is provided, I will assume that it points to a
         functioning SOCKS server, and will use it for all outbound
@@ -61,6 +63,7 @@ class TorManager:
         assert isinstance(tor_control_port, int)
         self._tor_socks_port = tor_socks_port
         self._tor_control_port = tor_control_port
+        self._timing = timing or DebugTiming()
 
     @inlineCallbacks
     def start(self):
@@ -73,6 +76,7 @@ class TorManager:
             self._can_run_service = False
             returnValue(True)
 
+        _start_find = self._timing.add_event("find tor")
         # try port 9051, then try /var/run/tor/control . Throws on failure.
         state = None
         try:
@@ -100,11 +104,13 @@ class TorManager:
             yield self._create_my_own_tor()
             # that sets self._tor_socks_port and self._tor_protocol
 
+        self._timing.finish_event(_start_find)
         self._can_run_service = True
         returnValue(True)
 
     @inlineCallbacks
     def _create_my_own_tor(self):
+        _start_launch = self._timing.add_event("launch tor")
         start = time.time()
         config = self.config = txtorcon.TorConfig()
         if 0:
@@ -128,6 +134,7 @@ class TorManager:
         self._tor_protocol = tpp.tor_protocol
         print("tp:", self._tor_protocol)
         print("elapsed:", time.time() - start)
+        self._timing.finish_event(_start_launch)
         returnValue(True)
 
     def get_web_agent_endpoint_factory(self):

@@ -42,7 +42,7 @@ class TwistedReceiver(BlockingReceiver):
         tor_manager = None
         if self.args.tor:
             from ..twisted.tor_manager import TorManager
-            tor_manager = TorManager(reactor)
+            tor_manager = TorManager(reactor, timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager
             # can lazy-provide an endpoint, and overlap the startup process
