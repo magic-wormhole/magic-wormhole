@@ -7,10 +7,12 @@ var options = {editable: false,
                order: function(a,b) { return a.id - b.id; }
               };
 var timeline = new vis.Timeline(container, options);
+var items;
 
 $.getJSON("data.json", function(data) {
+    items = new vis.DataSet(data.items);
     timeline.setData({groups: new vis.DataSet(data.groups),
-                      items: new vis.DataSet(data.items)});
+                      items: items});
     var start = data.items[0].start;
     var end = data.items[data.items.length-1].start;
     var span = end - start;
@@ -24,6 +26,7 @@ $.getJSON("data.json", function(data) {
     timeline.on("timechange", update_cursor);
     update_cursor({time: new Date(start)});
     timeline.on("doubleClick", zoom);
+    timeline.on("select", select_item);
     $.get("done", function(_) {});
 });
 
@@ -42,4 +45,15 @@ function update_cursor(properties) {
     document.getElementById("cursor_date").innerText = t;
     var m = vis.moment(t);
     document.getElementById("cursor_time").innerText = m.format("ss.SSSSSS");
+}
+
+function select_item(properties) {
+    var item_id = properties.items[0];
+    var i = items.get(item_id);
+    if (i.end) {
+        var elapsed = (i.end - i.start) / 1000;
+        $("div#elapsed").text("elapsed: " + elapsed + " s");
+    } else {
+        $("div#elapsed").text("");
+    }
 }
