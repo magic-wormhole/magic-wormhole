@@ -22,6 +22,7 @@ setup(name="magic-wormhole",
                     ["wormhole = wormhole.scripts.runner:entry"]},
       install_requires=["spake2==0.3", "pynacl", "requests", "argparse",
                         "six"],
+      extras_require={"tor": ["txtorcon", "ipaddr"]},
       # for Twisted support, we want Twisted>=15.5.0. Older Twisteds don't
       # provide sufficient python3 compatibility.
       test_suite="wormhole.test",
