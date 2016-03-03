@@ -22,13 +22,14 @@ def receive_twisted_sync(args):
         rc.extend([True, res])
         reactor.stop()
     def _err(f):
-        rc.extend([False, f.value])
+        rc.extend([False, f])
         reactor.stop()
     d.addCallbacks(_done, _err)
     reactor.run()
     if rc[0]:
         return rc[1]
-    raise rc[1]
+    print(str(rc[1]))
+    rc[1].raiseException()
 
 def receive_twisted(args):
     return TwistedReceiver(args).go()
