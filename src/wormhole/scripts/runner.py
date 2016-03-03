@@ -31,7 +31,9 @@ def dispatch(args):
         return cmd_send_blocking.send_blocking(args)
     if args.func == "receive/receive":
         if args.twisted:
+            _start = args.timing.add_event("import c_r_t")
             from . import cmd_receive_twisted
+            args.timing.finish_event(_start)
             return cmd_receive_twisted.receive_twisted_sync(args)
         from . import cmd_receive_blocking
         return cmd_receive_blocking.receive_blocking(args)
