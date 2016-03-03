@@ -79,6 +79,7 @@ class TorManager:
         _start_find = self._timing.add_event("find tor")
         # try port 9051, then try /var/run/tor/control . Throws on failure.
         state = None
+        _start_tcp = self._timing.add_event("tor localhost")
         try:
             connection = (self._reactor, "127.0.0.1", self._tor_control_port)
             state = yield txtorcon.build_tor_connection(connection)
@@ -86,8 +87,10 @@ class TorManager:
         except ConnectError:
             print("unable to reach Tor on %d" % self._tor_control_port)
             pass
+        self._timing.finish_event(_start_tcp)
 
         if not state:
+            _start_unix = self._timing.add_event("tor unix")
             try:
                 connection = (self._reactor, "/var/run/tor/control")
                 state = yield txtorcon.build_tor_connection(connection)
@@ -95,6 +98,7 @@ class TorManager:
             except (ValueError, ConnectError):
                 print("unable to reach Tor on /var/run/tor/control")
                 pass
+            self._timing.finish_event(_start_unix)
 
         if state:
             print("connected to pre-existing Tor process")
