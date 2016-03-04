@@ -90,6 +90,7 @@ class API(ServerBase, unittest.TestCase):
         d.addCallback(lambda _: self.post("allocate", {"appid": "app1",
                                                        "side": "abc"}))
         def _allocated(data):
+            data.pop("sent", None)
             self.failUnlessEqual(set(data.keys()),
                                  set(["welcome", "channelid"]))
             self.failUnlessIsInstance(data["channelid"], int)
@@ -294,6 +295,7 @@ class API(ServerBase, unittest.TestCase):
         def _check_msg1(ev):
             eventtype, data = ev
             self.failUnlessEqual(eventtype, "message")
+            data.pop("sent", None)
             self.failUnlessEqual(data, {"phase": "1", "body": "msg1A"})
         d.addCallback(_check_msg1)
 
@@ -303,12 +305,14 @@ class API(ServerBase, unittest.TestCase):
         def _check_msg2(ev):
             eventtype, data = ev
             self.failUnlessEqual(eventtype, "message")
+            data.pop("sent", None)
             self.failUnlessEqual(data, {"phase": "1", "body": "msg1B"})
         d.addCallback(_check_msg2)
         d.addCallback(lambda _: self.o.wait_for_next_event())
         def _check_msg3(ev):
             eventtype, data = ev
             self.failUnlessEqual(eventtype, "message")
+            data.pop("sent", None)
             self.failUnlessEqual(data, {"phase": "2", "body": "msg2A"})
         d.addCallback(_check_msg3)
 

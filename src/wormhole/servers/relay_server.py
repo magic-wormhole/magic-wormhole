@@ -78,7 +78,8 @@ class ChannelLister(RelayResource):
         #print("LIST", appid)
         app = self._relay.get_app(appid)
         allocated = app.get_allocated()
-        data = {"welcome": self._welcome, "channelids": sorted(allocated)}
+        data = {"welcome": self._welcome, "channelids": sorted(allocated),
+                "sent": time.time()}
         return json_response(request, data)
 
 class Allocator(RelayResource):
@@ -96,7 +97,8 @@ class Allocator(RelayResource):
         if self._log_requests:
             log.msg("allocated #%d, now have %d DB channels" %
                     (channelid, len(app.get_allocated())))
-        response = {"welcome": self._welcome, "channelid": channelid}
+        response = {"welcome": self._welcome, "channelid": channelid,
+                    "sent": time.time()}
         return json_response(request, response)
 
     def getChild(self, path, req):
@@ -139,7 +141,8 @@ class Adder(RelayResource):
         app = self._relay.get_app(appid)
         channel = app.get_channel(channelid)
         messages = channel.add_message(side, phase, body)
-        response = {"welcome": self._welcome, "messages": messages}
+        response = {"welcome": self._welcome, "messages": messages,
+                    "sent": time.time()}
         return json_response(request, response)
 
 class GetterOrWatcher(RelayResource):
@@ -152,7 +155,8 @@ class GetterOrWatcher(RelayResource):
 
         if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
             messages = channel.get_messages()
-            response = {"welcome": self._welcome, "messages": messages}
+            response = {"welcome": self._welcome, "messages": messages,
+                        "sent": time.time()}
             return json_response(request, response)
 
         request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
@@ -199,9 +203,9 @@ class Deallocator(RelayResource):
         app = self._relay.get_app(appid)
         channel = app.get_channel(channelid)
         deleted = channel.deallocate(side, mood)
-        response = {"status": "waiting"}
+        response = {"status": "waiting", "sent": time.time()}
         if deleted:
-            response = {"status": "deleted"}
+            response = {"status": "deleted", "sent": time.time()}
         return json_response(request, response)
 
 
@@ -244,7 +248,7 @@ class Channel:
         self._listeners.discard(ep)
 
     def broadcast_message(self, phase, body):
-        data = json.dumps({"phase": phase, "body": body})
+        data = json.dumps({"phase": phase, "body": body, "sent": time.time()})
         for ep in self._listeners:
             ep.sendEvent(data)
 
