@@ -14,8 +14,9 @@ timeline = []
 groups_out = []
 for which,fn in enumerate(streams):
     with open(fn, "rb") as f:
-        for (start, finish, what, start_d, finish_d) in json.load(f):
-            timeline.append( (start, finish, which, what, start_d, finish_d) )
+        for (start, sent, finish, what, start_d, finish_d) in json.load(f):
+            timeline.append( (start, sent, finish, which, what,
+                              start_d, finish_d) )
     print("%s is %s" % (labels[which], fn))
     groups_out.append({"id": which, "content": fn,
                        "className": "group-%d" % which})
@@ -25,7 +26,8 @@ timeline.sort(key=lambda row: row[0])
 first = timeline[0][0]
 print("started at %s" % time.ctime(start))
 viz_out = []
-for num, (start, finish, which, what, start_d, finish_d) in enumerate(timeline):
+for num, (start, sent, finish, which, what,
+          start_d, finish_d) in enumerate(timeline):
     delta = start - first
     delta_s = "%.6f" % delta
     start_d_str = ", ".join(["%s=%s" % (name, start_d[name])

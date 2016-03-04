@@ -27,7 +27,7 @@ def to_bytes(u):
 
 class Channel:
     def __init__(self, relay_url, appid, channelid, side, handle_welcome,
-                 wait, timeout):
+                 wait, timeout, timing):
         self._relay_url = relay_url
         self._appid = appid
         self._channelid = channelid
@@ -38,6 +38,7 @@ class Channel:
         self._started = time.time()
         self._wait = wait
         self._timeout = timeout
+        self._timing = timing
 
     def _add_inbound_messages(self, messages):
         for msg in messages:
@@ -65,10 +66,12 @@ class Channel:
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
+        _sent = self._timing.add_event("send %s" % phase)
         r = requests.post(self._relay_url+"add", data=data,
                           timeout=self._timeout)
         r.raise_for_status()
         resp = r.json()
+        self._timing.finish_event(_sent, resp.get("sent"))
         if "welcome" in resp:
             self._handle_welcome(resp["welcome"])
         self._add_inbound_messages(resp["messages"])
@@ -86,6 +89,9 @@ class Channel:
         # wasn't one of our own messages. It will either come from
         # previously-received messages, or from an EventSource that we attach
         # to the corresponding URL
+        _sent = self._timing.add_event("get %s" % "/".join(sorted(phases)))
+        _server_sent = None
+
         phase_and_body = self._find_inbound_message(phases)
         while phase_and_body is None:
             remaining = self._started + self._timeout - time.time()
@@ -97,17 +103,20 @@ class Channel:
                                     remaining)
             # we loop here until the connection is lost, or we see the
             # message we want
-            for (eventtype, data) in f.iter_events():
+            for (eventtype, line) in f.iter_events():
                 if eventtype == "welcome":
-                    self._handle_welcome(json.loads(data))
+                    self._handle_welcome(json.loads(line))
                 if eventtype == "message":
-                    self._add_inbound_messages([json.loads(data)])
+                    data = json.loads(line)
+                    self._add_inbound_messages([data])
                     phase_and_body = self._find_inbound_message(phases)
                     if phase_and_body:
                         f.close()
+                        _server_sent = data.get("sent")
                         break
             if not phase_and_body:
                 time.sleep(self._wait)
+        self._timing.finish_event(_sent, _server_sent)
         return phase_and_body
 
     def get(self, phase):
@@ -124,47 +133,56 @@ class Channel:
         try:
             # ignore POST failure, don't call r.raise_for_status(), set a
             # short timeout and ignore failures
-            requests.post(self._relay_url+"deallocate", data=data,
-                          timeout=5)
+            _sent = self._timing.add_event("close")
+            r = requests.post(self._relay_url+"deallocate", data=data,
+                              timeout=5)
+            resp = r.json()
+            self._timing.finish_event(_sent, resp.get("sent"))
         except requests.exceptions.RequestException:
             pass
 
 class ChannelManager:
-    def __init__(self, relay_url, appid, side, handle_welcome,
+    def __init__(self, relay_url, appid, side, handle_welcome, timing=None,
                  wait=0.5*SECOND, timeout=3*MINUTE):
         self._relay_url = relay_url
         self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
+        self._timing = timing or DebugTiming()
         self._wait = wait
         self._timeout = timeout
 
     def list_channels(self):
         queryargs = urlencode([("appid", self._appid)])
+        _sent = self._timing.add_event("list")
         r = requests.get(self._relay_url+"list?%s" % queryargs,
                          timeout=self._timeout)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
             self._handle_welcome(data["welcome"])
+        self._timing.finish_event(_sent, data.get("sent"))
         channelids = data["channelids"]
         return channelids
 
     def allocate(self):
         data = json.dumps({"appid": self._appid,
                            "side": self._side}).encode("utf-8")
+        _sent = self._timing.add_event("allocate")
         r = requests.post(self._relay_url+"allocate", data=data,
                           timeout=self._timeout)
         r.raise_for_status()
         data = r.json()
         if "welcome" in data:
             self._handle_welcome(data["welcome"])
+        self._timing.finish_event(_sent, data.get("sent"))
         channelid = data["channelid"]
         return channelid
 
     def connect(self, channelid):
         return Channel(self._relay_url, self._appid, channelid, self._side,
-                       self._handle_welcome, self._wait, self._timeout)
+                       self._handle_welcome, self._wait, self._timeout,
+                       self._timing)
 
 def close_on_error(f): # method decorator
     # Clients report certain errors as "moods", so the server can make a
@@ -208,6 +226,7 @@ class Wormhole:
         side = hexlify(os.urandom(5)).decode("ascii")
         self._channel_manager = ChannelManager(relay_url, appid, side,
                                                self.handle_welcome,
+                                               self._timing,
                                                self._wait, self._timeout)
         self._channel = None
         self.code = None
@@ -249,9 +268,7 @@ class Wormhole:
 
     def get_code(self, code_length=2):
         if self.code is not None: raise UsageError
-        _start = self._timing.add_event("alloc channel")
         channelid = self._channel_manager.allocate()
-        self._timing.finish_event(_start)
         code = codes.make_code(channelid, code_length)
         assert isinstance(code, type(u"")), type(code)
         self._set_code_and_channelid(code)
@@ -317,13 +334,8 @@ class Wormhole:
 
     def _get_key(self):
         if not self.key:
-            _sent = self._timing.add_event("send pake")
             self._channel.send(u"pake", self.msg1)
-            self._timing.finish_event(_sent)
-
-            _sent = self._timing.add_event("get pake")
             pake_msg = self._channel.get(u"pake")
-            self._timing.finish_event(_sent)
 
             self.key = self.sp.finish(pake_msg)
             self.verifier = self.derive_key(u"wormhole:verifier")
@@ -331,12 +343,10 @@ class Wormhole:
 
             if not self._send_confirm:
                 return
-            _sent = self._timing.add_event("send confirmation")
             confkey = self.derive_key(u"wormhole:confirmation")
             nonce = os.urandom(CONFMSG_NONCE_LENGTH)
             confmsg = make_confmsg(confkey, nonce)
             self._channel.send(u"_confirm", confmsg)
-            self._timing.finish_event(_sent)
 
     @close_on_error
     def get_verifier(self):
@@ -365,9 +375,7 @@ class Wormhole:
         self._get_key()
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        _sent2 = self._timing.add_event("send")
         self._channel.send(phase, outbound_encrypted)
-        self._timing.finish_event(_sent2)
         self._timing.finish_event(_sent)
 
     @close_on_error
@@ -385,18 +393,14 @@ class Wormhole:
         if not self._got_confirmation:
             phases.append(u"_confirm")
         phases.append(phase)
-        _sent2 = self._timing.add_event("get", phases=phases)
         (got_phase, body) = self._channel.get_first_of(phases)
-        self._timing.finish_event(_sent2)
         if got_phase == u"_confirm":
             confkey = self.derive_key(u"wormhole:confirmation")
             nonce = body[:CONFMSG_NONCE_LENGTH]
             if body != make_confmsg(confkey, nonce):
                 raise WrongPasswordError
             self._got_confirmation = True
-            _sent2 = self._timing.add_event("get", phases=[phase])
             (got_phase, body) = self._channel.get_first_of([phase])
-            self._timing.finish_event(_sent2)
         assert got_phase == phase
         self._timing.finish_event(_sent)
         try:
@@ -414,6 +418,4 @@ class Wormhole:
             self._timing.finish_event(self._timing_started, mood=mood)
             c, self._channel = self._channel, None
             monitor.close(c)
-            _sent = self._timing.add_event("close")
             c.deallocate(mood)
-            self._timing.finish_event(_sent)
