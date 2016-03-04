@@ -78,9 +78,8 @@ class ChannelLister(RelayResource):
         #print("LIST", appid)
         app = self._relay.get_app(appid)
         allocated = app.get_allocated()
-        request.setHeader(b"content-type", b"application/json; charset=utf-8")
         data = {"welcome": self._welcome, "channelids": sorted(allocated)}
-        return (json.dumps(data)+"\n").encode("utf-8")
+        return json_response(request, data)
 
 class Allocator(RelayResource):
     def render_POST(self, request):
@@ -97,9 +96,8 @@ class Allocator(RelayResource):
         if self._log_requests:
             log.msg("allocated #%d, now have %d DB channels" %
                     (channelid, len(app.get_allocated())))
-        request.setHeader(b"content-type", b"application/json; charset=utf-8")
-        data = {"welcome": self._welcome, "channelid": channelid}
-        return (json.dumps(data)+"\n").encode("utf-8")
+        response = {"welcome": self._welcome, "channelid": channelid}
+        return json_response(request, response)
 
     def getChild(self, path, req):
         # wormhole-0.4.0 "send" started with "POST /allocate/SIDE".
@@ -140,9 +138,8 @@ class Adder(RelayResource):
 
         app = self._relay.get_app(appid)
         channel = app.get_channel(channelid)
-        response = channel.add_message(side, phase, body)
-        # response is generated with get_messages(), so it includes both
-        # 'welcome' and 'messages'
+        messages = channel.add_message(side, phase, body)
+        response = {"welcome": self._welcome, "messages": messages}
         return json_response(request, response)
 
 class GetterOrWatcher(RelayResource):
@@ -154,7 +151,8 @@ class GetterOrWatcher(RelayResource):
         channel = app.get_channel(channelid)
 
         if b"text/event-stream" not in (request.getHeader(b"accept") or b""):
-            response = channel.get_messages()
+            messages = channel.get_messages()
+            response = {"welcome": self._welcome, "messages": messages}
             return json_response(request, response)
 
         request.setHeader(b"content-type", b"text/event-stream; charset=utf-8")
@@ -213,7 +211,6 @@ class Channel:
                  appid, channelid):
         self._app = app
         self._db = db
-        self._welcome = welcome
         self._blur_usage = blur_usage
         self._log_requests = log_requests
         self._appid = appid
@@ -231,8 +228,7 @@ class Channel:
             if row["phase"] in (u"_allocate", u"_deallocate"):
                 continue
             messages.append({"phase": row["phase"], "body": row["body"]})
-        data = {"welcome": self._welcome, "messages": messages}
-        return data
+        return messages
 
     def add_listener(self, ep):
         self._listeners.add(ep)
