@@ -53,10 +53,18 @@ for num, (start, sent, finish, which, what,
     if "waiting" in start_d:
         viz_className += " wait-%s" % start_d["waiting"]
     viz_out.append({"id": num, "start": viz_start, "end": viz_end,
-                    "group": which, "content": viz_content,
+                    "group": which, #"subgroup": num,
+                    "content": viz_content,
                     "className": viz_className, # or style:
                     "type": viz_type,
                     })
+    if sent is not None:
+        viz_out.append({"id": "%d.sent" % num, "start": sent*1000,
+                        "group": which, #"subgroup": num,
+                        "content": "sent",
+                        "className": viz_className,
+                        "type": "point"})
+
 
 here = os.path.dirname(__file__)
 web_root = os.path.join(here, "web")
