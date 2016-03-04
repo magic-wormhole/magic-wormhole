@@ -140,7 +140,6 @@ class Channel:
                 if phase_and_body is not None and not msgs:
                     msgs.append(phase_and_body)
                     d.callback(None)
-        # TODO: use agent=self._agent
         queryargs = urlencode([("appid", self._appid),
                                ("channelid", self._channelid)])
         es = ReconnectingEventSource(self._relay_url+"watch?%s" % queryargs,
