@@ -34,6 +34,7 @@ def build_phase1_data(args):
         return phase1, fd_to_send
 
     what = os.path.join(args.cwd, args.what)
+    what = what.rstrip(os.sep)
     if not os.path.exists(what):
         raise TransferError("Cannot send: no file/directory named '%s'" %
                             args.what)
