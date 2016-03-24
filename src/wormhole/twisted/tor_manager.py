@@ -93,6 +93,8 @@ class TorManager:
             _start_unix = self._timing.add_event("tor unix")
             try:
                 connection = (self._reactor, "/var/run/tor/control")
+                # add build_state=False to get back a Protocol object instead
+                # of a State object
                 state = yield txtorcon.build_tor_connection(connection)
                 self._tor_protocol = state.protocol
             except (ValueError, ConnectError):
@@ -125,8 +127,8 @@ class TorManager:
             datadir = tempfile.mkdtemp()
             config.DataDirectory = datadir
 
-        config.ControlPort = allocate_tcp_port() # defaults to 9052
-        print("setting config.ControlPort to", config.ControlPort)
+        #config.ControlPort = allocate_tcp_port() # defaults to 9052
+        #print("setting config.ControlPort to", config.ControlPort)
         config.SocksPort = allocate_tcp_port()
         self._tor_socks_port = config.SocksPort
         print("setting config.SocksPort to", config.SocksPort)
@@ -152,7 +154,7 @@ class TorManager:
         except ValueError:
             return False # non-numeric, let Tor try it
         if a.version != 4:
-            return True # IPv6 gets ignoredn
+            return True # IPv6 gets ignored
         if (a.is_loopback or a.is_multicast or a.is_private or a.is_reserved
             or a.is_unspecified):
             return True # too weird, don't connect
