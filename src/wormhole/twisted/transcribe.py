@@ -181,15 +181,23 @@ class Channel:
         return d
 
 class ChannelManager:
-    def __init__(self, relay, appid, side, handle_welcome, timing=None):
+    def __init__(self, relay, appid, side, handle_welcome, tor_manager=None,
+                 timing=None):
         assert isinstance(relay, type(u""))
         self._relay = relay
         self._appid = appid
         self._side = side
         self._handle_welcome = handle_welcome
-        self._timing = timing or DebugTiming()
         self._pool = web_client.HTTPConnectionPool(reactor, True) # persistent
-        self._agent = web_client.Agent(reactor, pool=self._pool)
+        if tor_manager:
+            print("ChannelManager using tor")
+            epf = tor_manager.get_web_agent_endpoint_factory()
+            agent = web_client.Agent.usingEndpointFactory(reactor, epf,
+                                                          pool=self._pool)
+        else:
+            agent = web_client.Agent(reactor, pool=self._pool)
+        self._agent = agent
+        self._timing = timing or DebugTiming()
 
     @inlineCallbacks
     def allocate(self):
@@ -250,13 +258,14 @@ class Wormhole:
     version_warning_displayed = False
     _send_confirm = True
 
-    def __init__(self, appid, relay_url, timing=None):
+    def __init__(self, appid, relay_url, tor_manager=None, timing=None):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
         if not relay_url.endswith(u"/"): raise UsageError
         self._appid = appid
         self._relay_url = relay_url
+        self._tor_manager = tor_manager
         self._timing = timing or DebugTiming()
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
         self.code = None
@@ -272,6 +281,7 @@ class Wormhole:
         self._side = side
         self._channel_manager = ChannelManager(self._relay_url, self._appid,
                                                self._side, self.handle_welcome,
+                                               self._tor_manager,
                                                self._timing)
         self._channel = None
 

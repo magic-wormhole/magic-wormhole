@@ -42,11 +42,22 @@ def send_twisted(args):
     print(u"On the other computer, please run: %s" % other_cmd,
           file=args.stdout)
 
-    w = Wormhole(APPID, args.relay_url, timing=args.timing)
+    tor_manager = None
+    if args.tor:
+        from ..twisted.tor_manager import TorManager
+        tor_manager = TorManager(reactor, timing=args.timing)
+        # For now, block everything until Tor has started. Soon: launch tor
+        # in parallel with everything else, make sure the TorManager can
+        # lazy-provide an endpoint, and overlap the startup process with the
+        # user handing off the wormhole code
+        yield tor_manager.start()
+
+    w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing)
 
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
                                        no_listen=args.no_listen,
+                                       tor_manager=tor_manager,
                                        timing=args.timing)
         phase1["transit"] = transit_data = {}
         transit_data["relay_connection_hints"] = transit_sender.get_relay_hints()

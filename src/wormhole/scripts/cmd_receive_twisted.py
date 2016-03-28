@@ -39,14 +39,27 @@ class TwistedReceiver(BlockingReceiver):
     # TODO: @handle_server_error
     @inlineCallbacks
     def go(self):
-        w = Wormhole(APPID, self.args.relay_url, timing=self.args.timing)
+        tor_manager = None
+        if self.args.tor:
+            _start = self.args.timing.add_event("import TorManager")
+            from ..twisted.tor_manager import TorManager
+            self.args.timing.finish_event(_start)
+            tor_manager = TorManager(reactor, timing=self.args.timing)
+            # For now, block everything until Tor has started. Soon: launch
+            # tor in parallel with everything else, make sure the TorManager
+            # can lazy-provide an endpoint, and overlap the startup process
+            # with the user handing off the wormhole code
+            yield tor_manager.start()
 
-        rc = yield self._go(w)
+        w = Wormhole(APPID, self.args.relay_url, tor_manager,
+                     timing=self.args.timing)
+
+        rc = yield self._go(w, tor_manager)
         yield w.close()
         returnValue(rc)
 
     @inlineCallbacks
-    def _go(self, w):
+    def _go(self, w, tor_manager):
         self.handle_code(w)
         verifier = yield w.get_verifier()
         self.show_verifier(verifier)
@@ -57,13 +70,13 @@ class TwistedReceiver(BlockingReceiver):
                 returnValue(0)
             if "file" in them_d:
                 f = self.handle_file(them_d)
-                rp = yield self.establish_transit(w, them_d)
+                rp = yield self.establish_transit(w, them_d, tor_manager)
                 yield self.transfer_data(rp, f)
                 self.write_file(f)
                 yield self.close_transit(rp)
             elif "directory" in them_d:
                 f = self.handle_directory(them_d)
-                rp = yield self.establish_transit(w, them_d)
+                rp = yield self.establish_transit(w, them_d, tor_manager)
                 yield self.transfer_data(rp, f)
                 self.write_directory(f)
                 yield self.close_transit(rp)
@@ -96,10 +109,11 @@ class TwistedReceiver(BlockingReceiver):
         yield w.send_data(data)
 
     @inlineCallbacks
-    def establish_transit(self, w, them_d):
+    def establish_transit(self, w, them_d, tor_manager):
         transit_key = w.derive_key(APPID+u"/transit-key")
         transit_receiver = TransitReceiver(self.args.transit_helper,
                                            no_listen=self.args.no_listen,
+                                           tor_manager=tor_manager,
                                            timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         direct_hints = yield transit_receiver.get_direct_hints()
