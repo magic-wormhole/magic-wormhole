@@ -1,6 +1,32 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.7.0 (28-Mar-2016)
+
+* `wormhole send DIRNAME/` used to deal very badly with the trailing slash
+  (sending a directory with an empty name). This is now fixed.
+* Preliminary Tor support was added. Install `magic-wormhole[tor]`, make sure
+  you have a Tor executable on your $PATH, and run `wormhole --tor send`.
+  This will launch a new Tor process. Do not use this in anger/fear until it
+  has been tested more carefully. This feature is likely to be unstable for a
+  while, and lacks tests.
+* The relay now prunes unused channels properly.
+* Added --dump-timing= to record timeline of events, for debugging and
+  performance improvements. You can combine timing data from both sides to
+  see where the delays are happening. The server now returns timestamps in
+  its responses, to measure round-trip delays. A web-based visualization tool
+  was added in `misc/dump-timing.py`.
+* twisted.transit was not properly handling multiple records received in a
+  single chunk. Some producer/consumer helper methods were added. You can now
+  run e.g. `wormhole --twisted send` to force the use of the Twisted
+  implementation.
+* The Twisted wormhole now uses a persistent connection for all relay
+  messages, which should be slightly faster.
+* Add `--no-listen` to prevent Transit from listening for inbound connections
+  (or advertising any addresses): this is only useful for testing.
+* The tests now collect code coverage information, and upload them to
+  https://codecov.io/github/warner/magic-wormhole?ref=master .
+
 ## Release 0.6.3 (29-Feb-2016)
 
 Mostly internal changes:
