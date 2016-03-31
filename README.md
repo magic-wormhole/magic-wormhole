@@ -20,7 +20,7 @@ and do not need to be memorized.
 
 ```$ pip install magic-wormhole```
 
-On Debian/Ubuntu systems, you may first need `apt-get python-dev libffi-dev`.
+On Debian/Ubuntu systems, you may first need `apt-get python-dev libffi-dev libsodium-dev`.
 On OS-X, you may need to install `pip`.
 
 Developers can clone the source tree and run `tox` to run the unit tests on
