@@ -22,13 +22,13 @@ def dispatch(args):
         return cmd_usage.tail_usage(args)
 
     if args.func == "send/send":
-        from . import cmd_send_twisted
-        return cmd_send_twisted.send_twisted_sync(args)
+        from . import cmd_send
+        return cmd_send.send_twisted_sync(args)
     if args.func == "receive/receive":
         _start = args.timing.add_event("import c_r_t")
-        from . import cmd_receive_twisted
+        from . import cmd_receive
         args.timing.finish_event(_start)
-        return cmd_receive_twisted.receive_twisted_sync(args)
+        return cmd_receive.receive_twisted_sync(args)
 
     raise ValueError("unknown args.func %s" % args.func)
 

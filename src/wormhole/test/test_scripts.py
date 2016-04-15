@@ -6,8 +6,8 @@ from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import inlineCallbacks
 from .. import __version__
 from .common import ServerBase
-from ..scripts import runner, cmd_send_twisted, cmd_receive_twisted
-from ..scripts.cmd_send_twisted import build_phase1_data
+from ..scripts import runner, cmd_send, cmd_receive
+from ..scripts.cmd_send import build_phase1_data
 from ..errors import TransferError
 from ..timing import DebugTiming
 
@@ -311,8 +311,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
             rargs.timing = DebugTiming()
-            send_d = cmd_send_twisted.send_twisted(sargs)
-            receive_d = cmd_receive_twisted.receive_twisted(rargs)
+            send_d = cmd_send.send_twisted(sargs)
+            receive_d = cmd_receive.receive_twisted(rargs)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. If either side fails, cancel the other, so it won't
