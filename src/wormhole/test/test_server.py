@@ -10,7 +10,7 @@ from twisted.internet.endpoints import clientFromString, connectProtocol
 from twisted.web.client import getPage, Agent, readBody
 from .. import __version__
 from .common import ServerBase
-from ..servers import relay_server, transit_server
+from wormhole_server import relay_server, transit_server
 from ..twisted.eventsource_twisted import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):

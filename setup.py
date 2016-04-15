@@ -17,7 +17,7 @@ setup(name="magic-wormhole",
                 "wormhole.blocking", "wormhole.twisted",
                 "wormhole.scripts", "wormhole.test", "wormhole.util",
                 "wormhole_server"],
-      package_data={"wormhole": ["db-schemas/*.sql"]},
+      package_data={"wormhole_server": ["db-schemas/*.sql"]},
       entry_points={"console_scripts":
                     ["wormhole = wormhole.scripts.runner:entry",
                      "wormhole-server = wormhole_server.runner:entry",
