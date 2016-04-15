@@ -6,7 +6,8 @@ class DBError(Exception):
     pass
 
 def get_schema(version):
-    schema_bytes = resource_string("wormhole", "db-schemas/v%d.sql" % version)
+    schema_bytes = resource_string("wormhole_server",
+                                   "db-schemas/v%d.sql" % version)
     return schema_bytes.decode("utf-8")
 
 def get_db(dbfile, stderr=sys.stderr):
