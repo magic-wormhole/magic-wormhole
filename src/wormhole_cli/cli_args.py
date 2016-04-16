@@ -1,7 +1,7 @@
 import argparse
 from textwrap import dedent
-from .. import public_relay
-from .. import __version__
+from . import public_relay
+from wormhole import __version__
 
 parser = argparse.ArgumentParser(
     usage="wormhole SUBCOMMAND (subcommand-options)",
