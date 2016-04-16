@@ -1,12 +1,18 @@
 from __future__ import print_function
-import io, json
+import io, os, sys, json, binascii, six, tempfile, zipfile
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..twisted.transcribe import Wormhole, WrongPasswordError
 from ..twisted.transit import TransitReceiver
-from .cmd_receive_blocking import BlockingReceiver, RespondError, APPID
 from ..errors import TransferError
 from .progress import ProgressPrinter
+
+
+APPID = u"lothar.com/wormhole/text-or-file-xfer"
+
+class RespondError(Exception):
+    def __init__(self, response):
+        self.response = response
 
 def receive_twisted_sync(args):
     # try to use twisted.internet.task.react(f) here (but it calls sys.exit
@@ -34,7 +40,14 @@ def receive_twisted_sync(args):
 def receive_twisted(args):
     return TwistedReceiver(args).go()
 
-class TwistedReceiver(BlockingReceiver):
+
+class TwistedReceiver:
+    def __init__(self, args):
+        assert isinstance(args.relay_url, type(u""))
+        self.args = args
+
+    def msg(self, *args, **kwargs):
+        print(*args, file=self.args.stdout, **kwargs)
 
     # TODO: @handle_server_error
     @inlineCallbacks
@@ -101,6 +114,11 @@ class TwistedReceiver(BlockingReceiver):
                                       self.args.code_length)
         yield w.set_code(code)
 
+    def show_verifier(self, verifier):
+        verifier_hex = binascii.hexlify(verifier).decode("ascii")
+        if self.args.verify:
+            self.msg(u"Verifier %s." % verifier_hex)
+
     @inlineCallbacks
     def get_data(self, w):
         try:
@@ -118,6 +136,61 @@ class TwistedReceiver(BlockingReceiver):
         self.msg(them_d["message"])
         data = json.dumps({"message_ack": "ok"}).encode("utf-8")
         yield w.send_data(data)
+
+    def handle_file(self, them_d):
+        file_data = them_d["file"]
+        self.abs_destname = self.decide_destname("file",
+                                                 file_data["filename"])
+        self.xfersize = file_data["filesize"]
+
+        self.msg(u"Receiving file (%d bytes) into: %s" %
+                 (self.xfersize, os.path.basename(self.abs_destname)))
+        self.ask_permission()
+        tmp_destname = self.abs_destname + ".tmp"
+        return open(tmp_destname, "wb")
+
+    def handle_directory(self, them_d):
+        file_data = them_d["directory"]
+        zipmode = file_data["mode"]
+        if zipmode != "zipfile/deflated":
+            self.msg(u"Error: unknown directory-transfer mode '%s'" % (zipmode,))
+            raise RespondError({"error": "unknown mode"})
+        self.abs_destname = self.decide_destname("directory",
+                                                 file_data["dirname"])
+        self.xfersize = file_data["zipsize"]
+
+        self.msg(u"Receiving directory (%d bytes) into: %s/" %
+                 (self.xfersize, os.path.basename(self.abs_destname)))
+        self.msg(u"%d files, %d bytes (uncompressed)" %
+                 (file_data["numfiles"], file_data["numbytes"]))
+        self.ask_permission()
+        return tempfile.SpooledTemporaryFile()
+
+    def decide_destname(self, mode, destname):
+        # the basename() is intended to protect us against
+        # "~/.ssh/authorized_keys" and other attacks
+        destname = os.path.basename(destname)
+        if self.args.output_file:
+            destname = self.args.output_file # override
+        abs_destname = os.path.join(self.args.cwd, destname)
+
+        # get confirmation from the user before writing to the local directory
+        if os.path.exists(abs_destname):
+            self.msg(u"Error: refusing to overwrite existing %s %s" %
+                     (mode, destname))
+            raise RespondError({"error": "%s already exists" % mode})
+        return abs_destname
+
+    def ask_permission(self):
+        _start = self.args.timing.add_event("permission", waiting="user")
+        while True and not self.args.accept_file:
+            ok = six.moves.input("ok? (y/n): ")
+            if ok.lower().startswith("y"):
+                break
+            print(u"transfer rejected", file=sys.stderr)
+            self.args.timing.finish_event(_start, answer="no")
+            raise RespondError({"error": "transfer rejected"})
+        self.args.timing.finish_event(_start, answer="yes")
 
     @inlineCallbacks
     def establish_transit(self, w, them_d, tor_manager):
@@ -168,6 +241,27 @@ class TwistedReceiver(BlockingReceiver):
             self.msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
             returnValue(1) # TODO: exit properly
         assert received == self.xfersize
+
+    def write_file(self, f):
+        tmp_name = f.name
+        f.close()
+        os.rename(tmp_name, self.abs_destname)
+        self.msg(u"Received file written to %s" %
+                 os.path.basename(self.abs_destname))
+
+    def write_directory(self, f):
+        self.msg(u"Unpacking zipfile..")
+        _start = self.args.timing.add_event("unpack zip")
+        with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+            zf.extractall(path=self.abs_destname)
+            # extractall() appears to offer some protection against
+            # malicious pathnames. For example, "/tmp/oops" and
+            # "../tmp/oops" both do the same thing as the (safe)
+            # "tmp/oops".
+        self.msg(u"Received files written to %s/" %
+                 os.path.basename(self.abs_destname))
+        f.close()
+        self.args.timing.finish_event(_start)
 
     @inlineCallbacks
     def close_transit(self, record_pipe):
