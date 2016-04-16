@@ -2,8 +2,8 @@ from __future__ import print_function
 import io, os, sys, json, binascii, six, tempfile, zipfile
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..twisted.transcribe import Wormhole, WrongPasswordError
-from ..twisted.transit import TransitReceiver
+from txwormhole.transcribe import Wormhole, WrongPasswordError
+from txwormhole.transit import TransitReceiver
 from ..errors import TransferError
 from .progress import ProgressPrinter
 
@@ -55,7 +55,7 @@ class TwistedReceiver:
         tor_manager = None
         if self.args.tor:
             _start = self.args.timing.add_event("import TorManager")
-            from ..twisted.tor_manager import TorManager
+            from txwormhole.tor_manager import TorManager
             self.args.timing.finish_event(_start)
             tor_manager = TorManager(reactor, timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch

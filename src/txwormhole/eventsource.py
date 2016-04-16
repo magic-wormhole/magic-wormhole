@@ -6,7 +6,7 @@ from twisted.protocols import basic
 from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
 from cgi import parse_header
-from ..util.eventual import eventually
+from .eventual import eventually
 
 #if sys.version_info[0] == 2:
 #    to_unicode = unicode

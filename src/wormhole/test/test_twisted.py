@@ -2,9 +2,9 @@ from __future__ import print_function
 import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
-from ..twisted.transcribe import (Wormhole, UsageError, ChannelManager,
-                                  WrongPasswordError)
-from ..twisted.eventsource_twisted import EventSourceParser
+from txwormhole.transcribe import (Wormhole, UsageError, ChannelManager,
+                                   WrongPasswordError)
+from txwormhole.eventsource import EventSourceParser
 from .common import ServerBase
 
 APPID = u"appid"
