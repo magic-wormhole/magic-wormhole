@@ -7,7 +7,7 @@ from twisted.internet.defer import inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 from ..scripts import runner, cmd_send_twisted, cmd_receive_twisted
-from ..scripts.send_common import build_phase1_data
+from ..scripts.cmd_send_twisted import build_phase1_data
 from ..errors import TransferError
 from ..timing import DebugTiming
 
