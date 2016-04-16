@@ -4,6 +4,7 @@ from six.moves.urllib_parse import urlencode
 from binascii import hexlify, unhexlify
 from zope.interface import implementer
 from twisted.internet import reactor, defer
+from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.web import client as web_client
 from twisted.web import error as web_error
@@ -317,6 +318,23 @@ class Wormhole:
         assert isinstance(code, type(u"")), type(code)
         self._set_code_and_channelid(code)
         self._start()
+        returnValue(code)
+
+    @inlineCallbacks
+    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
+        def _lister():
+            return blockingCallFromThread(reactor,
+                                          self._channel_manager.list_channels)
+        # fetch the list of channels ahead of time, to give us a chance to
+        # discover the welcome message (and warn the user about an obsolete
+        # client)
+        initial_channelids = yield self._channel_manager.list_channels()
+        _start = self._timing.add_event("input code", waiting="user")
+        code = yield deferToThread(codes.input_code_with_completion,
+                                   prompt,
+                                   initial_channelids, _lister,
+                                   code_length)
+        self._timing.finish_event(_start)
         returnValue(code)
 
     def set_code(self, code):

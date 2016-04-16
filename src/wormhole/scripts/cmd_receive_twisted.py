@@ -60,7 +60,7 @@ class TwistedReceiver(BlockingReceiver):
 
     @inlineCallbacks
     def _go(self, w, tor_manager):
-        self.handle_code(w)
+        yield self.handle_code(w)
         verifier = yield w.get_verifier()
         self.show_verifier(verifier)
         them_d = yield self.get_data(w)
@@ -89,6 +89,17 @@ class TwistedReceiver(BlockingReceiver):
             yield w.send_data(data)
             returnValue(1)
         returnValue(0)
+
+    @inlineCallbacks
+    def handle_code(self, w):
+        code = self.args.code
+        if self.args.zeromode:
+            assert not code
+            code = u"0-"
+        if not code:
+            code = yield w.input_code("Enter receive wormhole code: ",
+                                      self.args.code_length)
+        yield w.set_code(code)
 
     @inlineCallbacks
     def get_data(self, w):
