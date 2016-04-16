@@ -11,7 +11,7 @@ from .. import __version__
 from .. import codes
 from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
 from ..timing import DebugTiming
-from ..util.hkdf import HKDF
+from ..hkdf import HKDF
 from ..channel_monitor import monitor
 
 SECOND = 1

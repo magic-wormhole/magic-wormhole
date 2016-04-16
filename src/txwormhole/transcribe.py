@@ -18,7 +18,7 @@ from wormhole import __version__
 from wormhole import codes
 from wormhole.errors import ServerError, Timeout, WrongPasswordError, UsageError
 from wormhole.timing import DebugTiming
-from wormhole.util.hkdf import HKDF
+from wormhole.hkdf import HKDF
 from wormhole.channel_monitor import monitor
 
 CONFMSG_NONCE_LENGTH = 128//8

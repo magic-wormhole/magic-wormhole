@@ -8,7 +8,7 @@ from twisted.internet import (reactor, interfaces, defer, protocol,
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from nacl.secret import SecretBox
-from wormhole.util.hkdf import HKDF
+from wormhole.hkdf import HKDF
 from wormhole.errors import UsageError
 from wormhole.timing import DebugTiming
 from . import ipaddrs

@@ -17,7 +17,7 @@ setup(name="magic-wormhole",
                 "wormhole.blocking",
                 "txwormhole",
                 "wormhole_cli",
-                "wormhole.test", "wormhole.util",
+                "wormhole.test",
                 "wormhole_server"],
       package_data={"wormhole_server": ["db-schemas/*.sql"]},
       entry_points={"console_scripts":
