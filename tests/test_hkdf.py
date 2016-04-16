@@ -1,27 +1,20 @@
 from __future__ import print_function
 import unittest
-from binascii import hexlify, unhexlify
-from wormhole.hkdf import HKDF
-#from hkdf import Hkdf
+from binascii import unhexlify #, hexlify
+from hkdf import Hkdf
 
-def generate_KAT():
-    print("KAT = [")
-    for salt in (None, b"", b"salt"):
-        for context in (b"", b"context"):
-            skm = b"secret"
-            out = HKDF(skm, 64, XTS=salt, CTXinfo=context)
-            hexout = "  '%s' +\n  '%s'" % (hexlify(out[:32]),
-                                           hexlify(out[32:]))
-            print(" (%r, %r, %r,\n%s)," % (salt, context, skm, hexout))
-    print("]")
+#def generate_KAT():
+#    print("KAT = [")
+#    for salt in (b"", b"salt"):
+#        for context in (b"", b"context"):
+#            skm = b"secret"
+#            out = HKDF(skm, 64, XTS=salt, CTXinfo=context)
+#            hexout = "  '%s' +\n  '%s'" % (hexlify(out[:32]),
+#                                           hexlify(out[32:]))
+#            print(" (%r, %r, %r,\n%s)," % (salt, context, skm, hexout))
+#    print("]")
 
 KAT = [
- (None, '', 'secret',
-  '2f34e5ff91ec85d53ca9b543683174d0cf550b60d5f52b24c97b386cfcf6cbbf' +
-  '9cfd42fd37e1e5a214d15f03058d7fee63dc28f564b7b9fe3da514f80daad4bf'),
- (None, 'context', 'secret',
-  'c24c303a1adfb4c3e2b092e6254ed481c41d8955ba8ec3f6a1473493a60c957b' +
-  '31b723018ca75557214d3d5c61c0c7a5315b103b21ff00cb03ebe023dc347a47'),
  ('', '', 'secret',
   '2f34e5ff91ec85d53ca9b543683174d0cf550b60d5f52b24c97b386cfcf6cbbf' +
   '9cfd42fd37e1e5a214d15f03058d7fee63dc28f564b7b9fe3da514f80daad4bf'),
@@ -42,11 +35,11 @@ class TestKAT(unittest.TestCase):
         for (salt, context, skm, expected_hexout) in KAT:
             expected_out = unhexlify(expected_hexout)
             for outlen in range(0, len(expected_out)):
-                out = HKDF(skm, outlen, XTS=salt, CTXinfo=context)
+                out = Hkdf(salt.encode("ascii"),
+                           skm.encode("ascii")).expand(context.encode("ascii"),
+                                                       outlen)
                 self.assertEqual(out, expected_out[:outlen])
-                #out = Hkdf(salt, skm).expand(context, outlen)
-                #self.assertEqual(out, expected_out[:outlen])
 
-if __name__ == '__main__':
-    generate_KAT()
+#if __name__ == '__main__':
+#    generate_KAT()
 
