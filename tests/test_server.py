@@ -8,7 +8,7 @@ from twisted.internet import protocol, reactor, defer
 from twisted.internet.threads import deferToThread
 from twisted.internet.endpoints import clientFromString, connectProtocol
 from twisted.web.client import getPage, Agent, readBody
-from .. import __version__
+from wormhole import __version__
 from .common import ServerBase
 from wormhole_server import relay_server, transit_server
 from txwormhole.eventsource import EventSource

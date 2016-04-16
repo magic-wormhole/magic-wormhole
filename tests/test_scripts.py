@@ -4,12 +4,12 @@ from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import inlineCallbacks
-from .. import __version__
+from wormhole import __version__
 from .common import ServerBase
 from wormhole_cli import runner, cmd_send, cmd_receive
 from wormhole_cli.cmd_send import build_phase1_data
-from ..errors import TransferError
-from ..timing import DebugTiming
+from wormhole.errors import TransferError
+from wormhole.timing import DebugTiming
 
 class Phase1Data(unittest.TestCase):
     def test_text(self):

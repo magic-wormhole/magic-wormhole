@@ -7,7 +7,7 @@ from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.python import log, failure
 from twisted.test import proto_helpers
 from txwormhole import transit
-from ..errors import UsageError
+from wormhole.errors import UsageError
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 
