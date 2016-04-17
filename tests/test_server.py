@@ -10,7 +10,7 @@ from twisted.internet.endpoints import clientFromString, connectProtocol
 from twisted.web.client import getPage, Agent, readBody
 from wormhole import __version__
 from .common import ServerBase
-from wormhole_server import relay_server, transit_server
+from wormhole_server import rendezvous, transit_server
 from txwormhole.eventsource import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):
@@ -369,9 +369,9 @@ class OneEventAtATime:
 
 class Summary(unittest.TestCase):
     def test_summarize(self):
-        c = relay_server.Channel(None, None, None, None, False, None, None)
-        A = relay_server.ALLOCATE
-        D = relay_server.DEALLOCATE
+        c = rendezvous.Channel(None, None, None, None, False, None, None)
+        A = rendezvous.ALLOCATE
+        D = rendezvous.DEALLOCATE
 
         messages = [{"when": 1, "side": "a", "phase": A}]
         self.failUnlessEqual(c._summarize(messages, 2),

@@ -6,7 +6,8 @@ from twisted.web import server, static, resource
 from .endpoint_service import ServerEndpointService
 from wormhole import __version__
 from .database import get_db
-from .relay_server import Relay
+from .rendezvous import Rendezvous
+from .rendezvous_web import WebRendezvous
 from .transit_server import Transit
 
 class Root(resource.Resource):
@@ -22,11 +23,12 @@ class PrivacyEnhancedSite(server.Site):
             return server.Site.log(self, request)
 
 class RelayServer(service.MultiService):
-    def __init__(self, relayport, transitport, advertise_version,
-                 db_url=":memory:", blur_usage=None):
+    def __init__(self, rendezvous_web_port, transit_port,
+                 advertise_version, db_url=":memory:", blur_usage=None):
         service.MultiService.__init__(self)
         self._blur_usage = blur_usage
-        self.db = get_db(db_url)
+
+        db = get_db(db_url)
         welcome = {
             "current_version": __version__,
             # adding .motd will cause all clients to display the message,
@@ -38,22 +40,38 @@ class RelayServer(service.MultiService):
             }
         if advertise_version:
             welcome["current_version"] = advertise_version
-        self.root = Root()
-        site = PrivacyEnhancedSite(self.root)
+
+        rendezvous = Rendezvous(db, welcome, blur_usage)
+        rendezvous.setServiceParent(self) # for the pruning timer
+
+        root = Root()
+        wr = WebRendezvous(rendezvous)
+        root.putChild(b"wormhole-relay", wr)
+
+        site = PrivacyEnhancedSite(root)
         if blur_usage:
             site.logRequests = False
-        r = endpoints.serverFromString(reactor, relayport)
-        self.relayport_service = ServerEndpointService(r, site)
-        self.relayport_service.setServiceParent(self)
-        self.relay = Relay(self.db, welcome, blur_usage) # accessible from tests
-        self.relay.setServiceParent(self) # for the pruning timer
-        self.root.putChild(b"wormhole-relay", self.relay)
-        if transitport:
-            self.transit = Transit(self.db, blur_usage)
-            self.transit.setServiceParent(self) # for the timer
-            t = endpoints.serverFromString(reactor, transitport)
-            self.transport_service = ServerEndpointService(t, self.transit)
-            self.transport_service.setServiceParent(self)
+
+        r = endpoints.serverFromString(reactor, rendezvous_web_port)
+        rendezvous_web_service = ServerEndpointService(r, site)
+        rendezvous_web_service.setServiceParent(self)
+
+        if transit_port:
+            transit = Transit(db, blur_usage)
+            transit.setServiceParent(self) # for the timer
+            t = endpoints.serverFromString(reactor, transit_port)
+            transit_service = ServerEndpointService(t, transit)
+            transit_service.setServiceParent(self)
+
+        # make some things accessible for tests
+        self._db = db
+        self._rendezvous = rendezvous
+        self._root = root
+        self._rendezvous_web = wr
+        self._rendezvous_web_service = rendezvous_web_service
+        if transit_port:
+            self._transit = transit
+            self._transit_service = transit_service
 
     def startService(self):
         service.MultiService.startService(self)
