@@ -1,5 +1,5 @@
 from __future__ import print_function
-import json, time, random
+import time, random
 from twisted.python import log
 from twisted.application import service, internet
 
@@ -24,8 +24,9 @@ class Channel:
         self._log_requests = log_requests
         self._appid = appid
         self._channelid = channelid
-        self._listeners = set() # EventsProtocol instances, with a .sendEvent
-                                # that takes a JSONable object
+        self._listeners = set() # instances with .send_rendezvous_event (that
+                                # takes a JSONable object) and
+                                # .stop_rendezvous_watcher()
 
     def get_messages(self):
         messages = []
@@ -48,14 +49,13 @@ class Channel:
                               (self._appid, self._channelid)).fetchall():
             if row["phase"] in (u"_allocate", u"_deallocate"):
                 continue
-            yield json.dumps({"phase": row["phase"], "body": row["body"]})
+            yield {"phase": row["phase"], "body": row["body"]}
     def remove_listener(self, ep):
         self._listeners.discard(ep)
 
     def broadcast_message(self, phase, body):
-        data = json.dumps({"phase": phase, "body": body, "sent": time.time()})
         for ep in self._listeners:
-            ep.sendEvent(data)
+            ep.send_rendezvous_event({"phase": phase, "body": body})
 
     def _add_message(self, side, phase, body):
         db = self._db
@@ -181,17 +181,17 @@ class Channel:
                    (self._appid, self._channelid))
         db.commit()
 
-        # Shut down any EventSource listeners, just in case they're still
-        # lingering around.
+        # Shut down any listeners, just in case they're still lingering
+        # around.
         for ep in self._listeners:
-            ep.stop()
+            ep.stop_rendezvous_watcher()
 
         self._app.free_channel(self._channelid)
 
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
         for ep in self._listeners:
-            ep.stop()
+            ep.stop_rendezvous_watcher()
 
 class AppNamespace:
     def __init__(self, db, welcome, blur_usage, log_requests, appid):

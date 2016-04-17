@@ -34,6 +34,13 @@ class EventsProtocol:
     def stop(self):
         self.request.finish()
 
+    def send_rendezvous_event(self, data):
+        data = data.copy()
+        data["sent"] = time.time()
+        self.sendEvent(json.dumps(data))
+    def stop_rendezvous_watcher(self):
+        self.stop()
+
 # note: no versions of IE (including the current IE11) support EventSource
 
 # relay URLs are as follows:   (MESSAGES=[{phase:,body:}..])
@@ -151,7 +158,7 @@ class GetterOrWatcher(RelayResource):
         request.notifyFinish().addErrback(lambda f:
                                           channel.remove_listener(ep))
         for old_event in old_events:
-            ep.sendEvent(old_event)
+            ep.send_rendezvous_event(old_event)
         return server.NOT_DONE_YET
 
 class Watcher(RelayResource):
@@ -170,7 +177,7 @@ class Watcher(RelayResource):
         request.notifyFinish().addErrback(lambda f:
                                           channel.remove_listener(ep))
         for old_event in old_events:
-            ep.sendEvent(old_event)
+            ep.send_rendezvous_event(old_event)
         return server.NOT_DONE_YET
 
 class Deallocator(RelayResource):
