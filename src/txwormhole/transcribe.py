@@ -18,8 +18,11 @@ from wormhole import __version__
 from wormhole import codes
 from wormhole.errors import ServerError, Timeout, WrongPasswordError, UsageError
 from wormhole.timing import DebugTiming
-from wormhole.hkdf import HKDF
+from hkdf import Hkdf
 from wormhole.channel_monitor import monitor
+
+def HKDF(skm, outlen, salt=None, CTXinfo=b""):
+    return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 CONFMSG_NONCE_LENGTH = 128//8
 CONFMSG_MAC_LENGTH = 256//8

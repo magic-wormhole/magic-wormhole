@@ -11,8 +11,11 @@ from .. import __version__
 from .. import codes
 from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
 from ..timing import DebugTiming
-from ..hkdf import HKDF
+from hkdf import Hkdf
 from ..channel_monitor import monitor
+
+def HKDF(skm, outlen, salt=None, CTXinfo=b""):
+    return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 SECOND = 1
 MINUTE = 60*SECOND
