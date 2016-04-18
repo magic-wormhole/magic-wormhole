@@ -27,8 +27,6 @@ g.add_argument("--hide-progress", action="store_true",
                help="supress progress-bar display")
 g.add_argument("--dump-timing", type=type(u""), # TODO: hide from --help output
                metavar="FILE", help="(debug) write timing data to file")
-g.add_argument("--twisted", action="store_true",
-               help="use Twisted-based implementations, for testing")
 g.add_argument("--no-listen", action="store_true",
                help="(debug) don't open a listening socket for Transit")
 g.add_argument("--tor", action="store_true",

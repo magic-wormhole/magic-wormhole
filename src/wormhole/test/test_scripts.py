@@ -4,12 +4,10 @@ from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import inlineCallbacks
-from twisted.internet.threads import deferToThread
 from .. import __version__
 from .common import ServerBase
-from ..scripts import (runner, cmd_send_blocking, cmd_send_twisted,
-                       cmd_receive_blocking, cmd_receive_twisted)
-from ..scripts.send_common import build_phase1_data
+from ..scripts import runner, cmd_send, cmd_receive
+from ..scripts.cmd_send import build_phase1_data
 from ..errors import TransferError
 from ..timing import DebugTiming
 
@@ -219,8 +217,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
-                 mode="text", addslash=False, override_filename=False,
-                 sender_twisted=False, receiver_twisted=False):
+                 mode="text", addslash=False, override_filename=False):
         assert mode in ("text", "file", "directory")
         common_args = ["--hide-progress",
                        "--relay-url", self.relayurl,
@@ -314,14 +311,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
             rargs.timing = DebugTiming()
-            if sender_twisted:
-                send_d = cmd_send_twisted.send_twisted(sargs)
-            else:
-                send_d = deferToThread(cmd_send_blocking.send_blocking, sargs)
-            if receiver_twisted:
-                receive_d = cmd_receive_twisted.receive_twisted(rargs)
-            else:
-                receive_d = deferToThread(cmd_receive_blocking.receive_blocking, rargs)
+            send_d = cmd_send.send_twisted(sargs)
+            receive_d = cmd_receive.receive_twisted(rargs)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. If either side fails, cancel the other, so it won't
@@ -418,24 +409,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test()
     def test_text_subprocess(self):
         return self._do_test(as_subprocess=True)
-    def test_text_twisted_to_blocking(self):
-        return self._do_test(sender_twisted=True)
-    def test_text_blocking_to_twisted(self):
-        return self._do_test(receiver_twisted=True)
-    def test_text_twisted_to_twisted(self):
-        return self._do_test(sender_twisted=True, receiver_twisted=True)
 
     def test_file(self):
         return self._do_test(mode="file")
     def test_file_override(self):
         return self._do_test(mode="file", override_filename=True)
-    def test_file_twisted_to_blocking(self):
-        return self._do_test(mode="file", sender_twisted=True)
-    def test_file_blocking_to_twisted(self):
-        return self._do_test(mode="file", receiver_twisted=True)
-    def test_file_twisted_to_twisted(self):
-        return self._do_test(mode="file",
-                             sender_twisted=True, receiver_twisted=True)
 
     def test_directory(self):
         return self._do_test(mode="directory")
@@ -443,16 +421,3 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="directory", addslash=True)
     def test_directory_override(self):
         return self._do_test(mode="directory", override_filename=True)
-    def test_directory_twisted_to_blocking(self):
-        return self._do_test(mode="directory", sender_twisted=True)
-    def test_directory_twisted_to_blocking_addslash(self):
-        return self._do_test(mode="directory", addslash=True,
-                             sender_twisted=True)
-    def test_directory_blocking_to_twisted(self):
-        return self._do_test(mode="directory", receiver_twisted=True)
-    def test_directory_twisted_to_twisted(self):
-        return self._do_test(mode="directory",
-                             sender_twisted=True, receiver_twisted=True)
-    def test_directory_twisted_to_twisted_addslash(self):
-        return self._do_test(mode="directory", addslash=True,
-                             sender_twisted=True, receiver_twisted=True)

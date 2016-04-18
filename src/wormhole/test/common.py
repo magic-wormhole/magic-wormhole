@@ -1,7 +1,7 @@
 from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.python import log
-from ..twisted.util import allocate_ports
+from ..twisted.transit import allocate_tcp_port
 from ..servers.server import RelayServer
 from .. import __version__
 
@@ -9,19 +9,16 @@ class ServerBase:
     def setUp(self):
         self.sp = service.MultiService()
         self.sp.startService()
-        d = allocate_ports()
-        def _got_ports(ports):
-            relayport, transitport = ports
-            s = RelayServer("tcp:%d:interface=127.0.0.1" % relayport,
-                            "tcp:%s:interface=127.0.0.1" % transitport,
-                            __version__)
-            s.setServiceParent(self.sp)
-            self._relay_server = s.relay
-            self._transit_server = s.transit
-            self.relayurl = u"http://127.0.0.1:%d/wormhole-relay/" % relayport
-            self.transit = u"tcp:127.0.0.1:%d" % transitport
-        d.addCallback(_got_ports)
-        return d
+        relayport = allocate_tcp_port()
+        transitport = allocate_tcp_port()
+        s = RelayServer("tcp:%d:interface=127.0.0.1" % relayport,
+                        "tcp:%s:interface=127.0.0.1" % transitport,
+                        __version__)
+        s.setServiceParent(self.sp)
+        self._relay_server = s.relay
+        self._transit_server = s.transit
+        self.relayurl = u"http://127.0.0.1:%d/wormhole-relay/" % relayport
+        self.transit = u"tcp:127.0.0.1:%d" % transitport
 
     def tearDown(self):
         # Unit tests that spawn a (blocking) client in a thread might still
