@@ -1,5 +1,7 @@
 from __future__ import print_function
 import os, time
+from twisted.python import usage
+from twisted.scripts import twistd
 
 class MyPlugin:
     tapname = "xyznode"
@@ -13,13 +15,10 @@ class MyPlugin:
                            self.args.advertise_version,
                            "relay.sqlite", self.args.blur_usage)
 
+class MyTwistdConfig(twistd.ServerOptions):
+    subCommands = [("XYZ", None, usage.Options, "node")]
+
 def start_server(args):
-    from twisted.python import usage
-    from twisted.scripts import twistd
-
-    class MyTwistdConfig(twistd.ServerOptions):
-        subCommands = [("XYZ", None, usage.Options, "node")]
-
     c = MyTwistdConfig()
     #twistd_args = tuple(args.twistd_args) + ("XYZ",)
     base_args = []

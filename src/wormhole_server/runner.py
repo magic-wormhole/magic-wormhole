@@ -1,24 +1,29 @@
 from __future__ import print_function
 import os, sys
-from ..errors import TransferError
-from ..timing import DebugTiming
 from .cli_args import parser
 
 def dispatch(args):
-    if args.func == "send/send":
-        from . import cmd_send
-        return cmd_send.send_twisted_sync(args)
-    if args.func == "receive/receive":
-        _start = args.timing.add_event("import c_r_t")
-        from . import cmd_receive
-        args.timing.finish_event(_start)
-        return cmd_receive.receive_twisted_sync(args)
+    if args.func == "server/start":
+        from . import cmd_server
+        return cmd_server.start_server(args)
+    if args.func == "server/stop":
+        from . import cmd_server
+        return cmd_server.stop_server(args)
+    if args.func == "server/restart":
+        from . import cmd_server
+        return cmd_server.restart_server(args)
+    if args.func == "usage/usage":
+        from . import cmd_usage
+        return cmd_usage.show_usage(args)
+    if args.func == "usage/tail":
+        from . import cmd_usage
+        return cmd_usage.tail_usage(args)
 
     raise ValueError("unknown args.func %s" % args.func)
 
 def run(args, cwd, stdout, stderr, executable=None):
-    """This is invoked directly by the 'wormhole' entry-point script. It can
-    also invoked by entry() below."""
+    """This is invoked directly by the 'wormhole-server' entry-point script.
+    It can also invoked by entry() below."""
 
     args = parser.parse_args()
     if not getattr(args, "func", None):
@@ -29,20 +34,10 @@ def run(args, cwd, stdout, stderr, executable=None):
     args.cwd = cwd
     args.stdout = stdout
     args.stderr = stderr
-    args.timing = timing = DebugTiming()
 
     try:
-        timing.add_event("command dispatch")
         rc = dispatch(args)
-        timing.add_event("exit")
-        if args.dump_timing:
-            timing.write(args.dump_timing, stderr)
         return rc
-    except TransferError as e:
-        print(e, file=stderr)
-        if args.dump_timing:
-            timing.write(args.dump_timing, stderr)
-        return 1
     except ImportError as e:
         print("--- ImportError ---", file=stderr)
         print(e, file=stderr)

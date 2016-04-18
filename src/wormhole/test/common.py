@@ -2,7 +2,7 @@ from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.python import log
 from ..twisted.transit import allocate_tcp_port
-from ..servers.server import RelayServer
+from wormhole_server.server import RelayServer
 from .. import __version__
 
 class ServerBase:
