@@ -1,6 +1,10 @@
 [run]
 # only record trace data for wormhole.*
-source = wormhole
+source =
+   wormhole
+   txwormhole
+   wormhole_cli
+   wormhole_server
 # and don't trace the test files themselves, or Versioneer's stuff
 omit =
    src/wormhole/test/*
