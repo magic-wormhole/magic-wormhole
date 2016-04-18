@@ -2,7 +2,7 @@ from __future__ import print_function
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults
 from twisted.internet.threads import deferToThread
-from ..twisted.transcribe import Wormhole as twisted_Wormhole
+from txwormhole.transcribe import Wormhole as twisted_Wormhole
 from ..blocking.transcribe import Wormhole as blocking_Wormhole
 from .common import ServerBase
 

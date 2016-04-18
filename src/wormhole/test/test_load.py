@@ -6,3 +6,5 @@ class Import(unittest.TestCase):
         self.assertTrue(len(wormhole.__version__))
         import wormhole_server
         self.assertTrue(len(wormhole_server.__version__))
+        import txwormhole
+        self.assertTrue(len(txwormhole.__version__))

@@ -11,7 +11,7 @@ from twisted.web.client import getPage, Agent, readBody
 from .. import __version__
 from .common import ServerBase
 from wormhole_server import relay_server, transit_server
-from ..twisted.eventsource_twisted import EventSource
+from txwormhole.eventsource import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):
 

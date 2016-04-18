@@ -13,13 +13,13 @@ from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
 from spake2 import SPAKE2_Symmetric
-from .eventsource_twisted import ReconnectingEventSource
-from .. import __version__
-from .. import codes
-from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
-from ..timing import DebugTiming
-from ..util.hkdf import HKDF
-from ..channel_monitor import monitor
+from .eventsource import ReconnectingEventSource
+from wormhole import __version__
+from wormhole import codes
+from wormhole.errors import ServerError, Timeout, WrongPasswordError, UsageError
+from wormhole.timing import DebugTiming
+from wormhole.util.hkdf import HKDF
+from wormhole.channel_monitor import monitor
 
 CONFMSG_NONCE_LENGTH = 128//8
 CONFMSG_MAC_LENGTH = 256//8
