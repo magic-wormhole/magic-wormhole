@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os, sys
-from ..errors import TransferError
-from ..timing import DebugTiming
+from wormhole.errors import TransferError
+from wormhole.timing import DebugTiming
 from .cli_args import parser
 
 def dispatch(args):
