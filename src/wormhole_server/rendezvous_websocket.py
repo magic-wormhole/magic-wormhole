@@ -27,8 +27,8 @@ from autobahn.twisted import websocket
 #        motd: all clients display message, then continue normally
 #        error: all clients display mesage, then terminate with error
 # -> {type: "bind", appid:, side:}
-# -> {type: "list"} -> all-channelids
-#  <- {type: "all-channelids", channelids: [int..]}
+# -> {type: "list"} -> channelids
+#  <- {type: "channelids", channelids: [int..]}
 # -> {type: "allocate"} -> allocated
 #  <- {type: "allocated", channelid: int}
 # -> {type: "claim", channelid: int}
@@ -117,7 +117,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def handle_list(self):
         channelids = sorted(self._app.get_allocated())
-        self.send("all-channelids", channelids=channelids)
+        self.send("channelids", channelids=channelids)
 
     def handle_allocate(self):
         if self._channel:

@@ -525,7 +525,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(app.get_allocated(), set())
         c1.send(u"list")
         msg = yield c1.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [])
 
         c1.send(u"allocate")
@@ -539,7 +539,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c1.send(u"list")
         msg = yield c1.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
         c1.send(u"deallocate")
@@ -550,7 +550,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c1.send(u"list")
         msg = yield c1.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [])
 
     @inlineCallbacks
@@ -585,12 +585,12 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c1.send(u"list")
         msg = yield c1.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
         c2.send(u"list")
         msg = yield c2.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
         c1.send(u"deallocate")
@@ -605,7 +605,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c2.send(u"list")
         msg = yield c2.next_event()
-        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [])
 
     @inlineCallbacks
