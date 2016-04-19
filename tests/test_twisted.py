@@ -51,14 +51,14 @@ class Channel(ServerBase, unittest.TestCase):
         # deallocating one side is not enough to destroy the channel
         d.addCallback(lambda _: c2.deallocate())
         def _not_yet(_):
-            self._relay_server.prune()
-            self.failUnlessEqual(len(self._relay_server._apps), 1)
+            self._rendezvous.prune()
+            self.failUnlessEqual(len(self._rendezvous._apps), 1)
         d.addCallback(_not_yet)
         # but deallocating both will make the messages go away
         d.addCallback(lambda _: c1.deallocate(u"sad"))
         def _gone(_):
-            self._relay_server.prune()
-            self.failUnlessEqual(len(self._relay_server._apps), 0)
+            self._rendezvous.prune()
+            self.failUnlessEqual(len(self._rendezvous._apps), 0)
         d.addCallback(_gone)
 
         d.addCallback(lambda _: cm1.shutdown())

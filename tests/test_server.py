@@ -53,7 +53,7 @@ class Reachable(ServerBase, unittest.TestCase):
 def unjson(data):
     return json.loads(data.decode("utf-8"))
 
-class API(ServerBase, unittest.TestCase):
+class WebAPI(ServerBase, unittest.TestCase):
     def build_url(self, path, appid, channelid):
         url = self.relayurl+path
         queryargs = []
