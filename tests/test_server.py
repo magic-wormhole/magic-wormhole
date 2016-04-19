@@ -1,13 +1,15 @@
 from __future__ import print_function
-import json
-import requests
+import json, itertools
 from binascii import hexlify
+import requests
 from six.moves.urllib_parse import urlencode
 from twisted.trial import unittest
 from twisted.internet import protocol, reactor, defer
+from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread
 from twisted.internet.endpoints import clientFromString, connectProtocol
 from twisted.web.client import getPage, Agent, readBody
+from autobahn.twisted import websocket
 from wormhole import __version__
 from .common import ServerBase
 from wormhole_server import rendezvous, transit_server
@@ -366,6 +368,322 @@ class OneEventAtATime:
         if not self._connected:
             self.connected_d.errback(why)
         self.disconnected_d.callback((why,))
+
+class WSClient(websocket.WebSocketClientProtocol):
+    def __init__(self):
+        websocket.WebSocketClientProtocol.__init__(self)
+        self.events = []
+        self.d = None
+        self.ping_counter = itertools.count(0)
+    def onOpen(self):
+        self.factory.d.callback(self)
+    def onMessage(self, payload, isBinary):
+        assert not isBinary
+        event = json.loads(payload.decode("utf-8"))
+        if self.d:
+            assert not self.events
+            d,self.d = self.d,None
+            d.callback(event)
+            return
+        self.events.append(event)
+
+    def next_event(self):
+        assert not self.d
+        if self.events:
+            event = self.events.pop(0)
+            return defer.succeed(event)
+        self.d = defer.Deferred()
+        return self.d
+
+    def send(self, mtype, **kwargs):
+        kwargs["type"] = mtype
+        payload = json.dumps(kwargs).encode("utf-8")
+        self.sendMessage(payload, False)
+
+    @inlineCallbacks
+    def sync(self):
+        ping = next(self.ping_counter)
+        self.send("ping", ping=ping)
+        # queue all messages until the pong, then put them back
+        old_events = []
+        while True:
+            ev = yield self.next_event()
+            if ev["type"] == "pong" and ev["pong"] == ping:
+                self.events = old_events + self.events
+                returnValue(None)
+            old_events.append(ev)
+
+class WSFactory(websocket.WebSocketClientFactory):
+    protocol = WSClient
+
+class WSClientSync(unittest.TestCase):
+    # make sure my 'sync' method actually works
+
+    @inlineCallbacks
+    def test_sync(self):
+        sent = []
+        c = WSClient()
+        def _send(mtype, **kwargs):
+            sent.append( (mtype, kwargs) )
+        c.send = _send
+        def add(mtype, **kwargs):
+            kwargs["type"] = mtype
+            c.onMessage(json.dumps(kwargs).encode("utf-8"), False)
+        # no queued messages
+        sunc = []
+        d = c.sync()
+        d.addBoth(sunc.append)
+        self.assertEqual(sent, [("ping", {"ping": 0})])
+        self.assertEqual(sunc, [])
+        add("pong", pong=0)
+        yield d
+        self.assertEqual(c.events, [])
+
+        # one,two,ping,pong
+        add("one")
+        add("two", two=2)
+        sunc = []
+        d = c.sync()
+        d.addBoth(sunc.append)
+        add("pong", pong=1)
+        yield d
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "one")
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "two")
+        self.assertEqual(c.events, [])
+
+        # one,ping,two,pong
+        add("one")
+        sunc = []
+        d = c.sync()
+        d.addBoth(sunc.append)
+        add("two", two=2)
+        add("pong", pong=2)
+        yield d
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "one")
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "two")
+        self.assertEqual(c.events, [])
+
+        # ping,one,two,pong
+        sunc = []
+        d = c.sync()
+        d.addBoth(sunc.append)
+        add("one")
+        add("two", two=2)
+        add("pong", pong=3)
+        yield d
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "one")
+        m = yield c.next_event()
+        self.assertEqual(m["type"], "two")
+        self.assertEqual(c.events, [])
+
+
+
+class WebSocketAPI(ServerBase, unittest.TestCase):
+    def setUp(self):
+        self._clients = []
+        return ServerBase.setUp(self)
+
+    def tearDown(self):
+        for c in self._clients:
+            c.transport.loseConnection()
+        return ServerBase.tearDown(self)
+
+    @inlineCallbacks
+    def make_client(self):
+        f = WSFactory(self.rdv_ws_url)
+        f.d = defer.Deferred()
+        reactor.connectTCP("127.0.0.1", self.rdv_ws_port, f)
+        c = yield f.d
+        self._clients.append(c)
+        returnValue(c)
+
+    def check_welcome(self, data):
+        self.failUnlessIn("welcome", data)
+        self.failUnlessEqual(data["welcome"], {"current_version": __version__})
+
+    @inlineCallbacks
+    def test_welcome(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        self.assertEqual(self._rendezvous._apps, {})
+
+    @inlineCallbacks
+    def test_allocate_1(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        yield c1.sync()
+        self.assertEqual(list(self._rendezvous._apps.keys()), [u"appid"])
+        app = self._rendezvous.get_app(u"appid")
+        self.assertEqual(app.get_allocated(), set())
+        c1.send(u"list")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [])
+
+        c1.send(u"allocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        self.failUnlessIsInstance(cid, int)
+        self.assertEqual(app.get_allocated(), set([cid]))
+        channel = app.get_channel(cid)
+        self.assertEqual(channel.get_messages(), [])
+
+        c1.send(u"list")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [cid])
+
+        c1.send(u"deallocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["status"], u"deleted")
+        self.assertEqual(app.get_allocated(), set())
+
+        c1.send(u"list")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [])
+
+    @inlineCallbacks
+    def test_allocate_2(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        yield c1.sync()
+        app = self._rendezvous.get_app(u"appid")
+        self.assertEqual(app.get_allocated(), set())
+        c1.send(u"allocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        self.failUnlessIsInstance(cid, int)
+        self.assertEqual(app.get_allocated(), set([cid]))
+        channel = app.get_channel(cid)
+        self.assertEqual(channel.get_messages(), [])
+
+        # second caller increases the number of known sides to 2
+        c2 = yield self.make_client()
+        msg = yield c2.next_event()
+        self.check_welcome(msg)
+        c2.send(u"bind", appid=u"appid", side=u"side-2")
+        c2.send(u"claim", channelid=cid)
+        c2.send(u"add", phase="1", body="")
+        yield c2.sync()
+
+        self.assertEqual(app.get_allocated(), set([cid]))
+        self.assertEqual(channel.get_messages(), [{"phase": "1", "body": ""}])
+
+        c1.send(u"list")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [cid])
+
+        c2.send(u"list")
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [cid])
+
+        c1.send(u"deallocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["status"], u"waiting")
+
+        c2.send(u"deallocate")
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["status"], u"deleted")
+
+        c2.send(u"list")
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], u"all-channelids")
+        self.assertEqual(msg["channelids"], [])
+
+    @inlineCallbacks
+    def test_message(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"allocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        app = self._rendezvous.get_app(u"appid")
+        channel = app.get_channel(cid)
+        self.assertEqual(channel.get_messages(), [])
+
+        c1.send(u"watch")
+        yield c1.sync()
+        self.assertEqual(len(channel._listeners), 1)
+        self.assertEqual(c1.events, [])
+
+        c1.send(u"add", phase="1", body="msg1A")
+        yield c1.sync()
+        self.assertEqual(channel.get_messages(),
+                         [{"phase": "1", "body": "msg1A"}])
+        self.assertEqual(len(c1.events), 1) # echo should be sent right away
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "1", "body": "msg1A"})
+        self.assertIn("sent", msg)
+        self.assertIsInstance(msg["sent"], float)
+
+        c1.send(u"add", phase="1", body="msg1B")
+        c1.send(u"add", phase="2", body="msg2A")
+
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "1", "body": "msg1B"})
+
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "2", "body": "msg2A"})
+
+        self.assertEqual(channel.get_messages(), [
+            {"phase": "1", "body": "msg1A"},
+            {"phase": "1", "body": "msg1B"},
+            {"phase": "2", "body": "msg2A"},
+            ])
+
+        # second client should see everything
+        c2 = yield self.make_client()
+        msg = yield c2.next_event()
+        self.check_welcome(msg)
+        c2.send(u"bind", appid=u"appid", side=u"side")
+        c2.send(u"claim", channelid=cid)
+        # 'watch' triggers delivery of old messages, in temporal order
+        c2.send(u"watch")
+
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "1", "body": "msg1A"})
+
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "1", "body": "msg1B"})
+
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "2", "body": "msg2A"})
+
+        # adding a duplicate is not an error, and clients will ignore it
+        c1.send(u"add", phase="2", body="msg2A")
+
+        # the duplicate message *does* get stored, and delivered
+        msg = yield c2.next_event()
+        self.assertEqual(msg["type"], "message")
+        self.assertEqual(msg["message"], {"phase": "2", "body": "msg2A"})
+
 
 class Summary(unittest.TestCase):
     def test_summarize(self):

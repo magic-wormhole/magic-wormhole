@@ -3,11 +3,13 @@ from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service
 from twisted.web import server, static, resource
+from autobahn.twisted.resource import WebSocketResource
 from .endpoint_service import ServerEndpointService
 from wormhole import __version__
 from .database import get_db
 from .rendezvous import Rendezvous
 from .rendezvous_web import WebRendezvous
+from .rendezvous_websocket import WebSocketRendezvousFactory
 from .transit_server import Transit
 
 class Root(resource.Resource):
@@ -48,6 +50,9 @@ class RelayServer(service.MultiService):
         wr = WebRendezvous(rendezvous)
         root.putChild(b"wormhole-relay", wr)
 
+        wsrf = WebSocketRendezvousFactory(None, rendezvous)
+        wr.putChild(b"ws", WebSocketResource(wsrf))
+
         site = PrivacyEnhancedSite(root)
         if blur_usage:
             site.logRequests = False
@@ -69,6 +74,7 @@ class RelayServer(service.MultiService):
         self._root = root
         self._rendezvous_web = wr
         self._rendezvous_web_service = rendezvous_web_service
+        self._rendezvous_websocket = wsrf
         if transit_port:
             self._transit = transit
             self._transit_service = transit_service
