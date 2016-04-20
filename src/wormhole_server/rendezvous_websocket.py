@@ -44,7 +44,7 @@ from autobahn.twisted import websocket
 #  <- {type: "pong", pong: int}
 
 class Error(Exception):
-    def __init__(self, explain, orig_msg):
+    def __init__(self, explain):
         self._explain = explain
 
 class WebSocketRendezvous(websocket.WebSocketServerProtocol):
