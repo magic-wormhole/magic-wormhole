@@ -448,7 +448,7 @@ class Wormhole:
 
     @close_on_error
     @inlineCallbacks
-    def send_data(self, outbound_data, phase=u"data"):
+    def send_data(self, outbound_data, phase=u"data", wait=False):
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
@@ -467,6 +467,8 @@ class Wormhole:
         data_key = self.derive_key(u"wormhole:phase:%s" % phase)
         outbound_encrypted = self._encrypt_data(data_key, outbound_data)
         yield self._channel.send(phase, outbound_encrypted)
+        # Since that always waits for the server to ack the POST, we always
+        # behave as if wait=True.
         self._timing.finish_event(_sent)
 
     @close_on_error
