@@ -14,62 +14,55 @@ class RespondError(Exception):
     def __init__(self, response):
         self.response = response
 
-def receive_twisted_sync(args):
-    # try to use twisted.internet.task.react(f) here (but it calls sys.exit
-    # directly)
-    d = defer.Deferred()
-    # don't call receive_twisted() until after the reactor is running, so
-    # that if it raises an exception synchronously, we won't stop the reactor
-    # before it starts
-    reactor.callLater(0, d.callback, None)
-    d.addCallback(lambda _: receive_twisted(args))
-    rc = []
-    def _done(res):
-        rc.extend([True, res])
-        reactor.stop()
-    def _err(f):
-        rc.extend([False, f])
-        reactor.stop()
-    d.addCallbacks(_done, _err)
-    reactor.run()
-    if rc[0]:
-        return rc[1]
-    print(str(rc[1]))
-    rc[1].raiseException()
-
-def receive_twisted(args):
-    return TwistedReceiver(args).go()
+def receive_twisted(args, reactor=reactor):
+    return TwistedReceiver(args, reactor).go()
 
 
 class TwistedReceiver:
-    def __init__(self, args):
+    def __init__(self, args, reactor=reactor):
         assert isinstance(args.relay_url, type(u""))
         self.args = args
+        self._reactor = reactor
 
     def msg(self, *args, **kwargs):
         print(*args, file=self.args.stdout, **kwargs)
 
     # TODO: @handle_server_error
-    @inlineCallbacks
     def go(self):
+        d = defer.succeed(None)
         tor_manager = None
         if self.args.tor:
             _start = self.args.timing.add_event("import TorManager")
             from txwormhole.tor_manager import TorManager
             self.args.timing.finish_event(_start)
-            tor_manager = TorManager(reactor, timing=self.args.timing)
+            tor_manager = TorManager(self._reactor, timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            yield tor_manager.start()
-
-        w = Wormhole(APPID, self.args.relay_url, tor_manager,
-                     timing=self.args.timing)
-
-        rc = yield self._go(w, tor_manager)
-        yield w.close()
-        returnValue(rc)
+            d.addCallback(lambda _: tor_manager.start())
+        def _make_wormhole(_):
+            self._w = Wormhole(APPID, self.args.relay_url, tor_manager,
+                               timing=self.args.timing,
+                               reactor=self._reactor)
+        d.addCallback(_make_wormhole)
+        d.addCallback(lambda _: self._go(self._w, tor_manager))
+        def _always_close(res):
+            d2 = self._w.close()
+            d2.addBoth(lambda _: res)
+            return d2
+        d.addBoth(_always_close)
+        # I wanted to do this instead:
+        #
+        #    try:
+        #        yield self._go(w, tor_manager)
+        #    finally:
+        #        yield w.close()
+        #
+        # but when _go had a UsageError, the stacktrace was always displayed
+        # as coming from the "yield self._go" line, which wasn't very useful
+        # for tracking it down.
+        return d
 
     @inlineCallbacks
     def _go(self, w, tor_manager):
@@ -100,7 +93,7 @@ class TwistedReceiver:
         except RespondError as r:
             data = json.dumps(r.response).encode("utf-8")
             yield w.send_data(data)
-            returnValue(1)
+            raise SystemExit(1)
         returnValue(0)
 
     @inlineCallbacks
@@ -198,6 +191,7 @@ class TwistedReceiver:
         transit_receiver = TransitReceiver(self.args.transit_helper,
                                            no_listen=self.args.no_listen,
                                            tor_manager=tor_manager,
+                                           reactor=self._reactor,
                                            timing=self.args.timing)
         transit_receiver.set_transit_key(transit_key)
         direct_hints = yield transit_receiver.get_direct_hints()

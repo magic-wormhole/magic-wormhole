@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os, sys, io, json, binascii, six, tempfile, zipfile
 from twisted.protocols import basic
-from twisted.internet import reactor, defer
+from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from wormhole.errors import TransferError
 from .progress import ProgressPrinter
@@ -95,32 +95,8 @@ def build_phase1_data(args):
 
     raise TypeError("'%s' is neither file nor directory" % args.what)
 
-
-def send_twisted_sync(args):
-    # try to use twisted.internet.task.react(f) here (but it calls sys.exit
-    # directly)
-    d = defer.Deferred()
-    # don't call send_twisted() until after the reactor is running, so
-    # that if it raises an exception synchronously, we won't stop the reactor
-    # before it starts
-    reactor.callLater(0, d.callback, None)
-    d.addCallback(lambda _: send_twisted(args))
-    rc = []
-    def _done(res):
-        rc.extend([True, res])
-        reactor.stop()
-    def _err(f):
-        rc.extend([False, f])
-        reactor.stop()
-    d.addCallbacks(_done, _err)
-    reactor.run()
-    if rc[0]:
-        return rc[1]
-    print(str(rc[1]))
-    rc[1].raiseException()
-
 @inlineCallbacks
-def send_twisted(args):
+def send_twisted(args, reactor=reactor):
     assert isinstance(args.relay_url, type(u""))
     handle_zero(args)
     phase1, fd_to_send = build_phase1_data(args)
@@ -138,12 +114,14 @@ def send_twisted(args):
         # user handing off the wormhole code
         yield tor_manager.start()
 
-    w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing)
+    w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing,
+                 reactor=reactor)
 
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
                                        no_listen=args.no_listen,
                                        tor_manager=tor_manager,
+                                       reactor=reactor,
                                        timing=args.timing)
         phase1["transit"] = transit_data = {}
         transit_data["relay_connection_hints"] = transit_sender.get_relay_hints()

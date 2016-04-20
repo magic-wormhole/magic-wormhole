@@ -1,26 +1,28 @@
 from __future__ import print_function
 import os, sys
-from wormhole.errors import TransferError
+from twisted.internet.defer import maybeDeferred
+from twisted.internet.task import react
 from wormhole.timing import DebugTiming
 from .cli_args import parser
 
-def dispatch(args):
+def dispatch(args): # returns Deferred
     if args.func == "send/send":
         from . import cmd_send
-        return cmd_send.send_twisted_sync(args)
+        return cmd_send.send_twisted(args)
     if args.func == "receive/receive":
         _start = args.timing.add_event("import c_r_t")
         from . import cmd_receive
         args.timing.finish_event(_start)
-        return cmd_receive.receive_twisted_sync(args)
+        return cmd_receive.receive_twisted(args)
 
     raise ValueError("unknown args.func %s" % args.func)
 
-def run(args, cwd, stdout, stderr, executable=None):
-    """This is invoked directly by the 'wormhole' entry-point script. It can
-    also invoked by entry() below."""
+def run(reactor, argv, cwd, stdout, stderr, executable=None):
+    """This is invoked by entry() below, and can also be invoked directly by
+    tests.
+    """
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not getattr(args, "func", None):
         # So far this only works on py3. py2 exits with a really terse
         # "error: too few arguments" during parse_args().
@@ -31,30 +33,28 @@ def run(args, cwd, stdout, stderr, executable=None):
     args.stderr = stderr
     args.timing = timing = DebugTiming()
 
-    try:
-        timing.add_event("command dispatch")
-        rc = dispatch(args)
+    timing.add_event("command dispatch")
+    d = maybeDeferred(dispatch, args)
+    def _maybe_dump_timing(res):
         timing.add_event("exit")
         if args.dump_timing:
             timing.write(args.dump_timing, stderr)
-        return rc
-    except TransferError as e:
-        print(e, file=stderr)
-        if args.dump_timing:
-            timing.write(args.dump_timing, stderr)
-        return 1
-    except ImportError as e:
-        print("--- ImportError ---", file=stderr)
-        print(e, file=stderr)
-        print("Please run 'python setup.py build'", file=stderr)
-        raise
-        return 1
+        return res
+    d.addBoth(_maybe_dump_timing)
+    def _explain_error(f):
+        print(f.value, file=stderr)
+        raise SystemExit(1)
+    d.addErrback(_explain_error)
+    def _rc(rc):
+        raise SystemExit(rc)
+    d.addCallback(_rc)
+    return d
 
 def entry():
     """This is used by a setuptools entry_point. When invoked this way,
     setuptools has already put the installed package on sys.path ."""
-    return run(sys.argv[1:], os.getcwd(), sys.stdout, sys.stderr,
-               executable=sys.argv[0])
+    react(run, (sys.argv[1:], os.getcwd(), sys.stdout, sys.stderr,
+                sys.argv[0]))
 
 if __name__ == "__main__":
     args = parser.parse_args()
