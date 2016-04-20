@@ -12,6 +12,14 @@ from wormhole.errors import TransferError
 from wormhole.timing import DebugTiming
 
 class Phase1Data(unittest.TestCase):
+    def setUp(self):
+        self._things_to_delete = []
+
+    def tearDown(self):
+        for fn in self._things_to_delete:
+            if os.path.exists(fn):
+                os.unlink(fn)
+
     def test_text(self):
         message = "blah blah blah ponies"
 
@@ -127,6 +135,13 @@ class Phase1Data(unittest.TestCase):
             os.mkfifo(abs_filename)
         except AttributeError:
             raise unittest.SkipTest("is mkfifo supported on this platform?")
+
+        # Delete the named pipe for the sake of users who might run "pip
+        # wheel ." in this directory later. That command wants to copy
+        # everything into a tempdir before building a wheel, and the
+        # shutil.copy_tree() is uses can't handle the named pipe.
+        self._things_to_delete.append(abs_filename)
+
         self.assertFalse(os.path.isfile(abs_filename))
         self.assertFalse(os.path.isdir(abs_filename))
 
