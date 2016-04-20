@@ -26,7 +26,7 @@ class TorWebAgentEndpointFactory(object):
                               "contains non-ASCII octets, it should be ASCII "
                               "decodable.").format(uri=uri))
 
-        if uri.scheme == b'http':
+        if uri.scheme == b'http' or uri.scheme == b'ws':
             print("building URI endpoint with tor for %s" % uri.toBytes())
             return txtorcon.TorClientEndpoint(#self._reactor,
                 host, uri.port,
