@@ -1,135 +1,11 @@
 from __future__ import print_function
 import json
 from twisted.trial import unittest
-from twisted.internet.defer import gatherResults, succeed, inlineCallbacks
-from txwormhole.transcribe import (Wormhole, UsageError, ChannelManager,
-                                   WrongPasswordError)
-from txwormhole.eventsource import EventSourceParser
+from twisted.internet.defer import gatherResults, inlineCallbacks
+from txwormhole.transcribe import Wormhole, UsageError, WrongPasswordError
 from .common import ServerBase
 
 APPID = u"appid"
-
-class Channel(ServerBase, unittest.TestCase):
-    def ignore(self, welcome):
-        pass
-
-    def test_allocate(self):
-        cm = ChannelManager(self.relayurl, APPID, u"side", self.ignore)
-        d = cm.list_channels()
-        def _got_channels(channels):
-            self.failUnlessEqual(channels, [])
-        d.addCallback(_got_channels)
-        d.addCallback(lambda _: cm.allocate())
-        def _allocated(channelid):
-            self.failUnlessEqual(type(channelid), int)
-            self._channelid = channelid
-        d.addCallback(_allocated)
-        d.addCallback(lambda _: cm.connect(self._channelid))
-        def _connected(c):
-            self._channel = c
-        d.addCallback(_connected)
-        d.addCallback(lambda _: self._channel.deallocate(u"happy"))
-        d.addCallback(lambda _: cm.shutdown())
-        return d
-
-    def test_messages(self):
-        cm1 = ChannelManager(self.relayurl, APPID, u"side1", self.ignore)
-        cm2 = ChannelManager(self.relayurl, APPID, u"side2", self.ignore)
-        c1 = cm1.connect(1)
-        c2 = cm2.connect(1)
-
-        d = succeed(None)
-        d.addCallback(lambda _: c1.send(u"phase1", b"msg1"))
-        d.addCallback(lambda _: c2.get(u"phase1"))
-        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1"))
-        d.addCallback(lambda _: c2.send(u"phase1", b"msg2"))
-        d.addCallback(lambda _: c1.get(u"phase1"))
-        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg2"))
-        # it's legal to fetch a phase multiple times, should be idempotent
-        d.addCallback(lambda _: c1.get(u"phase1"))
-        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg2"))
-        # deallocating one side is not enough to destroy the channel
-        d.addCallback(lambda _: c2.deallocate())
-        def _not_yet(_):
-            self._rendezvous.prune()
-            self.failUnlessEqual(len(self._rendezvous._apps), 1)
-        d.addCallback(_not_yet)
-        # but deallocating both will make the messages go away
-        d.addCallback(lambda _: c1.deallocate(u"sad"))
-        def _gone(_):
-            self._rendezvous.prune()
-            self.failUnlessEqual(len(self._rendezvous._apps), 0)
-        d.addCallback(_gone)
-
-        d.addCallback(lambda _: cm1.shutdown())
-        d.addCallback(lambda _: cm2.shutdown())
-
-        return d
-
-    def test_get_multiple_phases(self):
-        cm1 = ChannelManager(self.relayurl, APPID, u"side1", self.ignore)
-        cm2 = ChannelManager(self.relayurl, APPID, u"side2", self.ignore)
-        c1 = cm1.connect(1)
-        c2 = cm2.connect(1)
-
-        self.failUnlessRaises(TypeError, c2.get_first_of, u"phase1")
-        self.failUnlessRaises(TypeError, c2.get_first_of, [u"phase1", 7])
-
-        d = succeed(None)
-        d.addCallback(lambda _: c1.send(u"phase1", b"msg1"))
-
-        d.addCallback(lambda _: c2.get_first_of([u"phase1", u"phase2"]))
-        d.addCallback(lambda phase_and_body:
-                      self.failUnlessEqual(phase_and_body,
-                                           (u"phase1", b"msg1")))
-        d.addCallback(lambda _: c2.get_first_of([u"phase2", u"phase1"]))
-        d.addCallback(lambda phase_and_body:
-                      self.failUnlessEqual(phase_and_body,
-                                           (u"phase1", b"msg1")))
-
-        d.addCallback(lambda _: c1.send(u"phase2", b"msg2"))
-        d.addCallback(lambda _: c2.get(u"phase2"))
-
-        # if both are present, it should prefer the first one we asked for
-        d.addCallback(lambda _: c2.get_first_of([u"phase1", u"phase2"]))
-        d.addCallback(lambda phase_and_body:
-                      self.failUnlessEqual(phase_and_body,
-                                           (u"phase1", b"msg1")))
-        d.addCallback(lambda _: c2.get_first_of([u"phase2", u"phase1"]))
-        d.addCallback(lambda phase_and_body:
-                      self.failUnlessEqual(phase_and_body,
-                                           (u"phase2", b"msg2")))
-
-        d.addCallback(lambda _: cm1.shutdown())
-        d.addCallback(lambda _: cm2.shutdown())
-
-        return d
-
-    def test_appid_independence(self):
-        APPID_A = u"appid_A"
-        APPID_B = u"appid_B"
-        cm1a = ChannelManager(self.relayurl, APPID_A, u"side1", self.ignore)
-        cm2a = ChannelManager(self.relayurl, APPID_A, u"side2", self.ignore)
-        c1a = cm1a.connect(1)
-        c2a = cm2a.connect(1)
-        cm1b = ChannelManager(self.relayurl, APPID_B, u"side1", self.ignore)
-        cm2b = ChannelManager(self.relayurl, APPID_B, u"side2", self.ignore)
-        c1b = cm1b.connect(1)
-        c2b = cm2b.connect(1)
-
-        d = succeed(None)
-        d.addCallback(lambda _: c1a.send(u"phase1", b"msg1a"))
-        d.addCallback(lambda _: c1b.send(u"phase1", b"msg1b"))
-        d.addCallback(lambda _: c2a.get(u"phase1"))
-        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1a"))
-        d.addCallback(lambda _: c2b.get(u"phase1"))
-        d.addCallback(lambda msg: self.failUnlessEqual(msg, b"msg1b"))
-
-        d.addCallback(lambda _: cm1a.shutdown())
-        d.addCallback(lambda _: cm2a.shutdown())
-        d.addCallback(lambda _: cm1b.shutdown())
-        d.addCallback(lambda _: cm2b.shutdown())
-        return d
 
 class Basic(ServerBase, unittest.TestCase):
 
@@ -226,10 +102,32 @@ class Basic(ServerBase, unittest.TestCase):
         # and w1 won't send CONFIRM until it sees a PAKE message, which w2
         # won't send until we call get_data. So we need both sides to be
         # running at the same time for this test.
-        yield self.doBoth(w1.send_data(b"data1"),
-                          self.assertFailure(w2.get_data(), WrongPasswordError))
+        d1 = w1.send_data(b"data1")
+        # at this point, w1 should be waiting for w2.PAKE
 
-        # and now w1 should have enough information to throw too
+        yield self.assertFailure(w2.get_data(), WrongPasswordError)
+        # * w2 will send w2.PAKE, wait for (and get) w1.PAKE, compute a key,
+        #   send w2.CONFIRM, then wait for w1.DATA.
+        # * w1 will get w2.PAKE, compute a key, send w1.CONFIRM.
+        # * w2 gets w1.CONFIRM, notices the error, records it.
+        # * w2 (waiting for w1.DATA) wakes up, sees the error, throws
+        # * meanwhile w1 finishes sending its data. w2.CONFIRM may or may not
+        #   have arrived by then
+        yield d1
+
+        # When we ask w1 to get_data(), one of two things might happen:
+        # * if w2.CONFIRM arrived already, it will have recorded the error.
+        #   When w1.get_data() sleeps (waiting for w2.DATA), we'll notice the
+        #   error before sleeping, and throw WrongPasswordError
+        # * if w2.CONFIRM hasn't arrived yet, we'll sleep. When w2.CONFIRM
+        #   arrives, we notice and record the error, and wake up, and throw
+
+        # Note that we didn't do w2.send_data(), so we're hoping that w1 will
+        # have enough information to detect the error before it sleeps
+        # (waiting for w2.DATA). Checking for the error both before sleeping
+        # and after waking up makes this happen.
+
+        # so now w1 should have enough information to throw too
         yield self.assertFailure(w1.get_data(), WrongPasswordError)
 
         # both sides are closed automatically upon error, but it's still
@@ -349,41 +247,3 @@ class Basic(ServerBase, unittest.TestCase):
         yield gatherResults([w1.close(), w2.close(), self.new_w1.close()],
                             True)
 
-
-data1 = b"""\
-event: welcome
-data: one and a
-data: two
-data:.
-
-data: three
-
-: this line is ignored
-event: e2
-: this line is ignored too
-i am a dataless field name
-data: four
-
-"""
-
-class FakeTransport:
-    disconnecting = False
-
-class EventSourceClient(unittest.TestCase):
-    def test_parser(self):
-        events = []
-        p = EventSourceParser(lambda t,d: events.append((t,d)))
-        p.transport = FakeTransport()
-        p.dataReceived(data1)
-        self.failUnlessEqual(events,
-                             [(u"welcome", u"one and a\ntwo\n."),
-                              (u"message", u"three"),
-                              (u"e2", u"four"),
-                              ])
-
-# new py3 support in 15.5.0: web.client.Agent, w.c.downloadPage, twistd
-
-# However trying 'wormhole server start' with py3/twisted-15.5.0 throws an
-# error in t.i._twistd_unix.UnixApplicationRunner.postApplication, it calls
-# os.write with str, not bytes. This file does not cover that test (testing
-# daemonization is hard).
