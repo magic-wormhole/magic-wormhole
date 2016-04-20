@@ -186,7 +186,7 @@ class Channel:
 
 class ChannelManager:
     def __init__(self, relay, appid, side, handle_welcome, tor_manager=None,
-                 timing=None):
+                 timing=None, reactor=reactor):
         assert isinstance(relay, type(u""))
         self._relay = relay
         self._appid = appid
@@ -262,7 +262,8 @@ class Wormhole:
     version_warning_displayed = False
     _send_confirm = True
 
-    def __init__(self, appid, relay_url, tor_manager=None, timing=None):
+    def __init__(self, appid, relay_url, tor_manager=None, timing=None,
+                 reactor=reactor):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
@@ -271,6 +272,7 @@ class Wormhole:
         self._relay_url = relay_url
         self._tor_manager = tor_manager
         self._timing = timing or DebugTiming()
+        self._reactor = reactor
         self._set_side(hexlify(os.urandom(5)).decode("ascii"))
         self.code = None
         self.key = None
@@ -286,7 +288,8 @@ class Wormhole:
         self._channel_manager = ChannelManager(self._relay_url, self._appid,
                                                self._side, self.handle_welcome,
                                                self._tor_manager,
-                                               self._timing)
+                                               self._timing,
+                                               reactor=self._reactor)
         self._channel = None
 
     def handle_welcome(self, welcome):
@@ -326,7 +329,7 @@ class Wormhole:
     @inlineCallbacks
     def input_code(self, prompt="Enter wormhole code: ", code_length=2):
         def _lister():
-            return blockingCallFromThread(reactor,
+            return blockingCallFromThread(self._reactor,
                                           self._channel_manager.list_channels)
         # fetch the list of channels ahead of time, to give us a chance to
         # discover the welcome message (and warn the user about an obsolete
