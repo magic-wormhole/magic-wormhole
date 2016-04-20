@@ -33,8 +33,8 @@ from autobahn.twisted import websocket
 #  <- {type: "allocated", channelid: int}
 # -> {type: "claim", channelid: int}
 # -> {type: "watch"} -> message # sends old messages and more in future
-#  <- {type: "message", message: {phase:, body:}} # body is base64
-# -> {type: "add", phase: str, body: base64} # may send echo
+#  <- {type: "message", message: {phase:, body:}} # body is hex
+# -> {type: "add", phase: str, body: hex} # may send echo
 # -> {type: "deallocate", mood: str} -> deallocated
 #  <- {type: "deallocated", status: waiting|deleted}
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
