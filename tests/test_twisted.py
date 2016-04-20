@@ -1,7 +1,7 @@
 from __future__ import print_function
 import json
 from twisted.trial import unittest
-from twisted.internet.defer import gatherResults, succeed
+from twisted.internet.defer import gatherResults, succeed, inlineCallbacks
 from txwormhole.transcribe import (Wormhole, UsageError, ChannelManager,
                                    WrongPasswordError)
 from txwormhole.eventsource import EventSourceParser
@@ -136,138 +136,107 @@ class Basic(ServerBase, unittest.TestCase):
     def doBoth(self, d1, d2):
         return gatherResults([d1, d2], True)
 
+    @inlineCallbacks
     def test_basic(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            w2.set_code(code)
-            return self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
-        d.addCallback(_got_code)
-        def _sent(res):
-            return self.doBoth(w1.get_data(), w2.get_data())
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data2")
-            self.assertEqual(dataY, b"data1")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        code = yield w1.get_code()
+        w2.set_code(code)
+        yield self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
+        dl = yield self.doBoth(w1.get_data(), w2.get_data())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_same_message(self):
         # the two sides use random nonces for their messages, so it's ok for
         # both to try and send the same body: they'll result in distinct
         # encrypted messages
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            w2.set_code(code)
-            return self.doBoth(w1.send_data(b"data"), w2.send_data(b"data"))
-        d.addCallback(_got_code)
-        def _sent(res):
-            return self.doBoth(w1.get_data(), w2.get_data())
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data")
-            self.assertEqual(dataY, b"data")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        code = yield w1.get_code()
+        w2.set_code(code)
+        yield self.doBoth(w1.send_data(b"data"), w2.send_data(b"data"))
+        dl = yield self.doBoth(w1.get_data(), w2.get_data())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data")
+        self.assertEqual(dataY, b"data")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_interleaved(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            w2.set_code(code)
-            return self.doBoth(w1.send_data(b"data1"), w2.get_data())
-        d.addCallback(_got_code)
-        def _sent(res):
-            (_, dataY) = res
-            self.assertEqual(dataY, b"data1")
-            return self.doBoth(w1.get_data(), w2.send_data(b"data2"))
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, _) = dl
-            self.assertEqual(dataX, b"data2")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        code = yield w1.get_code()
+        w2.set_code(code)
+        res = yield self.doBoth(w1.send_data(b"data1"), w2.get_data())
+        (_, dataY) = res
+        self.assertEqual(dataY, b"data1")
+        dl = yield self.doBoth(w1.get_data(), w2.send_data(b"data2"))
+        (dataX, _) = dl
+        self.assertEqual(dataX, b"data2")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_fixed_code(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2.set_code(u"123-purple-elephant")
-        d = self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
-        def _sent(res):
-            return self.doBoth(w1.get_data(), w2.get_data())
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data2")
-            self.assertEqual(dataY, b"data1")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        yield self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
+        dl = yield self.doBoth(w1.get_data(), w2.get_data())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        yield self.doBoth(w1.close(), w2.close())
 
+
+    @inlineCallbacks
     def test_phases(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2.set_code(u"123-purple-elephant")
-        d = self.doBoth(w1.send_data(b"data1", u"p1"),
-                        w2.send_data(b"data2", u"p1"))
-        d.addCallback(lambda _:
-                      self.doBoth(w1.send_data(b"data3", u"p2"),
-                                  w2.send_data(b"data4", u"p2")))
-        d.addCallback(lambda _:
-                      self.doBoth(w1.get_data(u"p2"),
-                                  w2.get_data(u"p1")))
-        def _got_1(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data4")
-            self.assertEqual(dataY, b"data1")
-            return self.doBoth(w1.get_data(u"p1"),
+        yield self.doBoth(w1.send_data(b"data1", u"p1"),
+                          w2.send_data(b"data2", u"p1"))
+        yield self.doBoth(w1.send_data(b"data3", u"p2"),
+                          w2.send_data(b"data4", u"p2"))
+        dl = yield self.doBoth(w1.get_data(u"p2"),
+                               w2.get_data(u"p1"))
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data4")
+        self.assertEqual(dataY, b"data1")
+        dl = yield self.doBoth(w1.get_data(u"p1"),
                                w2.get_data(u"p2"))
-        d.addCallback(_got_1)
-        def _got_2(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data2")
-            self.assertEqual(dataY, b"data3")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_got_2)
-        return d
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data3")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_wrong_password(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        d.addCallback(lambda code: w2.set_code(code+"not"))
+        code = yield w1.get_code()
+        w2.set_code(code+"not")
 
         # w2 can't throw WrongPasswordError until it sees a CONFIRM message,
         # and w1 won't send CONFIRM until it sees a PAKE message, which w2
         # won't send until we call get_data. So we need both sides to be
         # running at the same time for this test.
-        def _w1_sends():
-            return w1.send_data(b"data1")
-        def _w2_gets():
-            return self.assertFailure(w2.get_data(), WrongPasswordError)
-        d.addCallback(lambda _: self.doBoth(_w1_sends(), _w2_gets()))
+        yield self.doBoth(w1.send_data(b"data1"),
+                          self.assertFailure(w2.get_data(), WrongPasswordError))
 
         # and now w1 should have enough information to throw too
-        d.addCallback(lambda _: self.assertFailure(w1.get_data(),
-                                                   WrongPasswordError))
-        def _done(_):
-            # both sides are closed automatically upon error, but it's still
-            # legal to call .close(), and should be idempotent
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        yield self.assertFailure(w1.get_data(), WrongPasswordError)
 
+        # both sides are closed automatically upon error, but it's still
+        # legal to call .close(), and should be idempotent
+        yield self.doBoth(w1.close(), w2.close())
+
+    @inlineCallbacks
     def test_no_confirm(self):
         # newer versions (which check confirmations) should will work with
         # older versions (that don't send confirmations)
@@ -275,131 +244,111 @@ class Basic(ServerBase, unittest.TestCase):
         w1._send_confirm = False
         w2 = Wormhole(APPID, self.relayurl)
 
-        d = w1.get_code()
-        d.addCallback(lambda code: w2.set_code(code))
-        d.addCallback(lambda _: self.doBoth(w1.send_data(b"data1"),
-                                            w2.get_data()))
-        d.addCallback(lambda dl: self.assertEqual(dl[1], b"data1"))
-        d.addCallback(lambda _: self.doBoth(w1.get_data(),
-                                            w2.send_data(b"data2")))
-        d.addCallback(lambda dl: self.assertEqual(dl[0], b"data2"))
-        d.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
-        return d
+        code = yield w1.get_code()
+        w2.set_code(code)
+        dl = yield self.doBoth(w1.send_data(b"data1"), w2.get_data())
+        self.assertEqual(dl[1], b"data1")
+        dl = yield self.doBoth(w1.get_data(), w2.send_data(b"data2"))
+        self.assertEqual(dl[0], b"data2")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_verifier(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            w2.set_code(code)
-            return self.doBoth(w1.get_verifier(), w2.get_verifier())
-        d.addCallback(_got_code)
-        def _check_verifier(res):
-            v1, v2 = res
-            self.failUnlessEqual(type(v1), type(b""))
-            self.failUnlessEqual(v1, v2)
-            return self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
-        d.addCallback(_check_verifier)
-        def _sent(res):
-            return self.doBoth(w1.get_data(), w2.get_data())
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, dataY) = dl
-            self.assertEqual(dataX, b"data2")
-            self.assertEqual(dataY, b"data1")
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_done)
-        return d
+        code = yield w1.get_code()
+        w2.set_code(code)
+        res = yield self.doBoth(w1.get_verifier(), w2.get_verifier())
+        v1, v2 = res
+        self.failUnlessEqual(type(v1), type(b""))
+        self.failUnlessEqual(v1, v2)
+        yield self.doBoth(w1.send_data(b"data1"), w2.send_data(b"data2"))
+        dl = yield self.doBoth(w1.get_data(), w2.get_data())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_verifier_mismatch(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            w2.set_code(code+"not")
-            return self.doBoth(w1.get_verifier(), w2.get_verifier())
-        d.addCallback(_got_code)
-        def _check_verifier(res):
-            v1, v2 = res
-            self.failUnlessEqual(type(v1), type(b""))
-            self.failIfEqual(v1, v2)
-            return self.doBoth(w1.close(), w2.close())
-        d.addCallback(_check_verifier)
-        return d
+        # we must disable confirmation messages, else the wormholes will
+        # figure out the mismatch by themselves and throw WrongPasswordError.
+        w1._send_confirm = w2._send_confirm = False
+        code = yield w1.get_code()
+        w2.set_code(code+"not")
+        res = yield self.doBoth(w1.get_verifier(), w2.get_verifier())
+        v1, v2 = res
+        self.failUnlessEqual(type(v1), type(b""))
+        self.failIfEqual(v1, v2)
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_errors(self):
         w1 = Wormhole(APPID, self.relayurl)
-        d = self.assertFailure(w1.get_verifier(), UsageError)
-        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data"), UsageError))
-        d.addCallback(lambda _: self.assertFailure(w1.get_data(), UsageError))
-        d.addCallback(lambda _: w1.set_code(u"123-purple-elephant"))
-        # this UsageError is synchronous, although most of the rest are async
-        d.addCallback(lambda _: self.assertRaises(UsageError, w1.set_code, u"123-nope"))
-        d.addCallback(lambda _: self.assertFailure(w1.get_code(), UsageError))
-        def _then(_):
-            w2 = Wormhole(APPID, self.relayurl)
-            d2 = w2.get_code()
-            d2.addCallback(lambda _: self.assertFailure(w2.get_code(), UsageError))
-            d2.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
-            return d2
-        d.addCallback(_then)
-        return d
+        yield self.assertFailure(w1.get_verifier(), UsageError)
+        yield self.assertFailure(w1.send_data(b"data"), UsageError)
+        yield self.assertFailure(w1.get_data(), UsageError)
+        w1.set_code(u"123-purple-elephant")
+        yield self.assertRaises(UsageError, w1.set_code, u"123-nope")
+        yield self.assertFailure(w1.get_code(), UsageError)
+        w2 = Wormhole(APPID, self.relayurl)
+        yield w2.get_code()
+        yield self.assertFailure(w2.get_code(), UsageError)
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_repeat_phases(self):
         w1 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2 = Wormhole(APPID, self.relayurl)
         w2.set_code(u"123-purple-elephant")
         # we must let them establish a key before we can send data
-        d = self.doBoth(w1.get_verifier(), w2.get_verifier())
-        d.addCallback(lambda _: w1.send_data(b"data1", phase=u"1"))
+        yield self.doBoth(w1.get_verifier(), w2.get_verifier())
+        yield w1.send_data(b"data1", phase=u"1")
         # underscore-prefixed phases are reserved
-        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data1", phase=u"_1"),
-                                                   UsageError))
-        d.addCallback(lambda _: self.assertFailure(w1.get_data(phase=u"_1"), UsageError))
+        yield self.assertFailure(w1.send_data(b"data1", phase=u"_1"),
+                                 UsageError)
+        yield self.assertFailure(w1.get_data(phase=u"_1"), UsageError)
         # you can't send twice to the same phase
-        d.addCallback(lambda _: self.assertFailure(w1.send_data(b"data1", phase=u"1"),
-                                                   UsageError))
+        yield self.assertFailure(w1.send_data(b"data1", phase=u"1"),
+                                 UsageError)
         # but you can send to a different one
-        d.addCallback(lambda _: w1.send_data(b"data2", phase=u"2"))
-        d.addCallback(lambda _: w2.get_data(phase=u"1"))
-        d.addCallback(lambda res: self.failUnlessEqual(res, b"data1"))
+        yield w1.send_data(b"data2", phase=u"2")
+        res = yield w2.get_data(phase=u"1")
+        self.failUnlessEqual(res, b"data1")
         # and you can't read twice from the same phase
-        d.addCallback(lambda _: self.assertFailure(w2.get_data(phase=u"1"), UsageError))
+        yield self.assertFailure(w2.get_data(phase=u"1"), UsageError)
         # but you can read from a different one
-        d.addCallback(lambda _: w2.get_data(phase=u"2"))
-        d.addCallback(lambda res: self.failUnlessEqual(res, b"data2"))
-        d.addCallback(lambda _: self.doBoth(w1.close(), w2.close()))
-        return d
+        res = yield w2.get_data(phase=u"2")
+        self.failUnlessEqual(res, b"data2")
+        yield self.doBoth(w1.close(), w2.close())
 
+    @inlineCallbacks
     def test_serialize(self):
         w1 = Wormhole(APPID, self.relayurl)
         self.assertRaises(UsageError, w1.serialize) # too early
         w2 = Wormhole(APPID, self.relayurl)
-        d = w1.get_code()
-        def _got_code(code):
-            self.assertRaises(UsageError, w2.serialize) # too early
-            w2.set_code(code)
-            w2.serialize() # ok
-            s = w1.serialize()
-            self.assertEqual(type(s), type(""))
-            unpacked = json.loads(s) # this is supposed to be JSON
-            self.assertEqual(type(unpacked), dict)
-            self.new_w1 = Wormhole.from_serialized(s)
-            return self.doBoth(self.new_w1.send_data(b"data1"),
-                               w2.send_data(b"data2"))
-        d.addCallback(_got_code)
-        def _sent(res):
-            return self.doBoth(self.new_w1.get_data(), w2.get_data())
-        d.addCallback(_sent)
-        def _done(dl):
-            (dataX, dataY) = dl
-            self.assertEqual((dataX, dataY), (b"data2", b"data1"))
-            self.assertRaises(UsageError, w2.serialize) # too late
-            return gatherResults([w1.close(), w2.close(), self.new_w1.close()],
-                                 True)
-        d.addCallback(_done)
-        return d
+        code = yield w1.get_code()
+        self.assertRaises(UsageError, w2.serialize) # too early
+        w2.set_code(code)
+        w2.serialize() # ok
+        s = w1.serialize()
+        self.assertEqual(type(s), type(""))
+        unpacked = json.loads(s) # this is supposed to be JSON
+        self.assertEqual(type(unpacked), dict)
+
+        self.new_w1 = Wormhole.from_serialized(s)
+        yield self.doBoth(self.new_w1.send_data(b"data1"),
+                          w2.send_data(b"data2"))
+        dl = yield self.doBoth(self.new_w1.get_data(), w2.get_data())
+        (dataX, dataY) = dl
+        self.assertEqual((dataX, dataY), (b"data2", b"data1"))
+        self.assertRaises(UsageError, w2.serialize) # too late
+        yield gatherResults([w1.close(), w2.close(), self.new_w1.close()],
+                            True)
+
 
 data1 = b"""\
 event: welcome
