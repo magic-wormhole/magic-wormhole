@@ -99,6 +99,8 @@ def build_phase1_data(args):
 def send_twisted(args, reactor=reactor):
     assert isinstance(args.relay_url, type(u""))
     handle_zero(args)
+    # TODO: parallelize the roundtrip that allocates the channel with the
+    # (blocking) local IO (file os.stat, zipfile generation)
     phase1, fd_to_send = build_phase1_data(args)
     other_cmd = build_other_command(args)
     print(u"On the other computer, please run: %s" % other_cmd,
