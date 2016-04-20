@@ -81,6 +81,7 @@ class RelayServer(service.MultiService):
 
     def startService(self):
         service.MultiService.startService(self)
+        log.msg("websocket listening on /wormhole-relay/ws")
         log.msg("Wormhole relay server (Rendezvous and Transit) running")
         if self._blur_usage:
             log.msg("blurring access times to %d seconds" % self._blur_usage)
