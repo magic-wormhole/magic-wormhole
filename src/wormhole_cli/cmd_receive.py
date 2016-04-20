@@ -128,7 +128,7 @@ class TwistedReceiver:
         # we're receiving a text message
         self.msg(them_d["message"])
         data = json.dumps({"message_ack": "ok"}).encode("utf-8")
-        yield w.send_data(data)
+        yield w.send_data(data, wait=True)
 
     def handle_file(self, them_d):
         file_data = them_d["file"]
