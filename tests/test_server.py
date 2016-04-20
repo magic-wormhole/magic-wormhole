@@ -373,6 +373,7 @@ class WSClient(websocket.WebSocketClientProtocol):
     def __init__(self):
         websocket.WebSocketClientProtocol.__init__(self)
         self.events = []
+        self.errors = []
         self.d = None
         self.ping_counter = itertools.count(0)
     def onOpen(self):
@@ -380,6 +381,8 @@ class WSClient(websocket.WebSocketClientProtocol):
     def onMessage(self, payload, isBinary):
         assert not isBinary
         event = json.loads(payload.decode("utf-8"))
+        if event["type"] == "error":
+            self.errors.append(event)
         if self.d:
             assert not self.events
             d,self.d = self.d,None
@@ -607,6 +610,40 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         msg = yield c2.next_event()
         self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [])
+
+    @inlineCallbacks
+    def test_allocate_and_claim(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"allocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        c1.send(u"claim", channelid=cid)
+        yield c1.sync()
+        # there should no error
+        self.assertEqual(c1.errors, [])
+
+    @inlineCallbacks
+    def test_allocate_and_claim_different(self):
+        c1 = yield self.make_client()
+        msg = yield c1.next_event()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"allocate")
+        msg = yield c1.next_event()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        c1.send(u"claim", channelid=cid+1)
+        yield c1.sync()
+        # that should signal an error
+        self.assertEqual(len(c1.errors), 1, c1.errors)
+        msg = c1.errors[0]
+        self.assertEqual(msg["type"], "error")
+        self.assertEqual(msg["error"], "Already bound to channelid %d" % cid)
+        self.assertEqual(msg["orig"], {"type": "claim", "channelid": cid+1})
 
     @inlineCallbacks
     def test_message(self):

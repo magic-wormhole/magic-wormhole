@@ -28,6 +28,9 @@ class Channel:
                                 # takes a JSONable object) and
                                 # .stop_rendezvous_watcher()
 
+    def get_channelid(self):
+        return self._channelid
+
     def get_messages(self):
         messages = []
         db = self._db

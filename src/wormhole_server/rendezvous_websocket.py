@@ -127,10 +127,13 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self.send("allocated", channelid=channelid)
 
     def handle_claim(self, msg):
-        if self._channel:
-            raise Error("Already bound to a channelid")
         if "channelid" not in msg:
             raise Error("claim requires 'channelid'")
+        # we allow allocate+claim as long as they match
+        if self._channel is not None:
+            old_cid = self._channel.get_channelid()
+            if msg["channelid"] != old_cid:
+                raise Error("Already bound to channelid %d" % old_cid)
         self._channel = self._app.allocate_channel(msg["channelid"], self._side)
 
     def handle_watch(self, channel, msg):
