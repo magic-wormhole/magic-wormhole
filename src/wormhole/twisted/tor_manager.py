@@ -8,7 +8,7 @@ from twisted.internet.error import ConnectError
 from twisted.web import iweb
 import txtorcon
 import ipaddr
-from wormhole.timing import DebugTiming
+from ..timing import DebugTiming
 from .transit import allocate_tcp_port
 
 # based on twisted.web.client._StandardEndpointFactory

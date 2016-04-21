@@ -2,7 +2,7 @@ from __future__ import print_function
 import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from txwormhole.transcribe import Wormhole, UsageError, WrongPasswordError
+from ..twisted.transcribe import Wormhole, UsageError, WrongPasswordError
 from .common import ServerBase
 
 APPID = u"appid"

@@ -10,10 +10,10 @@ from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
 from spake2 import SPAKE2_Symmetric
-from wormhole import __version__
-from wormhole import codes
-from wormhole.errors import ServerError, Timeout, WrongPasswordError, UsageError
-from wormhole.timing import DebugTiming
+from .. import __version__
+from .. import codes
+from ..errors import ServerError, Timeout, WrongPasswordError, UsageError
+from ..timing import DebugTiming
 from hkdf import Hkdf
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):

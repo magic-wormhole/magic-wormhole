@@ -13,7 +13,7 @@ from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
 from ..server import rendezvous, transit_server
-from txwormhole.eventsource import EventSource
+from ..twisted.eventsource import EventSource
 
 class Reachable(ServerBase, unittest.TestCase):
 
