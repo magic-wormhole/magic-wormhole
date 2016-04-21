@@ -1,6 +1,6 @@
 import argparse
 from textwrap import dedent
-from wormhole import __version__
+from .. import __version__
 
 parser = argparse.ArgumentParser(
     usage="wormhole-server SUBCOMMAND (subcommand-options)",

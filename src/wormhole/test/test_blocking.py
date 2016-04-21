@@ -3,9 +3,9 @@ import json
 from twisted.trial import unittest
 from twisted.internet.defer import gatherResults, succeed
 from twisted.internet.threads import deferToThread
-from wormhole.blocking.transcribe import (Wormhole, UsageError, ChannelManager,
-                                          WrongPasswordError)
-from wormhole.blocking.eventsource import EventSourceFollower
+from ..blocking.transcribe import (Wormhole, UsageError, ChannelManager,
+                                   WrongPasswordError)
+from ..blocking.eventsource import EventSourceFollower
 from .common import ServerBase
 
 APPID = u"appid"

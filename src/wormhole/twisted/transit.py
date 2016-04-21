@@ -9,8 +9,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from nacl.secret import SecretBox
 from hkdf import Hkdf
-from wormhole.errors import UsageError
-from wormhole.timing import DebugTiming
+from ..errors import UsageError
+from ..timing import DebugTiming
 from . import ipaddrs
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
