@@ -16,11 +16,6 @@ User-visible changes in "magic-wormhole":
   the CLI tool.
 * Twisted-flavor input_code() now does readline-based code entry, with
   tab completion.
-* The code has been split into four separate importable packages:
-  * "wormhole", this contains the blocking library and shared code
-  * "txwormhole": twisted lbirary
-  * "wormhole_cli": CLI scripts
-  * "wormhole_server": code for the Rendezvous and Transit Relay servers
 * The package now installs two executables: "wormhole" (for send and
   receive), and "wormhole-server" (to start and manage the relay
   servers).
