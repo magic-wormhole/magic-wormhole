@@ -1,6 +1,36 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.7.5 (?)
+
+* The CLI tools now use the Twisted-based library exclusively.
+* The blocking-flavor "Transit" library has been removed. Transit is the
+  bulk-transfer protocol used by send-file/send-directory, and is no
+  longer used by the CLI tools (which have switched to twisted-flavor
+  Transit). Upcoming protocol improvements (both performance and
+  connectivity) proved too difficult to implement in a blocking fashion.
+* The Twisted-flavor "Wormhole" library now uses WebSockets to connect,
+  rather than HTTP. The blocking-flavor library continues to use HTTP.
+  "Wormhole" is the one-message-at-a-time relay-based protocol, and is
+  used to set up Transit for the send-file and send-directory modes of
+  the CLI tool.
+* Twisted-flavor input_code() now does readline-based code entry, with
+  tab completion.
+* The code has been split into four separate importable packages:
+  * "wormhole", this contains the blocking library and shared code
+  * "txwormhole": twisted lbirary
+  * "wormhole_cli": CLI scripts
+  * "wormhole_server": code for the Rendezvous and Transit Relay servers
+* The package now installs two executables: "wormhole" (for send and
+  receive), and "wormhole-server" (to start and manage the relay
+  servers).
+* Packaging: magic-wormhole now depends upon "Twisted" and "autobahn".
+  Autobahn pulls in txaio (a future version of magic-wormhole may work
+  with txaio, but not yet). To work around a bug in autobahn, it also
+  (temporarily) depends upon "pytrie". This dependency will be removed
+  when the next autobahn release is available.
+
+
 ## Release 0.7.0 (28-Mar-2016)
 
 * `wormhole send DIRNAME/` used to deal very badly with the trailing slash
