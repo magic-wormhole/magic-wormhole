@@ -10,7 +10,7 @@ from twisted.internet.threads import deferToThread
 from twisted.internet.endpoints import clientFromString, connectProtocol
 from twisted.web.client import getPage, Agent, readBody
 from autobahn.twisted import websocket
-from wormhole import __version__
+from .. import __version__
 from .common import ServerBase
 from wormhole_server import rendezvous, transit_server
 from txwormhole.eventsource import EventSource

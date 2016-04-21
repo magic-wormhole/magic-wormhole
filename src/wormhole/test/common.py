@@ -3,7 +3,7 @@ from twisted.internet import reactor, defer
 from twisted.python import log
 from txwormhole.transit import allocate_tcp_port
 from wormhole_server.server import RelayServer
-from wormhole import __version__
+from .. import __version__
 
 class ServerBase:
     def setUp(self):

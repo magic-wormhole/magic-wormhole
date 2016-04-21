@@ -3,7 +3,7 @@ from twisted.trial import unittest
 from twisted.internet.defer import gatherResults
 from twisted.internet.threads import deferToThread
 from txwormhole.transcribe import Wormhole as twisted_Wormhole
-from wormhole.blocking.transcribe import Wormhole as blocking_Wormhole
+from ..blocking.transcribe import Wormhole as blocking_Wormhole
 from .common import ServerBase
 
 # make sure the two implementations (Twisted-style and blocking-style) can
