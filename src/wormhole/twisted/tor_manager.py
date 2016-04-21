@@ -1,43 +1,11 @@
 from __future__ import print_function
 import time
-from zope.interface import implementer
-from twisted.web import error as web_error
 from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.python.compat import nativeString
 from twisted.internet.error import ConnectError
-from twisted.web import iweb
 import txtorcon
 import ipaddr
 from ..timing import DebugTiming
 from .transit import allocate_tcp_port
-
-# based on twisted.web.client._StandardEndpointFactory
-@implementer(iweb.IAgentEndpointFactory)
-class TorWebAgentEndpointFactory(object):
-    def __init__(self, reactor, socks_port):
-        self._reactor = reactor
-        self._socks_port = socks_port
-
-    def endpointForURI(self, uri):
-        try:
-            host = nativeString(uri.host)
-        except UnicodeDecodeError:
-            raise ValueError(("The host of the provided URI ({uri.host!r}) "
-                              "contains non-ASCII octets, it should be ASCII "
-                              "decodable.").format(uri=uri))
-
-        if uri.scheme == b'http' or uri.scheme == b'ws':
-            print("building URI endpoint with tor for %s" % uri.toBytes())
-            return txtorcon.TorClientEndpoint(#self._reactor,
-                host, uri.port,
-                socks_hostname="127.0.0.1", socks_port=self._socks_port)
-        elif uri.scheme == b'https':
-            raise NotImplementedError
-            # find some twisted thing that wraps a normal
-            # IStreamClientEndpoint in a TLS-ifying layer, and wrap it around
-            # a TorClientEndpoint. Maybe t.i.endpoints.wrapClientTLS
-        else:
-            raise web_error.SchemeNotSupported("Unsupported scheme: %r" % (uri.scheme,))
 
 class TorManager:
     def __init__(self, reactor, tor_socks_port=None, tor_control_port=9051,
@@ -142,9 +110,6 @@ class TorManager:
         print("elapsed:", time.time() - start)
         self._timing.finish_event(_start_launch)
         returnValue(True)
-
-    def get_web_agent_endpoint_factory(self):
-        return TorWebAgentEndpointFactory(self._reactor, self._tor_socks_port)
 
     def is_non_public_numeric_address(self, host):
         # for numeric hostnames, skip RFC1918 addresses, since no Tor exit

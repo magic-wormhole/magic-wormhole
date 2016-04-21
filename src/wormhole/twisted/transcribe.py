@@ -114,8 +114,9 @@ class Wormhole:
 
     def _make_endpoint(self, hostname, port):
         if self._tor_manager:
-            return self._tor_manager.endpointForURI()
-        return endpoints.HostnameEndpoint(self._reactor, hostname, port) # 30s
+            return self._tor_manager.get_endpoint_for(hostname, port)
+        # note: HostnameEndpoints have a default 30s timeout
+        return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
     @inlineCallbacks
     def _get_websocket(self):
