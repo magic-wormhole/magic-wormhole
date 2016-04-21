@@ -5,7 +5,7 @@ from twisted.application import service
 from twisted.web import server, static, resource
 from autobahn.twisted.resource import WebSocketResource
 from .endpoint_service import ServerEndpointService
-from wormhole import __version__
+from .. import __version__
 from .database import get_db
 from .rendezvous import Rendezvous
 from .rendezvous_web import WebRendezvous

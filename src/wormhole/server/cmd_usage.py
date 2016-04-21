@@ -2,7 +2,7 @@ from __future__ import print_function
 import os, time
 from collections import defaultdict
 from .database import get_db
-from wormhole.errors import UsageError
+from ..errors import UsageError
 
 def abbrev(t):
     if t is None:
