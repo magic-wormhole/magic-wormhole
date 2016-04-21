@@ -2,7 +2,7 @@ from __future__ import print_function
 import os, sys
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.task import react
-from wormhole.timing import DebugTiming
+from ..timing import DebugTiming
 from .cli_args import parser
 
 def dispatch(args): # returns Deferred

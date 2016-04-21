@@ -1,7 +1,7 @@
 from __future__ import print_function
 import io, time
 from twisted.trial import unittest
-from wormhole_cli import progress
+from ..cli import progress
 
 class Progress(unittest.TestCase):
     def test_time(self):

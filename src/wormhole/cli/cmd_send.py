@@ -3,7 +3,7 @@ import os, sys, io, json, binascii, six, tempfile, zipfile
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from wormhole.errors import TransferError
+from ..errors import TransferError
 from .progress import ProgressPrinter
 from txwormhole.transcribe import Wormhole, WrongPasswordError
 from txwormhole.transit import TransitSender
