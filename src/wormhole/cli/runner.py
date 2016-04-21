@@ -41,10 +41,6 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
             timing.write(args.dump_timing, stderr)
         return res
     d.addBoth(_maybe_dump_timing)
-    def _explain_error(f):
-        print(f.value, file=stderr)
-        raise SystemExit(1)
-    d.addErrback(_explain_error)
     def _rc(rc):
         raise SystemExit(rc)
     d.addCallback(_rc)
