@@ -14,8 +14,6 @@ python:
 install:
   - pip install -U pip
   - pip install pyflakes coverage codecov
-  - pip install "git+https://github.com/twisted/twisted#egg=twisted"
-#  - pip install "Twisted>=15.5.0"
   - pip install --editable .
 script:
   - pyflakes setup.py src
