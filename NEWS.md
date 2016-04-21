@@ -1,14 +1,14 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release 0.7.5 (?)
+## Release 0.7.5 (20-Apr-2016)
 
 * The CLI tools now use the Twisted-based library exclusively.
 * The blocking-flavor "Transit" library has been removed. Transit is the
-  bulk-transfer protocol used by send-file/send-directory, and is no
-  longer used by the CLI tools (which have switched to twisted-flavor
-  Transit). Upcoming protocol improvements (both performance and
-  connectivity) proved too difficult to implement in a blocking fashion.
+  bulk-transfer protocol used by send-file/send-directory. Upcoming protocol
+  improvements (performance and connectivity) proved too difficult to
+  implement in a blocking fashion, so for now if you want Transit, use
+  Twisted.
 * The Twisted-flavor "Wormhole" library now uses WebSockets to connect,
   rather than HTTP. The blocking-flavor library continues to use HTTP.
   "Wormhole" is the one-message-at-a-time relay-based protocol, and is
@@ -18,12 +18,21 @@ User-visible changes in "magic-wormhole":
   tab completion.
 * The package now installs two executables: "wormhole" (for send and
   receive), and "wormhole-server" (to start and manage the relay
-  servers).
-* Packaging: magic-wormhole now depends upon "Twisted" and "autobahn".
-  Autobahn pulls in txaio (a future version of magic-wormhole may work
-  with txaio, but not yet). To work around a bug in autobahn, it also
-  (temporarily) depends upon "pytrie". This dependency will be removed
-  when the next autobahn release is available.
+  servers). These may be re-merged in a future release.
+
+Compatibility:
+
+* This release remains compatible with the previous ones. The next major
+  release (0.8.x) will probably break compatibility.
+
+Packaging:
+
+* magic-wormhole now depends upon "Twisted" and "autobahn" (for WebSockets).
+  Autobahn pulls in txaio, but we don't support it yet (a future version of
+  magic-wormhole might).
+* To work around a bug in autobahn, we also (temporarily) depend upon
+  "pytrie". This dependency will be removed when the next autobahn release is
+  available.
 
 
 ## Release 0.7.0 (28-Mar-2016)
