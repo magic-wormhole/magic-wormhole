@@ -28,7 +28,9 @@ class ProgressPrinter:
     def _print(self, completed):
         # scp does "<<FILENAME >>(13%  168MB  39.3MB/s   00:27 ETA)"
         # we do "Progress: ####         13%  168MB"
-        fmt = "Progress: %-40s %3d%%  %4d%s"
+        screen_width = 70
+        bar_width = screen_width - 30
+        fmt = "Progress: %-{}s %3d%%  %4d%s".format(bar_width)
         short_unit_size, short_unit_name = 1, "B"
         if self._expected > 9999:
             short_unit_size, short_unit_name = 1000, "KB"
@@ -40,10 +42,10 @@ class ProgressPrinter:
         percentage_complete = ((1.0 * completed / self._expected)
                                if self._expected
                                else 1.0)
-        bars = "#" * int(percentage_complete * 40)
+        bars = "#" * int(percentage_complete * bar_width)
         perc = int(100 * percentage_complete)
         short_unit_count = int(completed / short_unit_size)
         out = fmt % (bars, perc, short_unit_count, short_unit_name)
-        print(u"\r"+" "*70, end=u"", file=self._stdout)
+        print(u"\r"+" "*screen_width, end=u"", file=self._stdout)
         print(u"\r"+out, end=u"", file=self._stdout)
         self._stdout.flush()
