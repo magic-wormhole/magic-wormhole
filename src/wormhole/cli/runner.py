@@ -2,6 +2,7 @@ from __future__ import print_function
 import os, sys
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.task import react
+from ..errors import TransferError
 from ..timing import DebugTiming
 from .cli_args import parser
 
@@ -41,6 +42,11 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
             timing.write(args.dump_timing, stderr)
         return res
     d.addBoth(_maybe_dump_timing)
+    def _explain_error(f):
+        f.trap(TransferError)
+        print("ERROR:", f.value, file=stderr)
+        raise SystemExit(1)
+    d.addErrback(_explain_error)
     def _rc(rc):
         raise SystemExit(rc)
     d.addCallback(_rc)
