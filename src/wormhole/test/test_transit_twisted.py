@@ -1087,22 +1087,22 @@ class Connection(unittest.TestCase):
         d = c.writeToFile(f, 10, progress.append)
         d.addBoth(results.append)
         self.assertEqual(f.getvalue(), b"r1.")
-        self.assertEqual(progress, [0, 3])
+        self.assertEqual(progress, [3])
         self.assertEqual(results, [])
 
         c.recordReceived(b"r2.")
         self.assertEqual(f.getvalue(), b"r1.r2.")
-        self.assertEqual(progress, [0, 3, 6])
+        self.assertEqual(progress, [3, 3])
         self.assertEqual(results, [])
 
         c.recordReceived(b"r3.")
         self.assertEqual(f.getvalue(), b"r1.r2.r3.")
-        self.assertEqual(progress, [0, 3, 6, 9])
+        self.assertEqual(progress, [3, 3, 3])
         self.assertEqual(results, [])
 
         c.recordReceived(b"!")
         self.assertEqual(f.getvalue(), b"r1.r2.r3.!")
-        self.assertEqual(progress, [0, 3, 6, 9, 10])
+        self.assertEqual(progress, [3, 3, 3, 1])
         self.assertEqual(results, [10])
 
         # that should automatically disconnect the consumer, and subsequent
@@ -1110,7 +1110,7 @@ class Connection(unittest.TestCase):
         self.assertIs(c._consumer, None)
         c.recordReceived(b"overflow.")
         self.assertEqual(f.getvalue(), b"r1.r2.r3.!")
-        self.assertEqual(progress, [0, 3, 6, 9, 10])
+        self.assertEqual(progress, [3, 3, 3, 1])
 
         # test what happens when enough data is queued ahead of time
         c.recordReceived(b"second.") # now "overflow.second."
@@ -1155,14 +1155,14 @@ class FileConsumer(unittest.TestCase):
     def test_basic(self):
         f = io.BytesIO()
         progress = []
-        fc = transit.FileConsumer(f, 100, progress.append)
-        self.assertEqual(progress, [0])
+        fc = transit.FileConsumer(f, progress.append)
+        self.assertEqual(progress, [])
         self.assertEqual(f.getvalue(), b"")
         fc.write(b"."* 99)
-        self.assertEqual(progress, [0, 99])
+        self.assertEqual(progress, [99])
         self.assertEqual(f.getvalue(), b"."*99)
         fc.write(b"!")
-        self.assertEqual(progress, [0, 99, 100])
+        self.assertEqual(progress, [99, 1])
         self.assertEqual(f.getvalue(), b"."*99+b"!")
 
 

@@ -394,13 +394,11 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
     # Helper method to write a known number of bytes to a file. This has no
     # flow control: the filehandle cannot push back. 'progress' is an
-    # optional callable which will be called frequently with the number of
-    # bytes transferred so far. Returns a Deferred that fires (with the
-    # number of bytes written) when the count is reached or the RecordPipe is
-    # closed.
+    # optional callable which will be called on each write (with the number
+    # of bytes written). Returns a Deferred that fires (with the number of
+    # bytes written) when the count is reached or the RecordPipe is closed.
     def writeToFile(self, f, expected, progress=None):
-        progress = progress or (lambda n: None)
-        fc = FileConsumer(f, expected, progress)
+        fc = FileConsumer(f, progress)
         return self.connectConsumer(fc, expected)
 
 class OutboundConnectionFactory(protocol.ClientFactory):
@@ -805,19 +803,16 @@ class TransitReceiver(Common):
     is_sender = False
 
 
-# based on twisted.protocols.ftp.FileConsumer, but:
-#  - call a progress-tracking function
-#  - don't close the filehandle when done
+# based on twisted.protocols.ftp.FileConsumer, but don't close the filehandle
+# when done, and add a progress function that gets called with the length of
+# each write.
 
 @implementer(interfaces.IConsumer)
 class FileConsumer:
-    def __init__(self, f, xfersize, progress_f):
+    def __init__(self, f, progress=None):
         self._f = f
-        self._xfersize = xfersize
-        self._received = 0
-        self._progress_f = progress_f
+        self._progress = progress
         self._producer = None
-        self._progress_f(0)
 
     def registerProducer(self, producer, streaming):
         assert not self._producer
@@ -826,8 +821,8 @@ class FileConsumer:
 
     def write(self, bytes):
         self._f.write(bytes)
-        self._received += len(bytes)
-        self._progress_f(self._received)
+        if self._progress:
+            self._progress(len(bytes))
 
     def unregisterProducer(self):
         assert self._producer
@@ -850,8 +845,6 @@ class FileConsumer:
 # write unit test for _ThereCanBeOnlyOne
 
 # check start/finish time-gathering instrumentation
-
-# add progress API
 
 # relay URLs are probably mishandled: both sides probably send their URL,
 # then connect to the *other* side's URL, when they really should connect to

@@ -26,7 +26,7 @@ setup(name="magic-wormhole",
                      "wormhole-server = wormhole.server.runner:entry",
                      ]},
       install_requires=["spake2==0.3", "pynacl", "requests", "argparse",
-                        "six", "twisted >= 16.1.0", "hkdf",
+                        "six", "twisted >= 16.1.0", "hkdf", "tqdm",
                         "autobahn[twisted]", "pytrie",
                         # autobahn seems to have a bug, and one plugin throws
                         # errors unless pytrie is installed

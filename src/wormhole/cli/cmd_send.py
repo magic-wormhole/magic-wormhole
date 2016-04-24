@@ -1,10 +1,10 @@
 from __future__ import print_function
-import os, sys, io, json, binascii, six, tempfile, zipfile
+import os, sys, json, binascii, six, tempfile, zipfile
+from tqdm import tqdm
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
-from .progress import ProgressPrinter
 from ..twisted.transcribe import Wormhole, WrongPasswordError
 from ..twisted.transit import TransitSender
 
@@ -189,24 +189,6 @@ def send_twisted(args, reactor=reactor):
                              args.stdout, args.hide_progress, args.timing)
     returnValue(0)
 
-class ProgressingFileSender(basic.FileSender):
-    def __init__(self, filesize, stdout):
-        self._sent = 0
-        self._progress = ProgressPrinter(filesize, stdout)
-        self._progress.start()
-    def progress(self, data):
-        self._sent += len(data)
-        self._progress.update(self._sent)
-        return data
-    def beginFileTransfer(self, file, consumer):
-        d = basic.FileSender.beginFileTransfer(self, file, consumer,
-                                               self.progress)
-        d.addCallback(self.done)
-        return d
-    def done(self, res):
-        self._progress.finish()
-        return res
-
 @inlineCallbacks
 def _send_file_twisted(tdata, transit_sender, fd_to_send,
                        stdout, hide_progress, timing):
@@ -216,16 +198,22 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
     fd_to_send.seek(0,2)
     filesize = fd_to_send.tell()
     fd_to_send.seek(0,0)
-    progress_stdout = stdout
-    if hide_progress:
-        progress_stdout = io.StringIO()
 
     record_pipe = yield transit_sender.connect()
     # record_pipe should implement IConsumer, chunks are just records
     print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
-    pfs = ProgressingFileSender(filesize, progress_stdout)
+
+    progress = tqdm(file=stdout, disable=hide_progress,
+                    unit="B", unit_scale=True,
+                    total=filesize)
+    def _count(data):
+        progress.update(len(data))
+        return data
+    fs = basic.FileSender()
+
     _start = timing.add_event("tx file")
-    yield pfs.beginFileTransfer(fd_to_send, record_pipe)
+    with progress:
+        yield fs.beginFileTransfer(fd_to_send, record_pipe, transform=_count)
     timing.finish_event(_start)
 
     print(u"File sent.. waiting for confirmation", file=stdout)

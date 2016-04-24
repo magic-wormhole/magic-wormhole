@@ -1,12 +1,11 @@
 from __future__ import print_function
-import io, os, sys, json, binascii, six, tempfile, zipfile
+import os, sys, json, binascii, six, tempfile, zipfile
+from tqdm import tqdm
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..twisted.transcribe import Wormhole, WrongPasswordError
 from ..twisted.transit import TransitReceiver
 from ..errors import TransferError
-from .progress import ProgressPrinter
-
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -217,15 +216,12 @@ class TwistedReceiver:
         self.msg(u"Receiving (%s).." % record_pipe.describe())
 
         _start = self.args.timing.add_event("rx file")
-        progress_stdout = self.args.stdout
-        if self.args.hide_progress:
-            progress_stdout = io.StringIO()
-        progress = ProgressPrinter(self.xfersize, progress_stdout)
-
-        progress.start()
-        received = yield record_pipe.writeToFile(f, self.xfersize,
-                                                 progress.update)
-        progress.finish()
+        progress = tqdm(file=self.args.stdout,
+                        disable=self.args.hide_progress,
+                        unit="B", unit_scale=True, total=self.xfersize)
+        with progress:
+            received = yield record_pipe.writeToFile(f, self.xfersize,
+                                                     progress.update)
         self.args.timing.finish_event(_start)
 
         # except TransitError
