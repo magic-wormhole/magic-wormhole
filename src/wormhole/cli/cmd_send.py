@@ -13,11 +13,20 @@ APPID = u"lothar.com/wormhole/text-or-file-xfer"
 @inlineCallbacks
 def send_twisted(args, reactor=reactor):
     assert isinstance(args.relay_url, type(u""))
-    handle_zero(args)
+    if args.zeromode:
+        assert not args.code
+        args.code = u"0-"
+
     # TODO: parallelize the roundtrip that allocates the channel with the
     # (blocking) local IO (file os.stat, zipfile generation)
     phase1, fd_to_send = build_phase1_data(args)
-    other_cmd = build_other_command(args)
+
+    other_cmd = "wormhole receive"
+    if args.verify:
+        other_cmd = "wormhole --verify receive"
+    if args.zeromode:
+        other_cmd += " -0"
+
     print(u"On the other computer, please run: %s" % other_cmd,
           file=args.stdout)
 
@@ -104,11 +113,6 @@ def send_twisted(args, reactor=reactor):
                              args.stdout, args.hide_progress, args.timing)
     returnValue(0)
 
-def handle_zero(args):
-    if args.zeromode:
-        assert not args.code
-        args.code = u"0-"
-
 def build_phase1_data(args):
     phase1 = {}
 
@@ -180,14 +184,6 @@ def build_phase1_data(args):
         return phase1, fd_to_send
 
     raise TypeError("'%s' is neither file nor directory" % args.what)
-
-def build_other_command(args):
-    other_cmd = "wormhole receive"
-    if args.verify:
-        other_cmd = "wormhole --verify receive"
-    if args.zeromode:
-        other_cmd += " -0"
-    return other_cmd
 
 @inlineCallbacks
 def _send_file_twisted(tdata, transit_sender, fd_to_send,
