@@ -133,6 +133,8 @@ class Basic(ServerBase, unittest.TestCase):
         # both sides are closed automatically upon error, but it's still
         # legal to call .close(), and should be idempotent
         yield self.doBoth(w1.close(), w2.close())
+        # XXX: got a dirty reactor here, once, py35, two tcp.Clients (both to
+        # same port) still around
 
     @inlineCallbacks
     def test_no_confirm(self):
