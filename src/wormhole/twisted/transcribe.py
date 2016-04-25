@@ -261,12 +261,49 @@ class Wormhole:
         # the answer will come back before they hit TAB.
         initial_channelids = yield self._list_channels()
         _start = self._timing.add_event("input code", waiting="user")
+        t = self._reactor.addSystemEventTrigger("before", "shutdown",
+                                                self._warn_readline)
         code = yield deferToThread(codes.input_code_with_completion,
                                    prompt,
                                    initial_channelids, _lister,
                                    code_length)
+        self._reactor.removeSystemEventTrigger(t)
         self._timing.finish_event(_start)
         returnValue(code) # application will give this to set_code()
+
+    def _warn_readline(self):
+        # When our process receives a SIGINT, Twisted's SIGINT handler will
+        # stop the reactor and wait for all threads to terminate before the
+        # process exits. However, if we were waiting for
+        # input_code_with_completion() when SIGINT happened, the readline
+        # thread will be blocked waiting for something on stdin. Trick the
+        # user into satisfying the blocking read so we can exit.
+        print("\nCommand interrupted: please press Return to quit",
+              file=sys.stderr)
+
+        # Other potential approaches to this problem:
+        # * hard-terminate our process with os._exit(1), but make sure the
+        #   tty gets reset to a normal mode ("cooked"?) first, so that the
+        #   next shell command the user types is echoed correctly
+        # * track down the thread (t.p.threadable.getThreadID from inside the
+        #   thread), get a cffi binding to pthread_kill, deliver SIGINT to it
+        # * allocate a pty pair (pty.openpty), replace sys.stdin with the
+        #   slave, build a pty bridge that copies bytes (and other PTY
+        #   things) from the real stdin to the master, then close the slave
+        #   at shutdown, so readline sees EOF
+        # * write tab-completion and basic editing (TTY raw mode,
+        #   backspace-is-erase) without readline, probably with curses or
+        #   twisted.conch.insults
+        # * write a separate program to get codes (maybe just "wormhole
+        #   --internal-get-code"), run it as a subprocess, let it inherit
+        #   stdin/stdout, send it SIGINT when we receive SIGINT ourselves. It
+        #   needs an RPC mechanism (over some extra file descriptors) to ask
+        #   us to fetch the current channelid list.
+        #
+        # Note that hard-terminating our process with os.kill(os.getpid(),
+        # signal.SIGKILL), or SIGTERM, doesn't seem to work: the thread
+        # doesn't see the signal, and we must still wait for stdin to make
+        # readline finish.
 
     @inlineCallbacks
     def _list_channels(self):
