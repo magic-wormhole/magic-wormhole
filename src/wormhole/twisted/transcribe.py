@@ -181,13 +181,16 @@ class Wormhole:
             return self._signal_error(welcome["error"])
 
     @inlineCallbacks
-    def _sleep(self):
-        if self._error: # don't sleep if the bed's already on fire
+    def _sleep(self, wake_on_error=True):
+        if wake_on_error and self._error:
+            # don't sleep if the bed's already on fire, unless we're waiting
+            # for the fire department to respond, in which case sure, keep on
+            # sleeping
             raise self._error
         d = defer.Deferred()
         self._sleepers.append(d)
         yield d
-        if self._error:
+        if wake_on_error and self._error:
             raise self._error
 
     def _wakeup(self):
