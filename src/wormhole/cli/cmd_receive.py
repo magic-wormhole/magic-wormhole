@@ -13,7 +13,7 @@ class RespondError(Exception):
     def __init__(self, response):
         self.response = response
 
-def receive_twisted(args, reactor=reactor):
+def receive(args, reactor=reactor):
     return TwistedReceiver(args, reactor).go()
 
 

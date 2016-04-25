@@ -11,7 +11,7 @@ from ..twisted.transit import TransitSender
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 @inlineCallbacks
-def send_twisted(args, reactor=reactor):
+def send(args, reactor=reactor):
     assert isinstance(args.relay_url, type(u""))
     if args.zeromode:
         assert not args.code

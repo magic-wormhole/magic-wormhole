@@ -326,8 +326,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             rargs.stdout = io.StringIO()
             rargs.stderr = io.StringIO()
             rargs.timing = DebugTiming()
-            send_d = cmd_send.send_twisted(sargs)
-            receive_d = cmd_receive.receive_twisted(rargs)
+            send_d = cmd_send.send(sargs)
+            receive_d = cmd_receive.receive(rargs)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. If either side fails, cancel the other, so it won't

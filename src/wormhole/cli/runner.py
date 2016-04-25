@@ -9,12 +9,12 @@ from .cli_args import parser
 def dispatch(args): # returns Deferred
     if args.func == "send/send":
         from . import cmd_send
-        return cmd_send.send_twisted(args)
+        return cmd_send.send(args)
     if args.func == "receive/receive":
         _start = args.timing.add_event("import c_r_t")
         from . import cmd_receive
         args.timing.finish_event(_start)
-        return cmd_receive.receive_twisted(args)
+        return cmd_receive.receive(args)
 
     raise ValueError("unknown args.func %s" % args.func)
 
