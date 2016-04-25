@@ -8,7 +8,7 @@ from .. import __version__
 from .common import ServerBase
 from ..cli import runner, cmd_send, cmd_receive
 from ..cli.cmd_send import build_phase1_data
-from ..errors import TransferError
+from ..errors import TransferError, WrongPasswordError
 from ..timing import DebugTiming
 
 class Phase1Data(unittest.TestCase):
@@ -426,3 +426,62 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="directory", addslash=True)
     def test_directory_override(self):
         return self._do_test(mode="directory", override_filename=True)
+
+class Cleanup(ServerBase, unittest.TestCase):
+    @inlineCallbacks
+    def test_text(self):
+        # the rendezvous channel should be deleted after success
+        code = u"1-abc"
+        common_args = ["--hide-progress",
+                       "--relay-url", self.relayurl,
+                       "--transit-helper", ""]
+        sargs = runner.parser.parse_args(common_args +
+                                         ["send",
+                                          "--text", "secret message",
+                                          "--code", code])
+        sargs.stdout = io.StringIO()
+        sargs.stderr = io.StringIO()
+        sargs.timing = DebugTiming()
+        rargs = runner.parser.parse_args(common_args +
+                                         ["receive", code])
+        rargs.stdout = io.StringIO()
+        rargs.stderr = io.StringIO()
+        rargs.timing = DebugTiming()
+        send_d = cmd_send.send(sargs)
+        receive_d = cmd_receive.receive(rargs)
+
+        yield send_d
+        yield receive_d
+
+        cids = self._rendezvous.get_app(cmd_send.APPID).get_allocated()
+        self.assertEqual(len(cids), 0)
+
+    @inlineCallbacks
+    def test_text_wrong_password(self):
+        # if the password was wrong, the rendezvous channel should still be
+        # deleted
+        common_args = ["--hide-progress",
+                       "--relay-url", self.relayurl,
+                       "--transit-helper", ""]
+        sargs = runner.parser.parse_args(common_args +
+                                         ["send",
+                                          "--text", "secret message",
+                                          "--code", u"1-abc"])
+        sargs.stdout = io.StringIO()
+        sargs.stderr = io.StringIO()
+        sargs.timing = DebugTiming()
+        rargs = runner.parser.parse_args(common_args +
+                                         ["receive", u"1-WRONG"])
+        rargs.stdout = io.StringIO()
+        rargs.stderr = io.StringIO()
+        rargs.timing = DebugTiming()
+        send_d = cmd_send.send(sargs)
+        receive_d = cmd_receive.receive(rargs)
+
+        # both sides should be capable of detecting the mismatch
+        yield self.assertFailure(send_d, WrongPasswordError)
+        yield self.assertFailure(receive_d, WrongPasswordError)
+
+        cids = self._rendezvous.get_app(cmd_send.APPID).get_allocated()
+        self.assertEqual(len(cids), 0)
+
