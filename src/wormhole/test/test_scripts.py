@@ -3,7 +3,7 @@ import os, sys, re, io, zipfile, six
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 from ..cli import runner, cmd_send, cmd_receive
@@ -306,15 +306,17 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                               path=send_dir)
             receive_d = getProcessOutputAndValue(wormhole_bin, receive_args,
                                                  path=receive_dir)
-            send_res = yield send_d
+            (send_res, receive_res) = yield gatherResults([send_d, receive_d],
+                                                          True)
             send_stdout = send_res[0].decode("utf-8")
             send_stderr = send_res[1].decode("utf-8")
             send_rc = send_res[2]
-            receive_res = yield receive_d
             receive_stdout = receive_res[0].decode("utf-8")
             receive_stderr = receive_res[1].decode("utf-8")
             receive_rc = receive_res[2]
             NL = os.linesep
+            self.assertEqual((send_rc, receive_rc), (0, 0),
+                             (send_res, receive_res))
         else:
             sargs = runner.parser.parse_args(send_args)
             sargs.cwd = send_dir
@@ -330,22 +332,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = cmd_receive.receive(rargs)
 
             # The sender might fail, leaving the receiver hanging, or vice
-            # versa. If either side fails, cancel the other, so it won't
-            # matter which Deferred we wait upon first.
+            # versa. Make sure we don't wait on one side exclusively
 
-            def _oops(f, which):
-                log.msg("test_scripts: %s failed, cancelling both" % which)
-                send_d.cancel()
-                receive_d.cancel()
-                return f
-            send_d.addErrback(_oops, "send_d")
-            receive_d.addErrback(_oops, "receive_d")
-
-            send_rc = yield send_d
+            yield gatherResults([send_d, receive_d], True)
             send_stdout = sargs.stdout.getvalue()
             send_stderr = sargs.stderr.getvalue()
-
-            receive_rc = yield receive_d
             receive_stdout = rargs.stdout.getvalue()
             receive_stderr = rargs.stderr.getvalue()
 
@@ -355,8 +346,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None # show full output for assertion failures
 
-        self.failUnlessEqual(send_stderr, "")
-        self.failUnlessEqual(receive_stderr, "")
+        self.failUnlessEqual(send_stderr, "",
+                             (send_stdout, send_stderr))
+        self.failUnlessEqual(receive_stderr, "",
+                             (receive_stdout, receive_stderr))
 
         # check sender
         if mode == "text":
@@ -416,9 +409,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
-
-        self.failUnlessEqual(send_rc, 0)
-        self.failUnlessEqual(receive_rc, 0)
 
     def test_text(self):
         return self._do_test()

@@ -12,6 +12,14 @@ APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 @inlineCallbacks
 def send(args, reactor=reactor):
+    """I implement 'wormhole send'. I return a Deferred that fires with None
+    (for success), or signals one of the following errors:
+    * WrongPasswordError: the two sides didn't use matching passwords
+    * Timeout: something didn't happen fast enough for our tastes
+    * TransferError: the receiver rejected the transfer: verifier mismatch,
+                     permission not granted, ack not successful.
+    * any other error: something unexpected happened
+    """
     assert isinstance(args.relay_url, type(u""))
     if args.zeromode:
         assert not args.code
@@ -96,7 +104,7 @@ def send(args, reactor=reactor):
         if them_phase1["message_ack"] == "ok":
             print(u"text message sent", file=args.stdout)
             yield w.close()
-            returnValue(0) # terminates this function
+            returnValue(None) # terminates this function
         raise TransferError("error sending text: %r" % (them_phase1,))
 
     if "error" in them_phase1:
@@ -109,7 +117,7 @@ def send(args, reactor=reactor):
     yield w.close()
     yield _send_file_twisted(tdata, transit_sender, fd_to_send,
                              args.stdout, args.hide_progress, args.timing)
-    returnValue(0)
+    returnValue(None)
 
 def build_phase1_data(args):
     phase1 = {}

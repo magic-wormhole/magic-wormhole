@@ -14,6 +14,13 @@ class RespondError(Exception):
         self.response = response
 
 def receive(args, reactor=reactor):
+    """I implement 'wormhole receive'. I return a Deferred that fires with
+    None (for success), or signals one of the following errors:
+    * WrongPasswordError: the two sides didn't use matching passwords
+    * Timeout: something didn't happen fast enough for our tastes
+    * TransferError: the sender rejected the transfer: verifier mismatch
+    * any other error: something unexpected happened
+    """
     return TwistedReceiver(args, reactor).go()
 
 
@@ -72,7 +79,7 @@ class TwistedReceiver:
         try:
             if "message" in them_d:
                 yield self.handle_text(them_d, w)
-                returnValue(0)
+                returnValue(None)
             if "file" in them_d:
                 f = self.handle_file(them_d)
                 rp = yield self.establish_transit(w, them_d, tor_manager)
@@ -92,8 +99,8 @@ class TwistedReceiver:
         except RespondError as r:
             data = json.dumps(r.response).encode("utf-8")
             yield w.send_data(data)
-            raise SystemExit(1)
-        returnValue(0)
+            raise TransferError(r["error"])
+        returnValue(None)
 
     @inlineCallbacks
     def handle_code(self, w):
@@ -227,7 +234,7 @@ class TwistedReceiver:
             self.msg()
             self.msg(u"Connection dropped before full file received")
             self.msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
-            returnValue(1) # TODO: exit properly
+            raise TransferError("Connection dropped before full file received")
         assert received == self.xfersize
 
     def write_file(self, f):
