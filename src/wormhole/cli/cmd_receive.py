@@ -88,11 +88,11 @@ class TwistedReceiver:
             else:
                 self.msg(u"I don't know what they're offering\n")
                 self.msg(u"Offer details:", them_d)
-                raise RespondError({"error": "unknown offer type"})
+                raise RespondError("unknown offer type")
         except RespondError as r:
-            data = json.dumps(r.response).encode("utf-8")
+            data = json.dumps({"error": r.response}).encode("utf-8")
             yield w.send_data(data)
-            raise TransferError(r["error"])
+            raise TransferError(r.response)
         returnValue(None)
 
     @inlineCallbacks
@@ -144,7 +144,7 @@ class TwistedReceiver:
         zipmode = file_data["mode"]
         if zipmode != "zipfile/deflated":
             self.msg(u"Error: unknown directory-transfer mode '%s'" % (zipmode,))
-            raise RespondError({"error": "unknown mode"})
+            raise RespondError("unknown mode")
         self.abs_destname = self.decide_destname("directory",
                                                  file_data["dirname"])
         self.xfersize = file_data["zipsize"]
@@ -168,7 +168,7 @@ class TwistedReceiver:
         if os.path.exists(abs_destname):
             self.msg(u"Error: refusing to overwrite existing %s %s" %
                      (mode, destname))
-            raise RespondError({"error": "%s already exists" % mode})
+            raise RespondError("%s already exists" % mode)
         return abs_destname
 
     def ask_permission(self):
@@ -179,7 +179,7 @@ class TwistedReceiver:
                 break
             print(u"transfer rejected", file=sys.stderr)
             self.args.timing.finish_event(_start, answer="no")
-            raise RespondError({"error": "transfer rejected"})
+            raise RespondError("transfer rejected")
         self.args.timing.finish_event(_start, answer="yes")
 
     @inlineCallbacks
