@@ -5,13 +5,21 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
-from ..twisted.transcribe import Wormhole, WrongPasswordError
+from ..twisted.transcribe import Wormhole
 from ..twisted.transit import TransitSender
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 @inlineCallbacks
 def send(args, reactor=reactor):
+    """I implement 'wormhole send'. I return a Deferred that fires with None
+    (for success), or signals one of the following errors:
+    * WrongPasswordError: the two sides didn't use matching passwords
+    * Timeout: something didn't happen fast enough for our tastes
+    * TransferError: the receiver rejected the transfer: verifier mismatch,
+                     permission not granted, ack not successful.
+    * any other error: something unexpected happened
+    """
     assert isinstance(args.relay_url, type(u""))
     if args.zeromode:
         assert not args.code
@@ -43,6 +51,13 @@ def send(args, reactor=reactor):
     w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing,
                  reactor=reactor)
 
+    d = _send(reactor, w, args, phase1, fd_to_send, tor_manager)
+    d.addBoth(w.close)
+    yield d
+
+@inlineCallbacks
+def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
+    transit_sender = None
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
                                        no_listen=args.no_listen,
@@ -87,18 +102,15 @@ def send(args, reactor=reactor):
     my_phase1_bytes = json.dumps(phase1).encode("utf-8")
     yield w.send_data(my_phase1_bytes)
 
-    try:
-        them_phase1_bytes = yield w.get_data()
-    except WrongPasswordError as e:
-        raise TransferError(e.explain())
+    # this may raise WrongPasswordError
+    them_phase1_bytes = yield w.get_data()
 
     them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
 
     if fd_to_send is None:
         if them_phase1["message_ack"] == "ok":
             print(u"text message sent", file=args.stdout)
-            yield w.close()
-            returnValue(0) # terminates this function
+            returnValue(None) # terminates this function
         raise TransferError("error sending text: %r" % (them_phase1,))
 
     if "error" in them_phase1:
@@ -108,10 +120,12 @@ def send(args, reactor=reactor):
         raise TransferError("ambiguous response from remote, "
                             "transfer abandoned: %s" % (them_phase1,))
     tdata = them_phase1["transit"]
-    yield w.close()
+    # XXX the downside of closing above, rather than here, is that it leaves
+    # the channel claimed for a longer time
+    #yield w.close()
     yield _send_file_twisted(tdata, transit_sender, fd_to_send,
                              args.stdout, args.hide_progress, args.timing)
-    returnValue(0)
+    returnValue(None)
 
 def build_phase1_data(args):
     phase1 = {}

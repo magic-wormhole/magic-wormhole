@@ -27,30 +27,6 @@ def make_confmsg(confkey, nonce):
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
-def close_on_error(meth): # method decorator
-    # Clients report certain errors as "moods", so the server can make a
-    # rough count failed connections (due to mismatched passwords, attacks,
-    # or timeouts). We don't report precondition failures, as those are the
-    # responsibility/fault of the local application code. We count
-    # non-precondition errors in case they represent server-side problems.
-    def _wrapper(self, *args, **kwargs):
-        d = defer.maybeDeferred(meth, self, *args, **kwargs)
-        def _onerror(f):
-            if f.check(Timeout):
-                d2 = self.close(u"lonely")
-            elif f.check(WrongPasswordError):
-                d2 = self.close(u"scary")
-            elif f.check(TypeError, UsageError):
-                # preconditions don't warrant _close_with_error()
-                d2 = defer.succeed(None)
-            else:
-                d2 = self.close(u"errory")
-            d2.addBoth(lambda _: f)
-            return d2
-        d.addErrback(_onerror)
-        return d
-    return _wrapper
-
 class WSClient(websocket.WebSocketClientProtocol):
     def onOpen(self):
         self.wormhole_open = True
@@ -181,13 +157,16 @@ class Wormhole:
             return self._signal_error(welcome["error"])
 
     @inlineCallbacks
-    def _sleep(self):
-        if self._error: # don't sleep if the bed's already on fire
+    def _sleep(self, wake_on_error=True):
+        if wake_on_error and self._error:
+            # don't sleep if the bed's already on fire, unless we're waiting
+            # for the fire department to respond, in which case sure, keep on
+            # sleeping
             raise self._error
         d = defer.Deferred()
         self._sleepers.append(d)
         yield d
-        if self._error:
+        if wake_on_error and self._error:
             raise self._error
 
     def _wakeup(self):
@@ -366,7 +345,6 @@ class Wormhole:
         self._msg1 = unhexlify(d["msg1"].encode("ascii"))
         return self
 
-    @close_on_error
     @inlineCallbacks
     def get_verifier(self):
         if self._closed: raise UsageError
@@ -458,7 +436,6 @@ class Wormhole:
         data = box.decrypt(encrypted)
         return data
 
-    @close_on_error
     @inlineCallbacks
     def send_data(self, outbound_data, phase=u"data", wait=False):
         if not isinstance(outbound_data, type(b"")):
@@ -481,7 +458,6 @@ class Wormhole:
         yield self._msg_send(phase, outbound_encrypted, wait)
         self._timing.finish_event(_sent)
 
-    @close_on_error
     @inlineCallbacks
     def get_data(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
@@ -506,26 +482,42 @@ class Wormhole:
         # TODO: schedule reconnect, unless we're done
 
     @inlineCallbacks
-    def close(self, res=None, mood=u"happy"):
-        if not isinstance(mood, (type(None), type(u""))):
-            raise TypeError(type(mood))
+    def close(self, f=None, mood=None):
+        """Do d.addBoth(w.close) at the end of your chain."""
         if self._closed:
             returnValue(None)
         self._closed = True
         if not self._ws:
             returnValue(None)
+
+        if mood is None:
+            mood = u"happy"
+        if f:
+            if f.check(Timeout):
+                mood = u"lonely"
+            elif f.check(WrongPasswordError):
+                mood = u"scary"
+            elif f.check(TypeError, UsageError):
+                # preconditions don't warrant reporting mood
+                pass
+            else:
+                mood = u"errory" # other errors do
+        if not isinstance(mood, (type(None), type(u""))):
+            raise TypeError(type(mood))
+
         self._timing.finish_event(self._timing_started, mood=mood)
         yield self._deallocate(mood)
         # TODO: mark WebSocket as don't-reconnect
         self._ws.transport.loseConnection() # probably flushes
         del self._ws
+        returnValue(f)
 
     @inlineCallbacks
-    def _deallocate(self, mood=None):
+    def _deallocate(self, mood):
         _sent = self._timing.add_event("close")
         yield self._ws_send(u"deallocate", mood=mood)
         while self._deallocated_status is None:
-            yield self._sleep()
+            yield self._sleep(wake_on_error=False)
         self._timing.finish_event(_sent)
         # TODO: set a timeout, don't wait forever for an ack
         # TODO: if the connection is lost, let it go
