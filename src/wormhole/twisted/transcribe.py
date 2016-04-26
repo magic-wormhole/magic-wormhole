@@ -350,6 +350,15 @@ class Wormhole:
         if self._closed: raise UsageError
         if self._code is None: raise UsageError
         yield self._get_master_key()
+        # If the caller cares about the verifier, then they'll probably also
+        # willing to wait a moment to see the _confirm message. Each side
+        # sends this as soon as it sees the other's PAKE message. So the
+        # sender should see this hot on the heels of the inbound PAKE message
+        # (a moment after _get_master_key() returns). The receiver will see
+        # this a round-trip after they send their PAKE (because the sender is
+        # using wait=True inside _get_master_key, below: otherwise the sender
+        # might go do some blocking call).
+        yield self._msg_get(u"_confirm")
         returnValue(self._verifier)
 
     @inlineCallbacks
@@ -369,7 +378,7 @@ class Wormhole:
                 confkey = self.derive_key(u"wormhole:confirmation")
                 nonce = os.urandom(CONFMSG_NONCE_LENGTH)
                 confmsg = make_confmsg(confkey, nonce)
-                yield self._msg_send(u"_confirm", confmsg)
+                yield self._msg_send(u"_confirm", confmsg, wait=True)
 
     @inlineCallbacks
     def _msg_send(self, phase, body, wait=False):
@@ -396,6 +405,9 @@ class Wormhole:
             return self._signal_error(err)
         self._received_messages[phase] = body
         if phase == u"_confirm":
+            # TODO: we might not have a master key yet, if the caller wasn't
+            # waiting in _get_master_key() when a back-to-back pake+_confirm
+            # message pair arrived.
             confkey = self.derive_key(u"wormhole:confirmation")
             nonce = body[:CONFMSG_NONCE_LENGTH]
             if body != make_confmsg(confkey, nonce):

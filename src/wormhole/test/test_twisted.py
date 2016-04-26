@@ -109,11 +109,20 @@ class Basic(ServerBase, unittest.TestCase):
         # * w2 will send w2.PAKE, wait for (and get) w1.PAKE, compute a key,
         #   send w2.CONFIRM, then wait for w1.DATA.
         # * w1 will get w2.PAKE, compute a key, send w1.CONFIRM.
+        # * w1 might also get w2.CONFIRM, and may notice the error before it
+        #   sends w1.CONFIRM, in which case the wait=True will signal an
+        #   error inside _get_master_key() (inside send_data), and d1 will
+        #   errback.
+        #   * but w1 might not see w2.CONFIRM yet, in which case it won't
+        #     errback until we do w1.get_data()
         # * w2 gets w1.CONFIRM, notices the error, records it.
         # * w2 (waiting for w1.DATA) wakes up, sees the error, throws
         # * meanwhile w1 finishes sending its data. w2.CONFIRM may or may not
         #   have arrived by then
-        yield d1
+        try:
+            yield d1
+        except WrongPasswordError:
+            pass
 
         # When we ask w1 to get_data(), one of two things might happen:
         # * if w2.CONFIRM arrived already, it will have recorded the error.
@@ -165,21 +174,6 @@ class Basic(ServerBase, unittest.TestCase):
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
-        yield self.doBoth(w1.close(), w2.close())
-
-    @inlineCallbacks
-    def test_verifier_mismatch(self):
-        w1 = Wormhole(APPID, self.relayurl)
-        w2 = Wormhole(APPID, self.relayurl)
-        # we must disable confirmation messages, else the wormholes will
-        # figure out the mismatch by themselves and throw WrongPasswordError.
-        w1._send_confirm = w2._send_confirm = False
-        code = yield w1.get_code()
-        w2.set_code(code+"not")
-        res = yield self.doBoth(w1.get_verifier(), w2.get_verifier())
-        v1, v2 = res
-        self.failUnlessEqual(type(v1), type(b""))
-        self.failIfEqual(v1, v2)
         yield self.doBoth(w1.close(), w2.close())
 
     @inlineCallbacks
