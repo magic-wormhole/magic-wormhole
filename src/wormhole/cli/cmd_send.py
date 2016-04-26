@@ -51,6 +51,13 @@ def send(args, reactor=reactor):
     w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing,
                  reactor=reactor)
 
+    d = _send(reactor, w, args, phase1, fd_to_send, tor_manager)
+    d.addBoth(w.close)
+    yield d
+
+@inlineCallbacks
+def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
+    transit_sender = None
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
                                        no_listen=args.no_listen,
@@ -103,7 +110,6 @@ def send(args, reactor=reactor):
     if fd_to_send is None:
         if them_phase1["message_ack"] == "ok":
             print(u"text message sent", file=args.stdout)
-            yield w.close()
             returnValue(None) # terminates this function
         raise TransferError("error sending text: %r" % (them_phase1,))
 
@@ -114,7 +120,9 @@ def send(args, reactor=reactor):
         raise TransferError("ambiguous response from remote, "
                             "transfer abandoned: %s" % (them_phase1,))
     tdata = them_phase1["transit"]
-    yield w.close()
+    # XXX the downside of closing above, rather than here, is that it leaves
+    # the channel claimed for a longer time
+    #yield w.close()
     yield _send_file_twisted(tdata, transit_sender, fd_to_send,
                              args.stdout, args.hide_progress, args.timing)
     returnValue(None)

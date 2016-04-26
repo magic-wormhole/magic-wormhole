@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
-from twisted.internet import reactor, defer
+from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..twisted.transcribe import Wormhole
 from ..twisted.transit import TransitReceiver
@@ -33,9 +33,8 @@ class TwistedReceiver:
     def msg(self, *args, **kwargs):
         print(*args, file=self.args.stdout, **kwargs)
 
-    # TODO: @handle_server_error
+    @inlineCallbacks
     def go(self):
-        d = defer.succeed(None)
         tor_manager = None
         if self.args.tor:
             _start = self.args.timing.add_event("import TorManager")
@@ -46,18 +45,10 @@ class TwistedReceiver:
             # tor in parallel with everything else, make sure the TorManager
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            d.addCallback(lambda _: tor_manager.start())
-        def _make_wormhole(_):
-            self._w = Wormhole(APPID, self.args.relay_url, tor_manager,
-                               timing=self.args.timing,
-                               reactor=self._reactor)
-        d.addCallback(_make_wormhole)
-        d.addCallback(lambda _: self._go(self._w, tor_manager))
-        def _always_close(res):
-            d2 = self._w.close()
-            d2.addBoth(lambda _: res)
-            return d2
-        d.addBoth(_always_close)
+            yield tor_manager.start()
+        w = Wormhole(APPID, self.args.relay_url, tor_manager,
+                     timing=self.args.timing,
+                     reactor=self._reactor)
         # I wanted to do this instead:
         #
         #    try:
@@ -68,7 +59,9 @@ class TwistedReceiver:
         # but when _go had a UsageError, the stacktrace was always displayed
         # as coming from the "yield self._go" line, which wasn't very useful
         # for tracking it down.
-        return d
+        d = self._go(w, tor_manager)
+        d.addBoth(w.close)
+        yield d
 
     @inlineCallbacks
     def _go(self, w, tor_manager):
