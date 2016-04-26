@@ -3,7 +3,7 @@ import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..twisted.transcribe import Wormhole, WrongPasswordError
+from ..twisted.transcribe import Wormhole
 from ..twisted.transit import TransitReceiver
 from ..errors import TransferError
 
@@ -113,10 +113,8 @@ class TwistedReceiver:
 
     @inlineCallbacks
     def get_data(self, w):
-        try:
-            them_bytes = yield w.get_data()
-        except WrongPasswordError as e:
-            raise TransferError(u"ERROR: " + e.explain())
+        # this may raise WrongPasswordError
+        them_bytes = yield w.get_data()
         them_d = json.loads(them_bytes.decode("utf-8"))
         if "error" in them_d:
             raise TransferError(u"ERROR: " + them_d["error"])

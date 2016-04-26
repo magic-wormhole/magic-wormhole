@@ -1,4 +1,4 @@
-import functools, textwrap
+import functools
 
 class ServerError(Exception):
     def __init__(self, message, relay):
@@ -28,8 +28,6 @@ class WrongPasswordError(Exception):
     chance.
     """
     # or the data blob was corrupted, and that's why decrypt failed
-    def explain(self):
-        return textwrap.dedent(self.__doc__)
 
 class ReflectionAttack(Exception):
     """An attacker (or bug) reflected our outgoing message back to us."""

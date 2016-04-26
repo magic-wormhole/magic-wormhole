@@ -5,7 +5,7 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
-from ..twisted.transcribe import Wormhole, WrongPasswordError
+from ..twisted.transcribe import Wormhole
 from ..twisted.transit import TransitSender
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
@@ -87,10 +87,8 @@ def send(args, reactor=reactor):
     my_phase1_bytes = json.dumps(phase1).encode("utf-8")
     yield w.send_data(my_phase1_bytes)
 
-    try:
-        them_phase1_bytes = yield w.get_data()
-    except WrongPasswordError as e:
-        raise TransferError(e.explain())
+    # this may raise WrongPasswordError
+    them_phase1_bytes = yield w.get_data()
 
     them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
 
