@@ -485,7 +485,7 @@ class Wormhole:
     def close(self, f=None, mood=None):
         """Do d.addBoth(w.close) at the end of your chain."""
         if self._closed:
-            returnValue(None)
+            raise UsageError("close called twice")
         self._closed = True
         if not self._ws:
             returnValue(None)
