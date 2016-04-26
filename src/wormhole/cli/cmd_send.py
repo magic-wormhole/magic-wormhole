@@ -91,10 +91,10 @@ def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":
-                reject_data = json.dumps({"error": "verification rejected",
-                                          }).encode("utf-8")
+                err = "sender rejected verification check, abandoned transfer"
+                reject_data = json.dumps({"error": err}).encode("utf-8")
                 yield w.send_data(reject_data)
-                raise TransferError("verification rejected, abandoning transfer")
+                raise TransferError(err)
     if fd_to_send is not None:
         transit_key = w.derive_key(APPID+"/transit-key")
         transit_sender.set_transit_key(transit_key)

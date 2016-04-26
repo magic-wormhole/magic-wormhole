@@ -117,7 +117,7 @@ class TwistedReceiver:
         them_bytes = yield w.get_data()
         them_d = json.loads(them_bytes.decode("utf-8"))
         if "error" in them_d:
-            raise TransferError(u"ERROR: " + them_d["error"])
+            raise TransferError(them_d["error"])
         returnValue(them_d)
 
     @inlineCallbacks
