@@ -2,7 +2,7 @@ from __future__ import print_function
 import os, sys
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.task import react
-from ..errors import TransferError
+from ..errors import TransferError, WrongPasswordError, Timeout
 from ..timing import DebugTiming
 from .cli_args import parser
 
@@ -35,6 +35,7 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
     args.timing = timing = DebugTiming()
 
     timing.add_event("command dispatch")
+    # fires with None, or raises an error
     d = maybeDeferred(dispatch, args)
     def _maybe_dump_timing(res):
         timing.add_event("exit")
@@ -43,13 +44,12 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
         return res
     d.addBoth(_maybe_dump_timing)
     def _explain_error(f):
-        f.trap(TransferError)
+        # these three errors don't print a traceback, just an explanation
+        f.trap(TransferError, WrongPasswordError, Timeout)
         print("ERROR:", f.value, file=stderr)
         raise SystemExit(1)
     d.addErrback(_explain_error)
-    def _rc(rc):
-        raise SystemExit(rc)
-    d.addCallback(_rc)
+    d.addCallback(lambda _: 0)
     return d
 
 def entry():
