@@ -1,20 +1,51 @@
 
-div.item-group-0 {
-    background-color: #fcc;
+rect.bar {
+    stroke: black;
 }
 
-div.item-group-1 {
-    background-color: #cfc;
+.lane-0 {
+    fill: #fcc;
 }
 
-div.item-group-2 {
-    background-color: #ccf;
+.lane-1 {
+    fill: #cfc;
 }
 
-div.wait-user {
-    background-color: #ccc;
+.lane-2 {
+    fill: #ccf;
+}
+
+.lane-3 {
+    fill: #ccf;
+}
+
+.lane-4 {
+    fill: #ccf;
+}
+
+.lane-5 {
+    fill: #ccf;
+}
+
+.lane-6 {
+    fill: #ccf;
+}
+
+rect.wait-user {
+    fill: #ccc;
+}
+
+rect.wait-crypto {
+    fill: #bbe;
 }
 
 .vis-item .vis-item-overflow {
     overflow: visible;
+}
+
+.d3-tip {
+    margin: 4px;
+    padding: 2px;
+    background: #111;
+    color: #fff;
 }
