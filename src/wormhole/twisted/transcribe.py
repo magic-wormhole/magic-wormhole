@@ -77,14 +77,16 @@ class Wormhole:
         self._sent_messages = set() # (phase, body_bytes)
         self._delivered_messages = set() # (phase, body_bytes)
         self._received_messages = {} # phase -> body_bytes
+        self._received_messages_sent = {} # phase -> server timestamp
         self._sent_phases = set() # phases, to prohibit double-send
         self._got_phases = set() # phases, to prohibit double-read
         self._sleepers = []
         self._confirmation_failed = False
         self._closed = False
         self._deallocated_status = None
-        self._timing_started = self._timing.add_event("wormhole")
+        self._timing_started = self._timing.add("wormhole")
         self._ws = None
+        self._ws_t = None # timing Event
         self._ws_channel_claimed = False
         self._error = None
 
@@ -112,6 +114,7 @@ class Wormhole:
             ep = self._make_endpoint(p.hostname, p.port or 80)
             # .connect errbacks if the TCP connection fails
             self._ws = yield ep.connect(f)
+            self._ws_t = self._timing.add("websocket")
             # f.d is errbacked if WebSocket negotiation fails
             yield f.d # WebSocket drops data sent before onOpen() fires
             self._ws_send(u"bind", appid=self._appid, side=self._side)
@@ -134,6 +137,7 @@ class Wormhole:
         return meth(msg)
 
     def _ws_handle_welcome(self, msg):
+        self._timing.add("welcome").server_sent(msg["sent"])
         welcome = msg["welcome"]
         if ("motd" in welcome and
             not self.motd_displayed):
@@ -184,6 +188,7 @@ class Wormhole:
         self._wakeup()
 
     def _ws_handle_error(self, msg):
+        self._timing.add("error").server_sent(msg["sent"])
         err = ServerError("%s: %s" % (msg["error"], msg["orig"]),
                           self._ws_url)
         return self._signal_error(err)
@@ -203,18 +208,20 @@ class Wormhole:
         if self._code is not None: raise UsageError
         if self._started_get_code: raise UsageError
         self._started_get_code = True
-        _sent = self._timing.add_event("allocate")
-        yield self._ws_send(u"allocate")
-        while self._channelid is None:
-            yield self._sleep()
-        self._timing.finish_event(_sent)
-        code = codes.make_code(self._channelid, code_length)
-        assert isinstance(code, type(u"")), type(code)
-        self._set_code(code)
-        self._start()
+        with self._timing.add("API get_code"):
+            with self._timing.add("allocate") as t:
+                self._allocate_t = t
+                yield self._ws_send(u"allocate")
+                while self._channelid is None:
+                    yield self._sleep()
+            code = codes.make_code(self._channelid, code_length)
+            assert isinstance(code, type(u"")), type(code)
+            self._set_code(code)
+            self._start()
         returnValue(code)
 
     def _ws_handle_allocated(self, msg):
+        self._allocate_t.server_sent(msg["sent"])
         if self._channelid is not None:
             return self._signal_error("got duplicate channelid")
         self._channelid = msg["channelid"]
@@ -222,9 +229,10 @@ class Wormhole:
 
     def _start(self):
         # allocate the rest now too, so it can be serialized
-        self._sp = SPAKE2_Symmetric(to_bytes(self._code),
-                                    idSymmetric=to_bytes(self._appid))
-        self._msg1 = self._sp.start()
+        with self._timing.add("pake1", waiting="crypto"):
+            self._sp = SPAKE2_Symmetric(to_bytes(self._code),
+                                        idSymmetric=to_bytes(self._appid))
+            self._msg1 = self._sp.start()
 
     # entry point 2a: interactively type in a code, with completion
     @inlineCallbacks
@@ -238,16 +246,16 @@ class Wormhole:
         # TODO: send the request early, show the prompt right away, hide the
         # latency in the user's indecision and slow typing. If we're lucky
         # the answer will come back before they hit TAB.
-        initial_channelids = yield self._list_channels()
-        _start = self._timing.add_event("input code", waiting="user")
-        t = self._reactor.addSystemEventTrigger("before", "shutdown",
-                                                self._warn_readline)
-        code = yield deferToThread(codes.input_code_with_completion,
-                                   prompt,
-                                   initial_channelids, _lister,
-                                   code_length)
-        self._reactor.removeSystemEventTrigger(t)
-        self._timing.finish_event(_start)
+        with self._timing.add("API input_code"):
+            initial_channelids = yield self._list_channels()
+            with self._timing.add("input code", waiting="user"):
+                t = self._reactor.addSystemEventTrigger("before", "shutdown",
+                                                        self._warn_readline)
+                code = yield deferToThread(codes.input_code_with_completion,
+                                           prompt,
+                                           initial_channelids, _lister,
+                                           code_length)
+                self._reactor.removeSystemEventTrigger(t)
         returnValue(code) # application will give this to set_code()
 
     def _warn_readline(self):
@@ -286,12 +294,11 @@ class Wormhole:
 
     @inlineCallbacks
     def _list_channels(self):
-        _sent = self._timing.add_event("list")
-        self._latest_channelids = None
-        yield self._ws_send(u"list")
-        while self._latest_channelids is None:
-            yield self._sleep()
-        self._timing.finish_event(_sent)
+        with self._timing.add("list"):
+            self._latest_channelids = None
+            yield self._ws_send(u"list")
+            while self._latest_channelids is None:
+                yield self._sleep()
         returnValue(self._latest_channelids)
 
     def _ws_handle_channelids(self, msg):
@@ -305,13 +312,14 @@ class Wormhole:
         mo = re.search(r'^(\d+)-', code)
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
-        self._channelid = int(mo.group(1))
-        self._set_code(code)
-        self._start()
+        with self._timing.add("API set_code"):
+            self._channelid = int(mo.group(1))
+            self._set_code(code)
+            self._start()
 
     def _set_code(self, code):
         if self._code is not None: raise UsageError
-        self._timing.add_event("code established")
+        self._timing.add("code established")
         self._code = code
 
     def serialize(self):
@@ -349,16 +357,17 @@ class Wormhole:
     def get_verifier(self):
         if self._closed: raise UsageError
         if self._code is None: raise UsageError
-        yield self._get_master_key()
-        # If the caller cares about the verifier, then they'll probably also
-        # willing to wait a moment to see the _confirm message. Each side
-        # sends this as soon as it sees the other's PAKE message. So the
-        # sender should see this hot on the heels of the inbound PAKE message
-        # (a moment after _get_master_key() returns). The receiver will see
-        # this a round-trip after they send their PAKE (because the sender is
-        # using wait=True inside _get_master_key, below: otherwise the sender
-        # might go do some blocking call).
-        yield self._msg_get(u"_confirm")
+        with self._timing.add("API get_verifier"):
+            yield self._get_master_key()
+            # If the caller cares about the verifier, then they'll probably
+            # also willing to wait a moment to see the _confirm message. Each
+            # side sends this as soon as it sees the other's PAKE message. So
+            # the sender should see this hot on the heels of the inbound PAKE
+            # message (a moment after _get_master_key() returns). The
+            # receiver will see this a round-trip after they send their PAKE
+            # (because the sender is using wait=True inside _get_master_key,
+            # below: otherwise the sender might go do some blocking call).
+            yield self._msg_get(u"_confirm")
         returnValue(self._verifier)
 
     @inlineCallbacks
@@ -369,9 +378,10 @@ class Wormhole:
             yield self._msg_send(u"pake", self._msg1)
             pake_msg = yield self._msg_get(u"pake")
 
-            self._key = self._sp.finish(pake_msg)
+            with self._timing.add("pake2", waiting="crypto"):
+                self._key = self._sp.finish(pake_msg)
             self._verifier = self.derive_key(u"wormhole:verifier")
-            self._timing.add_event("key established")
+            self._timing.add("key established")
 
             if self._send_confirm:
                 # both sides send different (random) confirmation messages
@@ -385,11 +395,13 @@ class Wormhole:
         self._sent_messages.add( (phase, body) )
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
+        t = self._timing.add("add", phase=phase, wait=wait)
         yield self._ws_send(u"add", phase=phase,
                             body=hexlify(body).decode("ascii"))
         if wait:
             while (phase, body) not in self._delivered_messages:
                 yield self._sleep()
+            t.finish()
 
     def _ws_handle_message(self, msg):
         m = msg["message"]
@@ -404,6 +416,7 @@ class Wormhole:
             err = ServerError("got duplicate phase %s" % phase, self._ws_url)
             return self._signal_error(err)
         self._received_messages[phase] = body
+        self._received_messages_sent[phase] = msg.get(u"sent")
         if phase == u"_confirm":
             # TODO: we might not have a master key yet, if the caller wasn't
             # waiting in _get_master_key() when a back-to-back pake+_confirm
@@ -418,12 +431,15 @@ class Wormhole:
 
     @inlineCallbacks
     def _msg_get(self, phase):
-        _start = self._timing.add_event("get(%s)" % phase)
-        while phase not in self._received_messages:
-            yield self._sleep() # we can wait a long time here
-            # that will throw an error if something goes wrong
-        self._timing.finish_event(_start)
-        returnValue(self._received_messages[phase])
+        with self._timing.add("get", phase=phase) as t:
+            while phase not in self._received_messages:
+                yield self._sleep() # we can wait a long time here
+                # that will throw an error if something goes wrong
+            msg = self._received_messages[phase]
+            sent = self._received_messages_sent[phase]
+            if sent:
+                t.server_sent(sent)
+        returnValue(msg)
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
@@ -459,16 +475,15 @@ class Wormhole:
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if phase in self._sent_phases: raise UsageError # only call this once
         self._sent_phases.add(phase)
-        _sent = self._timing.add_event("API send data", phase=phase, wait=wait)
-        # Without predefined roles, we can't derive predictably unique keys
-        # for each side, so we use the same key for both. We use random
-        # nonces to keep the messages distinct, and we automatically ignore
-        # reflections.
-        yield self._get_master_key()
-        data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-        outbound_encrypted = self._encrypt_data(data_key, outbound_data)
-        yield self._msg_send(phase, outbound_encrypted, wait)
-        self._timing.finish_event(_sent)
+        with self._timing.add("API send_data", phase=phase, wait=wait):
+            # Without predefined roles, we can't derive predictably unique
+            # keys for each side, so we use the same key for both. We use
+            # random nonces to keep the messages distinct, and we
+            # automatically ignore reflections.
+            yield self._get_master_key()
+            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
+            outbound_encrypted = self._encrypt_data(data_key, outbound_data)
+            yield self._msg_send(phase, outbound_encrypted, wait)
 
     @inlineCallbacks
     def get_data(self, phase=u"data"):
@@ -478,10 +493,9 @@ class Wormhole:
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if phase in self._got_phases: raise UsageError # only call this once
         self._got_phases.add(phase)
-        _sent = self._timing.add_event("API get data", phase=phase)
-        yield self._get_master_key()
-        body = yield self._msg_get(phase) # we can wait a long time here
-        self._timing.finish_event(_sent)
+        with self._timing.add("API get_data", phase=phase):
+            yield self._get_master_key()
+            body = yield self._msg_get(phase) # we can wait a long time here
         try:
             data_key = self.derive_key(u"wormhole:phase:%s" % phase)
             inbound_data = self._decrypt_data(data_key, body)
@@ -491,6 +505,7 @@ class Wormhole:
 
     def _ws_closed(self, wasClean, code, reason):
         self._ws = None
+        self._ws_t.finish()
         # TODO: schedule reconnect, unless we're done
 
     @inlineCallbacks
@@ -517,20 +532,21 @@ class Wormhole:
         if not isinstance(mood, (type(None), type(u""))):
             raise TypeError(type(mood))
 
-        self._timing.finish_event(self._timing_started, mood=mood)
-        yield self._deallocate(mood)
-        # TODO: mark WebSocket as don't-reconnect
-        self._ws.transport.loseConnection() # probably flushes
-        del self._ws
+        with self._timing.add("API close"):
+            yield self._deallocate(mood)
+            # TODO: mark WebSocket as don't-reconnect
+            self._ws.transport.loseConnection() # probably flushes
+            del self._ws
+            self._ws_t.finish()
+            self._timing_started.finish(mood=mood)
         returnValue(f)
 
     @inlineCallbacks
     def _deallocate(self, mood):
-        _sent = self._timing.add_event("close")
-        yield self._ws_send(u"deallocate", mood=mood)
-        while self._deallocated_status is None:
-            yield self._sleep(wake_on_error=False)
-        self._timing.finish_event(_sent)
+        with self._timing.add("deallocate"):
+            yield self._ws_send(u"deallocate", mood=mood)
+            while self._deallocated_status is None:
+                yield self._sleep(wake_on_error=False)
         # TODO: set a timeout, don't wait forever for an ack
         # TODO: if the connection is lost, let it go
         returnValue(self._deallocated_status)

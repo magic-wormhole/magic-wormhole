@@ -44,31 +44,29 @@ class TorManager:
             self._can_run_service = False
             returnValue(True)
 
-        _start_find = self._timing.add_event("find tor")
+        _start_find = self._timing.add("find tor")
         # try port 9051, then try /var/run/tor/control . Throws on failure.
         state = None
-        _start_tcp = self._timing.add_event("tor localhost")
-        try:
-            connection = (self._reactor, "127.0.0.1", self._tor_control_port)
-            state = yield txtorcon.build_tor_connection(connection)
-            self._tor_protocol = state.protocol
-        except ConnectError:
-            print("unable to reach Tor on %d" % self._tor_control_port)
-            pass
-        self._timing.finish_event(_start_tcp)
-
-        if not state:
-            _start_unix = self._timing.add_event("tor unix")
+        with self._timing.add("tor localhost"):
             try:
-                connection = (self._reactor, "/var/run/tor/control")
-                # add build_state=False to get back a Protocol object instead
-                # of a State object
+                connection = (self._reactor, "127.0.0.1", self._tor_control_port)
                 state = yield txtorcon.build_tor_connection(connection)
                 self._tor_protocol = state.protocol
-            except (ValueError, ConnectError):
-                print("unable to reach Tor on /var/run/tor/control")
+            except ConnectError:
+                print("unable to reach Tor on %d" % self._tor_control_port)
                 pass
-            self._timing.finish_event(_start_unix)
+
+        if not state:
+            with self._timing.add("tor unix"):
+                try:
+                    connection = (self._reactor, "/var/run/tor/control")
+                    # add build_state=False to get back a Protocol object
+                    # instead of a State object
+                    state = yield txtorcon.build_tor_connection(connection)
+                    self._tor_protocol = state.protocol
+                except (ValueError, ConnectError):
+                    print("unable to reach Tor on /var/run/tor/control")
+                    pass
 
         if state:
             print("connected to pre-existing Tor process")
@@ -78,37 +76,36 @@ class TorManager:
             yield self._create_my_own_tor()
             # that sets self._tor_socks_port and self._tor_protocol
 
-        self._timing.finish_event(_start_find)
+        _start_find.finish()
         self._can_run_service = True
         returnValue(True)
 
     @inlineCallbacks
     def _create_my_own_tor(self):
-        _start_launch = self._timing.add_event("launch tor")
-        start = time.time()
-        config = self.config = txtorcon.TorConfig()
-        if 0:
-            # The default is for launch_tor to create a tempdir itself, and
-            # delete it when done. We only need to set a DataDirectory if we
-            # want it to be persistent.
-            import tempfile
-            datadir = tempfile.mkdtemp()
-            config.DataDirectory = datadir
+        with self._timing.add("launch tor"):
+            start = time.time()
+            config = self.config = txtorcon.TorConfig()
+            if 0:
+                # The default is for launch_tor to create a tempdir itself,
+                # and delete it when done. We only need to set a
+                # DataDirectory if we want it to be persistent.
+                import tempfile
+                datadir = tempfile.mkdtemp()
+                config.DataDirectory = datadir
 
-        #config.ControlPort = allocate_tcp_port() # defaults to 9052
-        #print("setting config.ControlPort to", config.ControlPort)
-        config.SocksPort = allocate_tcp_port()
-        self._tor_socks_port = config.SocksPort
-        print("setting config.SocksPort to", config.SocksPort)
+            #config.ControlPort = allocate_tcp_port() # defaults to 9052
+            #print("setting config.ControlPort to", config.ControlPort)
+            config.SocksPort = allocate_tcp_port()
+            self._tor_socks_port = config.SocksPort
+            print("setting config.SocksPort to", config.SocksPort)
 
-        tpp = yield txtorcon.launch_tor(config, self._reactor,
-                                        #tor_binary=
-                                        )
-        # gives a TorProcessProtocol with .tor_protocol
-        self._tor_protocol = tpp.tor_protocol
-        print("tp:", self._tor_protocol)
-        print("elapsed:", time.time() - start)
-        self._timing.finish_event(_start_launch)
+            tpp = yield txtorcon.launch_tor(config, self._reactor,
+                                            #tor_binary=
+                                            )
+            # gives a TorProcessProtocol with .tor_protocol
+            self._tor_protocol = tpp.tor_protocol
+            print("tp:", self._tor_protocol)
+            print("elapsed:", time.time() - start)
         returnValue(True)
 
     def is_non_public_numeric_address(self, host):

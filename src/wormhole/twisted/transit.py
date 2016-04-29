@@ -565,7 +565,7 @@ class Common:
         self._winner = None
         self._reactor = reactor
         self._timing = timing or DebugTiming()
-        self._timing_started = self._timing.add_event("transit")
+        self._timing.add("transit")
 
     def _build_listener(self):
         if self._no_listen or self._tor_manager:
@@ -690,13 +690,12 @@ class Common:
 
     @inlineCallbacks
     def connect(self):
-        _start = self._timing.add_event("transit connect")
-        yield self._get_transit_key()
-        # we want to have the transit key before starting any outbound
-        # connections, so those connections will know what to say when they
-        # connect
-        winner = yield self._connect()
-        self._timing.finish_event(_start)
+        with self._timing.add("transit connect"):
+            yield self._get_transit_key()
+            # we want to have the transit key before starting any outbound
+            # connections, so those connections will know what to say when
+            # they connect
+            winner = yield self._connect()
         returnValue(winner)
 
     def _connect(self):

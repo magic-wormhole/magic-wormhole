@@ -1,23 +1,57 @@
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 import json, time
+
+class Event:
+    def __init__(self, name, when, **details):
+        # data fields that will be dumped to JSON later
+        self._start = time.time() if when is None else float(when)
+        self._server_sent = None
+        self._stop = None
+        self._name = name
+        self._details = details
+
+    def server_sent(self, when):
+        self._server_sent = when
+
+    def detail(self, **details):
+        self._details.update(details)
+
+    def finish(self, server_sent=None, **details):
+        self._stop = time.time()
+        if server_sent:
+            self.server_sent(server_sent)
+        self.detail(**details)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        if exc_type:
+            # inlineCallbacks uses a special exception (defer._DefGen_Return)
+            # to deliver returnValue(), so if returnValue is used inside our
+            # with: block, we'll mistakenly think it means something broke.
+            # I've moved all returnValue() calls outside the 'with
+            # timing.add()' blocks to avoid this, but if a new one
+            # accidentally pops up, it'll get marked as an error. I used to
+            # catch-and-release _DefGen_Return to avoid this, but removed it
+            # because it requires referencing defer.py's private class
+            self.finish(exception=str(exc_type))
+        else:
+            self.finish()
 
 class DebugTiming:
     def __init__(self):
-        self.data = []
-    def add_event(self, name, when=None, **details):
-        # [ start, [server_sent], [stop], name, start_details{}, stop_details{} ]
-        if when is None:
-            when = time.time()
-        when = float(when)
-        self.data.append( [when, None, None, name, details, {}] )
-        return len(self.data)-1
-    def finish_event(self, index, server_sent=None, **details):
-        if server_sent is not None:
-            self.data[index][1] = float(server_sent)
-        self.data[index][2] = time.time()
-        self.data[index][5] = details
+        self._events = []
+
+    def add(self, name, when=None, **details):
+        ev = Event(name, when, **details)
+        self._events.append(ev)
+        return ev
+
     def write(self, fn, stderr):
         with open(fn, "wb") as f:
-            json.dump(self.data, f)
+            data = [ [e._start, e._server_sent, e._stop, e._name, e._details]
+                     for e in self._events ]
+            json.dump(data, f)
             f.write("\n")
         print("Timing data written to %s" % fn, file=stderr)

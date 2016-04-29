@@ -1,19 +1,22 @@
 from __future__ import print_function
+import time
+start = time.time()
 import os, sys
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.task import react
 from ..errors import TransferError, WrongPasswordError, Timeout
 from ..timing import DebugTiming
 from .cli_args import parser
+top_import_finish = time.time()
 
 def dispatch(args): # returns Deferred
     if args.func == "send/send":
-        from . import cmd_send
+        with args.timing.add("import", which="cmd_send"):
+            from . import cmd_send
         return cmd_send.send(args)
     if args.func == "receive/receive":
-        _start = args.timing.add_event("import c_r_t")
-        from . import cmd_receive
-        args.timing.finish_event(_start)
+        with args.timing.add("import", which="cmd_receive"):
+            from . import cmd_receive
         return cmd_receive.receive(args)
 
     raise ValueError("unknown args.func %s" % args.func)
@@ -34,11 +37,12 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
     args.stderr = stderr
     args.timing = timing = DebugTiming()
 
-    timing.add_event("command dispatch")
+    timing.add("command dispatch")
+    timing.add("import", when=start, which="top").finish(when=top_import_finish)
     # fires with None, or raises an error
     d = maybeDeferred(dispatch, args)
     def _maybe_dump_timing(res):
-        timing.add_event("exit")
+        timing.add("exit")
         if args.dump_timing:
             timing.write(args.dump_timing, stderr)
         return res
