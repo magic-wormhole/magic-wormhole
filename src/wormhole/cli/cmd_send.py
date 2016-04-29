@@ -210,6 +210,7 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
     fd_to_send.seek(0,0)
 
     record_pipe = yield transit_sender.connect()
+    timing.add("transit connected")
     # record_pipe should implement IConsumer, chunks are just records
     print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
 
@@ -221,17 +222,17 @@ def _send_file_twisted(tdata, transit_sender, fd_to_send,
         return data
     fs = basic.FileSender()
 
-    _start = timing.add_event("tx file")
-    with progress:
-        yield fs.beginFileTransfer(fd_to_send, record_pipe, transform=_count)
-    timing.finish_event(_start)
+    with timing.add("tx file"):
+        with progress:
+            yield fs.beginFileTransfer(fd_to_send, record_pipe,
+                                       transform=_count)
 
     print(u"File sent.. waiting for confirmation", file=stdout)
-    _start = timing.add_event("get ack")
-    ack = yield record_pipe.receive_record()
-    record_pipe.close()
-    if ack != b"ok\n":
-        timing.finish_event(_start, ack="failed")
-        raise TransferError("Transfer failed (remote says: %r)" % ack)
-    print(u"Confirmation received. Transfer complete.", file=stdout)
-    timing.finish_event(_start, ack="ok")
+    with timing.add("get ack") as t:
+        ack = yield record_pipe.receive_record()
+        record_pipe.close()
+        if ack != b"ok\n":
+            t.detail(ack="failed")
+            raise TransferError("Transfer failed (remote says: %r)" % ack)
+        print(u"Confirmation received. Transfer complete.", file=stdout)
+        t.detail(ack="ok")

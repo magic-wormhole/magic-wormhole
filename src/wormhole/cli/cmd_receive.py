@@ -37,9 +37,8 @@ class TwistedReceiver:
     def go(self):
         tor_manager = None
         if self.args.tor:
-            _start = self.args.timing.add_event("import TorManager")
-            from ..twisted.tor_manager import TorManager
-            self.args.timing.finish_event(_start)
+            with self.args.timing.add("import", which="tor_manager"):
+                from ..twisted.tor_manager import TorManager
             tor_manager = TorManager(self._reactor, timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager
@@ -172,15 +171,15 @@ class TwistedReceiver:
         return abs_destname
 
     def ask_permission(self):
-        _start = self.args.timing.add_event("permission", waiting="user")
-        while True and not self.args.accept_file:
-            ok = six.moves.input("ok? (y/n): ")
-            if ok.lower().startswith("y"):
-                break
-            print(u"transfer rejected", file=sys.stderr)
-            self.args.timing.finish_event(_start, answer="no")
-            raise RespondError("transfer rejected")
-        self.args.timing.finish_event(_start, answer="yes")
+        with self.args.timing.add("permission", waiting="user") as t:
+            while True and not self.args.accept_file:
+                ok = six.moves.input("ok? (y/n): ")
+                if ok.lower().startswith("y"):
+                    break
+                print(u"transfer rejected", file=sys.stderr)
+                t.detail(answer="no")
+                raise RespondError("transfer rejected")
+            t.detail(answer="yes")
 
     @inlineCallbacks
     def establish_transit(self, w, them_d, tor_manager):
@@ -207,20 +206,20 @@ class TwistedReceiver:
         transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
         transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
         record_pipe = yield transit_receiver.connect()
+        self.args.timing.add("transit connected")
         returnValue(record_pipe)
 
     @inlineCallbacks
     def transfer_data(self, record_pipe, f):
         self.msg(u"Receiving (%s).." % record_pipe.describe())
 
-        _start = self.args.timing.add_event("rx file")
-        progress = tqdm(file=self.args.stdout,
-                        disable=self.args.hide_progress,
-                        unit="B", unit_scale=True, total=self.xfersize)
-        with progress:
-            received = yield record_pipe.writeToFile(f, self.xfersize,
-                                                     progress.update)
-        self.args.timing.finish_event(_start)
+        with self.args.timing.add("rx file"):
+            progress = tqdm(file=self.args.stdout,
+                            disable=self.args.hide_progress,
+                            unit="B", unit_scale=True, total=self.xfersize)
+            with progress:
+                received = yield record_pipe.writeToFile(f, self.xfersize,
+                                                         progress.update)
 
         # except TransitError
         if received < self.xfersize:
@@ -239,21 +238,19 @@ class TwistedReceiver:
 
     def write_directory(self, f):
         self.msg(u"Unpacking zipfile..")
-        _start = self.args.timing.add_event("unpack zip")
-        with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
-            zf.extractall(path=self.abs_destname)
-            # extractall() appears to offer some protection against
-            # malicious pathnames. For example, "/tmp/oops" and
-            # "../tmp/oops" both do the same thing as the (safe)
-            # "tmp/oops".
-        self.msg(u"Received files written to %s/" %
-                 os.path.basename(self.abs_destname))
-        f.close()
-        self.args.timing.finish_event(_start)
+        with self.args.timing.add("unpack zip"):
+            with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+                zf.extractall(path=self.abs_destname)
+                # extractall() appears to offer some protection against
+                # malicious pathnames. For example, "/tmp/oops" and
+                # "../tmp/oops" both do the same thing as the (safe)
+                # "tmp/oops".
+            self.msg(u"Received files written to %s/" %
+                     os.path.basename(self.abs_destname))
+            f.close()
 
     @inlineCallbacks
     def close_transit(self, record_pipe):
-        _start = self.args.timing.add_event("ack")
-        yield record_pipe.send_record(b"ok\n")
-        yield record_pipe.close()
-        self.args.timing.finish_event(_start)
+        with self.args.timing.add("send ack"):
+            yield record_pipe.send_record(b"ok\n")
+            yield record_pipe.close()
