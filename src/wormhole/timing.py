@@ -16,8 +16,8 @@ class Event:
     def detail(self, **details):
         self._details.update(details)
 
-    def finish(self, server_sent=None, **details):
-        self._stop = time.time()
+    def finish(self, when=None, server_sent=None, **details):
+        self._stop = time.time() if when is None else float(when)
         if server_sent:
             self.server_sent(server_sent)
         self.detail(**details)
