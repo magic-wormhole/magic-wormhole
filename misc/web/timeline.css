@@ -1,4 +1,57 @@
 
+line.client_tx {
+    stroke: red;
+    stroke-dasharray: 5,5;
+}
+line.client_rx {
+    stroke: blue;
+    stroke-dasharray: 5,5;
+}
+line.c2c_column {
+    stroke: black;
+    stroke-dasharray: 1,5;
+}
+
+line.c2c {
+    stroke-width: 2.0;
+}
+line.c2c.active {
+    stroke-width: 4.0;
+}
+
+line.y_axis {
+    stroke: gray;
+}
+
+/* putting these in a .css file doesn't work, for some reason I have to add
+the markers as a style= attribute directly. */
+line.circle-arrow-circle {
+    /*marker-start: url(#markerCircle);*/
+    marker-mid: url(#markerArrow);
+    /*marker-end: url(#markerCircle);*/
+}
+
+rect.wait-crypto {
+    stroke: black;
+    fill: #ccc;
+}
+
+rect.wait-user {
+    stroke: #00f;
+    fill: #bbe;
+}
+text.wait-text-user {
+    fill: #00f;
+}
+
+rect.proc-span-import {
+    fill: #fcc;
+}
+
+rect.api {
+    fill: #cfc;
+}
+
 rect.bar {
     stroke: black;
 }
@@ -29,14 +82,6 @@ rect.bar {
 
 .lane-6 {
     fill: #ccf;
-}
-
-rect.wait-user {
-    fill: #ccc;
-}
-
-rect.wait-crypto {
-    fill: #bbe;
 }
 
 .vis-item .vis-item-overflow {
