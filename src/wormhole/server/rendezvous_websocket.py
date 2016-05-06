@@ -66,6 +66,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self.send("welcome", welcome=rv.get_welcome())
 
     def onMessage(self, payload, isBinary):
+        server_rx = time.time()
         msg = json.loads(payload.decode("utf-8"))
         try:
             if "type" not in msg:
@@ -90,7 +91,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "watch":
                 return self.handle_watch(self._channel, msg)
             if mtype == "add":
-                return self.handle_add(self._channel, msg)
+                return self.handle_add(self._channel, msg, server_rx)
             if mtype == "deallocate":
                 return self.handle_deallocate(self._channel, msg)
 
@@ -147,12 +148,12 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         for old_message in channel.add_listener(self):
             self.send_rendezvous_event(old_message)
 
-    def handle_add(self, channel, msg):
+    def handle_add(self, channel, msg, server_rx):
         if "phase" not in msg:
             raise Error("missing 'phase'")
         if "body" not in msg:
             raise Error("missing 'body'")
-        channel.add_message(self._side, msg["phase"], msg["body"], time.time())
+        channel.add_message(self._side, msg["phase"], msg["body"], server_rx)
 
     def handle_deallocate(self, channel, msg):
         deleted = channel.deallocate(self._side, msg.get("mood"))
