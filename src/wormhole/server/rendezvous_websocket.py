@@ -161,7 +161,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def send(self, mtype, **kwargs):
         kwargs["type"] = mtype
-        kwargs["sent"] = time.time()
+        kwargs["server_tx"] = time.time()
         payload = json.dumps(kwargs).encode("utf-8")
         self.sendMessage(payload, False)
 

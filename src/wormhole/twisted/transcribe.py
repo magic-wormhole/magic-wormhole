@@ -140,7 +140,7 @@ class Wormhole:
         return meth(msg)
 
     def _ws_handle_welcome(self, msg):
-        self._timing.add("welcome").server_sent(msg["sent"])
+        self._timing.add("welcome").server_sent(msg["server_tx"])
         welcome = msg["welcome"]
         if ("motd" in welcome and
             not self.motd_displayed):
@@ -191,7 +191,7 @@ class Wormhole:
         self._wakeup()
 
     def _ws_handle_error(self, msg):
-        self._timing.add("error").server_sent(msg["sent"])
+        self._timing.add("error").server_sent(msg["server_tx"])
         err = ServerError("%s: %s" % (msg["error"], msg["orig"]),
                           self._ws_url)
         return self._signal_error(err)
@@ -224,7 +224,7 @@ class Wormhole:
         returnValue(code)
 
     def _ws_handle_allocated(self, msg):
-        self._allocate_t.server_sent(msg["sent"])
+        self._allocate_t.server_sent(msg["server_tx"])
         if self._channelid is not None:
             return self._signal_error("got duplicate channelid")
         self._channelid = msg["channelid"]

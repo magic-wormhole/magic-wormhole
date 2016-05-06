@@ -685,8 +685,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], "message")
         self.assertEqual(strip_message(msg["message"]),
                          {"phase": "1", "body": "msg1A"})
-        self.assertIn("sent", msg)
-        self.assertIsInstance(msg["sent"], float)
+        self.assertIn("server_tx", msg)
+        self.assertIsInstance(msg["server_tx"], float)
 
         c1.send(u"add", phase="1", body="msg1B")
         c1.send(u"add", phase="2", body="msg2A")
