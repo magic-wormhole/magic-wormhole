@@ -40,7 +40,8 @@ class Channel:
                               (self._appid, self._channelid)).fetchall():
             if row["phase"] in (u"_allocate", u"_deallocate"):
                 continue
-            messages.append({"phase": row["phase"], "body": row["body"]})
+            messages.append({"phase": row["phase"], "body": row["body"],
+                             "server_rx": row["server_rx"]})
         return messages
 
     def add_listener(self, ep):
@@ -50,9 +51,10 @@ class Channel:
     def remove_listener(self, ep):
         self._listeners.discard(ep)
 
-    def broadcast_message(self, phase, body):
+    def broadcast_message(self, phase, body, server_rx):
         for ep in self._listeners:
-            ep.send_rendezvous_event({"phase": phase, "body": body})
+            ep.send_rendezvous_event({"phase": phase, "body": body,
+                                      "server_rx": server_rx})
 
     def _add_message(self, side, phase, body, server_rx):
         db = self._db
@@ -68,7 +70,7 @@ class Channel:
 
     def add_message(self, side, phase, body, server_rx):
         self._add_message(side, phase, body, server_rx)
-        self.broadcast_message(phase, body)
+        self.broadcast_message(phase, body, server_rx)
         return self.get_messages() # for rendezvous_web.py POST /add
 
     def deallocate(self, side, mood):
