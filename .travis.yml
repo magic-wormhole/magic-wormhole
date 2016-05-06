@@ -12,13 +12,6 @@ python:
   - "3.4"
   - "3.5"
 install:
-  - pip install -U pip
-  - pip install pyflakes coverage codecov
-  - pip install --editable .
+  - pip install -U pip tox virtualenv
 script:
-  - pyflakes setup.py src
-  - wormhole --version
-  - coverage run --branch `which trial` wormhole
-after_success:
-  - coverage report
-  - codecov
+  - tox -e py
