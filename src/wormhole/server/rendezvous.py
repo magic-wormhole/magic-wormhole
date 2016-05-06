@@ -69,7 +69,7 @@ class Channel:
     def add_message(self, side, phase, body):
         self._add_message(side, phase, body)
         self.broadcast_message(phase, body)
-        return self.get_messages()
+        return self.get_messages() # for rendezvous_web.py POST /add
 
     def deallocate(self, side, mood):
         self._add_message(side, DEALLOCATE, mood)
