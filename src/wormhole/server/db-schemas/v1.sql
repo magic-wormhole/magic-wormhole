@@ -15,7 +15,7 @@ CREATE TABLE `messages`
  `phase` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
  -- phase="_allocate" and "_deallocate" are used internally
  `body` VARCHAR,
- `when` INTEGER
+ `server_rx` INTEGER
 );
 CREATE INDEX `messages_idx` ON `messages` (`appid`, `channelid`);
 

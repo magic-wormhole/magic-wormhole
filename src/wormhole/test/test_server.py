@@ -728,33 +728,33 @@ class Summary(unittest.TestCase):
         A = rendezvous.ALLOCATE
         D = rendezvous.DEALLOCATE
 
-        messages = [{"when": 1, "side": "a", "phase": A}]
+        messages = [{"server_rx": 1, "side": "a", "phase": A}]
         self.failUnlessEqual(c._summarize(messages, 2),
                              (1, "lonely", 1, None))
 
-        messages = [{"when": 1, "side": "a", "phase": A},
-                    {"when": 2, "side": "a", "phase": D, "body": "lonely"},
+        messages = [{"server_rx": 1, "side": "a", "phase": A},
+                    {"server_rx": 2, "side": "a", "phase": D, "body": "lonely"},
                     ]
         self.failUnlessEqual(c._summarize(messages, 3),
                              (1, "lonely", 2, None))
 
-        messages = [{"when": 1, "side": "a", "phase": A},
-                    {"when": 2, "side": "b", "phase": A},
-                    {"when": 3, "side": "c", "phase": A},
+        messages = [{"server_rx": 1, "side": "a", "phase": A},
+                    {"server_rx": 2, "side": "b", "phase": A},
+                    {"server_rx": 3, "side": "c", "phase": A},
                     ]
         self.failUnlessEqual(c._summarize(messages, 4),
                              (1, "crowded", 3, None))
 
-        base = [{"when": 1, "side": "a", "phase": A},
-                {"when": 2, "side": "a", "phase": "pake", "body": "msg1"},
-                {"when": 10, "side": "b", "phase": "pake", "body": "msg2"},
-                {"when": 11, "side": "b", "phase": "data", "body": "msg3"},
-                {"when": 20, "side": "a", "phase": "data", "body": "msg4"},
+        base = [{"server_rx": 1, "side": "a", "phase": A},
+                {"server_rx": 2, "side": "a", "phase": "pake", "body": "msg1"},
+                {"server_rx": 10, "side": "b", "phase": "pake", "body": "msg2"},
+                {"server_rx": 11, "side": "b", "phase": "data", "body": "msg3"},
+                {"server_rx": 20, "side": "a", "phase": "data", "body": "msg4"},
                 ]
         def make_moods(A_mood, B_mood):
             return base + [
-                {"when": 21, "side": "a", "phase": D, "body": A_mood},
-                {"when": 30, "side": "b", "phase": D, "body": B_mood},
+                {"server_rx": 21, "side": "a", "phase": D, "body": A_mood},
+                {"server_rx": 30, "side": "b", "phase": D, "body": B_mood},
                 ]
 
         self.failUnlessEqual(c._summarize(make_moods("happy", "happy"), 41),

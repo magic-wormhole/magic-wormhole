@@ -36,7 +36,7 @@ class Channel:
         db = self._db
         for row in db.execute("SELECT * FROM `messages`"
                               " WHERE `appid`=? AND `channelid`=?"
-                              " ORDER BY `when` ASC",
+                              " ORDER BY `server_rx` ASC",
                               (self._appid, self._channelid)).fetchall():
             if row["phase"] in (u"_allocate", u"_deallocate"):
                 continue
@@ -57,7 +57,7 @@ class Channel:
     def _add_message(self, side, phase, body):
         db = self._db
         db.execute("INSERT INTO `messages`"
-                   " (`appid`, `channelid`, `side`, `phase`,  `body`, `when`)"
+                   " (`appid`, `channelid`, `side`, `phase`,  `body`, `server_rx`)"
                    " VALUES (?,?,?,?, ?,?)",
                    (self._appid, self._channelid, side, phase,
                     body, time.time()))
@@ -91,15 +91,15 @@ class Channel:
     def is_idle(self):
         if self._listeners:
             return False
-        c = self._db.execute("SELECT `when` FROM `messages`"
+        c = self._db.execute("SELECT `server_rx` FROM `messages`"
                              " WHERE `appid`=? AND `channelid`=?"
-                             " ORDER BY `when` DESC LIMIT 1",
+                             " ORDER BY `server_rx` DESC LIMIT 1",
                              (self._appid, self._channelid))
         rows = c.fetchall()
         if not rows:
             return True
         old = time.time() - CHANNEL_EXPIRATION_TIME
-        if rows[0]["when"] < old:
+        if rows[0]["server_rx"] < old:
             return True
         return False
 
@@ -121,7 +121,7 @@ class Channel:
             log.msg("_summarize was given zero messages") # shouldn't happen
             return
 
-        started = min([m["when"] for m in messages])
+        started = min([m["server_rx"] for m in messages])
         # 'total_time' is how long the channel was occupied. That ends now,
         # both for channels that got pruned for inactivity, and for channels
         # that got pruned because of two DEALLOCATE messages
@@ -134,12 +134,12 @@ class Channel:
             return (started, "crowded", total_time, None)
 
         # exactly two sides were involved
-        A_side = sorted(messages, key=lambda m: m["when"])[0]["side"]
+        A_side = sorted(messages, key=lambda m: m["server_rx"])[0]["side"]
         B_side = list(all_sides - set([A_side]))[0]
 
         # How long did the first side wait until the second side showed up?
-        first_A = min([m["when"] for m in messages if m["side"] == A_side])
-        first_B = min([m["when"] for m in messages if m["side"] == B_side])
+        first_A = min([m["server_rx"] for m in messages if m["side"] == A_side])
+        first_B = min([m["server_rx"] for m in messages if m["side"] == B_side])
         waiting_time = first_B - first_A
 
         # now, were all sides closed? If not, this is "pruney"
@@ -168,7 +168,7 @@ class Channel:
         db = self._db
         c = self._db.execute("SELECT * FROM `messages`"
                              " WHERE `appid`=? AND `channelid`=?"
-                             " ORDER BY `when`",
+                             " ORDER BY `server_rx`",
                              (self._appid, self._channelid))
         messages = c.fetchall()
         summary = self._summarize(messages, time.time())
