@@ -139,6 +139,9 @@ class Wormhole:
             return
         return meth(msg)
 
+    def _ws_handle_ack(self, msg):
+        pass
+
     def _ws_handle_welcome(self, msg):
         self._timing.add("welcome").server_sent(msg["server_tx"])
         welcome = msg["welcome"]

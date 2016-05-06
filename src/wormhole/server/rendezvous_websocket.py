@@ -71,6 +71,11 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         try:
             if "type" not in msg:
                 raise Error("missing 'type'")
+            if "id" in msg:
+                # Only ack clients modern enough to include [id]. Older ones
+                # won't recognize the message, then they'll abort.
+                self.send("ack", id=msg["id"])
+
             mtype = msg["type"]
             if mtype == "ping":
                 return self.handle_ping(msg)
