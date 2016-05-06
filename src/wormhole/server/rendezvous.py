@@ -54,25 +54,25 @@ class Channel:
         for ep in self._listeners:
             ep.send_rendezvous_event({"phase": phase, "body": body})
 
-    def _add_message(self, side, phase, body):
+    def _add_message(self, side, phase, body, server_rx):
         db = self._db
         db.execute("INSERT INTO `messages`"
                    " (`appid`, `channelid`, `side`, `phase`,  `body`, `server_rx`)"
                    " VALUES (?,?,?,?, ?,?)",
                    (self._appid, self._channelid, side, phase,
-                    body, time.time()))
+                    body, server_rx))
         db.commit()
 
     def allocate(self, side):
-        self._add_message(side, ALLOCATE, None)
+        self._add_message(side, ALLOCATE, None, time.time())
 
-    def add_message(self, side, phase, body):
-        self._add_message(side, phase, body)
+    def add_message(self, side, phase, body, server_rx):
+        self._add_message(side, phase, body, server_rx)
         self.broadcast_message(phase, body)
         return self.get_messages() # for rendezvous_web.py POST /add
 
     def deallocate(self, side, mood):
-        self._add_message(side, DEALLOCATE, mood)
+        self._add_message(side, DEALLOCATE, mood, time.time())
         db = self._db
         seen = set([row["side"] for row in
                     db.execute("SELECT `side` FROM `messages`"
