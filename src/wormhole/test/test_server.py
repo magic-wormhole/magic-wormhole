@@ -57,6 +57,7 @@ def unjson(data):
 
 def strip_message(msg):
     m2 = msg.copy()
+    m2.pop("id", None)
     m2.pop("server_rx", None)
     return m2
 

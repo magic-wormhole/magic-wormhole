@@ -153,7 +153,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             raise Error("missing 'phase'")
         if "body" not in msg:
             raise Error("missing 'body'")
-        channel.add_message(self._side, msg["phase"], msg["body"], server_rx)
+        msgid = msg.get("id") # optional
+        channel.add_message(self._side, msg["phase"], msg["body"],
+                            server_rx, msgid)
 
     def handle_deallocate(self, channel, msg):
         deleted = channel.deallocate(self._side, msg.get("mood"))

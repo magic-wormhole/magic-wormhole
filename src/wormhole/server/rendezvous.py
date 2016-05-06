@@ -41,7 +41,7 @@ class Channel:
             if row["phase"] in (u"_allocate", u"_deallocate"):
                 continue
             messages.append({"phase": row["phase"], "body": row["body"],
-                             "server_rx": row["server_rx"]})
+                             "server_rx": row["server_rx"], "id": row["msgid"]})
         return messages
 
     def add_listener(self, ep):
@@ -51,30 +51,31 @@ class Channel:
     def remove_listener(self, ep):
         self._listeners.discard(ep)
 
-    def broadcast_message(self, phase, body, server_rx):
+    def broadcast_message(self, phase, body, server_rx, msgid):
         for ep in self._listeners:
             ep.send_rendezvous_event({"phase": phase, "body": body,
-                                      "server_rx": server_rx})
+                                      "server_rx": server_rx, "id": msgid})
 
-    def _add_message(self, side, phase, body, server_rx):
+    def _add_message(self, side, phase, body, server_rx, msgid):
         db = self._db
         db.execute("INSERT INTO `messages`"
-                   " (`appid`, `channelid`, `side`, `phase`,  `body`, `server_rx`)"
-                   " VALUES (?,?,?,?, ?,?)",
-                   (self._appid, self._channelid, side, phase,
-                    body, server_rx))
+                   " (`appid`, `channelid`, `side`, `phase`,  `body`,"
+                   "  `server_rx`, `msgid`)"
+                   " VALUES (?,?,?,?,?, ?,?)",
+                   (self._appid, self._channelid, side, phase, body,
+                    server_rx, msgid))
         db.commit()
 
     def allocate(self, side):
-        self._add_message(side, ALLOCATE, None, time.time())
+        self._add_message(side, ALLOCATE, None, time.time(), None)
 
-    def add_message(self, side, phase, body, server_rx):
-        self._add_message(side, phase, body, server_rx)
-        self.broadcast_message(phase, body, server_rx)
+    def add_message(self, side, phase, body, server_rx, msgid):
+        self._add_message(side, phase, body, server_rx, msgid)
+        self.broadcast_message(phase, body, server_rx, msgid)
         return self.get_messages() # for rendezvous_web.py POST /add
 
     def deallocate(self, side, mood):
-        self._add_message(side, DEALLOCATE, mood, time.time())
+        self._add_message(side, DEALLOCATE, mood, time.time(), None)
         db = self._db
         seen = set([row["side"] for row in
                     db.execute("SELECT `side` FROM `messages`"

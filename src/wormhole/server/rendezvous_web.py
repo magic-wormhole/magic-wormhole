@@ -132,7 +132,7 @@ class Adder(RelayResource):
 
         app = self._rendezvous.get_app(appid)
         channel = app.get_channel(channelid)
-        messages = channel.add_message(side, phase, body, time.time())
+        messages = channel.add_message(side, phase, body, time.time(), None)
         response = {"welcome": self._welcome, "messages": messages,
                     "sent": time.time()}
         return json_response(request, response)
