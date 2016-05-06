@@ -87,10 +87,14 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
             if not self._channel:
                 raise Error("Must set channel first")
-            meth = getattr(self, "handle_"+mtype, None)
-            if not meth:
-                raise Error("Unknown type")
-            return meth(self._channel, msg)
+            if mtype == "watch":
+                return self.handle_watch(self._channel, msg)
+            if mtype == "add":
+                return self.handle_add(self._channel, msg)
+            if mtype == "deallocate":
+                return self.handle_deallocate(self._channel, msg)
+
+            raise Error("Unknown type")
         except Error as e:
             self.send("error", error=e._explain, orig=msg)
 
