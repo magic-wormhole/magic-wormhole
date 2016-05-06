@@ -4,22 +4,16 @@ import json, time
 class Event:
     def __init__(self, name, when, **details):
         # data fields that will be dumped to JSON later
-        self._start = time.time() if when is None else float(when)
-        self._server_sent = None
-        self._stop = None
         self._name = name
+        self._start = time.time() if when is None else float(when)
+        self._stop = None
         self._details = details
-
-    def server_sent(self, when):
-        self._server_sent = when
 
     def detail(self, **details):
         self._details.update(details)
 
-    def finish(self, when=None, server_sent=None, **details):
+    def finish(self, when=None, **details):
         self._stop = time.time() if when is None else float(when)
-        if server_sent:
-            self.server_sent(server_sent)
         self.detail(**details)
 
     def __enter__(self):
@@ -50,8 +44,11 @@ class DebugTiming:
 
     def write(self, fn, stderr):
         with open(fn, "wb") as f:
-            data = [ [e._start, e._server_sent, e._stop, e._name, e._details]
+            data = [ dict(name=e._name,
+                          start=e._start, stop=e._stop,
+                          details=e._details,
+                          )
                      for e in self._events ]
-            json.dump(data, f)
+            json.dump(data, f, indent=1)
             f.write("\n")
         print("Timing data written to %s" % fn, file=stderr)

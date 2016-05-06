@@ -69,12 +69,11 @@ class Channel:
                    "phase": phase,
                    "body": hexlify(msg).decode("ascii")}
         data = json.dumps(payload).encode("utf-8")
-        with self._timing.add("send %s" % phase) as t:
+        with self._timing.add("send %s" % phase):
             r = requests.post(self._relay_url+"add", data=data,
                               timeout=self._timeout)
             r.raise_for_status()
             resp = r.json()
-            t.server_sent(resp.get("sent"))
         if "welcome" in resp:
             self._handle_welcome(resp["welcome"])
         self._add_inbound_messages(resp["messages"])
@@ -92,7 +91,7 @@ class Channel:
         # wasn't one of our own messages. It will either come from
         # previously-received messages, or from an EventSource that we attach
         # to the corresponding URL
-        with self._timing.add("get %s" % "/".join(sorted(phases))) as t:
+        with self._timing.add("get %s" % "/".join(sorted(phases))):
             phase_and_body = self._find_inbound_message(phases)
             while phase_and_body is None:
                 remaining = self._started + self._timeout - time.time()
@@ -113,7 +112,6 @@ class Channel:
                         phase_and_body = self._find_inbound_message(phases)
                         if phase_and_body:
                             f.close()
-                            t.server_sent(data.get("sent"))
                             break
                 if not phase_and_body:
                     time.sleep(self._wait)
@@ -133,11 +131,10 @@ class Channel:
         try:
             # ignore POST failure, don't call r.raise_for_status(), set a
             # short timeout and ignore failures
-            with self._timing.add("close") as t:
+            with self._timing.add("close"):
                 r = requests.post(self._relay_url+"deallocate", data=data,
                                   timeout=5)
-                resp = r.json()
-                t.server_sent(resp.get("sent"))
+                r.json()
         except requests.exceptions.RequestException:
             pass
 
@@ -154,28 +151,26 @@ class ChannelManager:
 
     def list_channels(self):
         queryargs = urlencode([("appid", self._appid)])
-        with self._timing.add("list") as t:
+        with self._timing.add("list"):
             r = requests.get(self._relay_url+"list?%s" % queryargs,
                              timeout=self._timeout)
             r.raise_for_status()
             data = r.json()
             if "welcome" in data:
                 self._handle_welcome(data["welcome"])
-            t.server_sent(data.get("sent"))
         channelids = data["channelids"]
         return channelids
 
     def allocate(self):
         data = json.dumps({"appid": self._appid,
                            "side": self._side}).encode("utf-8")
-        with self._timing.add("allocate") as t:
+        with self._timing.add("allocate"):
             r = requests.post(self._relay_url+"allocate", data=data,
                               timeout=self._timeout)
             r.raise_for_status()
             data = r.json()
             if "welcome" in data:
                 self._handle_welcome(data["welcome"])
-            t.server_sent(data.get("sent"))
         channelid = data["channelid"]
         return channelid
 

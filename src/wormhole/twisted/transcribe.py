@@ -78,7 +78,6 @@ class Wormhole:
         self._sent_messages = set() # (phase, body_bytes)
         self._delivered_messages = set() # (phase, body_bytes)
         self._received_messages = {} # phase -> body_bytes
-        self._received_messages_sent = {} # phase -> server timestamp
         self._sent_phases = set() # phases, to prohibit double-send
         self._got_phases = set() # phases, to prohibit double-read
         self._sleepers = []
@@ -125,12 +124,19 @@ class Wormhole:
     @inlineCallbacks
     def _ws_send(self, mtype, **kwargs):
         ws = yield self._get_websocket()
+        # msgid is used by misc/dump-timing.py to correlate our sends with
+        # their receives, and vice versa. They are also correlated with the
+        # ACKs we get back from the server (which we otherwise ignore). There
+        # are so few messages, 16 bits is enough to be mostly-unique.
+        kwargs["id"] = hexlify(os.urandom(2)).decode("ascii")
         kwargs["type"] = mtype
         payload = json.dumps(kwargs).encode("utf-8")
+        self._timing.add("ws_send", _side=self._side, **kwargs)
         ws.sendMessage(payload, False)
 
     def _ws_dispatch_msg(self, payload):
         msg = json.loads(payload.decode("utf-8"))
+        self._timing.add("ws_receive", _side=self._side, message=msg)
         mtype = msg["type"]
         meth = getattr(self, "_ws_handle_"+mtype, None)
         if not meth:
@@ -143,7 +149,6 @@ class Wormhole:
         pass
 
     def _ws_handle_welcome(self, msg):
-        self._timing.add("welcome").server_sent(msg["server_tx"])
         welcome = msg["welcome"]
         if ("motd" in welcome and
             not self.motd_displayed):
@@ -194,7 +199,6 @@ class Wormhole:
         self._wakeup()
 
     def _ws_handle_error(self, msg):
-        self._timing.add("error").server_sent(msg["server_tx"])
         err = ServerError("%s: %s" % (msg["error"], msg["orig"]),
                           self._ws_url)
         return self._signal_error(err)
@@ -215,8 +219,7 @@ class Wormhole:
         if self._started_get_code: raise UsageError
         self._started_get_code = True
         with self._timing.add("API get_code"):
-            with self._timing.add("allocate") as t:
-                self._allocate_t = t
+            with self._timing.add("allocate"):
                 yield self._ws_send(u"allocate")
                 while self._channelid is None:
                     yield self._sleep()
@@ -227,7 +230,6 @@ class Wormhole:
         returnValue(code)
 
     def _ws_handle_allocated(self, msg):
-        self._allocate_t.server_sent(msg["server_tx"])
         if self._channelid is not None:
             return self._signal_error("got duplicate channelid")
         self._channelid = msg["channelid"]
@@ -422,7 +424,6 @@ class Wormhole:
             err = ServerError("got duplicate phase %s" % phase, self._ws_url)
             return self._signal_error(err)
         self._received_messages[phase] = body
-        self._received_messages_sent[phase] = msg.get(u"sent")
         if phase == u"_confirm":
             # TODO: we might not have a master key yet, if the caller wasn't
             # waiting in _get_master_key() when a back-to-back pake+_confirm
@@ -437,14 +438,11 @@ class Wormhole:
 
     @inlineCallbacks
     def _msg_get(self, phase):
-        with self._timing.add("get", phase=phase) as t:
+        with self._timing.add("get", phase=phase):
             while phase not in self._received_messages:
                 yield self._sleep() # we can wait a long time here
                 # that will throw an error if something goes wrong
             msg = self._received_messages[phase]
-            sent = self._received_messages_sent[phase]
-            if sent:
-                t.server_sent(sent)
         returnValue(msg)
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
