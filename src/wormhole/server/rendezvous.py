@@ -45,14 +45,8 @@ class Channel:
 
     def add_listener(self, ep):
         self._listeners.add(ep)
-        db = self._db
-        for row in db.execute("SELECT * FROM `messages`"
-                              " WHERE `appid`=? AND `channelid`=?"
-                              " ORDER BY `when` ASC",
-                              (self._appid, self._channelid)).fetchall():
-            if row["phase"] in (u"_allocate", u"_deallocate"):
-                continue
-            yield {"phase": row["phase"], "body": row["body"]}
+        return self.get_messages()
+
     def remove_listener(self, ep):
         self._listeners.discard(ep)
 
