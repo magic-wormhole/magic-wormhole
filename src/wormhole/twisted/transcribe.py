@@ -5,6 +5,7 @@ from binascii import hexlify, unhexlify
 from twisted.internet import reactor, defer, endpoints, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.python import log
 from autobahn.twisted import websocket
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
@@ -133,7 +134,9 @@ class Wormhole:
         mtype = msg["type"]
         meth = getattr(self, "_ws_handle_"+mtype, None)
         if not meth:
-            raise ValueError("Unknown inbound message type %r" % (msg,))
+            # make tests fail, but real application will ignore it
+            log.err(ValueError("Unknown inbound message type %r" % (msg,)))
+            return
         return meth(msg)
 
     def _ws_handle_welcome(self, msg):
