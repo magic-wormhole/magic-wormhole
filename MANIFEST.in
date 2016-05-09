@@ -3,4 +3,5 @@ include src/wormhole/_version.py
 include LICENSE README.md NEWS.md
 recursive-include docs *.md *.rst
 include .coveragerc tox.ini
-recursive-include misc *.py *.html *.js *.css
+include misc/windows-build.cmd
+include misc/*.py misc/web/*.html misc/web/*.js misc/web/*.css
