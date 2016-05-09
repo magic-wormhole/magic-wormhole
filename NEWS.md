@@ -1,6 +1,19 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.7.6 (08-May-2016)
+
+* Switch to "tqdm" for nicer CLI progress bars.
+* Fail better when input-code is interrupted (prompt user to hit Return,
+  rather than hanging forever)
+* Close channel upon error more reliably.
+* Explain WrongPasswordError better.
+* (internal): improve --dump-timing instrumentation and rendering.
+
+Compatibility: this remains compatible with 0.7.x, and 0.8.x is still
+expected to break compatibility.
+
+
 ## Release 0.7.5 (20-Apr-2016)
 
 * The CLI tools now use the Twisted-based library exclusively.
