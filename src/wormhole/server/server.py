@@ -8,7 +8,6 @@ from .endpoint_service import ServerEndpointService
 from .. import __version__
 from .database import get_db
 from .rendezvous import Rendezvous
-from .rendezvous_web import WebRendezvous
 from .rendezvous_websocket import WebSocketRendezvousFactory
 from .transit_server import Transit
 
@@ -47,7 +46,7 @@ class RelayServer(service.MultiService):
         rendezvous.setServiceParent(self) # for the pruning timer
 
         root = Root()
-        wr = WebRendezvous(rendezvous)
+        wr = resource.Resource()
         root.putChild(b"wormhole-relay", wr)
 
         wsrf = WebSocketRendezvousFactory(None, rendezvous)
@@ -72,7 +71,6 @@ class RelayServer(service.MultiService):
         self._db = db
         self._rendezvous = rendezvous
         self._root = root
-        self._rendezvous_web = wr
         self._rendezvous_web_service = rendezvous_web_service
         self._rendezvous_websocket = wsrf
         if transit_port:
