@@ -77,7 +77,7 @@ before being closed.
 
 To make it easier to call `close()`, the blocking Wormhole objects can be
 used as a context manager. Just put your code in the body of a `with
-Wormhole(ARGS) as w:` statement, and `close()` will automatically be called
+wormhole(ARGS) as w:` statement, and `close()` will automatically be called
 when the block exits (either successfully or due to an exception).
 
 ## Examples
@@ -85,10 +85,10 @@ when the block exits (either successfully or due to an exception).
 The synchronous+blocking flow looks like this:
 
 ```python
-from wormhole.blocking.transcribe import Wormhole
+from wormhole.blocking.transcribe import wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"initiator's data"
-with Wormhole(u"appid", RENDEZVOUS_RELAY) as i:
+with wormhole(u"appid", RENDEZVOUS_RELAY) as i:
     code = i.get_code()
     print("Invitation Code: %s" % code)
     i.send(mydata)
@@ -98,11 +98,11 @@ with Wormhole(u"appid", RENDEZVOUS_RELAY) as i:
 
 ```python
 import sys
-from wormhole.blocking.transcribe import Wormhole
+from wormhole.blocking.transcribe import wormhole
 from wormhole.public_relay import RENDEZVOUS_RELAY
 mydata = b"receiver's data"
 code = sys.argv[1]
-with Wormhole(u"appid", RENDEZVOUS_RELAY) as r:
+with wormhole(u"appid", RENDEZVOUS_RELAY) as r:
     r.set_code(code)
     r.send(mydata)
     theirdata = r.get()
@@ -116,9 +116,9 @@ The Twisted-friendly flow looks like this:
 ```python
 from twisted.internet import reactor
 from wormhole.public_relay import RENDEZVOUS_RELAY
-from wormhole.twisted.transcribe import Wormhole
+from wormhole.twisted.transcribe import wormhole
 outbound_message = b"outbound data"
-w1 = Wormhole(u"appid", RENDEZVOUS_RELAY)
+w1 = wormhole(u"appid", RENDEZVOUS_RELAY, reactor)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
@@ -136,7 +136,7 @@ reactor.run()
 On the other side, you call `set_code()` instead of waiting for `get_code()`:
 
 ```python
-w2 = Wormhole(u"appid", RENDEZVOUS_RELAY)
+w2 = wormhole(u"appid", RENDEZVOUS_RELAY, reactor)
 w2.set_code(code)
 d = w2.send(my_message)
 ...
@@ -253,9 +253,8 @@ You may not be able to hold the Wormhole object in memory for the whole sync
 process: maybe you allow it to wait for several days, but the program will be
 restarted during that time. To support this, you can persist the state of the
 object by calling `data = w.serialize()`, which will return a printable
-bytestring (the JSON-encoding of a small dictionary). To restore, use the
-`from_serialized(data)` classmethod (e.g. `w =
-Wormhole.from_serialized(data)`).
+bytestring (the JSON-encoding of a small dictionary). To restore, use `w =
+wormhole_from_serialized(data, reactor)`.
 
 There is exactly one point at which you can serialize the wormhole: *after*
 establishing the invitation code, but before waiting for `get_verifier()` or

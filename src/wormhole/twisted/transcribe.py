@@ -2,7 +2,7 @@ from __future__ import print_function
 import os, sys, json, re, unicodedata
 from six.moves.urllib_parse import urlparse
 from binascii import hexlify, unhexlify
-from twisted.internet import reactor, defer, endpoints, error
+from twisted.internet import defer, endpoints, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
@@ -53,13 +53,13 @@ class WSFactory(websocket.WebSocketClientFactory):
         proto.wormhole_open = False
         return proto
 
-class Wormhole:
+class _Wormhole:
     motd_displayed = False
     version_warning_displayed = False
     _send_confirm = True
 
-    def __init__(self, appid, relay_url, tor_manager=None, timing=None,
-                 reactor=reactor):
+    def __init__(self, appid, relay_url, reactor,
+                 tor_manager=None, timing=None):
         if not isinstance(appid, type(u"")): raise TypeError(type(appid))
         if not isinstance(relay_url, type(u"")):
             raise TypeError(type(relay_url))
@@ -351,9 +351,9 @@ class Wormhole:
 
     # entry point 3: resume a previously-serialized session
     @classmethod
-    def from_serialized(klass, data):
+    def from_serialized(klass, data, reactor):
         d = json.loads(data)
-        self = klass(d["appid"], d["relay_url"])
+        self = klass(d["appid"], d["relay_url"], reactor)
         self._side = d["side"]
         self._channelid = d["channelid"]
         self._set_code(d["code"])
@@ -556,3 +556,11 @@ class Wormhole:
     def _ws_handle_deallocated(self, msg):
         self._deallocated_status = msg["status"]
         self._wakeup()
+
+def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
+    w = _Wormhole(appid, relay_url, reactor, tor_manager, timing)
+    return w
+
+def wormhole_from_serialized(data, reactor):
+    w = _Wormhole.from_serialized(data, reactor)
+    return w

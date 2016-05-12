@@ -3,7 +3,7 @@ import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..twisted.transcribe import Wormhole
+from ..twisted.transcribe import wormhole
 from ..twisted.transit import TransitReceiver
 from ..errors import TransferError
 
@@ -45,9 +45,8 @@ class TwistedReceiver:
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
             yield tor_manager.start()
-        w = Wormhole(APPID, self.args.relay_url, tor_manager,
-                     timing=self.args.timing,
-                     reactor=self._reactor)
+        w = wormhole(APPID, self.args.relay_url, self._reactor,
+                     tor_manager, timing=self.args.timing)
         # I wanted to do this instead:
         #
         #    try:

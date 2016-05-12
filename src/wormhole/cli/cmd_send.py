@@ -5,7 +5,7 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
-from ..twisted.transcribe import Wormhole
+from ..twisted.transcribe import wormhole
 from ..twisted.transit import TransitSender
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
@@ -49,8 +49,8 @@ def send(args, reactor=reactor):
         # user handing off the wormhole code
         yield tor_manager.start()
 
-    w = Wormhole(APPID, args.relay_url, tor_manager, timing=args.timing,
-                 reactor=reactor)
+    w = wormhole(APPID, args.relay_url, reactor, tor_manager,
+                 timing=args.timing)
 
     d = _send(reactor, w, args, phase1, fd_to_send, tor_manager)
     d.addBoth(w.close)

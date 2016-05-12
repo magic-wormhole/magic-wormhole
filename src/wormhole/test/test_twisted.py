@@ -1,11 +1,16 @@
 from __future__ import print_function
 import json
 from twisted.trial import unittest
+from twisted.internet import reactor
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from ..twisted.transcribe import Wormhole, UsageError, WrongPasswordError
+from ..twisted.transcribe import (wormhole, wormhole_from_serialized,
+                                  UsageError, WrongPasswordError)
 from .common import ServerBase
 
 APPID = u"appid"
+
+def Wormhole(appid, relayurl):
+    return wormhole(appid, relayurl, reactor)
 
 class Basic(ServerBase, unittest.TestCase):
 
@@ -220,7 +225,7 @@ class Basic(ServerBase, unittest.TestCase):
         unpacked = json.loads(s) # this is supposed to be JSON
         self.assertEqual(type(unpacked), dict)
 
-        self.new_w1 = Wormhole.from_serialized(s)
+        self.new_w1 = wormhole_from_serialized(s, reactor)
         yield self.doBoth(self.new_w1.send(b"data1"), w2.send(b"data2"))
         dl = yield self.doBoth(self.new_w1.get(), w2.get())
         (dataX, dataY) = dl
