@@ -376,7 +376,7 @@ class Wormhole:
             # receiver will see this a round-trip after they send their PAKE
             # (because the sender is using wait=True inside _get_master_key,
             # below: otherwise the sender might go do some blocking call).
-            yield self._msg_get(u"_confirm")
+            yield self._msg_get(u"confirm")
         returnValue(self._verifier)
 
     @inlineCallbacks
@@ -397,7 +397,7 @@ class Wormhole:
                 confkey = self.derive_key(u"wormhole:confirmation")
                 nonce = os.urandom(CONFMSG_NONCE_LENGTH)
                 confmsg = make_confmsg(confkey, nonce)
-                yield self._msg_send(u"_confirm", confmsg, wait=True)
+                yield self._msg_send(u"confirm", confmsg, wait=True)
 
     @inlineCallbacks
     def _msg_send(self, phase, body, wait=False):
@@ -426,7 +426,7 @@ class Wormhole:
             err = ServerError("got duplicate phase %s" % phase, self._ws_url)
             return self._signal_error(err)
         self._received_messages[phase] = body
-        if phase == u"_confirm":
+        if phase == u"confirm":
             # TODO: we might not have a master key yet, if the caller wasn't
             # waiting in _get_master_key() when a back-to-back pake+_confirm
             # message pair arrived.
