@@ -70,21 +70,41 @@ class Basic(ServerBase, unittest.TestCase):
 
 
     @inlineCallbacks
-    def test_phases(self):
+    def test_multiple_messages(self):
         w1 = Wormhole(APPID, self.relayurl)
         w2 = Wormhole(APPID, self.relayurl)
         w1.set_code(u"123-purple-elephant")
         w2.set_code(u"123-purple-elephant")
-        yield self.doBoth(w1.send(b"data1", u"p1"), w2.send(b"data2", u"p1"))
-        yield self.doBoth(w1.send(b"data3", u"p2"), w2.send(b"data4", u"p2"))
-        dl = yield self.doBoth(w1.get(u"p2"), w2.get(u"p1"))
-        (dataX, dataY) = dl
-        self.assertEqual(dataX, b"data4")
-        self.assertEqual(dataY, b"data1")
-        dl = yield self.doBoth(w1.get(u"p1"), w2.get(u"p2"))
+        yield self.doBoth(w1.send(b"data1"), w2.send(b"data2"))
+        yield self.doBoth(w1.send(b"data3"), w2.send(b"data4"))
+        dl = yield self.doBoth(w1.get(), w2.get())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        dl = yield self.doBoth(w1.get(), w2.get())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data4")
         self.assertEqual(dataY, b"data3")
+        yield self.doBoth(w1.close(), w2.close())
+
+    @inlineCallbacks
+    def test_multiple_messages_2(self):
+        w1 = Wormhole(APPID, self.relayurl)
+        w2 = Wormhole(APPID, self.relayurl)
+        w1.set_code(u"123-purple-elephant")
+        w2.set_code(u"123-purple-elephant")
+        # TODO: set_code should be sufficient to kick things off, but for now
+        # we must also let both sides do at least one send() or get()
+        yield self.doBoth(w1.send(b"data1"), w2.send(b"ignored"))
+        yield w1.get()
+        yield w1.send(b"data2")
+        yield w1.send(b"data3")
+        data = yield w2.get()
+        self.assertEqual(data, b"data1")
+        data = yield w2.get()
+        self.assertEqual(data, b"data2")
+        data = yield w2.get()
+        self.assertEqual(data, b"data3")
         yield self.doBoth(w1.close(), w2.close())
 
     @inlineCallbacks
@@ -184,31 +204,6 @@ class Basic(ServerBase, unittest.TestCase):
         w2 = Wormhole(APPID, self.relayurl)
         yield w2.get_code()
         yield self.assertFailure(w2.get_code(), UsageError)
-        yield self.doBoth(w1.close(), w2.close())
-
-    @inlineCallbacks
-    def test_repeat_phases(self):
-        w1 = Wormhole(APPID, self.relayurl)
-        w1.set_code(u"123-purple-elephant")
-        w2 = Wormhole(APPID, self.relayurl)
-        w2.set_code(u"123-purple-elephant")
-        # we must let them establish a key before we can send data
-        yield self.doBoth(w1.get_verifier(), w2.get_verifier())
-        yield w1.send(b"data1", phase=u"1")
-        # underscore-prefixed phases are reserved
-        yield self.assertFailure(w1.send(b"data1", phase=u"_1"), UsageError)
-        yield self.assertFailure(w1.get(phase=u"_1"), UsageError)
-        # you can't send twice to the same phase
-        yield self.assertFailure(w1.send(b"data1", phase=u"1"), UsageError)
-        # but you can send to a different one
-        yield w1.send(b"data2", phase=u"2")
-        res = yield w2.get(phase=u"1")
-        self.failUnlessEqual(res, b"data1")
-        # and you can't read twice from the same phase
-        yield self.assertFailure(w2.get(phase=u"1"), UsageError)
-        # but you can read from a different one
-        res = yield w2.get(phase=u"2")
-        self.failUnlessEqual(res, b"data2")
         yield self.doBoth(w1.close(), w2.close())
 
     @inlineCallbacks
