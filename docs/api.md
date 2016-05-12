@@ -10,6 +10,15 @@ short string that is transcribed from one machine to the other by the users
 at the keyboard. This works in conjunction with a baked-in "rendezvous
 server" that relays information from one machine to the other.
 
+The "Wormhole" object provides a secure record pipe between any two programs
+that use the same wormhole code (and are configured with the same application
+ID and rendezvous server). Each side can send multiple messages to the other,
+but the encrypted data for all messages must pass through (and be temporarily
+stored on) the rendezvous server, which is a shared resource. For this
+reason, larger data (including bulk file transfers) should use the Transit
+class instead. The Wormhole object has a method to create a Transit object
+for this purpose.
+
 ## Modes
 
 This library will eventually offer multiple modes. For now, only "transcribe
@@ -39,22 +48,32 @@ string.
 The two machines participating in the wormhole setup are not distinguished:
 it doesn't matter which one goes first, and both use the same Wormhole class.
 In the first variant, one side calls `get_code()` while the other calls
-`set_code()`. In the second variant, both sides call `set_code()`. Note that
+`set_code()`. In the second variant, both sides call `set_code()`. (Note that
 this is not true for the "Transit" protocol used for bulk data-transfer: the
 Transit class currently distinguishes "Sender" from "Receiver", so the
-programs on each side must have some way to decide (ahead of time) which is
-which.
+programs on each side must have some way to decide ahead of time which is
+which).
 
-Each side gets to do one `send_data()` call and one `get_data()` call per
-phase (see below). `get_data` will wait until the other side has done
-`send_data`, so the application developer must be careful to avoid deadlocks
-(don't get before you send on both sides in the same protocol). When both
-sides are done, they must call `close()`, to let the library know that the
-connection is complete and it can deallocate the channel. If you forget to
-call `close()`, the server will not free the channel, and other users will
-suffer longer invitation codes as a result. To encourage `close()`, the
-library will log an error if a Wormhole object is destroyed before being
-closed.
+Each side can then do an arbitrary number of `send()` and `get()` calls.
+`send()` writes a message into the channel. `get()` waits for a new message
+to be available, then returns it. The Wormhole is not meant as a long-term
+communication channel, but some protocols work better if they can exchange an
+initial pair of messages (perhaps offering some set of negotiable
+capabilities), and then follow up with a second pair (to reveal the results
+of the negotiation). Another use case is for an ACK that gets sent at the end
+of a file transfer: the Wormhole is held open until the Transit object
+reports completion, and the last message is a hash of the file contents to
+prove it was received correctly.
+
+Note: the application developer must be careful to avoid deadlocks (if both
+sides want to `get()`, somebody has to `send()` first).
+
+When both sides are done, they must call `close()`, to let the library know
+that the connection is complete and it can deallocate the channel. If you
+forget to call `close()`, the server will not free the channel, and other
+users will suffer longer invitation codes as a result. To encourage
+`close()`, the library will log an error if a Wormhole object is destroyed
+before being closed.
 
 To make it easier to call `close()`, the blocking Wormhole objects can be
 used as a context manager. Just put your code in the body of a `with
@@ -72,8 +91,8 @@ mydata = b"initiator's data"
 with Wormhole(u"appid", RENDEZVOUS_RELAY) as i:
     code = i.get_code()
     print("Invitation Code: %s" % code)
-    i.send_data(mydata)
-    theirdata = i.get_data()
+    i.send(mydata)
+    theirdata = i.get()
     print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
@@ -85,8 +104,8 @@ mydata = b"receiver's data"
 code = sys.argv[1]
 with Wormhole(u"appid", RENDEZVOUS_RELAY) as r:
     r.set_code(code)
-    r.send_data(mydata)
-    theirdata = r.get_data()
+    r.send(mydata)
+    theirdata = r.get()
     print("Their data: %s" % theirdata.decode("ascii"))
 ```
 
@@ -103,12 +122,12 @@ w1 = Wormhole(u"appid", RENDEZVOUS_RELAY)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
-    return w1.send_data(outbound_message)
+    return w1.send(outbound_message)
 d.addCallback(_got_code)
-d.addCallback(lambda _: w1.get_data())
-def _got_data(inbound_message):
+d.addCallback(lambda _: w1.get())
+def _got(inbound_message):
     print "Inbound message:", inbound_message
-d.addCallback(_got_data)
+d.addCallback(_got)
 d.addCallback(w1.close)
 d.addBoth(lambda _: reactor.stop())
 reactor.run()
@@ -119,7 +138,7 @@ On the other side, you call `set_code()` instead of waiting for `get_code()`:
 ```python
 w2 = Wormhole(u"appid", RENDEZVOUS_RELAY)
 w2.set_code(code)
-d = w2.send_data(my_message)
+d = w2.send(my_message)
 ...
 ```
 
@@ -127,56 +146,45 @@ Note that the Twisted-form `close()` accepts (and returns) an optional
 argument, so you can use `d.addCallback(w.close)` instead of
 `d.addCallback(lambda _: w.close())`.
 
-## Phases
-
-If necessary, more than one message can be exchanged through the relay
-server. It is not meant as a long-term communication channel, but some
-protocols work better if they can exchange an initial pair of messages
-(perhaps offering some set of negotiable capabilities), and then follow up
-with a second pair (to reveal the results of the negotiation).
-
-To support this, `send_data()/get_data()` accept a "phase" argument: an
-arbitrary (unicode) string. It must match the other side: calling
-`send_data(data, phase=u"offer")` on one side will deliver that data to
-`get_data(phase=u"offer")` on the other.
-
-It is a UsageError to call `send_data()` or `get_data()` twice with the same
-phase name. The relay server may limit the number of phases that may be
-exchanged, however it will always allow at least two.
-
 ## Verifier
 
-You can call `w.get_verifier()` before `send_data()/get_data()`: this will
-perform the first half of the PAKE negotiation, then return a verifier object
-(bytes) which can be converted into a printable representation and manually
-compared. When the users are convinced that `get_verifier()` from both sides
-are the same, call `send_data()/get_data()` to continue the transfer. If you
-call `send_data()/get_data()` before `get_verifier()`, it will perform the
-complete transfer without pausing.
+For extra protection against guessing attacks, Wormhole can provide a
+"Verifier". This is a moderate-length series of bytes (a SHA256 hash) that is
+derived from the supposedly-shared session key. If desired, both sides can
+display this value, and the humans can manually compare them before allowing
+the rest of the protocol to proceed. If they do not match, then the two
+programs are not talking to each other (they may both be talking to a
+man-in-the-middle attacker), and the protocol should be abandoned.
+
+To retrieve the verifier, you call `w.get_verifier()` before any calls to
+`send()/get()`. Turn this into hex or Base64 to print it, or render it as
+ASCII-art, etc. Once the users are convinced that `get_verifier()` from both
+sides are the same, call `send()/get()` to continue the protocol. If you call
+`send()/get()` before `get_verifier()`, it will perform the complete protocol
+without pausing.
 
 The Twisted form of `get_verifier()` returns a Deferred that fires with the
 verifier bytes.
 
 ## Generating the Invitation Code
 
-In most situations, the "sending" or "initiating" side will call
-`i.get_code()` to generate the invitation code. This returns a string in the
-form `NNN-code-words`. The numeric "NNN" prefix is the "channel id", and is a
+In most situations, the "sending" or "initiating" side will call `get_code()`
+to generate the invitation code. This returns a string in the form
+`NNN-code-words`. The numeric "NNN" prefix is the "channel id", and is a
 short integer allocated by talking to the rendezvous server. The rest is a
 randomly-generated selection from the PGP wordlist, providing a default of 16
 bits of entropy. The initiating program should display this code to the user,
 who should transcribe it to the receiving user, who gives it to the Receiver
-object by calling `r.set_code()`. The receiving program can also use
+object by calling `set_code()`. The receiving program can also use
 `input_code_with_completion()` to use a readline-based input function: this
 offers tab completion of allocated channel-ids and known codewords.
 
 Alternatively, the human users can agree upon an invitation code themselves,
-and provide it to both programs later (with `i.set_code()` and
-`r.set_code()`). They should choose a channel-id that is unlikely to already
-be in use (3 or more digits are recommended), append a hyphen, and then
-include randomly-selected words or characters. Dice, coin flips, shuffled
-cards, or repeated sampling of a high-resolution stopwatch are all useful
-techniques.
+and provide it to both programs later (both sides call `set_code()`). They
+should choose a channel-id that is unlikely to already be in use (3 or more
+digits are recommended), append a hyphen, and then include randomly-selected
+words or characters. Dice, coin flips, shuffled cards, or repeated sampling
+of a high-resolution stopwatch are all useful techniques.
 
 Note that the code is a human-readable string (the python "unicode" type in
 python2, "str" in python3).
@@ -192,8 +200,8 @@ invitation codes are scoped to the app-id. Note that the app-id must be
 unicode, not bytes, so on python2 use `u"appid"`.
 
 Distinct app-ids reduce the size of the connection-id numbers. If fewer than
-ten initiators are active for a given app-id, the connection-id will only
-need to contain a single digit, even if some other app-id is currently using
+ten Wormholes are active for a given app-id, the connection-id will only need
+to contain a single digit, even if some other app-id is currently using
 thousands of concurrent sessions.
 
 ## Rendezvous Relays
@@ -251,10 +259,9 @@ Wormhole.from_serialized(data)`).
 
 There is exactly one point at which you can serialize the wormhole: *after*
 establishing the invitation code, but before waiting for `get_verifier()` or
-`get_data()`, or calling `send_data()`. If you are creating a new invitation
-code, the correct time is during the callback fired by `get_code()`. If you
-are accepting a pre-generated code, the time is just after calling
-`set_code()`.
+`get()`, or calling `send()`. If you are creating a new invitation code, the
+correct time is during the callback fired by `get_code()`. If you are
+accepting a pre-generated code, the time is just after calling `set_code()`.
 
 To properly checkpoint the process, you should store the first message
 (returned by `start()`) next to the serialized wormhole instance, so you can
@@ -278,9 +285,3 @@ in python3):
 * transit connection hints (e.g. "host:port")
 * application identifier
 * derived-key "purpose" string: `w.derive_key(PURPOSE)`
-
-## Detailed Example
-
-```python
-
-```
