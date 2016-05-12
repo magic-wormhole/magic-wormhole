@@ -94,17 +94,17 @@ def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
             if ok.lower() == "no":
                 err = "sender rejected verification check, abandoned transfer"
                 reject_data = json.dumps({"error": err}).encode("utf-8")
-                yield w.send_data(reject_data)
+                yield w.send(reject_data)
                 raise TransferError(err)
     if fd_to_send is not None:
         transit_key = w.derive_key(APPID+"/transit-key")
         transit_sender.set_transit_key(transit_key)
 
     my_phase1_bytes = json.dumps(phase1).encode("utf-8")
-    yield w.send_data(my_phase1_bytes)
+    yield w.send(my_phase1_bytes)
 
     # this may raise WrongPasswordError
-    them_phase1_bytes = yield w.get_data()
+    them_phase1_bytes = yield w.get()
 
     them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
 

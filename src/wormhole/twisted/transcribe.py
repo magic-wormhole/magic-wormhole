@@ -332,7 +332,7 @@ class Wormhole:
 
     def serialize(self):
         # I can only be serialized after get_code/set_code and before
-        # get_verifier/get_data
+        # get_verifier/get
         if self._code is None: raise UsageError
         if self._key is not None: raise UsageError
         if self._sent_phases: raise UsageError
@@ -448,7 +448,7 @@ class Wormhole:
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         if self._key is None:
-            # call after get_verifier() or get_data()
+            # call after get_verifier() or get()
             raise UsageError
         return HKDF(self._key, length, CTXinfo=to_bytes(purpose))
 
@@ -469,17 +469,17 @@ class Wormhole:
         return data
 
     @inlineCallbacks
-    def send_data(self, outbound_data, phase=u"data", wait=False):
+    def send(self, outbound_data, phase=u"data", wait=False):
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if self._closed: raise UsageError
         if self._code is None:
-            raise UsageError("You must set_code() before send_data()")
+            raise UsageError("You must set_code() before send()")
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if phase in self._sent_phases: raise UsageError # only call this once
         self._sent_phases.add(phase)
-        with self._timing.add("API send_data", phase=phase, wait=wait):
+        with self._timing.add("API send", phase=phase, wait=wait):
             # Without predefined roles, we can't derive predictably unique
             # keys for each side, so we use the same key for both. We use
             # random nonces to keep the messages distinct, and we
@@ -490,14 +490,14 @@ class Wormhole:
             yield self._msg_send(phase, outbound_encrypted, wait)
 
     @inlineCallbacks
-    def get_data(self, phase=u"data"):
+    def get(self, phase=u"data"):
         if not isinstance(phase, type(u"")): raise TypeError(type(phase))
         if self._closed: raise UsageError
         if self._code is None: raise UsageError
         if phase.startswith(u"_"): raise UsageError # reserved for internals
         if phase in self._got_phases: raise UsageError # only call this once
         self._got_phases.add(phase)
-        with self._timing.add("API get_data", phase=phase):
+        with self._timing.add("API get", phase=phase):
             yield self._get_master_key()
             body = yield self._msg_get(phase) # we can wait a long time here
         try:

@@ -90,7 +90,7 @@ class TwistedReceiver:
                 raise RespondError("unknown offer type")
         except RespondError as r:
             data = json.dumps({"error": r.response}).encode("utf-8")
-            yield w.send_data(data)
+            yield w.send(data)
             raise TransferError(r.response)
         returnValue(None)
 
@@ -113,7 +113,7 @@ class TwistedReceiver:
     @inlineCallbacks
     def get_data(self, w):
         # this may raise WrongPasswordError
-        them_bytes = yield w.get_data()
+        them_bytes = yield w.get()
         them_d = json.loads(them_bytes.decode("utf-8"))
         if "error" in them_d:
             raise TransferError(them_d["error"])
@@ -124,7 +124,7 @@ class TwistedReceiver:
         # we're receiving a text message
         self.msg(them_d["message"])
         data = json.dumps({"message_ack": "ok"}).encode("utf-8")
-        yield w.send_data(data, wait=True)
+        yield w.send(data, wait=True)
 
     def handle_file(self, them_d):
         file_data = them_d["file"]
@@ -199,7 +199,7 @@ class TwistedReceiver:
                 "relay_connection_hints": relay_hints,
                 },
             }).encode("utf-8")
-        yield w.send_data(data)
+        yield w.send(data)
 
         # now receive the rest of the owl
         tdata = them_d["transit"]
