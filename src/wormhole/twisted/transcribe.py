@@ -211,7 +211,7 @@ class _Wormhole:
         if not self._ws_channel_claimed:
             yield self._ws_send(u"claim", channelid=self._channelid)
             self._ws_channel_claimed = True
-            yield self._ws_send(u"watch")
+            yield self._ws_send(u"watch", channelid=self._channelid)
 
     # entry point 1: generate a new code
     @inlineCallbacks
@@ -406,7 +406,7 @@ class _Wormhole:
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
         t = self._timing.add("add", phase=phase, wait=wait)
-        yield self._ws_send(u"add", phase=phase,
+        yield self._ws_send(u"add", channelid=self._channelid, phase=phase,
                             body=hexlify(body).decode("ascii"))
         if wait:
             while phase not in self._delivered_messages:
@@ -546,7 +546,8 @@ class _Wormhole:
     @inlineCallbacks
     def _release(self, mood):
         with self._timing.add("release"):
-            yield self._ws_send(u"release", mood=mood)
+            yield self._ws_send(u"release", channelid=self._channelid,
+                                mood=mood)
             while self._released_status is None:
                 yield self._sleep(wake_on_error=False)
         # TODO: set a timeout, don't wait forever for an ack

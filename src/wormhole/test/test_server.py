@@ -230,7 +230,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
-        c1.send(u"release")
+        c1.send(u"release", channelid=cid)
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"deleted")
@@ -265,7 +265,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.check_welcome(msg)
         c2.send(u"bind", appid=u"appid", side=u"side-2")
         c2.send(u"claim", channelid=cid)
-        c2.send(u"add", phase="1", body="")
+        c2.send(u"add", channelid=cid, phase="1", body="")
         yield c2.sync()
 
         self.assertEqual(app.get_claimed(), set([cid]))
@@ -282,12 +282,12 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
-        c1.send(u"release")
+        c1.send(u"release", channelid=cid)
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"waiting")
 
-        c2.send(u"release")
+        c2.send(u"release", channelid=cid)
         msg = yield c2.next_non_ack()
         self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"deleted")
@@ -313,25 +313,6 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(c1.errors, [])
 
     @inlineCallbacks
-    def test_allocate_and_claim_different(self):
-        c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
-        c1.send(u"bind", appid=u"appid", side=u"side")
-        c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
-        c1.send(u"claim", channelid=cid+1)
-        yield c1.sync()
-        # that should signal an error
-        self.assertEqual(len(c1.errors), 1, c1.errors)
-        msg = c1.errors[0]
-        self.assertEqual(msg["type"], "error")
-        self.assertEqual(msg["error"], "Already bound to channelid %d" % cid)
-        self.assertEqual(msg["orig"], {"type": "claim", "channelid": cid+1})
-
-    @inlineCallbacks
     def test_message(self):
         c1 = yield self.make_client()
         msg = yield c1.next_non_ack()
@@ -345,13 +326,13 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         channel = app.get_channel(cid)
         self.assertEqual(channel.get_messages(), [])
 
-        c1.send(u"watch")
+        c1.send(u"watch", channelid=cid)
         yield c1.sync()
         self.assertEqual(len(channel._listeners), 1)
         c1.strip_acks()
         self.assertEqual(c1.events, [])
 
-        c1.send(u"add", phase="1", body="msg1A")
+        c1.send(u"add", channelid=cid, phase="1", body="msg1A")
         yield c1.sync()
         c1.strip_acks()
         self.assertEqual(strip_messages(channel.get_messages()),
@@ -364,8 +345,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertIn("server_tx", msg)
         self.assertIsInstance(msg["server_tx"], float)
 
-        c1.send(u"add", phase="1", body="msg1B")
-        c1.send(u"add", phase="2", body="msg2A")
+        c1.send(u"add", channelid=cid, phase="1", body="msg1B")
+        c1.send(u"add", channelid=cid, phase="2", body="msg2A")
 
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], "message")
@@ -390,7 +371,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c2.send(u"bind", appid=u"appid", side=u"side")
         c2.send(u"claim", channelid=cid)
         # 'watch' triggers delivery of old messages, in temporal order
-        c2.send(u"watch")
+        c2.send(u"watch", channelid=cid)
 
         msg = yield c2.next_non_ack()
         self.assertEqual(msg["type"], "message")
@@ -408,7 +389,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
                          {"phase": "2", "body": "msg2A"})
 
         # adding a duplicate is not an error, and clients will ignore it
-        c1.send(u"add", phase="2", body="msg2A")
+        c1.send(u"add", channelid=cid, phase="2", body="msg2A")
 
         # the duplicate message *does* get stored, and delivered
         msg = yield c2.next_non_ack()

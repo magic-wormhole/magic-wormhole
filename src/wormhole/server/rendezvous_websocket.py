@@ -3,26 +3,26 @@ from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
 
-# Each WebSocket connection is bound to one "appid", one "side", and one
-# "channelid". The connection's appid and side are set by the "bind" message
-# (which must be the first message on the connection). The channelid is set
-# by either a "allocate" message (where the server picks the channelid), or
-# by a "claim" message (where the client picks it). All three values must be
-# set before any other message (watch, add, deallocate) can be sent. Channels
-# are maintained (saved from deletion) by a "claim" message (and also
-# incidentally by "allocate"). Channels are deleted when the last claim is
-# released with "release".
+# Each WebSocket connection is bound to one "appid", one "side", and zero or
+# more "channelids". The connection's appid and side are set by the "bind"
+# message (which must be the first message on the connection). Both must be
+# set before any other message (allocate, claim, watch, add, deallocate) will
+# be accepted. Short channel IDs can be obtained from the server with an
+# "allocate" message. Longer ones can be selected independently by the
+# client. Channels are maintained (saved from deletion) by a "claim" message
+# (and also incidentally by "allocate"). Channels are deleted when the last
+# claim is released with "release".
 
 # All websocket messages are JSON-encoded. The client can send us "inbound"
 # messages (marked as "->" below), which may (or may not) provoke immediate
 # (or delayed) "outbound" messages (marked as "<-"). There is no guaranteed
 # correlation between requests and responses. In this list, "A -> B" means
 # that some time after A is received, at least one message of type B will be
-# sent out.
+# sent out (probably).
 
 # All outbound messages include a "server_tx" key, which is a float (seconds
 # since epoch) with the server clock just before the outbound message was
-# written to the socket.
+# written to the socket. Unrecognized keys will be ignored.
 
 # connection -> welcome
 #  <- {type: "welcome", welcome: {}} # .welcome keys are all optional:
@@ -30,17 +30,20 @@ from autobahn.twisted import websocket
 #        motd: all clients display message, then continue normally
 #        error: all clients display mesage, then terminate with error
 # -> {type: "bind", appid:, side:}
+#
 # -> {type: "list"} -> channelids
 #  <- {type: "channelids", channelids: [int..]}
 # -> {type: "allocate"} -> allocated
 #  <- {type: "allocated", channelid: int}
 # -> {type: "claim", channelid: int}
-# -> {type: "watch"} -> message # sends old messages and more in future
-#  <- {type: "message", message: {phase:, body:}} # body is hex
-# -> {type: "add", phase: str, body: hex} # may send echo
 #
-# -> {type: "release", mood: str} -> deallocated
-#  <- {type: "released", status: waiting|deleted}
+# -> {type: "watch", channelid: int} -> message
+#     sends old messages and more in future
+#  <- {type: "message", channelid: int, message: {phase:, body:}} # body is hex
+# -> {type: "add", channelid: int, phase: str, body: hex} # will send echo
+#
+# -> {type: "release", channelid: int, mood: str} -> deallocated
+#  <- {type: "released", channelid: int, status: waiting|deleted}
 #
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
 
@@ -57,8 +60,8 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         websocket.WebSocketServerProtocol.__init__(self)
         self._app = None
         self._side = None
-        self._channel = None
-        self._watching = False
+        self._did_allocate = False # only one allocate() per websocket
+        self._channels = {} # channel-id -> Channel (claimed)
 
     def onConnect(self, request):
         rv = self.factory.rendezvous
@@ -95,25 +98,16 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 return self.handle_allocate()
             if mtype == "claim":
                 return self.handle_claim(msg)
-
-            if not self._channel:
-                raise Error("Must set channel first")
             if mtype == "watch":
-                return self.handle_watch(self._channel, msg)
+                return self.handle_watch(msg)
             if mtype == "add":
-                return self.handle_add(self._channel, msg, server_rx)
+                return self.handle_add(msg, server_rx)
             if mtype == "release":
-                return self.handle_release(self._channel, msg)
+                return self.handle_release(msg)
 
             raise Error("Unknown type")
         except Error as e:
             self.send("error", error=e._explain, orig=msg)
-
-    def send_rendezvous_event(self, event):
-        self.send("message", message=event)
-
-    def stop_rendezvous_watcher(self):
-        self._reactor.callLater(0, self.transport.loseConnection)
 
     def handle_ping(self, msg):
         if "ping" not in msg:
@@ -135,34 +129,39 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self.send("channelids", channelids=channelids)
 
     def handle_allocate(self):
-        if self._channel:
-            raise Error("Already bound to a channelid")
+        if self._did_allocate:
+            raise Error("You already allocated one channel, don't be greedy")
         channelid = self._app.find_available_channelid()
-        self._channel = self._app.claim_channel(channelid, self._side)
+        self._did_allocate = True
+        channel = self._app.claim_channel(channelid, self._side)
+        self._channels[channelid] = channel
         self.send("allocated", channelid=channelid)
 
     def handle_claim(self, msg):
         if "channelid" not in msg:
             raise Error("claim requires 'channelid'")
-        # we allow allocate+claim as long as they match
-        if self._channel is not None:
-            old_cid = self._channel.get_channelid()
-            if msg["channelid"] != old_cid:
-                raise Error("Already bound to channelid %d" % old_cid)
-        self._channel = self._app.claim_channel(msg["channelid"], self._side)
+        channelid = msg["channelid"]
+        if channelid not in self._channels:
+            channel = self._app.claim_channel(channelid, self._side)
+            self._channels[channelid] = channel
 
-    def handle_watch(self, channel, msg):
-        if self._watching:
-            raise Error("already watching")
-        self._watching = True
+    def handle_watch(self, msg):
+        channelid = msg["channelid"]
+        if channelid not in self._channels:
+            raise Error("must claim channel before watching")
+        channel = self._channels[channelid]
         def _send(event):
-            self.send_rendezvous_event(event)
+            self.send("message", channelid=channelid, message=event)
         def _stop():
-            self.stop_rendezvous_watcher()
+            self._reactor.callLater(0, self.transport.loseConnection)
         for old_message in channel.add_listener(self, _send, _stop):
             _send(old_message)
 
-    def handle_add(self, channel, msg, server_rx):
+    def handle_add(self, msg, server_rx):
+        channelid = msg["channelid"]
+        if channelid not in self._channels:
+            raise Error("must claim channel before adding")
+        channel = self._channels[channelid]
         if "phase" not in msg:
             raise Error("missing 'phase'")
         if "body" not in msg:
@@ -171,8 +170,13 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channel.add_message(self._side, msg["phase"], msg["body"],
                             server_rx, msgid)
 
-    def handle_release(self, channel, msg):
+    def handle_release(self, msg):
+        channelid = msg["channelid"]
+        if channelid not in self._channels:
+            raise Error("must claim channel before releasing")
+        channel = self._channels[channelid]
         deleted = channel.release(self._side, msg.get("mood"))
+        del self._channels[channelid]
         self.send("released", status="deleted" if deleted else "waiting")
 
     def send(self, mtype, **kwargs):
