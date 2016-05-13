@@ -10,9 +10,9 @@ CREATE TABLE `version`
 CREATE TABLE `messages`
 (
  `appid` VARCHAR,
- `channelid` INTEGER,
+ `channelid` VARCHAR,
  `side` VARCHAR,
- `phase` VARCHAR, -- not numeric, more of a PAKE-phase indicator string
+ `phase` VARCHAR, -- numeric or string
  -- phase="_allocate" and "_deallocate" are used internally
  `body` VARCHAR,
  `server_rx` INTEGER,

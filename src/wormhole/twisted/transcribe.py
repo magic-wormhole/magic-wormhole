@@ -234,6 +234,7 @@ class _Wormhole:
         if self._channelid is not None:
             return self._signal_error("got duplicate channelid")
         self._channelid = msg["channelid"]
+        assert isinstance(self._channelid, type(u"")), type(self._channelid)
         self._wakeup()
 
     def _start(self):
@@ -322,7 +323,8 @@ class _Wormhole:
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         with self._timing.add("API set_code"):
-            self._channelid = int(mo.group(1))
+            self._channelid = mo.group(1)
+            assert isinstance(self._channelid, type(u"")), type(self._channelid)
             self._set_code(code)
             self._start()
 

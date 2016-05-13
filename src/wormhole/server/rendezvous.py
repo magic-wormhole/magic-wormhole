@@ -212,28 +212,31 @@ class AppNamespace:
         claimed = self.get_claimed()
         for size in range(1,4): # stick to 1-999 for now
             available = set()
-            for cid in range(10**(size-1), 10**size):
+            for cid_int in range(10**(size-1), 10**size):
+                cid = u"%d" % cid_int
                 if cid not in claimed:
                     available.add(cid)
             if available:
                 return random.choice(list(available))
         # ouch, 999 currently claimed. Try random ones for a while.
         for tries in range(1000):
-            cid = random.randrange(1000, 1000*1000)
+            cid_int = random.randrange(1000, 1000*1000)
+            cid = u"%d" % cid_int
             if cid not in claimed:
                 return cid
         raise ValueError("unable to find a free channel-id")
 
     def claim_channel(self, channelid, side):
+        assert isinstance(channelid, type(u"")), type(channelid)
         channel = self.get_channel(channelid)
         channel.claim(side)
         return channel
 
     def get_channel(self, channelid):
-        assert isinstance(channelid, int)
+        assert isinstance(channelid, type(u""))
         if not channelid in self._channels:
             if self._log_requests:
-                log.msg("spawning #%d for appid %s" % (channelid, self._appid))
+                log.msg("spawning #%s for appid %s" % (channelid, self._appid))
             self._channels[channelid] = Channel(self, self._db, self._welcome,
                                                 self._blur_usage,
                                                 self._log_requests,
@@ -247,7 +250,7 @@ class AppNamespace:
         if channelid in self._channels:
             self._channels.pop(channelid)
         if self._log_requests:
-            log.msg("freed+killed #%d, now have %d DB channels, %d live" %
+            log.msg("freed+killed #%s, now have %d DB channels, %d live" %
                     (channelid, len(self.get_claimed()), len(self._channels)))
 
     def prune_old_channels(self):

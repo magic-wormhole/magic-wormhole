@@ -220,7 +220,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"allocated")
         cid = msg["channelid"]
-        self.failUnlessIsInstance(cid, int)
+        self.failUnlessIsInstance(cid, type(u""))
         self.assertEqual(app.get_claimed(), set([cid]))
         channel = app.get_channel(cid)
         self.assertEqual(channel.get_messages(), [])
@@ -254,7 +254,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"allocated")
         cid = msg["channelid"]
-        self.failUnlessIsInstance(cid, int)
+        self.failUnlessIsInstance(cid, type(u""))
         self.assertEqual(app.get_claimed(), set([cid]))
         channel = app.get_channel(cid)
         self.assertEqual(channel.get_messages(), [])

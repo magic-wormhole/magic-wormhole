@@ -132,6 +132,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if self._did_allocate:
             raise Error("You already allocated one channel, don't be greedy")
         channelid = self._app.find_available_channelid()
+        assert isinstance(channelid, type(u""))
         self._did_allocate = True
         channel = self._app.claim_channel(channelid, self._side)
         self._channels[channelid] = channel
@@ -141,6 +142,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if "channelid" not in msg:
             raise Error("claim requires 'channelid'")
         channelid = msg["channelid"]
+        assert isinstance(channelid, type(u"")), type(channelid)
         if channelid not in self._channels:
             channel = self._app.claim_channel(channelid, self._side)
             self._channels[channelid] = channel
@@ -149,6 +151,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channelid = msg["channelid"]
         if channelid not in self._channels:
             raise Error("must claim channel before watching")
+        assert isinstance(channelid, type(u""))
         channel = self._channels[channelid]
         def _send(event):
             self.send("message", channelid=channelid, message=event)
@@ -161,6 +164,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channelid = msg["channelid"]
         if channelid not in self._channels:
             raise Error("must claim channel before adding")
+        assert isinstance(channelid, type(u""))
         channel = self._channels[channelid]
         if "phase" not in msg:
             raise Error("missing 'phase'")
@@ -174,6 +178,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channelid = msg["channelid"]
         if channelid not in self._channels:
             raise Error("must claim channel before releasing")
+        assert isinstance(channelid, type(u""))
         channel = self._channels[channelid]
         deleted = channel.release(self._side, msg.get("mood"))
         del self._channels[channelid]
