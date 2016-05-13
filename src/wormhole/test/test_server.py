@@ -202,6 +202,34 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(self._rendezvous._apps, {})
 
     @inlineCallbacks
+    def test_claim(self):
+        r = self._rendezvous.get_app(u"appid")
+        c1 = yield self.make_client()
+        msg = yield c1.next_non_ack()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"claim", channelid=u"1")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set(u"1"))
+
+        c1.send(u"claim", channelid=u"2")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set([u"1", u"2"]))
+
+        c1.send(u"claim", channelid=u"72aoqnnnbj7r2")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set([u"1", u"2", u"72aoqnnnbj7r2"]))
+
+        c1.send(u"release", channelid=u"2")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set([u"1", u"72aoqnnnbj7r2"]))
+
+        c1.send(u"release", channelid=u"1")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set([u"72aoqnnnbj7r2"]))
+
+
+    @inlineCallbacks
     def test_allocate_1(self):
         c1 = yield self.make_client()
         msg = yield c1.next_non_ack()
