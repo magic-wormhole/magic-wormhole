@@ -150,8 +150,12 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if self._watching:
             raise Error("already watching")
         self._watching = True
-        for old_message in channel.add_listener(self):
-            self.send_rendezvous_event(old_message)
+        def _send(event):
+            self.send_rendezvous_event(event)
+        def _stop():
+            self.stop_rendezvous_watcher()
+        for old_message in channel.add_listener(self, _send, _stop):
+            _send(old_message)
 
     def handle_add(self, channel, msg, server_rx):
         if "phase" not in msg:
