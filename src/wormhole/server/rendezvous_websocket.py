@@ -8,7 +8,10 @@ from autobahn.twisted import websocket
 # (which must be the first message on the connection). The channelid is set
 # by either a "allocate" message (where the server picks the channelid), or
 # by a "claim" message (where the client picks it). All three values must be
-# set before any other message (watch, add, deallocate) can be sent.
+# set before any other message (watch, add, deallocate) can be sent. Channels
+# are maintained (saved from deletion) by a "claim" message (and also
+# incidentally by "allocate"). Channels are deleted when the last claim is
+# released with "release".
 
 # All websocket messages are JSON-encoded. The client can send us "inbound"
 # messages (marked as "->" below), which may (or may not) provoke immediate
@@ -35,8 +38,10 @@ from autobahn.twisted import websocket
 # -> {type: "watch"} -> message # sends old messages and more in future
 #  <- {type: "message", message: {phase:, body:}} # body is hex
 # -> {type: "add", phase: str, body: hex} # may send echo
-# -> {type: "deallocate", mood: str} -> deallocated
-#  <- {type: "deallocated", status: waiting|deleted}
+#
+# -> {type: "release", mood: str} -> deallocated
+#  <- {type: "released", status: waiting|deleted}
+#
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
 
 # for tests that need to know when a message has been processed:
