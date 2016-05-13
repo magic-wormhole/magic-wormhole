@@ -17,9 +17,9 @@ from autobahn.twisted import websocket
 # that some time after A is received, at least one message of type B will be
 # sent out.
 
-# All outbound messages include a "sent" key, which is a float (seconds since
-# epoch) with the server clock just before the outbound message was written
-# to the socket.
+# All outbound messages include a "server_tx" key, which is a float (seconds
+# since epoch) with the server clock just before the outbound message was
+# written to the socket.
 
 # connection -> welcome
 #  <- {type: "welcome", welcome: {}} # .welcome keys are all optional:
