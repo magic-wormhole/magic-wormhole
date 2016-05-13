@@ -327,6 +327,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_allocate_and_claim(self):
+        r = self._rendezvous.get_app(u"appid")
         c1 = yield self.make_client()
         msg = yield c1.next_non_ack()
         self.check_welcome(msg)
@@ -339,6 +340,43 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         yield c1.sync()
         # there should no error
         self.assertEqual(c1.errors, [])
+        self.assertEqual(r.get_claimed(), set([cid]))
+
+        # but trying to allocate twice is an error
+        c1.send(u"allocate")
+        yield c1.sync()
+        self.assertEqual(len(c1.errors), 1)
+        self.assertEqual(c1.errors[0]["error"],
+                         "You already allocated one channel, don't be greedy")
+        self.assertEqual(r.get_claimed(), set([cid]))
+
+    @inlineCallbacks
+    def test_allocate_and_claim_two(self):
+        r = self._rendezvous.get_app(u"appid")
+        c1 = yield self.make_client()
+        msg = yield c1.next_non_ack()
+        self.check_welcome(msg)
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"allocate")
+        msg = yield c1.next_non_ack()
+        self.assertEqual(msg["type"], u"allocated")
+        cid = msg["channelid"]
+        c1.send(u"claim", channelid=cid)
+        yield c1.sync()
+        # there should no error
+        self.assertEqual(c1.errors, [])
+
+        c1.send(u"claim", channelid=u"other")
+        yield c1.sync()
+        self.assertEqual(c1.errors, [])
+        self.assertEqual(r.get_claimed(), set([cid, u"other"]))
+
+        c1.send(u"release", channelid=cid)
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set([u"other"]))
+        c1.send(u"release", channelid="other")
+        yield c1.sync()
+        self.assertEqual(r.get_claimed(), set())
 
     @inlineCallbacks
     def test_message(self):
