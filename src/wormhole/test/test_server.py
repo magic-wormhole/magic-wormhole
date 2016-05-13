@@ -210,7 +210,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         yield c1.sync()
         self.assertEqual(list(self._rendezvous._apps.keys()), [u"appid"])
         app = self._rendezvous.get_app(u"appid")
-        self.assertEqual(app.get_allocated(), set())
+        self.assertEqual(app.get_claimed(), set())
         c1.send(u"list")
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"channelids")
@@ -221,7 +221,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], u"allocated")
         cid = msg["channelid"]
         self.failUnlessIsInstance(cid, int)
-        self.assertEqual(app.get_allocated(), set([cid]))
+        self.assertEqual(app.get_claimed(), set([cid]))
         channel = app.get_channel(cid)
         self.assertEqual(channel.get_messages(), [])
 
@@ -230,11 +230,11 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
-        c1.send(u"deallocate")
+        c1.send(u"release")
         msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"deleted")
-        self.assertEqual(app.get_allocated(), set())
+        self.assertEqual(app.get_claimed(), set())
 
         c1.send(u"list")
         msg = yield c1.next_non_ack()
@@ -249,13 +249,13 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1.send(u"bind", appid=u"appid", side=u"side")
         yield c1.sync()
         app = self._rendezvous.get_app(u"appid")
-        self.assertEqual(app.get_allocated(), set())
+        self.assertEqual(app.get_claimed(), set())
         c1.send(u"allocate")
         msg = yield c1.next_non_ack()
         self.assertEqual(msg["type"], u"allocated")
         cid = msg["channelid"]
         self.failUnlessIsInstance(cid, int)
-        self.assertEqual(app.get_allocated(), set([cid]))
+        self.assertEqual(app.get_claimed(), set([cid]))
         channel = app.get_channel(cid)
         self.assertEqual(channel.get_messages(), [])
 
@@ -268,7 +268,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c2.send(u"add", phase="1", body="")
         yield c2.sync()
 
-        self.assertEqual(app.get_allocated(), set([cid]))
+        self.assertEqual(app.get_claimed(), set([cid]))
         self.assertEqual(strip_messages(channel.get_messages()),
                          [{"phase": "1", "body": ""}])
 
@@ -282,14 +282,14 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(msg["type"], u"channelids")
         self.assertEqual(msg["channelids"], [cid])
 
-        c1.send(u"deallocate")
+        c1.send(u"release")
         msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"waiting")
 
-        c2.send(u"deallocate")
+        c2.send(u"release")
         msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
+        self.assertEqual(msg["type"], u"released")
         self.assertEqual(msg["status"], u"deleted")
 
         c2.send(u"list")
@@ -420,8 +420,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 class Summary(unittest.TestCase):
     def test_summarize(self):
         c = rendezvous.Channel(None, None, None, None, False, None, None)
-        A = rendezvous.ALLOCATE
-        D = rendezvous.DEALLOCATE
+        A = rendezvous.CLAIM
+        D = rendezvous.RELEASE
 
         messages = [{"server_rx": 1, "side": "a", "phase": A}]
         self.failUnlessEqual(c._summarize(messages, 2),

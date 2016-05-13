@@ -453,7 +453,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         yield send_d
         yield receive_d
 
-        cids = self._rendezvous.get_app(cmd_send.APPID).get_allocated()
+        cids = self._rendezvous.get_app(cmd_send.APPID).get_claimed()
         self.assertEqual(len(cids), 0)
 
     @inlineCallbacks
@@ -482,6 +482,6 @@ class Cleanup(ServerBase, unittest.TestCase):
         yield self.assertFailure(send_d, WrongPasswordError)
         yield self.assertFailure(receive_d, WrongPasswordError)
 
-        cids = self._rendezvous.get_app(cmd_send.APPID).get_allocated()
+        cids = self._rendezvous.get_app(cmd_send.APPID).get_claimed()
         self.assertEqual(len(cids), 0)
 

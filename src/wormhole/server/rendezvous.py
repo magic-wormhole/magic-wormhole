@@ -12,8 +12,8 @@ MB = 1000*1000
 CHANNEL_EXPIRATION_TIME = 3*DAY
 EXPIRATION_CHECK_PERIOD = 2*HOUR
 
-ALLOCATE = u"_allocate"
-DEALLOCATE = u"_deallocate"
+CLAIM = u"_claim"
+RELEASE = u"_release"
 
 class Channel:
     def __init__(self, app, db, welcome, blur_usage, log_requests,
@@ -38,7 +38,7 @@ class Channel:
                               " WHERE `appid`=? AND `channelid`=?"
                               " ORDER BY `server_rx` ASC",
                               (self._appid, self._channelid)).fetchall():
-            if row["phase"] in (u"_allocate", u"_deallocate"):
+            if row["phase"] in (CLAIM, RELEASE):
                 continue
             messages.append({"phase": row["phase"], "body": row["body"],
                              "server_rx": row["server_rx"], "id": row["msgid"]})
@@ -66,16 +66,16 @@ class Channel:
                     server_rx, msgid))
         db.commit()
 
-    def allocate(self, side):
-        self._add_message(side, ALLOCATE, None, time.time(), None)
+    def claim(self, side):
+        self._add_message(side, CLAIM, None, time.time(), None)
 
     def add_message(self, side, phase, body, server_rx, msgid):
         self._add_message(side, phase, body, server_rx, msgid)
         self.broadcast_message(phase, body, server_rx, msgid)
         return self.get_messages() # for rendezvous_web.py POST /add
 
-    def deallocate(self, side, mood):
-        self._add_message(side, DEALLOCATE, mood, time.time(), None)
+    def release(self, side, mood):
+        self._add_message(side, RELEASE, mood, time.time(), None)
         db = self._db
         seen = set([row["side"] for row in
                     db.execute("SELECT `side` FROM `messages`"
@@ -85,7 +85,7 @@ class Channel:
                      db.execute("SELECT `side` FROM `messages`"
                                 " WHERE `appid`=? AND `channelid`=?"
                                 " AND `phase`=?",
-                                (self._appid, self._channelid, DEALLOCATE))])
+                                (self._appid, self._channelid, RELEASE))])
         if seen - freed:
             return False
         self.delete_and_summarize()
@@ -127,7 +127,7 @@ class Channel:
         started = min([m["server_rx"] for m in messages])
         # 'total_time' is how long the channel was occupied. That ends now,
         # both for channels that got pruned for inactivity, and for channels
-        # that got pruned because of two DEALLOCATE messages
+        # that got pruned because of two RELEASE messages
         total_time = delete_time - started
 
         if len(all_sides) == 1:
@@ -147,9 +147,9 @@ class Channel:
 
         # now, were all sides closed? If not, this is "pruney"
         A_deallocs = [m for m in messages
-                      if m["phase"] == DEALLOCATE and m["side"] == A_side]
+                      if m["phase"] == RELEASE and m["side"] == A_side]
         B_deallocs = [m for m in messages
-                      if m["phase"] == DEALLOCATE and m["side"] == B_side]
+                      if m["phase"] == RELEASE and m["side"] == B_side]
         if not A_deallocs or not B_deallocs:
             return (started, "pruney", total_time, None)
 
@@ -202,31 +202,31 @@ class AppNamespace:
         self._appid = appid
         self._channels = {}
 
-    def get_allocated(self):
+    def get_claimed(self):
         db = self._db
         c = db.execute("SELECT DISTINCT `channelid` FROM `messages`"
                        " WHERE `appid`=?", (self._appid,))
         return set([row["channelid"] for row in c.fetchall()])
 
     def find_available_channelid(self):
-        allocated = self.get_allocated()
+        claimed = self.get_claimed()
         for size in range(1,4): # stick to 1-999 for now
             available = set()
             for cid in range(10**(size-1), 10**size):
-                if cid not in allocated:
+                if cid not in claimed:
                     available.add(cid)
             if available:
                 return random.choice(list(available))
-        # ouch, 999 currently allocated. Try random ones for a while.
+        # ouch, 999 currently claimed. Try random ones for a while.
         for tries in range(1000):
             cid = random.randrange(1000, 1000*1000)
-            if cid not in allocated:
+            if cid not in claimed:
                 return cid
         raise ValueError("unable to find a free channel-id")
 
-    def allocate_channel(self, channelid, side):
+    def claim_channel(self, channelid, side):
         channel = self.get_channel(channelid)
-        channel.allocate(side)
+        channel.claim(side)
         return channel
 
     def get_channel(self, channelid):
@@ -248,7 +248,7 @@ class AppNamespace:
             self._channels.pop(channelid)
         if self._log_requests:
             log.msg("freed+killed #%d, now have %d DB channels, %d live" %
-                    (channelid, len(self.get_allocated()), len(self._channels)))
+                    (channelid, len(self.get_claimed()), len(self._channels)))
 
     def prune_old_channels(self):
         # For now, pruning is logged even if log_requests is False, to debug
@@ -259,7 +259,7 @@ class AppNamespace:
         log.msg("  channel prune begins")
         # a channel is deleted when there are no listeners and there have
         # been no messages added in CHANNEL_EXPIRATION_TIME seconds
-        channels = set(self.get_allocated()) # these have messages
+        channels = set(self.get_claimed()) # these have messages
         channels.update(self._channels) # these might have listeners
         for channelid in channels:
             log.msg("   channel prune checking %d" % channelid)

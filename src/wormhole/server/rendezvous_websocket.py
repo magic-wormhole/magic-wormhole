@@ -97,8 +97,8 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 return self.handle_watch(self._channel, msg)
             if mtype == "add":
                 return self.handle_add(self._channel, msg, server_rx)
-            if mtype == "deallocate":
-                return self.handle_deallocate(self._channel, msg)
+            if mtype == "release":
+                return self.handle_release(self._channel, msg)
 
             raise Error("Unknown type")
         except Error as e:
@@ -126,14 +126,14 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._side = msg["side"]
 
     def handle_list(self):
-        channelids = sorted(self._app.get_allocated())
+        channelids = sorted(self._app.get_claimed())
         self.send("channelids", channelids=channelids)
 
     def handle_allocate(self):
         if self._channel:
             raise Error("Already bound to a channelid")
         channelid = self._app.find_available_channelid()
-        self._channel = self._app.allocate_channel(channelid, self._side)
+        self._channel = self._app.claim_channel(channelid, self._side)
         self.send("allocated", channelid=channelid)
 
     def handle_claim(self, msg):
@@ -144,7 +144,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             old_cid = self._channel.get_channelid()
             if msg["channelid"] != old_cid:
                 raise Error("Already bound to channelid %d" % old_cid)
-        self._channel = self._app.allocate_channel(msg["channelid"], self._side)
+        self._channel = self._app.claim_channel(msg["channelid"], self._side)
 
     def handle_watch(self, channel, msg):
         if self._watching:
@@ -166,9 +166,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channel.add_message(self._side, msg["phase"], msg["body"],
                             server_rx, msgid)
 
-    def handle_deallocate(self, channel, msg):
-        deleted = channel.deallocate(self._side, msg.get("mood"))
-        self.send("deallocated", status="deleted" if deleted else "waiting")
+    def handle_release(self, channel, msg):
+        deleted = channel.release(self._side, msg.get("mood"))
+        self.send("released", status="deleted" if deleted else "waiting")
 
     def send(self, mtype, **kwargs):
         kwargs["type"] = mtype

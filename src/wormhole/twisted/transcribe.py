@@ -84,7 +84,7 @@ class _Wormhole:
         self._sleepers = []
         self._confirmation_failed = False
         self._closed = False
-        self._deallocated_status = None
+        self._released_status = None
         self._timing_started = self._timing.add("wormhole")
         self._ws = None
         self._ws_t = None # timing Event
@@ -535,7 +535,7 @@ class _Wormhole:
             raise TypeError(type(mood))
 
         with self._timing.add("API close"):
-            yield self._deallocate(mood)
+            yield self._release(mood)
             # TODO: mark WebSocket as don't-reconnect
             self._ws.transport.loseConnection() # probably flushes
             del self._ws
@@ -544,17 +544,17 @@ class _Wormhole:
         returnValue(f)
 
     @inlineCallbacks
-    def _deallocate(self, mood):
-        with self._timing.add("deallocate"):
-            yield self._ws_send(u"deallocate", mood=mood)
-            while self._deallocated_status is None:
+    def _release(self, mood):
+        with self._timing.add("release"):
+            yield self._ws_send(u"release", mood=mood)
+            while self._released_status is None:
                 yield self._sleep(wake_on_error=False)
         # TODO: set a timeout, don't wait forever for an ack
         # TODO: if the connection is lost, let it go
-        returnValue(self._deallocated_status)
+        returnValue(self._released_status)
 
-    def _ws_handle_deallocated(self, msg):
-        self._deallocated_status = msg["status"]
+    def _ws_handle_released(self, msg):
+        self._released_status = msg["status"]
         self._wakeup()
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
