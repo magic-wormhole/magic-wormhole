@@ -3,26 +3,47 @@ from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
 
-# Each WebSocket connection is bound to one "appid", one "side", and zero or
-# more "channelids". The connection's appid and side are set by the "bind"
-# message (which must be the first message on the connection). Both must be
-# set before any other message (allocate, claim, watch, add, deallocate) will
-# be accepted. Short channel IDs can be obtained from the server with an
-# "allocate" message. Longer ones can be selected independently by the
-# client. Channels are maintained (saved from deletion) by a "claim" message
-# (and also incidentally by "allocate"). Channels are deleted when the last
-# claim is released with "release".
+# The WebSocket allows the client to send "commands" to the server, and the
+# server to send "responses" to the client. Note that commands and responses
+# are not necessarily one-to-one. All commands provoke an "ack" response
+# (with a copy of the original message) for timing, testing, and
+# synchronization purposes. All commands and responses are JSON-encoded.
 
-# All websocket messages are JSON-encoded. The client can send us "inbound"
-# messages (marked as "->" below), which may (or may not) provoke immediate
-# (or delayed) "outbound" messages (marked as "<-"). There is no guaranteed
-# correlation between requests and responses. In this list, "A -> B" means
-# that some time after A is received, at least one message of type B will be
-# sent out (probably).
+# Each WebSocket connection is bound to one "appid" and one "side", which are
+# set by the "bind" command (which must be the first command on the
+# connection), and must be set before any other command will be accepted.
 
-# All outbound messages include a "server_tx" key, which is a float (seconds
-# since epoch) with the server clock just before the outbound message was
-# written to the socket. Unrecognized keys will be ignored.
+# Each connection can be bound to a single "mailbox" (a two-sided
+# store-and-forward queue, identified by the "mailbox id": a long, randomly
+# unique string identifier) by using the "open" command. This protects the
+# mailbox from idle closure, enables the "add" command (to put new messages
+# in the queue), and triggers delivery of past and future messages via the
+# "message" response. The "close" command removes the binding (but note that
+# it does not enable the subsequent binding of a second mailbox). When the
+# last side closes a mailbox, its contents are deleted.
+
+# Additionally, the connection can be bound a single "nameplate", which is
+# short identifier that makes up the first component of a wormhole code. Each
+# nameplate points to a single long-id "mailbox". The "allocate" message
+# determines the shortest available numeric nameplate, reserves it, and
+# returns the nameplate id. "list" returns a list of all numeric nameplates
+# which currently have only one side active (i.e. they are waiting for a
+# partner). The "claim" message reserves an arbitrary nameplate id (perhaps
+# the receiver of a wormhole connection typed in a code they got from the
+# sender, or perhaps the two sides agreed upon a code offline and are both
+# typing it in), and the "release" message releases it. When every side that
+# has claimed the nameplate has also released it, the nameplate is
+# deallocated (but they will probably keep the underlying mailbox open).
+
+# Inbound (client to server) commands are marked as "->" below. Unrecognized
+# inbound keys will be ignored. Outbound (server to client) responses use
+# "<-". There is no guaranteed correlation between requests and responses. In
+# this list, "A -> B" means that some time after A is received, at least one
+# message of type B will be sent out (probably).
+
+# All responses include a "server_tx" key, which is a float (seconds since
+# epoch) with the server clock just before the outbound response was written
+# to the socket.
 
 # connection -> welcome
 #  <- {type: "welcome", welcome: {}} # .welcome keys are all optional:
@@ -31,19 +52,21 @@ from autobahn.twisted import websocket
 #        error: all clients display mesage, then terminate with error
 # -> {type: "bind", appid:, side:}
 #
-# -> {type: "list"} -> channelids
-#  <- {type: "channelids", channelids: [int..]}
-# -> {type: "allocate"} -> allocated
-#  <- {type: "allocated", channelid: int}
-# -> {type: "claim", channelid: int}
+# -> {type: "list"} -> nameplates
+#  <- {type: "nameplates", nameplates: [str..]}
+# -> {type: "allocate"} -> nameplate, mailbox
+#  <- {type: "nameplate", nameplate: str}
+# -> {type: "claim", nameplate: str} -> mailbox
+#  <- {type: "mailbox", mailbox: str}
+# -> {type: "release"}
 #
-# -> {type: "watch", channelid: int} -> message
-#     sends old messages and more in future
-#  <- {type: "message", channelid: int, message: {phase:, body:}} # body is hex
-# -> {type: "add", channelid: int, phase: str, body: hex} # will send echo
+# -> {type: "open", mailbox: str} -> message
+#     sends old messages now, and subscribes to deliver future messages
+#  <- {type: "message", message: {phase:, body:}} # body is hex
+# -> {type: "add", phase: str, body: hex} # will send echo in a "message"
 #
-# -> {type: "release", channelid: int, mood: str} -> deallocated
-#  <- {type: "released", channelid: int, status: waiting|deleted}
+# -> {type: "close", mood: str} -> closed
+#  <- {type: "closed", status: waiting|deleted}
 #
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
 

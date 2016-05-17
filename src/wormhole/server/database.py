@@ -22,7 +22,7 @@ def get_db(dbfile, stderr=sys.stderr):
         raise DBError("Unable to create/open db file %s: %s" % (dbfile, e))
     db.row_factory = sqlite3.Row
 
-    VERSION = 1
+    VERSION = 2
     if must_create:
         schema = get_schema(VERSION)
         db.executescript(schema)
