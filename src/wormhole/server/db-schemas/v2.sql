@@ -14,7 +14,7 @@ CREATE TABLE `version`
 CREATE TABLE `nameplates`
 (
  `app_id` VARCHAR,
- `id` VARCHAR PRIMARY KEY,
+ `id` VARCHAR,
  `mailbox_id` VARCHAR, -- really a foreign key
  `side1` VARCHAR, -- side name, or NULL
  `side2` VARCHAR -- side name, or NULL

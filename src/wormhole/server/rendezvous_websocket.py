@@ -102,10 +102,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         try:
             if "type" not in msg:
                 raise Error("missing 'type'")
-            if "id" in msg:
-                # Only ack clients modern enough to include [id]. Older ones
-                # won't recognize the message, then they'll abort.
-                self.send("ack", id=msg["id"])
+            self.send("ack", id=msg.get("id"))
 
             mtype = msg["type"]
             if mtype == "ping":
@@ -118,15 +115,18 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "list":
                 return self.handle_list()
             if mtype == "allocate":
-                return self.handle_allocate()
+                return self.handle_allocate(server_rx)
             if mtype == "claim":
-                return self.handle_claim(msg)
-            if mtype == "watch":
-                return self.handle_watch(msg)
+                return self.handle_claim(msg, server_rx)
+            if mtype == "release":
+                return self.handle_release(msg, server_rx)
+
+            if mtype == "open":
+                return self.handle_open(msg)
             if mtype == "add":
                 return self.handle_add(msg, server_rx)
-            if mtype == "release":
-                return self.handle_release(msg)
+            if mtype == "close":
+                return self.handle_close(msg)
 
             raise Error("Unknown type")
         except Error as e:
@@ -147,30 +147,42 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._app = self.factory.rendezvous.get_app(msg["appid"])
         self._side = msg["side"]
 
-    def handle_list(self):
-        channelids = sorted(self._app.get_claimed())
-        self.send("channelids", channelids=channelids)
 
-    def handle_allocate(self):
+    def handle_list(self):
+        nameplate_ids = sorted(self._app.get_nameplate_ids())
+        self.send("nameplates", nameplates=nameplate_ids)
+
+    def handle_allocate(self, server_rx):
         if self._did_allocate:
             raise Error("You already allocated one channel, don't be greedy")
-        channelid = self._app.find_available_channelid()
-        assert isinstance(channelid, type(u""))
+        nameplate_id = self._app.find_available_nameplate_id()
+        assert isinstance(nameplate_id, type(u""))
         self._did_allocate = True
-        channel = self._app.claim_channel(channelid, self._side)
-        self._channels[channelid] = channel
-        self.send("allocated", channelid=channelid)
+        self._nameplate = self._app.claim_nameplate(nameplate_id, self._side,
+                                                    server_rx)
+        self.send("nameplate", nameplate=nameplate_id)
 
-    def handle_claim(self, msg):
-        if "channelid" not in msg:
-            raise Error("claim requires 'channelid'")
-        channelid = msg["channelid"]
-        assert isinstance(channelid, type(u"")), type(channelid)
-        if channelid not in self._channels:
-            channel = self._app.claim_channel(channelid, self._side)
-            self._channels[channelid] = channel
+    def handle_claim(self, msg, server_rx):
+        if "nameplate" not in msg:
+            raise Error("claim requires 'nameplate'")
+        nameplate_id = msg["nameplate"]
+        assert isinstance(nameplate_id, type(u"")), type(nameplate)
+        if self._nameplate and self._nameplate.get_id() != nameplate_id:
+            raise Error("claimed nameplate doesn't match allocated nameplate")
+        self._nameplate = self._app.claim_nameplate(nameplate_id, self._side,
+                                                    server_rx)
+        mailbox_id = self._nameplate.get_mailbox_id()
+        self.send("mailbox", mailbox=mailbox_id)
 
-    def handle_watch(self, msg):
+    def handle_release(self, server_rx):
+        if not self._nameplate:
+            raise Error("must claim a nameplate before releasing it")
+
+        deleted = self._nameplate.release(self._side, server_rx)
+        self._nameplate = None
+
+
+    def handle_open(self, msg):
         channelid = msg["channelid"]
         if channelid not in self._channels:
             raise Error("must claim channel before watching")
@@ -197,7 +209,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         channel.add_message(self._side, msg["phase"], msg["body"],
                             server_rx, msgid)
 
-    def handle_release(self, msg):
+    def handle_close(self, msg):
         channelid = msg["channelid"]
         if channelid not in self._channels:
             raise Error("must claim channel before releasing")
