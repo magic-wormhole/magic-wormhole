@@ -16,8 +16,7 @@ CLAIM = u"_claim"
 RELEASE = u"_release"
 
 class Channel:
-    def __init__(self, app, db, welcome, blur_usage, log_requests,
-                 appid, channelid):
+    def __init__(self, app, db, blur_usage, log_requests, appid, channelid):
         self._app = app
         self._db = db
         self._blur_usage = blur_usage
@@ -237,7 +236,7 @@ class AppNamespace:
         if not channelid in self._channels:
             if self._log_requests:
                 log.msg("spawning #%s for appid %s" % (channelid, self._appid))
-            self._channels[channelid] = Channel(self, self._db, self._welcome,
+            self._channels[channelid] = Channel(self, self._db,
                                                 self._blur_usage,
                                                 self._log_requests,
                                                 self._appid, channelid)

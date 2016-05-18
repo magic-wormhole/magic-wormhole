@@ -466,7 +466,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
 class Summary(unittest.TestCase):
     def test_summarize(self):
-        c = rendezvous.Channel(None, None, None, None, False, None, None)
+        c = rendezvous.Channel(None, None, None, False, None, None)
         A = rendezvous.CLAIM
         D = rendezvous.RELEASE
 
