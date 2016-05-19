@@ -17,7 +17,11 @@ CREATE TABLE `nameplates`
  `id` VARCHAR,
  `mailbox_id` VARCHAR, -- really a foreign key
  `side1` VARCHAR, -- side name, or NULL
- `side2` VARCHAR -- side name, or NULL
+ `side2` VARCHAR, -- side name, or NULL
+ -- timing data
+ `started` INTEGER, -- time when nameplace was opened
+ `second` INTEGER, -- time when second side opened
+ `closed` INTEGER -- time when closed
 );
 CREATE INDEX `nameplates_idx` ON `nameplates` (`app_id`, `id`);
 CREATE INDEX `nameplates_mailbox_idx` ON `nameplates` (`app_id`, `mailbox_id`);
@@ -30,10 +34,6 @@ CREATE TABLE `mailboxes`
  `id` VARCHAR,
  `side1` VARCHAR -- side name, or NULL
  `side2` VARCHAR -- side name, or NULL
- -- timing data for the (optional) linked nameplate
- `nameplate_started` INTEGER, -- time when related nameplace was opened
- `nameplate_second` INTEGER, -- time when second side opened
- `nameplate_closed` INTEGER, -- time when closed
  -- timing data for the mailbox itself
  `started` INTEGER, -- time when opened
  `second` INTEGER, -- time when second side opened

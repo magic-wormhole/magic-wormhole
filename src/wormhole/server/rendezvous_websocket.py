@@ -155,31 +155,28 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_allocate(self, server_rx):
         if self._did_allocate:
             raise Error("You already allocated one channel, don't be greedy")
-        nameplate_id = self._app.find_available_nameplate_id()
+        nameplate_id = self._app.allocate_nameplate(self._side, server_rx)
         assert isinstance(nameplate_id, type(u""))
         self._did_allocate = True
-        self._nameplate = self._app.claim_nameplate(nameplate_id, self._side,
-                                                    server_rx)
         self.send("nameplate", nameplate=nameplate_id)
 
     def handle_claim(self, msg, server_rx):
         if "nameplate" not in msg:
             raise Error("claim requires 'nameplate'")
         nameplate_id = msg["nameplate"]
+        self._nameplate_id = nameplate_id
         assert isinstance(nameplate_id, type(u"")), type(nameplate)
-        if self._nameplate and self._nameplate.get_id() != nameplate_id:
-            raise Error("claimed nameplate doesn't match allocated nameplate")
-        self._nameplate = self._app.claim_nameplate(nameplate_id, self._side,
-                                                    server_rx)
-        mailbox_id = self._nameplate.get_mailbox_id()
+        mailbox_id = self._app.claim_nameplate(nameplate_id, self._side,
+                                               server_rx)
         self.send("mailbox", mailbox=mailbox_id)
 
     def handle_release(self, server_rx):
-        if not self._nameplate:
+        if not self._nameplate_id:
             raise Error("must claim a nameplate before releasing it")
 
-        deleted = self._nameplate.release(self._side, server_rx)
-        self._nameplate = None
+        deleted = self._app.release_nameplate(self._nameplate_id,
+                                              self._side, server_rx)
+        self._nameplate_id = None
 
 
     def handle_open(self, msg):

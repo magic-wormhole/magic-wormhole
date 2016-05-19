@@ -17,7 +17,7 @@ RELEASE = u"_release"
 
 def get_sides(row):
     return set([s for s in [row["side1"], row["side2"]] if s])
-def make_sides(side1, side2):
+def make_sides(sides):
     return list(sides) + [None] * (2 - len(sides))
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip("=")
@@ -270,7 +270,7 @@ class AppNamespace:
                        " WHERE `app_id`=?", (self._app_id,))
         return set([row["id"] for row in c.fetchall()])
 
-    def find_available_nameplate_id(self):
+    def _find_available_nameplate_id(self):
         claimed = self.get_nameplate_ids()
         for size in range(1,4): # stick to 1-999 for now
             available = set()
@@ -288,6 +288,12 @@ class AppNamespace:
                 return id
         raise ValueError("unable to find a free nameplate-id")
 
+    def allocate_nameplate(self, side, when):
+        nameplate_id = self._find_available_nameplate_id()
+        mailbox_id = self.claim_nameplate(self, nameplate_id, side, when)
+        del mailbox_id # ignored, they'll learn it from claim()
+        return nameplate_id
+
     def _get_mailbox_id(self, nameplate_id):
         row = self._db.execute("SELECT `mailbox_id` FROM `nameplates`"
                                " WHERE `app_id`=? AND `id`=?",
@@ -295,36 +301,81 @@ class AppNamespace:
         return row["mailbox_id"]
 
     def claim_nameplate(self, nameplate_id, side, when):
+        # when we're done:
+        # * there will be one row for the nameplate
+        #  * side1 or side2 will be populated
+        #  * started or second will be populated
+        #  * a mailbox id will be created, but not a mailbox row
+        #    (ids are randomly unique, so we can defer creation until 'open')
         assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+        assert isinstance(side, type(u"")), type(side)
         db = self._db
-        rows = db.execute("SELECT * FROM `nameplates`"
-                          " WHERE `app_id`=? AND `id`=?",
-                          (self._app_id, nameplate_id))
-        if rows:
-            mailbox_id = rows[0]["mailbox_id"]
+        row = db.execute("SELECT * FROM `nameplates`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, nameplate_id)).fetchone()
+        if row:
+            mailbox_id = row["mailbox_id"]
+            sides = [row["side1"], row["sides2"]]
+            if side not in sides:
+                if sides[0] and sides[1]:
+                    raise XXXERROR("crowded")
+                sides[1] = side
+                db.execute("UPDATE `nameplates` SET "
+                           "`side1`=?, `side2`=?, `mailbox_id`=?, `second`=?"
+                           " WHERE `app_id`=? AND `id`=?",
+                           (sides[0], sides[1], mailbox_id, when,
+                            self._app_id, nameplate_id))
         else:
             if self._log_requests:
                 log.msg("creating nameplate#%s for app_id %s" %
                         (nameplate_id, self._app_id))
-            mailbox_id = UUID()
-            db.execute("INSERT INTO `mailboxes`"
-                       " (`app_id`, `id`)"
-                       " VALUES(?,?)",
-                       (self._app_id, mailbox_id))
+            mailbox_id = generate_mailbox_id()
             db.execute("INSERT INTO `nameplates`"
-                       " (`app_id`, `id`, `mailbox_id`, `side1`, `side2`)"
+                       " (`app_id`, `id`, `mailbox_id`, `side1`, `started`)"
                        " VALUES(?,?,?,?,?)",
-                       (self._app_id, nameplate_id, mailbox_id, None, None))
+                       (self._app_id, nameplate_id, mailbox_id, side, when))
+        db.commit()
+        return mailbox_id
 
-        nameplate = Nameplate(self._app_id, self._db, nameplate_id, mailbox_id)
-        nameplate.claim(side, when)
-        return nameplate
+    def release_nameplate(self, nameplate_id, side, when):
+        # when we're done:
+        # * in the nameplate row, side1 or side2 will be removed
+        # * if the nameplate is now unused:
+        #  * mailbox.nameplate_closed will be populated
+        #  * the nameplate row will be removed
+        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+        assert isinstance(side, type(u"")), type(side)
+        db = self._db
+        row = db.execute("SELECT * FROM `nameplates`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, nameplate_id)).fetchone()
+        if not row:
+            return
+        sides = get_sides(row)
+        if side not in sides:
+            return
+        sides.discard(side)
+        if sides:
+            s12 = make_sides(sides)
+            db.execute("UPDATE `nameplates` SET `side1`=?, `side2`=?"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (s12[0], s12[1], self._app_id, nameplate_id))
+        else:
+            db.execute("DELETE FROM `nameplates`"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (self._app_id, nameplate_id))
+            self._summarize_nameplate(row)
 
-    def claim_channel(self, channelid, side):
+    def open_mailbox(self, channelid, side):
         assert isinstance(channelid, type(u"")), type(channelid)
         channel = self.get_channel(channelid)
         channel.claim(side)
         return channel
+            # some of this overlaps with open() on a new mailbox
+            db.execute("INSERT INTO `mailboxes`"
+                       " (`app_id`, `id`, `nameplate_started`, `started`)"
+                       " VALUES(?,?,?,?)",
+                       (self._app_id, mailbox_id, when, when))
 
     def get_channel(self, channelid):
         assert isinstance(channelid, type(u""))
