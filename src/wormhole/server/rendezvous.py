@@ -13,9 +13,6 @@ MB = 1000*1000
 CHANNEL_EXPIRATION_TIME = 3*DAY
 EXPIRATION_CHECK_PERIOD = 2*HOUR
 
-CLAIM = u"_claim"
-RELEASE = u"_release"
-
 def get_sides(row):
     return set([s for s in [row["side1"], row["side2"]] if s])
 def make_sides(sides):
@@ -96,8 +93,6 @@ class Mailbox:
                               " WHERE `app_id`=? AND `mailbox_id`=?"
                               " ORDER BY `server_rx` ASC",
                               (self._app_id, self._mailbox_id)).fetchall():
-            if row["phase"] in (CLAIM, RELEASE):
-                continue
             messages.append({"phase": row["phase"], "body": row["body"],
                              "server_rx": row["server_rx"], "id": row["msg_id"]})
         return messages
@@ -270,12 +265,6 @@ class AppNamespace:
         mailbox_id = self.claim_nameplate(nameplate_id, side, when)
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
-
-    def _get_mailbox_id(self, nameplate_id):
-        row = self._db.execute("SELECT `mailbox_id` FROM `nameplates`"
-                               " WHERE `app_id`=? AND `id`=?",
-                               (self._app_id, nameplate_id)).fetchone()
-        return row["mailbox_id"]
 
     def claim_nameplate(self, nameplate_id, side, when):
         # when we're done:

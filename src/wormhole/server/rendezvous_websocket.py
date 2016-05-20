@@ -85,6 +85,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._app = None
         self._side = None
         self._did_allocate = False # only one allocate() per websocket
+        self._nameplate_id = None
         self._mailbox = None
 
     def onConnect(self, request):
@@ -112,7 +113,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 return self.handle_bind(msg)
 
             if not self._app:
-                raise Error("Must bind first")
+                raise Error("must bind first")
             if mtype == "list":
                 return self.handle_list()
             if mtype == "allocate":
@@ -120,7 +121,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "claim":
                 return self.handle_claim(msg, server_rx)
             if mtype == "release":
-                return self.handle_release(msg, server_rx)
+                return self.handle_release(server_rx)
 
             if mtype == "open":
                 return self.handle_open(msg, server_rx)
@@ -155,7 +156,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def handle_allocate(self, server_rx):
         if self._did_allocate:
-            raise Error("You already allocated one mailbox, don't be greedy")
+            raise Error("you already allocated one, don't be greedy")
         nameplate_id = self._app.allocate_nameplate(self._side, server_rx)
         assert isinstance(nameplate_id, type(u""))
         self._did_allocate = True
@@ -184,7 +185,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_open(self, msg, server_rx):
         if self._mailbox:
             raise Error("you already have a mailbox open")
-        mailbox_id = msg["mailbox_id"]
+        if "mailbox" not in msg:
+            raise Error("open requires 'mailbox'")
+        mailbox_id = msg["mailbox"]
         assert isinstance(mailbox_id, type(u""))
         self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
                                                server_rx)
@@ -209,9 +212,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_close(self, msg, server_rx):
         if not self._mailbox:
             raise Error("must open mailbox before closing")
-        deleted = self._mailbox.close(self._side, msg.get("mood"), server_rx)
+        self._mailbox.close(self._side, msg.get("mood"), server_rx)
         self._mailbox = None
-        self.send("released", status="deleted" if deleted else "waiting")
+        self.send("closed")
 
     def send(self, mtype, **kwargs):
         kwargs["type"] = mtype
