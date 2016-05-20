@@ -10,7 +10,7 @@ from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
 from ..server import rendezvous, transit_server
-from ..server.rendezvous import Usage
+from ..server.rendezvous import Usage, SidedMessage
 
 class Reachable(ServerBase, unittest.TestCase):
 
@@ -254,7 +254,9 @@ class Server(ServerBase, unittest.TestCase):
         app = self._rendezvous.get_app(u"appid")
         mailbox_id = u"mid"
         m1 = app.open_mailbox(mailbox_id, u"side1", 0)
-        m1.add_message(u"side1", u"phase", u"body", 1, u"msgid")
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase",
+                                    body=u"body", server_rx=1,
+                                    msg_id=u"msgid"))
         msgs = self._messages(app)
         self.assertEqual(len(msgs), 1)
         self.assertEqual(msgs[0]["body"], u"body")
@@ -263,34 +265,43 @@ class Server(ServerBase, unittest.TestCase):
         l2 = []; stop2 = []; stop2_f = lambda: stop2.append(True)
         old = m1.add_listener("handle1", l1.append, stop1_f)
         self.assertEqual(len(old), 1)
-        self.assertEqual(old[0]["body"], u"body")
+        self.assertEqual(old[0].side, u"side1")
+        self.assertEqual(old[0].body, u"body")
 
-        m1.add_message(u"side1", u"phase2", u"body2", 1, u"msgid")
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase2",
+                                    body=u"body2", server_rx=1,
+                                    msg_id=u"msgid"))
         self.assertEqual(len(l1), 1)
-        self.assertEqual(l1[0]["body"], u"body2")
+        self.assertEqual(l1[0].body, u"body2")
         old = m1.add_listener("handle2", l2.append, stop2_f)
         self.assertEqual(len(old), 2)
 
-        m1.add_message(u"side1", u"phase3", u"body3", 1, u"msgid")
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase3",
+                                    body=u"body3", server_rx=1,
+                                    msg_id=u"msgid"))
         self.assertEqual(len(l1), 2)
-        self.assertEqual(l1[-1]["body"], u"body3")
+        self.assertEqual(l1[-1].body, u"body3")
         self.assertEqual(len(l2), 1)
-        self.assertEqual(l2[-1]["body"], u"body3")
+        self.assertEqual(l2[-1].body, u"body3")
 
         m1.remove_listener("handle1")
 
-        m1.add_message(u"side1", u"phase4", u"body4", 1, u"msgid")
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase4",
+                                    body=u"body4", server_rx=1,
+                                    msg_id=u"msgid"))
         self.assertEqual(len(l1), 2)
-        self.assertEqual(l1[-1]["body"], u"body3")
+        self.assertEqual(l1[-1].body, u"body3")
         self.assertEqual(len(l2), 2)
-        self.assertEqual(l2[-1]["body"], u"body4")
+        self.assertEqual(l2[-1].body, u"body4")
 
         m1._shutdown()
         self.assertEqual(stop1, [])
         self.assertEqual(stop2, [True])
 
         # message adds are not idempotent: clients filter duplicates
-        m1.add_message(u"side1", u"phase", u"body", 1, u"msgid")
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase",
+                                    body=u"body", server_rx=1,
+                                    msg_id=u"msgid"))
         msgs = self._messages(app)
         self.assertEqual(len(msgs), 5)
         self.assertEqual(msgs[-1]["body"], u"body")
@@ -654,17 +665,21 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(err[u"error"], u"open requires 'mailbox'")
 
         mb1 = app.open_mailbox(u"mb1", u"side2", 0)
-        mb1.add_message(u"side2", u"phase", u"body", 0, u"msgid")
+        mb1.add_message(SidedMessage(side=u"side2", phase=u"phase",
+                                     body=u"body", server_rx=0,
+                                     msg_id=u"msgid"))
 
         c1.send(u"open", mailbox=u"mb1")
         m = yield c1.next_non_ack()
         self.assertEqual(m[u"type"], u"message")
-        self.assertEqual(m[u"message"][u"body"], u"body")
+        self.assertEqual(m[u"body"], u"body")
 
-        mb1.add_message(u"side2", u"phase2", u"body2", 0, u"msgid")
+        mb1.add_message(SidedMessage(side=u"side2", phase=u"phase2",
+                                     body=u"body2", server_rx=0,
+                                     msg_id=u"msgid"))
         m = yield c1.next_non_ack()
         self.assertEqual(m[u"type"], u"message")
-        self.assertEqual(m[u"message"][u"body"], u"body2")
+        self.assertEqual(m[u"body"], u"body2")
 
         c1.send(u"open", mailbox=u"mb1")
         err = yield c1.next_non_ack()
@@ -701,10 +716,10 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1.send(u"add", phase=u"phase", body=u"body")
         m = yield c1.next_non_ack() # echoed back
         self.assertEqual(m[u"type"], u"message")
-        self.assertEqual(m[u"message"][u"body"], u"body")
+        self.assertEqual(m[u"body"], u"body")
 
         self.assertEqual(len(l1), 1)
-        self.assertEqual(l1[0][u"body"], u"body")
+        self.assertEqual(l1[0].body, u"body")
 
     @inlineCallbacks
     def test_close(self):

@@ -2,7 +2,7 @@ import json, time
 from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
-from .rendezvous import CrowdedError
+from .rendezvous import CrowdedError, SidedMessage
 
 # The WebSocket allows the client to send "commands" to the server, and the
 # server to send "responses" to the client. Note that commands and responses
@@ -63,7 +63,7 @@ from .rendezvous import CrowdedError
 #
 # -> {type: "open", mailbox: str} -> message
 #     sends old messages now, and subscribes to deliver future messages
-#  <- {type: "message", message: {phase:, body:}} # body is hex
+#  <- {type: "message", side:, phase:, body:, msg_id:}} # body is hex
 # -> {type: "add", phase: str, body: hex} # will send echo in a "message"
 #
 # -> {type: "close", mood: str} -> closed
@@ -191,12 +191,13 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         assert isinstance(mailbox_id, type(u""))
         self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
                                                server_rx)
-        def _send(event):
-            self.send("message", message=event)
+        def _send(sm):
+            self.send("message", side=sm.side, phase=sm.phase,
+                      body=sm.body, server_rx=sm.server_rx, id=sm.msg_id)
         def _stop():
             pass
-        for old_message in self._mailbox.add_listener(self, _send, _stop):
-            _send(old_message)
+        for old_sm in self._mailbox.add_listener(self, _send, _stop):
+            _send(old_sm)
 
     def handle_add(self, msg, server_rx):
         if not self._mailbox:
@@ -206,8 +207,10 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if "body" not in msg:
             raise Error("missing 'body'")
         msgid = msg.get("id") # optional
-        self._mailbox.add_message(self._side, msg["phase"], msg["body"],
-                                  server_rx, msgid)
+        sm = SidedMessage(side=self._side, phase=msg["phase"],
+                          body=msg["body"], server_rx=server_rx,
+                          msg_id=msgid)
+        self._mailbox.add_message(sm)
 
     def handle_close(self, msg, server_rx):
         if not self._mailbox:

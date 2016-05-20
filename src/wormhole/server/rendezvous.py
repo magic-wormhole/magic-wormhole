@@ -52,6 +52,9 @@ TransitUsage = namedtuple("TransitUsage",
                           ["started", "waiting_time", "total_time",
                            "total_bytes", "result"])
 
+SidedMessage = namedtuple("SidedMessage", ["side", "phase", "body",
+                                           "server_rx", "msg_id"])
+
 class Mailbox:
     def __init__(self, app, db, blur_usage, log_requests, app_id, mailbox_id):
         self._app = app
@@ -93,8 +96,10 @@ class Mailbox:
                               " WHERE `app_id`=? AND `mailbox_id`=?"
                               " ORDER BY `server_rx` ASC",
                               (self._app_id, self._mailbox_id)).fetchall():
-            messages.append({"phase": row["phase"], "body": row["body"],
-                             "server_rx": row["server_rx"], "id": row["msg_id"]})
+            sm = SidedMessage(side=row["side"], phase=row["phase"],
+                              body=row["body"], server_rx=row["server_rx"],
+                              msg_id=row["msg_id"])
+            messages.append(sm)
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
@@ -104,25 +109,23 @@ class Mailbox:
     def remove_listener(self, handle):
         self._listeners.pop(handle)
 
-    def broadcast_message(self, phase, body, server_rx, msgid):
+    def broadcast_message(self, sm):
         for (send_f, stop_f) in self._listeners.values():
-            send_f({"phase": phase, "body": body,
-                    "server_rx": server_rx, "id": msgid})
+            send_f(sm)
 
-    def _add_message(self, side, phase, body, server_rx, msgid):
-        db = self._db
-        db.execute("INSERT INTO `messages`"
-                   " (`app_id`, `mailbox_id`, `side`, `phase`,  `body`,"
-                   "  `server_rx`, `msg_id`)"
-                   " VALUES (?,?,?,?,?, ?,?)",
-                   (self._app_id, self._mailbox_id, side, phase, body,
-                    server_rx, msgid))
-        db.commit()
+    def _add_message(self, sm):
+        self._db.execute("INSERT INTO `messages`"
+                         " (`app_id`, `mailbox_id`, `side`, `phase`,  `body`,"
+                         "  `server_rx`, `msg_id`)"
+                         " VALUES (?,?,?,?,?, ?,?)",
+                         (self._app_id, self._mailbox_id, sm.side,
+                          sm.phase, sm.body, sm.server_rx, sm.msg_id))
+        self._db.commit()
 
-    def add_message(self, side, phase, body, server_rx, msgid):
-        self._add_message(side, phase, body, server_rx, msgid)
-        self.broadcast_message(phase, body, server_rx, msgid)
-        return self.get_messages() # for rendezvous_web.py POST /add
+    def add_message(self, sm):
+        assert isinstance(sm, SidedMessage)
+        self._add_message(sm)
+        self.broadcast_message(sm)
 
     def close(self, side, mood, when):
         assert isinstance(side, type(u"")), type(side)
