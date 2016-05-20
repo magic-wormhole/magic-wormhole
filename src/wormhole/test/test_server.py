@@ -711,7 +711,6 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1 = yield self.make_client()
         yield c1.next_non_ack()
         c1.send(u"bind", appid=u"appid", side=u"side")
-        app = self._rendezvous.get_app(u"appid")
 
         c1.send(u"close", mood=u"mood") # must open first
         err = yield c1.next_non_ack()
