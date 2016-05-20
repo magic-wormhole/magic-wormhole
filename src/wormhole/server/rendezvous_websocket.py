@@ -194,7 +194,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         def _send(event):
             self.send("message", message=event)
         def _stop():
-            self._reactor.callLater(0, self.transport.loseConnection)
+            pass
         for old_message in self._mailbox.add_listener(self, _send, _stop):
             _send(old_message)
 
