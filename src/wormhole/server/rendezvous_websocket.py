@@ -56,9 +56,9 @@ from .rendezvous import CrowdedError
 # -> {type: "list"} -> nameplates
 #  <- {type: "nameplates", nameplates: [str..]}
 # -> {type: "allocate"} -> nameplate, mailbox
-#  <- {type: "nameplate", nameplate: str}
+#  <- {type: "allocated", nameplate: str}
 # -> {type: "claim", nameplate: str} -> mailbox
-#  <- {type: "mailbox", mailbox: str}
+#  <- {type: "claimed", mailbox: str}
 # -> {type: "release"}
 #
 # -> {type: "open", mailbox: str} -> message
@@ -160,7 +160,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         nameplate_id = self._app.allocate_nameplate(self._side, server_rx)
         assert isinstance(nameplate_id, type(u""))
         self._did_allocate = True
-        self.send("nameplate", nameplate=nameplate_id)
+        self.send("allocated", nameplate=nameplate_id)
 
     def handle_claim(self, msg, server_rx):
         if "nameplate" not in msg:
@@ -173,7 +173,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                                                    server_rx)
         except CrowdedError:
             raise Error("crowded")
-        self.send("mailbox", mailbox=mailbox_id)
+        self.send("claimed", mailbox=mailbox_id)
 
     def handle_release(self, server_rx):
         if not self._nameplate_id:

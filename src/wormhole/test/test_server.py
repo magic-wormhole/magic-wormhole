@@ -544,7 +544,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         app = self._rendezvous.get_app(u"appid")
         c1.send(u"allocate")
         m = yield c1.next_non_ack()
-        self.assertEqual(m[u"type"], u"nameplate")
+        self.assertEqual(m[u"type"], u"allocated")
         nameplate_id = m[u"nameplate"]
 
         nids = app.get_nameplate_ids()
@@ -579,7 +579,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c1.send(u"claim", nameplate=u"np1")
         m = yield c1.next_non_ack()
-        self.assertEqual(m[u"type"], u"mailbox")
+        self.assertEqual(m[u"type"], u"claimed")
         mailbox_id = m[u"mailbox"]
         self.assertEqual(type(mailbox_id), type(u""))
 
