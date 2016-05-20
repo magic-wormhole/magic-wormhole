@@ -18,7 +18,7 @@ def get_sides(row):
 def make_sides(sides):
     return list(sides) + [None] * (2 - len(sides))
 def generate_mailbox_id():
-    return base64.b32encode(os.urandom(8)).lower().strip("=")
+    return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
 
 
 SideResult = namedtuple("SideResult", ["changed", "empty", "side1", "side2"])

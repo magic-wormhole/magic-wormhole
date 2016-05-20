@@ -483,7 +483,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
         c1.send(u"bind", appid=u"appid", side=u"side")
         yield c1.sync()
-        self.assertEqual(self._rendezvous._apps.keys(), [u"appid"])
+        self.assertEqual(list(self._rendezvous._apps.keys()), [u"appid"])
 
         c1.send(u"bind", appid=u"appid", side=u"side") # duplicate
         err = yield c1.next_non_ack()
