@@ -349,6 +349,10 @@ class WSClient(websocket.WebSocketClientProtocol):
         payload = json.dumps(kwargs).encode("utf-8")
         self.sendMessage(payload, False)
 
+    def send_notype(self, **kwargs):
+        payload = json.dumps(kwargs).encode("utf-8")
+        self.sendMessage(payload, False)
+
     @inlineCallbacks
     def sync(self):
         ping = next(self.ping_counter)
@@ -485,6 +489,21 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         err = yield c1.next_non_ack()
         self.assertEqual(err[u"type"], u"error")
         self.assertEqual(err[u"error"], u"already bound")
+
+        c1.send_notype(other="misc") # missing 'type'
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"missing 'type'")
+
+        c1.send("___unknown") # unknown type
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"unknown type")
+
+        c1.send("ping") # missing 'ping'
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"ping requires 'ping'")
 
     @inlineCallbacks
     def test_list(self):
@@ -704,12 +723,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         m = yield c1.next_non_ack()
         self.assertEqual(m[u"type"], u"closed")
 
-        return
-        print("doing last close")
-        c1.send(u"close", mood=u"mood") # already closed # XXX not getting through
-        print("did last close")
+        c1.send(u"close", mood=u"mood") # already closed
         err = yield c1.next_non_ack()
-        print("done")
         self.assertEqual(err[u"type"], u"error")
         self.assertEqual(err[u"error"], u"must open mailbox before closing")
 

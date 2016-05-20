@@ -130,7 +130,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "close":
                 return self.handle_close(msg, server_rx)
 
-            raise Error("Unknown type")
+            raise Error("unknown type")
         except Error as e:
             self.send("error", error=e._explain, orig=msg)
 
