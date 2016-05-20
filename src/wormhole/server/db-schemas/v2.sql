@@ -34,8 +34,8 @@ CREATE TABLE `mailboxes`
 (
  `app_id` VARCHAR,
  `id` VARCHAR,
- `side1` VARCHAR -- side name, or NULL
- `side2` VARCHAR -- side name, or NULL
+ `side1` VARCHAR, -- side name, or NULL
+ `side2` VARCHAR, -- side name, or NULL
  `crowded` BOOLEAN, -- at some point, three or more sides were involved
  `first_mood` VARCHAR,
  -- timing data for the mailbox itself

@@ -186,12 +186,12 @@ class Transit(protocol.ServerFactory, service.MultiService):
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
             total_bytes = blur_size(total_bytes)
-        self._db.execute("INSERT INTO `usage`"
-                         " (`type`, `started`, `result`, `total_bytes`,"
-                         "  `total_time`, `waiting_time`)"
-                         " VALUES (?,?,?,?, ?,?)",
-                         (u"transit", started, result, total_bytes,
-                          total_time, waiting_time))
+        self._db.execute("INSERT INTO `transit_usage`"
+                         " (`started`, `total_time`, `waiting_time`,"
+                         "  `total_bytes`, `result`)"
+                         " VALUES (?,?,?, ?,?)",
+                         (started, total_time, waiting_time,
+                          total_bytes, result))
         self._db.commit()
 
     def transitFinished(self, p, token, description):

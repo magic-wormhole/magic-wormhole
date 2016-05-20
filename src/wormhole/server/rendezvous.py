@@ -31,6 +31,7 @@ class CrowdedError(Exception):
 
 def add_side(row, new_side):
     old_sides = [s for s in [row["side1"], row["side2"]] if s]
+    assert old_sides
     if new_side in old_sides:
         return Unchanged
     if len(old_sides) == 2:
@@ -98,7 +99,7 @@ class Mailbox:
             if row["phase"] in (CLAIM, RELEASE):
                 continue
             messages.append({"phase": row["phase"], "body": row["body"],
-                             "server_rx": row["server_rx"], "id": row["msgid"]})
+                             "server_rx": row["server_rx"], "id": row["msg_id"]})
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
@@ -117,7 +118,7 @@ class Mailbox:
         db = self._db
         db.execute("INSERT INTO `messages`"
                    " (`app_id`, `mailbox_id`, `side`, `phase`,  `body`,"
-                   "  `server_rx`, `msgid`)"
+                   "  `server_rx`, `msg_id`)"
                    " VALUES (?,?,?,?,?, ?,?)",
                    (self._app_id, self._mailbox_id, side, phase, body,
                     server_rx, msgid))
@@ -138,8 +139,8 @@ class Mailbox:
             return
         sr = remove_side(row, side)
         if sr.empty:
-            rows = db.execute("SELECT DISTINCT(side) FROM `messages`"
-                              " WHERE `app_id`=? AND `id`=?",
+            rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
+                              " WHERE `app_id`=? AND `mailbox_id`=?",
                               (self._app_id, self._mailbox_id)).fetchall()
             num_sides = len(rows)
             self._summarize_and_store(row, num_sides, mood, when, pruned=False)
@@ -188,9 +189,9 @@ class Mailbox:
             waiting_time = row["second"] - row["started"]
         total_time = delete_time - row["started"]
 
-        if len(num_sides) == 0:
+        if num_sides == 0:
             result = u"quiet"
-        elif len(num_sides) == 1:
+        elif num_sides == 1:
             result = u"lonely"
         else:
             result = u"happy"
@@ -266,7 +267,7 @@ class AppNamespace:
 
     def allocate_nameplate(self, side, when):
         nameplate_id = self._find_available_nameplate_id()
-        mailbox_id = self.claim_nameplate(self, nameplate_id, side, when)
+        mailbox_id = self.claim_nameplate(nameplate_id, side, when)
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
@@ -311,10 +312,10 @@ class AppNamespace:
                         (nameplate_id, self._app_id))
             mailbox_id = generate_mailbox_id()
             db.execute("INSERT INTO `nameplates`"
-                       " (`app_id`, `id`, `mailbox_id`, `side1`,"
+                       " (`app_id`, `id`, `mailbox_id`, `side1`, `crowded`,"
                        "  `updated`, `started`)"
-                       " VALUES(?,?,?,?, ?,?)",
-                       (self._app_id, nameplate_id, mailbox_id, side,
+                       " VALUES(?,?,?,?,?, ?,?)",
+                       (self._app_id, nameplate_id, mailbox_id, side, False,
                         when, when))
         db.commit()
         return mailbox_id
@@ -367,10 +368,10 @@ class AppNamespace:
             waiting_time = row["second"] - row["started"]
         total_time = delete_time - row["started"]
         result = u"lonely"
-        if pruned:
-            result = u"pruney"
         if row["second"]:
             result = u"happy"
+        if pruned:
+            result = u"pruney"
         if row["crowded"]:
             result = u"crowded"
         return Usage(started=started, waiting_time=waiting_time,
@@ -403,15 +404,17 @@ class AppNamespace:
                 log.msg("spawning #%s for app_id %s" % (mailbox_id,
                                                         self._app_id))
             db.execute("INSERT INTO `mailboxes`"
-                       " (`app_id`, `id`, `started`)"
-                       " VALUES(?,?,?)",
-                       (self._app_id, mailbox_id, when))
+                       " (`app_id`, `id`, `side1`, `crowded`, `started`)"
+                       " VALUES(?,?,?,?,?)",
+                       (self._app_id, mailbox_id, side, False, when))
+            db.commit() # XXX
+            # mailbox.open() does a SELECT to find the old sides
             self._mailboxes[mailbox_id] = Mailbox(self, self._db,
                                                   self._blur_usage,
                                                   self._log_requests,
                                                   self._app_id, mailbox_id)
         mailbox = self._mailboxes[mailbox_id]
-        mailbox.open(side)
+        mailbox.open(side, when)
         db.commit()
         return mailbox
 
@@ -421,9 +424,9 @@ class AppNamespace:
 
         if mailbox_id in self._mailboxes:
             self._mailboxes.pop(mailbox_id)
-        if self._log_requests:
-            log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
-                    (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
+        #if self._log_requests:
+        #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
+        #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
     def prune_mailboxes(self, old):
         # For now, pruning is logged even if log_requests is False, to debug
