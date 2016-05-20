@@ -2,6 +2,7 @@ import json, time
 from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
+from .rendezvous import CrowdedError
 
 # The WebSocket allows the client to send "commands" to the server, and the
 # server to send "responses" to the client. Note that commands and responses
@@ -84,7 +85,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._app = None
         self._side = None
         self._did_allocate = False # only one allocate() per websocket
-        self._channels = {} # channel-id -> Channel (claimed)
+        self._mailbox = None
 
     def onConnect(self, request):
         rv = self.factory.rendezvous
@@ -122,11 +123,11 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 return self.handle_release(msg, server_rx)
 
             if mtype == "open":
-                return self.handle_open(msg)
+                return self.handle_open(msg, server_rx)
             if mtype == "add":
                 return self.handle_add(msg, server_rx)
             if mtype == "close":
-                return self.handle_close(msg)
+                return self.handle_close(msg, server_rx)
 
             raise Error("Unknown type")
         except Error as e:
@@ -154,7 +155,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def handle_allocate(self, server_rx):
         if self._did_allocate:
-            raise Error("You already allocated one channel, don't be greedy")
+            raise Error("You already allocated one mailbox, don't be greedy")
         nameplate_id = self._app.allocate_nameplate(self._side, server_rx)
         assert isinstance(nameplate_id, type(u""))
         self._did_allocate = True
@@ -164,56 +165,52 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if "nameplate" not in msg:
             raise Error("claim requires 'nameplate'")
         nameplate_id = msg["nameplate"]
+        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
         self._nameplate_id = nameplate_id
-        assert isinstance(nameplate_id, type(u"")), type(nameplate)
-        mailbox_id = self._app.claim_nameplate(nameplate_id, self._side,
-                                               server_rx)
+        try:
+            mailbox_id = self._app.claim_nameplate(nameplate_id, self._side,
+                                                   server_rx)
+        except CrowdedError:
+            raise Error("crowded")
         self.send("mailbox", mailbox=mailbox_id)
 
     def handle_release(self, server_rx):
         if not self._nameplate_id:
             raise Error("must claim a nameplate before releasing it")
-
-        deleted = self._app.release_nameplate(self._nameplate_id,
-                                              self._side, server_rx)
+        self._app.release_nameplate(self._nameplate_id, self._side, server_rx)
         self._nameplate_id = None
 
 
-    def handle_open(self, msg):
-        channelid = msg["channelid"]
-        if channelid not in self._channels:
-            raise Error("must claim channel before watching")
-        assert isinstance(channelid, type(u""))
-        channel = self._channels[channelid]
+    def handle_open(self, msg, server_rx):
+        if self._mailbox:
+            raise Error("you already have a mailbox open")
+        mailbox_id = msg["mailbox_id"]
+        assert isinstance(mailbox_id, type(u""))
+        self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
+                                               server_rx)
         def _send(event):
-            self.send("message", channelid=channelid, message=event)
+            self.send("message", message=event)
         def _stop():
             self._reactor.callLater(0, self.transport.loseConnection)
-        for old_message in channel.add_listener(self, _send, _stop):
+        for old_message in self._mailbox.add_listener(self, _send, _stop):
             _send(old_message)
 
     def handle_add(self, msg, server_rx):
-        channelid = msg["channelid"]
-        if channelid not in self._channels:
-            raise Error("must claim channel before adding")
-        assert isinstance(channelid, type(u""))
-        channel = self._channels[channelid]
+        if not self._mailbox:
+            raise Error("must open mailbox before adding")
         if "phase" not in msg:
             raise Error("missing 'phase'")
         if "body" not in msg:
             raise Error("missing 'body'")
         msgid = msg.get("id") # optional
-        channel.add_message(self._side, msg["phase"], msg["body"],
-                            server_rx, msgid)
+        self._mailbox.add_message(self._side, msg["phase"], msg["body"],
+                                  server_rx, msgid)
 
-    def handle_close(self, msg):
-        channelid = msg["channelid"]
-        if channelid not in self._channels:
-            raise Error("must claim channel before releasing")
-        assert isinstance(channelid, type(u""))
-        channel = self._channels[channelid]
-        deleted = channel.release(self._side, msg.get("mood"))
-        del self._channels[channelid]
+    def handle_close(self, msg, server_rx):
+        if not self._mailbox:
+            raise Error("must open mailbox before closing")
+        deleted = self._mailbox.close(self._side, msg.get("mood"), server_rx)
+        self._mailbox = None
         self.send("released", status="deleted" if deleted else "waiting")
 
     def send(self, mtype, **kwargs):

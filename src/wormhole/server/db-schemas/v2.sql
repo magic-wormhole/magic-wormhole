@@ -18,12 +18,14 @@ CREATE TABLE `nameplates`
  `mailbox_id` VARCHAR, -- really a foreign key
  `side1` VARCHAR, -- side name, or NULL
  `side2` VARCHAR, -- side name, or NULL
+ `crowded` BOOLEAN, -- at some point, three or more sides were involved
+ `updated` INTEGER, -- time of last activity, used for pruning
  -- timing data
  `started` INTEGER, -- time when nameplace was opened
- `second` INTEGER, -- time when second side opened
- `closed` INTEGER -- time when closed
+ `second` INTEGER -- time when second side opened
 );
 CREATE INDEX `nameplates_idx` ON `nameplates` (`app_id`, `id`);
+CREATE INDEX `nameplates_updated_idx` ON `nameplates` (`app_id`, `updated`);
 CREATE INDEX `nameplates_mailbox_idx` ON `nameplates` (`app_id`, `mailbox_id`);
 
 -- Clients exchange messages through a "mailbox", which has a long (randomly
@@ -34,10 +36,11 @@ CREATE TABLE `mailboxes`
  `id` VARCHAR,
  `side1` VARCHAR -- side name, or NULL
  `side2` VARCHAR -- side name, or NULL
+ `crowded` BOOLEAN, -- at some point, three or more sides were involved
+ `first_mood` VARCHAR,
  -- timing data for the mailbox itself
  `started` INTEGER, -- time when opened
- `second` INTEGER, -- time when second side opened
- `closed` INTEGER -- time when closed
+ `second` INTEGER -- time when second side opened
 );
 CREATE INDEX `mailboxes_idx` ON `mailboxes` (`app_id`, `id`);
 
@@ -55,20 +58,22 @@ CREATE INDEX `messages_idx` ON `messages` (`app_id`, `mailbox_id`);
 
 CREATE TABLE `nameplate_usage`
 (
+ `app_id` VARCHAR,
  `started` INTEGER, -- seconds since epoch, rounded to "blur time"
- `total_time` INTEGER, -- seconds from open to last close
- `result` VARCHAR, -- happy, lonely, pruney, crowded
+ `waiting_time` INTEGER, -- seconds from start to 2nd side appearing, or None
+ `total_time` INTEGER, -- seconds from open to last close/prune
+ `result` VARCHAR -- happy, lonely, pruney, crowded
  -- nameplate moods:
  --  "happy": two sides open and close
  --  "lonely": one side opens and closes (no response from 2nd side)
  --  "pruney": channels which get pruned for inactivity
  --  "crowded": three or more sides were involved
- `waiting_time` INTEGER -- seconds from start to 2nd side appearing, or None
 );
-CREATE INDEX `nameplate_usage_idx` ON `nameplate_usage` (`started`);
+CREATE INDEX `nameplate_usage_idx` ON `nameplate_usage` (`app_id`, `started`);
 
 CREATE TABLE `mailbox_usage`
 (
+ `app_id` VARCHAR,
  `started` INTEGER, -- seconds since epoch, rounded to "blur time"
  `total_time` INTEGER, -- seconds from open to last close
  `waiting_time` INTEGER, -- seconds from start to 2nd side appearing, or None
@@ -81,7 +86,7 @@ CREATE TABLE `mailbox_usage`
  --  "pruney": channels which get pruned for inactivity
  --  "crowded": three or more sides were involved
 );
-CREATE INDEX `mailbox_usage_idx` ON `mailbox_usage` (`started`);
+CREATE INDEX `mailbox_usage_idx` ON `mailbox_usage` (`app_id`, `started`);
 
 CREATE TABLE `transit_usage`
 (
