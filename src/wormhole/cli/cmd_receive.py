@@ -99,10 +99,11 @@ class TwistedReceiver:
         if self.args.zeromode:
             assert not code
             code = u"0-"
-        if not code:
-            code = yield w.input_code("Enter receive wormhole code: ",
-                                      self.args.code_length)
-        yield w.set_code(code)
+        if code:
+            w.set_code(code)
+        else:
+            yield w.input_code("Enter receive wormhole code: ",
+                               self.args.code_length)
 
     def show_verifier(self, verifier):
         verifier_hex = binascii.hexlify(verifier).decode("ascii")

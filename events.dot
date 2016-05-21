@@ -1,0 +1,38 @@
+digraph {
+        event_learned_code [label="learned\ncode" style="bold"]
+        event_learned_nameplate [label="learned\nnameplate" style="bold"]
+        event_learned_mailbox [label="learned\nmailbox" style="bold"]
+        event_connected [label="connected" style="bold"]
+        event_built_msg1 [label="built\nmsg1" style="bold"]
+        event_mailbox_used [label="mailbox\nused" style="bold"]
+        event_learned_PAKE [label="learned\nmsg2" style="bold"]
+        event_established_key [label="established\nkey" style="bold"]
+        event_computed_verifier [label="computed\nverifier" style="bold"]
+        event_received_confirm [label="received\nconfirm" style="bold"]
+
+        maybe_build_msg1 [label="build\nmsg1"]
+        maybe_get_mailbox [label="get\nmailbox"]
+        maybe_send_pake [label="send\npake"]
+        maybe_send_phase_messages [label="send\nphase\nmessages"]
+
+        event_connected -> maybe_get_mailbox
+
+        event_built_msg1 -> maybe_send_pake
+
+        event_learned_code -> maybe_build_msg1
+        event_learned_code -> event_learned_nameplate
+
+        maybe_build_msg1 -> event_built_msg1
+        event_learned_nameplate -> maybe_get_mailbox
+
+        maybe_get_mailbox -> event_learned_mailbox [style="dashed"]
+        maybe_get_mailbox -> event_mailbox_used [style="dashed"]
+        maybe_get_mailbox -> event_learned_PAKE [style="dashed"]
+        maybe_get_mailbox -> event_received_confirm [style="dashed"]
+
+        event_learned_mailbox -> maybe_send_pake
+        event_learned_mailbox -> maybe_send_phase_messages
+
+        event_learned_PAKE -> event_established_key
+        event_established_key -> event_computed_verifier
+}
