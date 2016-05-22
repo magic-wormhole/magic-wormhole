@@ -54,7 +54,7 @@ from .rendezvous import CrowdedError, SidedMessage
 # -> {type: "bind", appid:, side:}
 #
 # -> {type: "list"} -> nameplates
-#  <- {type: "nameplates", nameplates: [str..]}
+#  <- {type: "nameplates", nameplates: [{id: str,..},..]}
 # -> {type: "allocate"} -> nameplate, mailbox
 #  <- {type: "allocated", nameplate: str}
 # -> {type: "claim", nameplate: str} -> mailbox
@@ -152,7 +152,10 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def handle_list(self):
         nameplate_ids = sorted(self._app.get_nameplate_ids())
-        self.send("nameplates", nameplates=nameplate_ids)
+        # provide room to add nameplate attributes later (like which wordlist
+        # is used for each, maybe how many words)
+        nameplates = [{"id": nid} for nid in nameplate_ids]
+        self.send("nameplates", nameplates=nameplates)
 
     def handle_allocate(self, server_rx):
         if self._did_allocate:

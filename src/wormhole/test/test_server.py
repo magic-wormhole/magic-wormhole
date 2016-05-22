@@ -539,7 +539,12 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1.send(u"list")
         m = yield c1.next_non_ack()
         self.assertEqual(m[u"type"], u"nameplates")
-        self.assertEqual(set(m[u"nameplates"]), set([nameplate_id1, u"np2"]))
+        nids = set()
+        for n in m[u"nameplates"]:
+            self.assertEqual(type(n), dict)
+            self.assertEqual(list(n.keys()), [u"id"])
+            nids.add(n[u"id"])
+        self.assertEqual(nids, set([nameplate_id1, u"np2"]))
 
     @inlineCallbacks
     def test_allocate(self):
