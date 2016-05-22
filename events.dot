@@ -1,14 +1,24 @@
 digraph {
-        event_learned_code [label="learned\ncode" style="bold"]
-        event_learned_nameplate [label="learned\nnameplate" style="bold"]
-        event_learned_mailbox [label="learned\nmailbox" style="bold"]
-        event_connected [label="connected" style="bold"]
-        event_built_msg1 [label="built\nmsg1" style="bold"]
-        event_mailbox_used [label="mailbox\nused" style="bold"]
-        event_learned_PAKE [label="learned\nmsg2" style="bold"]
-        event_established_key [label="established\nkey" style="bold"]
-        event_computed_verifier [label="computed\nverifier" style="bold"]
-        event_received_confirm [label="received\nconfirm" style="bold"]
+        event_learned_code [label="learned\ncode" shape="box"]
+        event_learned_nameplate [label="learned\nnameplate" shape="box"]
+        event_learned_mailbox [label="learned\nmailbox" shape="box"]
+        event_connected [label="connected" shape="box"]
+        event_built_msg1 [label="built\nmsg1" shape="box"]
+        event_mailbox_used [label="mailbox\nused" shape="box"]
+        event_learned_PAKE [label="learned\nmsg2" shape="box"]
+        event_established_key [label="established\nkey" shape="box"]
+        event_computed_verifier [label="computed\nverifier" shape="box"]
+        event_received_confirm [label="received\nconfirm" shape="box"]
+
+        event_connected -> api_get_code
+        event_connected -> api_input_code
+        api_get_code [label="get_code" shape="hexagon"]
+        api_input_code [label="input_code" shape="hexagon"]
+        api_set_code [label="set_code" shape="hexagon"]
+        api_get_code -> event_learned_code
+        api_input_code -> event_learned_code
+        api_set_code -> event_learned_code
+
 
         maybe_build_msg1 [label="build\nmsg1"]
         maybe_get_mailbox [label="get\nmailbox"]
@@ -16,6 +26,7 @@ digraph {
         maybe_send_phase_messages [label="send\nphase\nmessages"]
 
         event_connected -> maybe_get_mailbox
+        event_connected -> maybe_send_pake
 
         event_built_msg1 -> maybe_send_pake
 
@@ -30,9 +41,22 @@ digraph {
         maybe_get_mailbox -> event_learned_PAKE [style="dashed"]
         maybe_get_mailbox -> event_received_confirm [style="dashed"]
 
+        event_learned_mailbox -> event_learned_PAKE [style="dashed"]
+        event_learned_PAKE -> event_mailbox_used [style="dashed"]
+        event_mailbox_used -> event_received_confirm [style="dashed"]
+
+        send [label="API\nsend" shape="hexagon"]
+        send -> maybe_send_phase_messages
+        event_mailbox_used -> release
         event_learned_mailbox -> maybe_send_pake
         event_learned_mailbox -> maybe_send_phase_messages
 
         event_learned_PAKE -> event_established_key
         event_established_key -> event_computed_verifier
+        event_established_key -> maybe_send_phase_messages
+
+        check_verifier [label="check\nverifier"]
+        event_computed_verifier -> check_verifier
+        event_received_confirm -> check_verifier
+
 }
