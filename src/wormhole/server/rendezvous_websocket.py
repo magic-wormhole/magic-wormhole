@@ -60,6 +60,7 @@ from .rendezvous import CrowdedError, SidedMessage
 # -> {type: "claim", nameplate: str} -> mailbox
 #  <- {type: "claimed", mailbox: str}
 # -> {type: "release"}
+#  <- {type: "released"}
 #
 # -> {type: "open", mailbox: str} -> message
 #     sends old messages now, and subscribes to deliver future messages
@@ -183,6 +184,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             raise Error("must claim a nameplate before releasing it")
         self._app.release_nameplate(self._nameplate_id, self._side, server_rx)
         self._nameplate_id = None
+        self.send("released")
 
 
     def handle_open(self, msg, server_rx):

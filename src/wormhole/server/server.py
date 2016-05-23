@@ -45,12 +45,8 @@ class RelayServer(service.MultiService):
         rendezvous = Rendezvous(db, welcome, blur_usage)
         rendezvous.setServiceParent(self) # for the pruning timer
 
-        root = Root()
-        wr = resource.Resource()
-        root.putChild(b"wormhole-relay", wr)
-
         wsrf = WebSocketRendezvousFactory(None, rendezvous)
-        wr.putChild(b"ws", WebSocketResource(wsrf))
+        root = WebSocketResource(wsrf)
 
         site = PrivacyEnhancedSite(root)
         if blur_usage:

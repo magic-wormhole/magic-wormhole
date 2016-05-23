@@ -12,30 +12,6 @@ from .common import ServerBase
 from ..server import rendezvous, transit_server
 from ..server.rendezvous import Usage, SidedMessage
 
-class Reachable(ServerBase, unittest.TestCase):
-
-    def test_getPage(self):
-        # client.getPage requires bytes URL, returns bytes
-        url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
-        d = getPage(url)
-        def _got(res):
-            self.failUnlessEqual(res, b"Wormhole Relay\n")
-        d.addCallback(_got)
-        return d
-
-    def test_agent(self):
-        url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
-        agent = Agent(reactor)
-        d = agent.request(b"GET", url)
-        def _check(resp):
-            self.failUnlessEqual(resp.code, 200)
-            return readBody(resp)
-        d.addCallback(_check)
-        def _got(res):
-            self.failUnlessEqual(res, b"Wormhole Relay\n")
-        d.addCallback(_got)
-        return d
-
 class Server(ServerBase, unittest.TestCase):
     def test_apps(self):
         app1 = self._rendezvous.get_app(u"appid1")
@@ -459,7 +435,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def make_client(self):
-        f = WSFactory(self.rdv_ws_url)
+        f = WSFactory(self.relayurl)
         f.d = defer.Deferred()
         reactor.connectTCP("127.0.0.1", self.rdv_ws_port, f)
         c = yield f.d
@@ -644,7 +620,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         yield c1.next_non_ack()
 
         c1.send(u"release")
-        yield c1.sync()
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"released")
 
         row = app._db.execute("SELECT * FROM `nameplates`"
                               " WHERE `app_id`='appid' AND `id`='np1'").fetchone()

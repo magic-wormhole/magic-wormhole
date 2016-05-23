@@ -15,7 +15,7 @@ from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
 from .errors import WrongPasswordError, UsageError
-#from .timing import DebugTiming
+from .timing import DebugTiming
 from hkdf import Hkdf
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -67,9 +67,10 @@ class WSFactory(websocket.WebSocketClientFactory):
 
 
 class _GetCode:
-    def __init__(self, code_length, send_command):
+    def __init__(self, code_length, send_command, timing):
         self._code_length = code_length
         self._send_command = send_command
+        self._timing = timing
         self._allocated_d = defer.Deferred()
 
     @inlineCallbacks
@@ -87,11 +88,12 @@ class _GetCode:
         self._allocated_d.callback(nid)
 
 class _InputCode:
-    def __init__(self, reactor, prompt, code_length, send_command):
+    def __init__(self, reactor, prompt, code_length, send_command, timing):
         self._reactor = reactor
         self._prompt = prompt
         self._code_length = code_length
         self._send_command = send_command
+        self._timing = timing
 
     @inlineCallbacks
     def _list(self):
@@ -172,11 +174,12 @@ class _InputCode:
         # readline finish.
 
 class _WelcomeHandler:
-    def __init__(self, url, current_version):
+    def __init__(self, url, current_version, signal_error):
         self._ws_url = url
         self._version_warning_displayed = False
         self._motd_displayed = False
         self._current_version = current_version
+        self._signal_error = signal_error
 
     def handle_welcome(self, welcome):
         if ("motd" in welcome and
@@ -211,28 +214,45 @@ class _Wormhole:
         self._tor_manager = tor_manager
         self._timing = timing
 
-        self._welcomer = _WelcomeHandler(self._ws_url, __version__)
+        self._welcomer = _WelcomeHandler(self._ws_url, __version__,
+                                         self._signal_error)
         self._side = hexlify(os.urandom(5)).decode("ascii")
         self._connected = None
+        self._connection_waiters = []
+        self._started_get_code = False
+        self._code = None
         self._nameplate_id = None
+        self._nameplate_claimed = False
+        self._nameplate_released = False
+        self._release_waiter = defer.Deferred()
         self._mailbox_id = None
         self._mailbox_opened = False
         self._mailbox_closed = False
-        self._flag_need_mailbox = True
+        self._close_waiter = defer.Deferred()
+        self._flag_need_nameplate = True
         self._flag_need_to_see_mailbox_used = True
         self._flag_need_to_build_msg1 = True
         self._flag_need_to_send_PAKE = True
-        self._flag_need_PAKE = True
-        self._flag_need_key = True # rename to not self._key
+        self._key = None
+        self._closed = False
+        self._mood = u"happy"
+
+        self._get_verifier_called = False
+        self._verifier_waiter = defer.Deferred()
 
         self._next_send_phase = 0
-        self._plaintext_to_send = [] # (phase, plaintext, deferred)
-        self._phase_messages_to_send = [] # not yet acked by server
+        # send() queues plaintext here, waiting for a connection and the key
+        self._plaintext_to_send = [] # (phase, plaintext)
+        self._sent_phases = set() # to detect double-send
 
         self._next_receive_phase = 0
         self._receive_waiters = {} # phase -> Deferred
-        self._phase_messages_received = {} # phase -> message
+        self._received_messages = {} # phase -> plaintext
 
+    def _signal_error(self, error):
+        # close the mailbox with an "errory" mood, errback all Deferreds,
+        # record the error, fail all subsequent API calls
+        pass # XXX
 
     def _start(self):
         d = self._connect() # causes stuff to happen
@@ -275,6 +295,16 @@ class _Wormhole:
         self._ws_send_command(u"bind", appid=self._appid, side=self._side)
         self._maybe_get_mailbox()
         self._maybe_send_pake()
+        waiters, self._connection_waiters = self._connection_waiters, []
+        for d in waiters:
+            d.callback(None)
+
+    def _when_connected(self):
+        if self._connected:
+            return defer.succeed(None)
+        d = defer.Deferred()
+        self._connection_waiters.append(d)
+        return d
 
     def _ws_send_command(self, mtype, **kwargs):
         # msgid is used by misc/dump-timing.py to correlate our sends with
@@ -287,8 +317,10 @@ class _Wormhole:
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
 
+    DEBUG=False
     def _ws_dispatch_response(self, payload):
         msg = json.loads(payload.decode("utf-8"))
+        if self.DEBUG and msg["type"]!="ack": print("DIS", msg["type"], msg)
         self._timing.add("ws_receive", _side=self._side, message=msg)
         mtype = msg["type"]
         meth = getattr(self, "_response_handle_"+mtype, None)
@@ -311,9 +343,11 @@ class _Wormhole:
         if self._started_get_code: raise UsageError
         self._started_get_code = True
         with self._timing.add("API get_code"):
-            gc = _GetCode(code_length, self._ws_send_command)
+            yield self._when_connected()
+            gc = _GetCode(code_length, self._ws_send_command, self._timing)
             self._response_handle_allocated = gc._response_handle_allocated
             code = yield gc.go()
+            self._nameplate_claimed = True # side-effect of allocation
         self._event_learned_code(code)
         returnValue(code)
 
@@ -324,6 +358,7 @@ class _Wormhole:
         if self._started_input_code: raise UsageError
         self._started_input_code = True
         with self._timing.add("API input_code"):
+            yield self._when_connected()
             ic = _InputCode(prompt, code_length, self._ws_send_command)
             self._response_handle_nameplates = ic._response_handle_nameplates
             code = yield ic.go()
@@ -336,6 +371,17 @@ class _Wormhole:
         if not isinstance(code, type(u"")): raise TypeError(type(code))
         if self._code is not None: raise UsageError
         self._event_learned_code(code)
+
+    # TODO: entry point 4: restore pre-contact saved state (we haven't heard
+    # from the peer yet, so we still need the nameplate)
+
+    # TODO: entry point 5: restore post-contact saved state (so we don't need
+    # or use the nameplate, only the mailbox)
+    def _restore_post_contact_state(self, state):
+        # ...
+        self._flag_need_nameplate = False
+        #self._mailbox_id = X(state)
+        self._event_learned_mailbox()
 
     def _event_learned_code(self, code):
         self._timing.add("code established")
@@ -370,10 +416,10 @@ class _Wormhole:
         self._maybe_get_mailbox()
 
     def _maybe_get_mailbox(self):
-        if not (self._flag_need_mailbox and self._nameplate_id
-                and self._connected):
+        if not (self._nameplate_id and self._connected):
             return
         self._ws_send_command(u"claim", nameplate=self._nameplate_id)
+        self._nameplate_claimed = True
 
     def _response_handle_claimed(self, msg):
         mailbox_id = msg["mailbox"]
@@ -382,10 +428,10 @@ class _Wormhole:
         self._event_learned_mailbox()
 
     def _event_learned_mailbox(self):
-        self._flag_need_mailbox = False
         if not self._mailbox_id: raise UsageError
         if self._mailbox_opened: raise UsageError
         self._ws_send_command(u"open", mailbox=self._mailbox_id)
+        self._mailbox_opened = True
         # causes old messages to be sent now, and subscribes to new messages
         self._maybe_send_pake()
         self._maybe_send_phase_messages()
@@ -395,34 +441,36 @@ class _Wormhole:
         if not (self._connected and self._mailbox_opened
                 and self._flag_need_to_send_PAKE):
             return
-        d = self._msg_send(u"pake", self._msg1)
-        def _pake_sent(res):
-            self._flag_need_to_send_PAKE = False
-        d.addCallback(_pake_sent)
-        d.addErrback(log.err)
+        self._msg_send(u"pake", self._msg1)
+        self._flag_need_to_send_PAKE = False
 
-    def _event_learned_PAKE(self, pake_msg):
+    def _event_received_pake(self, pake_msg):
         with self._timing.add("pake2", waiting="crypto"):
             self._key = self._sp.finish(pake_msg)
         self._event_established_key()
 
     def _event_established_key(self):
         self._timing.add("key established")
-        if self._send_confirm:
-            # both sides send different (random) confirmation messages
-            confkey = self.derive_key(u"wormhole:confirmation")
-            nonce = os.urandom(CONFMSG_NONCE_LENGTH)
-            confmsg = make_confmsg(confkey, nonce)
-            self._msg_send(u"confirm", confmsg, wait=True)
+
+        # both sides send different (random) confirmation messages
+        confkey = self.derive_key(u"wormhole:confirmation")
+        nonce = os.urandom(CONFMSG_NONCE_LENGTH)
+        confmsg = make_confmsg(confkey, nonce)
+        self._msg_send(u"confirm", confmsg)
+
         verifier = self.derive_key(u"wormhole:verifier")
         self._event_computed_verifier(verifier)
+
         self._maybe_send_phase_messages()
 
+    def get_verifier(self):
+        if self._closed: raise UsageError
+        if self._get_verifier_called: raise UsageError
+        self._get_verifier_called = True
+        return self._verifier_waiter
+
     def _event_computed_verifier(self, verifier):
-        self._verifier = verifier
-        d, self._verifier_waiter = self._verifier_waiter, None
-        if d:
-            d.callback(verifier)
+        self._verifier_waiter.callback(verifier)
 
     def _event_received_confirm(self, body):
         # TODO: we might not have a master key yet, if the caller wasn't
@@ -435,19 +483,15 @@ class _Wormhole:
             return self._signal_error(WrongPasswordError())
 
 
-    @inlineCallbacks
-    def send(self, outbound_data, wait=False):
+    def send(self, outbound_data):
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if self._closed: raise UsageError
         phase = self._next_send_phase
         self._next_send_phase += 1
-        d = defer.Deferred()
-        self._plaintext_to_send.append( (phase, outbound_data, d) )
-        with self._timing.add("API send", phase=phase, wait=wait):
+        self._plaintext_to_send.append( (phase, outbound_data) )
+        with self._timing.add("API send", phase=phase):
             self._maybe_send_phase_messages()
-            if wait:
-                yield d
 
     def _maybe_send_phase_messages(self):
         # TODO: deal with reentrant call
@@ -456,18 +500,19 @@ class _Wormhole:
         plaintexts = self._plaintext_to_send
         self._plaintext_to_send = []
         for pm in plaintexts:
-            (phase, plaintext, wait_d) = pm
+            (phase, plaintext) = pm
+            assert isinstance(phase, int), type(phase)
             data_key = self.derive_key(u"wormhole:phase:%d" % phase)
             encrypted = self._encrypt_data(data_key, plaintext)
-            d = self._msg_send(phase, encrypted)
-            d.addBoth(wait_d.callback)
-            d.addErrback(log.err)
+            self._msg_send(u"%d" % phase, encrypted)
 
     def _encrypt_data(self, key, data):
         # Without predefined roles, we can't derive predictably unique keys
         # for each side, so we use the same key for both. We use random
         # nonces to keep the messages distinct, and we automatically ignore
         # reflections.
+        # TODO: HKDF(side, nonce, key) ?? include 'side' to prevent
+        # reflections, since we no longer compare messages
         assert isinstance(key, type(b"")), type(key)
         assert isinstance(data, type(b"")), type(data)
         assert len(key) == SecretBox.KEY_SIZE, len(key)
@@ -475,57 +520,39 @@ class _Wormhole:
         nonce = utils.random(SecretBox.NONCE_SIZE)
         return box.encrypt(data, nonce)
 
-    @inlineCallbacks
-    def _msg_send(self, phase, body, wait=False):
-        if phase in self._sent_messages: raise UsageError
+    def _msg_send(self, phase, body):
+        if phase in self._sent_phases: raise UsageError
         if not self._mailbox_opened: raise UsageError
         if self._mailbox_closed: raise UsageError
-        self._sent_messages[phase] = body
+        self._sent_phases.add(phase)
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
-        t = self._timing.add("add", phase=phase, wait=wait)
-        yield self._ws_send_command(u"add", phase=phase,
-                                    body=hexlify(body).decode("ascii"))
-        if wait:
-            while phase not in self._delivered_messages:
-                yield self._sleep()
-            t.finish()
+        self._timing.add("add", phase=phase)
+        self._ws_send_command(u"add", phase=phase,
+                              body=hexlify(body).decode("ascii"))
 
 
-    def _event_received_message(self, msg):
-        pass
     def _event_mailbox_used(self):
+        if self.DEBUG: print("_event_mailbox_used")
         if self._flag_need_to_see_mailbox_used:
-            self._ws_send_command(u"release")
+            self._maybe_release_nameplate()
             self._flag_need_to_see_mailbox_used = False
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         if self._key is None:
-            # call after get_verifier() or get()
-            raise UsageError
+            raise UsageError # call derive_key after get_verifier() or get()
         return HKDF(self._key, length, CTXinfo=to_bytes(purpose))
-
-    def _event_received_phase_message(self, phase, message):
-        self._phase_messages_received[phase] = message
-        if phase in self._phase_message_waiters:
-            d = self._phase_message_waiters.pop(phase)
-            d.callback(message)
 
     def _response_handle_message(self, msg):
         side = msg["side"]
         phase = msg["phase"]
+        assert isinstance(phase, type(u"")), type(phase)
         body = unhexlify(msg["body"].encode("ascii"))
         if side == self._side:
             return
         self._event_received_peer_message(phase, body)
 
-    def XXXackstuff():
-        if phase in self._sent_messages and self._sent_messages[phase] == body:
-            self._delivered_messages.add(phase) # ack by server
-            self._wakeup()
-            return # ignore echoes of our outbound messages
-        
     def _event_received_peer_message(self, phase, body):
         # any message in the mailbox means we no longer need the nameplate
         self._event_mailbox_used()
@@ -534,18 +561,23 @@ class _Wormhole:
         #    err = ServerError("got duplicate phase %s" % phase, self._ws_url)
         #    return self._signal_error(err)
         #self._received_messages[phase] = body
+        if phase == u"pake":
+            self._event_received_pake(body)
+            return
         if phase == u"confirm":
             self._event_received_confirm(body)
+            return
+
         # now notify anyone waiting on it
         try:
             data_key = self.derive_key(u"wormhole:phase:%s" % phase)
-            inbound_data = self._decrypt_data(data_key, body)
+            plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
-            raise WrongPasswordError
-        self._phase_messages_received[phase] = inbound_data
+            raise WrongPasswordError # TODO: signal
+        self._received_messages[phase] = plaintext
         if phase in self._receive_waiters:
             d = self._receive_waiters.pop(phase)
-            d.callback(inbound_data)
+            d.callback(plaintext)
 
     def _decrypt_data(self, key, encrypted):
         assert isinstance(key, type(b"")), type(key)
@@ -555,28 +587,63 @@ class _Wormhole:
         data = box.decrypt(encrypted)
         return data
 
-    @inlineCallbacks
     def get(self):
         if self._closed: raise UsageError
-        if self._code is None: raise UsageError
-        phase = self._next_receive_phase
+        phase = u"%d" % self._next_receive_phase
         self._next_receive_phase += 1
         with self._timing.add("API get", phase=phase):
-            if phase in self._phase_messages_received:
-                returnValue(self._phase_messages_received[phase])
+            if phase in self._received_messages:
+                return defer.succeed(self._received_messages[phase])
             d = self._receive_waiters[phase] = defer.Deferred()
-            yield d
+            return d
 
-    def _event_asked_to_close(self):
+    @inlineCallbacks
+    def close(self, mood=None, wait=False):
+        # TODO: auto-close on error, mostly for load-from-state
+        if self._closed: raise UsageError
+        if mood:
+            self._mood = mood
+        self._maybe_release_nameplate()
+        self._maybe_close_mailbox()
+        if wait:
+            if self._nameplate_claimed:
+                yield self._release_waiter
+            if self._mailbox_opened:
+                yield self._close_waiter
+        self._drop_connection()
+
+    def _maybe_release_nameplate(self):
+        if self.DEBUG: print("_maybe_release_nameplate", self._nameplate_claimed, self._nameplate_released)
+        if self._nameplate_claimed and not self._nameplate_released:
+            if self.DEBUG: print(" sending release")
+            self._ws_send_command(u"release")
+            self._nameplate_released = True
+
+    def _response_handle_released(self, msg):
+        self._release_waiter.callback(None)
+
+    def _maybe_close_mailbox(self):
+        if self._mailbox_opened and not self._mailbox_closed:
+            self._ws_send_command(u"close", mood=self._mood)
+            self._mailbox_closed = True
+
+    def _response_handle_closed(self, msg):
+        self._close_waiter.callback(None)
+
+    def _drop_connection(self):
+        self._ws.transport.loseConnection() # probably flushes
+        # calls _ws_closed() when done
+
+    def _ws_closed(self, wasClean, code, reason):
         pass
-    
-
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
+    timing = timing or DebugTiming()
     w = _Wormhole(appid, relay_url, reactor, tor_manager, timing)
     w._start()
     return w
 
-def wormhole_from_serialized(data, reactor):
-    w = _Wormhole.from_serialized(data, reactor)
+def wormhole_from_serialized(data, reactor, timing=None):
+    timing = timing or DebugTiming()
+    w = _Wormhole.from_serialized(data, reactor, timing)
     return w
