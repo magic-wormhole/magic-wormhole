@@ -20,6 +20,10 @@ def handle_server_error(func):
 class Timeout(Exception):
     pass
 
+class WelcomeError(Exception):
+    """The server told us to signal an error, probably because our version is
+    too old to possibly work."""
+
 class WrongPasswordError(Exception):
     """
     Key confirmation failed. Either you or your correspondent typed the code

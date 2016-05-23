@@ -14,7 +14,7 @@ from spake2 import SPAKE2_Symmetric
 from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
-from .errors import WrongPasswordError, UsageError
+from .errors import WrongPasswordError, UsageError, WelcomeError
 from .timing import DebugTiming
 from hkdf import Hkdf
 
@@ -203,7 +203,7 @@ class _WelcomeHandler:
             self._version_warning_displayed = True
 
         if "error" in welcome:
-            return self._signal_error(welcome["error"])
+            return self._signal_error(WelcomeError(welcome["error"]))
 
 
 class _Wormhole:
@@ -220,15 +220,16 @@ class _Wormhole:
         self._connected = None
         self._connection_waiters = []
         self._started_get_code = False
+        self._get_code = None
         self._code = None
         self._nameplate_id = None
         self._nameplate_claimed = False
         self._nameplate_released = False
-        self._release_waiter = defer.Deferred()
+        self._release_waiter = None
         self._mailbox_id = None
         self._mailbox_opened = False
         self._mailbox_closed = False
-        self._close_waiter = defer.Deferred()
+        self._close_waiter = None
         self._flag_need_nameplate = True
         self._flag_need_to_see_mailbox_used = True
         self._flag_need_to_build_msg1 = True
@@ -237,6 +238,7 @@ class _Wormhole:
         self._closed = False
         self._disconnect_waiter = defer.Deferred()
         self._mood = u"happy"
+        self._error = None
 
         self._get_verifier_called = False
         self._verifier_waiter = defer.Deferred()
@@ -253,7 +255,24 @@ class _Wormhole:
     def _signal_error(self, error):
         # close the mailbox with an "errory" mood, errback all Deferreds,
         # record the error, fail all subsequent API calls
-        pass # XXX
+        if self.DEBUG: print("_signal_error", error)
+        self._error = error # causes new API calls to fail
+        for d in self._connection_waiters:
+            d.errback(error)
+        if self._get_code:
+            self._get_code._allocated_d.errback(error)
+        if not self._verifier_waiter.called:
+            self._verifier_waiter.errback(error)
+        for d in self._receive_waiters.values():
+            d.errback(error)
+
+        self._maybe_close(mood=u"errory")
+        if self._release_waiter and not self._release_waiter.called:
+            self._release_waiter.errback(error)
+        if self._close_waiter and not self._close_waiter.called:
+            self._close_waiter.errback(error)
+        # leave self._disconnect_waiter alone
+        if self.DEBUG: print("_signal_error done")
 
     def _start(self):
         d = self._connect() # causes stuff to happen
@@ -346,8 +365,11 @@ class _Wormhole:
         with self._timing.add("API get_code"):
             yield self._when_connected()
             gc = _GetCode(code_length, self._ws_send_command, self._timing)
+            self._get_code = gc
             self._response_handle_allocated = gc._response_handle_allocated
+            # TODO: signal_error
             code = yield gc.go()
+            self._get_code = None
             self._nameplate_claimed = True # side-effect of allocation
         self._event_learned_code(code)
         returnValue(code)
@@ -362,6 +384,7 @@ class _Wormhole:
             yield self._when_connected()
             ic = _InputCode(prompt, code_length, self._ws_send_command)
             self._response_handle_nameplates = ic._response_handle_nameplates
+            # TODO: signal_error
             code = yield ic.go()
         self._event_learned_code(code)
         returnValue(None)
@@ -465,9 +488,11 @@ class _Wormhole:
         self._maybe_send_phase_messages()
 
     def get_verifier(self):
+        if self._error: return defer.fail(self._error)
         if self._closed: raise UsageError
         if self._get_verifier_called: raise UsageError
         self._get_verifier_called = True
+        # TODO: maybe have this wait on _event_received_confirm too
         return self._verifier_waiter
 
     def _event_computed_verifier(self, verifier):
@@ -481,10 +506,12 @@ class _Wormhole:
         nonce = body[:CONFMSG_NONCE_LENGTH]
         if body != make_confmsg(confkey, nonce):
             # this makes all API calls fail
+            if self.DEBUG: print("CONFIRM FAILED")
             return self._signal_error(WrongPasswordError())
 
 
     def send(self, outbound_data):
+        if self._error: raise self._error
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
         if self._closed: raise UsageError
@@ -540,6 +567,7 @@ class _Wormhole:
             self._flag_need_to_see_mailbox_used = False
 
     def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+        if self._error: raise self._error
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         if self._key is None:
             raise UsageError # call derive_key after get_verifier() or get()
@@ -589,6 +617,7 @@ class _Wormhole:
         return data
 
     def get(self):
+        if self._error: return defer.fail(self._error)
         if self._closed: raise UsageError
         phase = u"%d" % self._next_receive_phase
         self._next_receive_phase += 1
@@ -598,21 +627,34 @@ class _Wormhole:
             d = self._receive_waiters[phase] = defer.Deferred()
             return d
 
+    def _maybe_close(self, mood):
+        if self._closed:
+            return
+        self.close(mood)
+
     @inlineCallbacks
     def close(self, mood=None, wait=False):
         # TODO: auto-close on error, mostly for load-from-state
+        if self.DEBUG: print("close", wait)
         if self._closed: raise UsageError
+        self._closed = True
         if mood:
             self._mood = mood
         self._maybe_release_nameplate()
         self._maybe_close_mailbox()
         if wait:
             if self._nameplate_claimed:
+                if self.DEBUG: print("waiting for released")
+                self._release_waiter = defer.Deferred()
                 yield self._release_waiter
             if self._mailbox_opened:
+                if self.DEBUG: print("waiting for closed")
+                self._close_waiter = defer.Deferred()
                 yield self._close_waiter
+        if self.DEBUG: print("dropping connection")
         self._drop_connection()
         if wait:
+            if self.DEBUG: print("waiting for disconnect")
             yield self._disconnect_waiter
 
     def _maybe_release_nameplate(self):
@@ -623,15 +665,19 @@ class _Wormhole:
             self._nameplate_released = True
 
     def _response_handle_released(self, msg):
-        self._release_waiter.callback(None)
+        if self._release_waiter and not self._release_waiter.called:
+            self._release_waiter.callback(None)
 
     def _maybe_close_mailbox(self):
+        if self.DEBUG: print("_maybe_close_mailbox", self._mailbox_opened, self._mailbox_closed)
         if self._mailbox_opened and not self._mailbox_closed:
+            if self.DEBUG: print(" sending close")
             self._ws_send_command(u"close", mood=self._mood)
             self._mailbox_closed = True
 
     def _response_handle_closed(self, msg):
-        self._close_waiter.callback(None)
+        if self._close_waiter and not self._close_waiter.called:
+            self._close_waiter.callback(None)
 
     def _drop_connection(self):
         self._ws.transport.loseConnection() # probably flushes

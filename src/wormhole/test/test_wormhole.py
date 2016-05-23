@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, json, re
+import os, json, re, gc
 from binascii import hexlify, unhexlify
 import mock
 from twisted.trial import unittest
@@ -84,7 +84,14 @@ class Welcome(unittest.TestCase):
         self.assertEqual(se.mock_calls, [])
 
         w.handle_welcome({u"error": u"oops"})
-        self.assertEqual(se.mock_calls, [mock.call(u"oops")])
+        self.assertEqual(len(se.mock_calls), 1)
+        self.assertEqual(len(se.mock_calls[0][1]), 1) # posargs
+        we = se.mock_calls[0][1][0]
+        self.assertIsInstance(we, wormhole.WelcomeError)
+        self.assertEqual(we.args, (u"oops",))
+        # alas WelcomeError instances don't compare against each other
+        #self.assertEqual(se.mock_calls,
+        #                 [mock.call(wormhole.WelcomeError(u"oops"))])
 
 class InputCode(unittest.TestCase):
     def test_list(self):
@@ -116,10 +123,10 @@ class GetCode(unittest.TestCase):
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
 
-
 class Basic(unittest.TestCase):
-    def test_create(self):
-        wormhole._Wormhole(APPID, u"relay_url", reactor, None, None)
+    def tearDown(self):
+        # flush out any errorful Deferreds left dangling in cycles
+        gc.collect()
 
     def check_out(self, out, **kwargs):
         # Assert that each kwarg is present in the 'out' dict. Ignore other
@@ -134,6 +141,17 @@ class Basic(unittest.TestCase):
         for i,t in enumerate(types):
             self.assertEqual(out[i][u"type"], t, (i,t,out))
         return out
+
+    def make_pake(self, code, side, msg1):
+        sp2 = SPAKE2_Symmetric(wormhole.to_bytes(code),
+                               idSymmetric=wormhole.to_bytes(APPID))
+        msg2 = sp2.start()
+        msg2_hex = hexlify(msg2).decode("ascii")
+        key = sp2.finish(msg1)
+        return key, msg2_hex
+
+    def test_create(self):
+        wormhole._Wormhole(APPID, u"relay_url", reactor, None, None)
 
     def test_basic(self):
         # We don't call w._start(), so this doesn't create a WebSocket
@@ -201,11 +219,7 @@ class Basic(unittest.TestCase):
         # next we build the simulated peer's PAKE operation
         side2 = w._side + u"other"
         msg1 = unhexlify(out[1][u"body"].encode("ascii"))
-        sp2 = SPAKE2_Symmetric(wormhole.to_bytes(CODE),
-                               idSymmetric=wormhole.to_bytes(APPID))
-        msg2 = sp2.start()
-        msg2_hex = hexlify(msg2).decode("ascii")
-        key = sp2.finish(msg1)
+        key, msg2_hex = self.make_pake(CODE, side2, msg1)
         response(w, type=u"message", phase=u"pake", body=msg2_hex, side=side2)
 
         # hearing the peer's PAKE (msg2) makes us release the nameplate, send
@@ -271,6 +285,24 @@ class Basic(unittest.TestCase):
         self.assertEqual(len(out), 1)
         self.check_out(out[0], type=u"close", mood=u"happy")
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
+
+    def test_close_wait_0(self):
+        # close before even claiming the nameplate
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w._drop_connection = mock.Mock()
+        ws = MockWebSocket()
+        w._event_connected(ws)
+        w._event_ws_opened(None)
+
+        d = w.close(wait=True)
+        self.check_outbound(ws, [u"bind"])
+        self.assertNoResult(d)
+        self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
+        self.assertNoResult(d)
+
+        w._ws_closed(True, None, None)
+        self.successResultOf(d)
 
     def test_close_wait_1(self):
         # close after claiming the nameplate, but before opening the mailbox
@@ -405,6 +437,98 @@ class Basic(unittest.TestCase):
         pieces = code.split(u"-")
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
+
+    def test_api_errors(self):
+        # doing things you're not supposed to do
+        pass
+
+    def test_welcome_error(self):
+        # A welcome message could arrive at any time, with an [error] key
+        # that should make us halt. In practice, though, this gets sent as
+        # soon as the connection is established, which limits the possible
+        # states in which we might see it.
+
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w._drop_connection = mock.Mock()
+        ws = MockWebSocket()
+        w._event_connected(ws)
+        w._event_ws_opened(None)
+        self.check_outbound(ws, [u"bind"])
+
+        WE = wormhole.WelcomeError
+        d1 = w.get()
+        d2 = w.get_verifier()
+        d3 = w.get_code()
+        # TODO (tricky): test w.input_code
+
+        self.assertNoResult(d1)
+        self.assertNoResult(d2)
+        self.assertNoResult(d3)
+
+        w._signal_error(WE(u"you are not actually welcome"))
+        self.failureResultOf(d1, WE)
+        self.failureResultOf(d2, WE)
+        self.failureResultOf(d3, WE)
+
+        # once the error is signalled, all API calls should fail
+        self.assertRaises(WE, w.send, u"foo")
+        self.assertRaises(WE, w.derive_key, u"foo")
+        self.failureResultOf(w.get(), WE)
+        self.failureResultOf(w.get_verifier(), WE)
+
+    def test_confirm_error(self):
+        # we should only receive the "confirm" message after we receive the
+        # PAKE message, by which point we should know the key. If the
+        # confirmation message doesn't decrypt, we signal an error.
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w._drop_connection = mock.Mock()
+        ws = MockWebSocket()
+        w._event_connected(ws)
+        w._event_ws_opened(None)
+        w.set_code(u"123-foo-bar")
+        response(w, type=u"claimed", mailbox=u"mb456")
+
+        WP = wormhole.WrongPasswordError
+        d1 = w.get()
+        d2 = w.get_verifier()
+        self.assertNoResult(d1)
+        self.assertNoResult(d2)
+
+        out = ws.outbound()
+        # [u"bind", u"claim", u"open", u"add"]
+        self.assertEqual(len(out), 4)
+        self.assertEqual(out[3][u"type"], u"add")
+
+        sp2 = SPAKE2_Symmetric(b"", idSymmetric=wormhole.to_bytes(APPID))
+        msg2 = sp2.start()
+        msg2_hex = hexlify(msg2).decode("ascii")
+        response(w, type=u"message", phase=u"pake", body=msg2_hex, side=u"s2")
+        self.assertNoResult(d1)
+        self.successResultOf(d2) # early get_verifier is unaffected
+        # TODO: get_verifier would be a lovely place to signal a confirmation
+        # error, but that's at odds with delivering the verifier as early as
+        # possible. The confirmation messages should be hot on the heels of
+        # the PAKE message that produced the verifier. Maybe get_verifier()
+        # should explicitly wait for confirm()?
+
+        # sending a random confirm message will cause a confirmation error
+        confkey = w.derive_key(u"WRONG")
+        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
+        badconfirm = wormhole.make_confmsg(confkey, nonce)
+        badconfirm_hex = hexlify(badconfirm).decode("ascii")
+        response(w, type=u"message", phase=u"confirm", body=badconfirm_hex,
+                 side=u"s2")
+
+        self.failureResultOf(d1, WP)
+
+        # once the error is signalled, all API calls should fail
+        self.assertRaises(WP, w.send, u"foo")
+        self.assertRaises(WP, w.derive_key, u"foo")
+        self.failureResultOf(w.get(), WP)
+        self.failureResultOf(w.get_verifier(), WP)
+
 
 # event orderings to exercise:
 #

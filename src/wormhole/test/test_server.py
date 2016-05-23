@@ -5,7 +5,6 @@ from twisted.trial import unittest
 from twisted.internet import protocol, reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.endpoints import clientFromString, connectProtocol
-from twisted.web.client import getPage, Agent, readBody
 from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
