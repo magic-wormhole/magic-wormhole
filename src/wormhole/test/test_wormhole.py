@@ -290,8 +290,11 @@ class Basic(unittest.TestCase):
         self.assertEqual(w._drop_connection.mock_calls, [])
 
         response(w, type=u"released")
-        self.successResultOf(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
+        self.assertNoResult(d)
+
+        w._ws_closed(True, None, None)
+        self.successResultOf(d)
 
     def test_close_wait_2(self):
         # close after both claiming the nameplate and opening the mailbox
@@ -314,9 +317,13 @@ class Basic(unittest.TestCase):
         response(w, type=u"released")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
+
         response(w, type=u"closed")
-        self.successResultOf(d)
+        self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
+
+        w._ws_closed(True, None, None)
+        self.successResultOf(d)
 
     def test_close_wait_3(self):
         # close after claiming the nameplate, opening the mailbox, then
@@ -348,9 +355,13 @@ class Basic(unittest.TestCase):
         response(w, type=u"released")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
+
         response(w, type=u"closed")
-        self.successResultOf(d)
+        self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
+
+        w._ws_closed(True, None, None)
+        self.successResultOf(d)
 
     def test_get_code_mock(self):
         timing = DebugTiming()

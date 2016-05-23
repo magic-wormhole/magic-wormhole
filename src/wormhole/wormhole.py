@@ -235,6 +235,7 @@ class _Wormhole:
         self._flag_need_to_send_PAKE = True
         self._key = None
         self._closed = False
+        self._disconnect_waiter = defer.Deferred()
         self._mood = u"happy"
 
         self._get_verifier_called = False
@@ -611,6 +612,8 @@ class _Wormhole:
             if self._mailbox_opened:
                 yield self._close_waiter
         self._drop_connection()
+        if wait:
+            yield self._disconnect_waiter
 
     def _maybe_release_nameplate(self):
         if self.DEBUG: print("_maybe_release_nameplate", self._nameplate_claimed, self._nameplate_released)
@@ -635,7 +638,7 @@ class _Wormhole:
         # calls _ws_closed() when done
 
     def _ws_closed(self, wasClean, code, reason):
-        pass
+        self._disconnect_waiter.callback(None)
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
     timing = timing or DebugTiming()
