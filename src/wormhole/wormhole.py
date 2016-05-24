@@ -11,6 +11,7 @@ from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
 from spake2 import SPAKE2_Symmetric
+from hashlib import sha256
 from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
@@ -592,10 +593,14 @@ class _Wormhole:
         with self._timing.add("API send", phase=phase):
             self._maybe_send_phase_messages()
 
-    #def _derive_phase_key(self, side, phase):
-    def _derive_phase_key(self, phase):
-        assert isinstance(phase, type(b"")), type(phase)
-        purpose = b"wormhole:phase:" + phase
+    def _derive_phase_key(self, side, phase):
+        assert isinstance(side, type(u"")), type(side)
+        assert isinstance(phase, type(u"")), type(phase)
+        side_bytes = side.encode("ascii")
+        phase_bytes = phase.encode("ascii")
+        purpose = (b"wormhole:phase:"
+                   + sha256(side_bytes).digest()
+                   + sha256(phase_bytes).digest())
         return self._derive_key(purpose)
 
     def _maybe_send_phase_messages(self):
@@ -607,12 +612,12 @@ class _Wormhole:
         plaintexts = self._plaintext_to_send
         self._plaintext_to_send = []
         for pm in plaintexts:
-            (phase, plaintext) = pm
-            assert isinstance(phase, int), type(phase)
-            phase_bytes = (u"%d" % phase).encode("ascii")
-            data_key = self._derive_phase_key(phase_bytes)
+            (phase_int, plaintext) = pm
+            assert isinstance(phase_int, int), type(phase_int)
+            phase = u"%d" % phase_int
+            data_key = self._derive_phase_key(self._side, phase)
             encrypted = self._encrypt_data(data_key, plaintext)
-            self._msg_send(u"%d" % phase, encrypted)
+            self._msg_send(phase, encrypted)
 
     def _encrypt_data(self, key, data):
         # Without predefined roles, we can't derive predictably unique keys
@@ -663,9 +668,9 @@ class _Wormhole:
         body = unhexlify(msg["body"].encode("ascii"))
         if side == self._side:
             return
-        self._event_received_peer_message(phase, body)
+        self._event_received_peer_message(side, phase, body)
 
-    def _event_received_peer_message(self, phase, body):
+    def _event_received_peer_message(self, side, phase, body):
         # any message in the mailbox means we no longer need the nameplate
         self._event_mailbox_used()
         #if phase in self._received_messages:
@@ -682,9 +687,8 @@ class _Wormhole:
 
         # It's a phase message, aimed at the application above us. Decrypt
         # and deliver upstairs, notifying anyone waiting on it
-        phase_bytes = phase.encode("ascii")
         try:
-            data_key = self._derive_phase_key(phase_bytes)
+            data_key = self._derive_phase_key(side, phase)
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
             e = WrongPasswordError()

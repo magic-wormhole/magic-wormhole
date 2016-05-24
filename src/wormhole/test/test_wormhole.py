@@ -251,7 +251,7 @@ class Basic(unittest.TestCase):
         self.check_out(out[0], type=u"add", phase=u"0")
         # decrypt+check the outbound message
         p0_outbound = unhexlify(out[0][u"body"].encode("ascii"))
-        msgkey0 = w.derive_key(u"wormhole:phase:0", SecretBox.KEY_SIZE)
+        msgkey0 = w._derive_phase_key(w._side, u"0")
         p0_plaintext = w._decrypt_data(msgkey0, p0_outbound)
         self.assertEqual(p0_plaintext, b"phase0-outbound")
 
@@ -260,7 +260,8 @@ class Basic(unittest.TestCase):
         self.assertNoResult(md)
         self.assertIn(u"0", w._receive_waiters)
         self.assertNotIn(u"0", w._received_messages)
-        p0_inbound = w._encrypt_data(msgkey0, b"phase0-inbound")
+        msgkey1 = w._derive_phase_key(side2, u"0")
+        p0_inbound = w._encrypt_data(msgkey1, b"phase0-inbound")
         p0_inbound_hex = hexlify(p0_inbound).decode("ascii")
         response(w, type=u"message", phase=u"0", body=p0_inbound_hex,
                  side=side2)
@@ -270,8 +271,8 @@ class Basic(unittest.TestCase):
         self.assertIn(u"0", w._received_messages)
 
         # receiving an inbound message will queue it until get() is called
-        msgkey1 = w.derive_key(u"wormhole:phase:1", SecretBox.KEY_SIZE)
-        p1_inbound = w._encrypt_data(msgkey1, b"phase1-inbound")
+        msgkey2 = w._derive_phase_key(side2, u"1")
+        p1_inbound = w._encrypt_data(msgkey2, b"phase1-inbound")
         p1_inbound_hex = hexlify(p1_inbound).decode("ascii")
         response(w, type=u"message", phase=u"1", body=p1_inbound_hex,
                  side=side2)
@@ -433,7 +434,7 @@ class Basic(unittest.TestCase):
         response(w, type=u"claimed", mailbox=u"mb456")
 
         w._key = b""
-        msgkey = w.derive_key(u"wormhole:phase:misc", SecretBox.KEY_SIZE)
+        msgkey = w._derive_phase_key(u"side2", u"misc")
         p1_inbound = w._encrypt_data(msgkey, b"")
         p1_inbound_hex = hexlify(p1_inbound).decode("ascii")
         response(w, type=u"message", phase=u"misc", side=u"side2",
