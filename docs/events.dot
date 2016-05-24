@@ -1,4 +1,5 @@
 digraph {
+        /*rankdir=LR*/
         api_get_code [label="get_code" shape="hexagon" color="red"]
         api_input_code [label="input_code" shape="hexagon" color="red"]
         api_set_code [label="set_code" shape="hexagon" color="red"]
