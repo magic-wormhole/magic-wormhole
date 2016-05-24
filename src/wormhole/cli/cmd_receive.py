@@ -3,7 +3,7 @@ import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..twisted.transcribe import wormhole
+from ..wormhole import wormhole
 from ..twisted.transit import TransitReceiver
 from ..errors import TransferError
 
@@ -64,12 +64,12 @@ class TwistedReceiver:
     @inlineCallbacks
     def _go(self, w, tor_manager):
         yield self.handle_code(w)
-        verifier = yield w.get_verifier()
+        verifier = yield w.verify()
         self.show_verifier(verifier)
         them_d = yield self.get_data(w)
         try:
             if "message" in them_d:
-                yield self.handle_text(them_d, w)
+                self.handle_text(them_d, w)
                 returnValue(None)
             if "file" in them_d:
                 f = self.handle_file(them_d)
@@ -89,7 +89,7 @@ class TwistedReceiver:
                 raise RespondError("unknown offer type")
         except RespondError as r:
             data = json.dumps({"error": r.response}).encode("utf-8")
-            yield w.send(data)
+            w.send(data)
             raise TransferError(r.response)
         returnValue(None)
 
@@ -119,12 +119,11 @@ class TwistedReceiver:
             raise TransferError(them_d["error"])
         returnValue(them_d)
 
-    @inlineCallbacks
     def handle_text(self, them_d, w):
         # we're receiving a text message
         self.msg(them_d["message"])
         data = json.dumps({"message_ack": "ok"}).encode("utf-8")
-        yield w.send(data, wait=True)
+        w.send(data)
 
     def handle_file(self, them_d):
         file_data = them_d["file"]
@@ -183,12 +182,13 @@ class TwistedReceiver:
 
     @inlineCallbacks
     def establish_transit(self, w, them_d, tor_manager):
-        transit_key = w.derive_key(APPID+u"/transit-key")
         transit_receiver = TransitReceiver(self.args.transit_helper,
                                            no_listen=self.args.no_listen,
                                            tor_manager=tor_manager,
                                            reactor=self._reactor,
                                            timing=self.args.timing)
+        transit_key = w.derive_key(APPID+u"/transit-key",
+                                   transit_receiver.TRANSIT_KEY_LENGTH)
         transit_receiver.set_transit_key(transit_key)
         direct_hints = yield transit_receiver.get_direct_hints()
         relay_hints = yield transit_receiver.get_relay_hints()
@@ -199,7 +199,7 @@ class TwistedReceiver:
                 "relay_connection_hints": relay_hints,
                 },
             }).encode("utf-8")
-        yield w.send(data)
+        w.send(data)
 
         # now receive the rest of the owl
         tdata = them_d["transit"]
