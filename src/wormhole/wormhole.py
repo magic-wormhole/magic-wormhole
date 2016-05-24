@@ -533,11 +533,14 @@ class _Wormhole:
             self._key = self._sp.finish(pake_msg)
         self._event_established_key()
 
+    def _derive_confirmation_key(self):
+        return self._derive_key(u"wormhole:confirmation")
+
     def _event_established_key(self):
         self._timing.add("key established")
 
         # both sides send different (random) confirmation messages
-        confkey = self._derive_key(u"wormhole:confirmation")
+        confkey = self._derive_confirmation_key()
         nonce = os.urandom(CONFMSG_NONCE_LENGTH)
         confmsg = make_confmsg(confkey, nonce)
         self._msg_send(u"confirm", confmsg)
@@ -571,7 +574,7 @@ class _Wormhole:
         # TODO: we might not have a master key yet, if the caller wasn't
         # waiting in _get_master_key() when a back-to-back pake+_confirm
         # message pair arrived.
-        confkey = self._derive_key(u"wormhole:confirmation")
+        confkey = self._derive_confirmation_key()
         nonce = body[:CONFMSG_NONCE_LENGTH]
         if body != make_confmsg(confkey, nonce):
             # this makes all API calls fail
@@ -589,6 +592,10 @@ class _Wormhole:
         with self._timing.add("API send", phase=phase):
             self._maybe_send_phase_messages()
 
+    #def _derive_phase_key(self, side, phase):
+    def _derive_phase_key(self, phase):
+        return self._derive_key(u"wormhole:phase:%s" % phase)
+
     def _maybe_send_phase_messages(self):
         # TODO: deal with reentrant call
         if not (self._connection_state == OPEN
@@ -600,7 +607,7 @@ class _Wormhole:
         for pm in plaintexts:
             (phase, plaintext) = pm
             assert isinstance(phase, int), type(phase)
-            data_key = self._derive_key(u"wormhole:phase:%d" % phase)
+            data_key = self._derive_phase_key(u"%d" % phase)
             encrypted = self._encrypt_data(data_key, plaintext)
             self._msg_send(u"%d" % phase, encrypted)
 
@@ -672,7 +679,7 @@ class _Wormhole:
         # It's a phase message, aimed at the application above us. Decrypt
         # and deliver upstairs, notifying anyone waiting on it
         try:
-            data_key = self._derive_key(u"wormhole:phase:%s" % phase)
+            data_key = self._derive_phase_key(phase)
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
             e = WrongPasswordError()
