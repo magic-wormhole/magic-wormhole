@@ -1,5 +1,6 @@
 from __future__ import print_function
-import time, random
+import os, time, random, base64
+from collections import namedtuple
 from twisted.python import log
 from twisted.application import service, internet
 
@@ -12,92 +13,209 @@ MB = 1000*1000
 CHANNEL_EXPIRATION_TIME = 3*DAY
 EXPIRATION_CHECK_PERIOD = 2*HOUR
 
-ALLOCATE = u"_allocate"
-DEALLOCATE = u"_deallocate"
+def get_sides(row):
+    return set([s for s in [row["side1"], row["side2"]] if s])
+def make_sides(sides):
+    return list(sides) + [None] * (2 - len(sides))
+def generate_mailbox_id():
+    return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
 
-class Channel:
-    def __init__(self, app, db, welcome, blur_usage, log_requests,
-                 appid, channelid):
+
+SideResult = namedtuple("SideResult", ["changed", "empty", "side1", "side2"])
+Unchanged = SideResult(changed=False, empty=False, side1=None, side2=None)
+class CrowdedError(Exception):
+    pass
+
+def add_side(row, new_side):
+    old_sides = [s for s in [row["side1"], row["side2"]] if s]
+    assert old_sides
+    if new_side in old_sides:
+        return Unchanged
+    if len(old_sides) == 2:
+        raise CrowdedError("too many sides for this thing")
+    return SideResult(changed=True, empty=False,
+                      side1=old_sides[0], side2=new_side)
+
+def remove_side(row, side):
+    old_sides = [s for s in [row["side1"], row["side2"]] if s]
+    if side not in old_sides:
+        return Unchanged
+    remaining_sides = old_sides[:]
+    remaining_sides.remove(side)
+    if remaining_sides:
+        return SideResult(changed=True, empty=False, side1=remaining_sides[0],
+                          side2=None)
+    return SideResult(changed=True, empty=True, side1=None, side2=None)
+
+Usage = namedtuple("Usage", ["started", "waiting_time", "total_time", "result"])
+TransitUsage = namedtuple("TransitUsage",
+                          ["started", "waiting_time", "total_time",
+                           "total_bytes", "result"])
+
+SidedMessage = namedtuple("SidedMessage", ["side", "phase", "body",
+                                           "server_rx", "msg_id"])
+
+class Mailbox:
+    def __init__(self, app, db, blur_usage, log_requests, app_id, mailbox_id):
         self._app = app
         self._db = db
         self._blur_usage = blur_usage
         self._log_requests = log_requests
-        self._appid = appid
-        self._channelid = channelid
-        self._listeners = set() # instances with .send_rendezvous_event (that
-                                # takes a JSONable object) and
-                                # .stop_rendezvous_watcher()
+        self._app_id = app_id
+        self._mailbox_id = mailbox_id
+        self._listeners = {} # handle -> (send_f, stop_f)
+        # "handle" is a hashable object, for deregistration
+        # send_f() takes a JSONable object, stop_f() has no args
 
-    def get_channelid(self):
-        return self._channelid
+    def open(self, side, when):
+        # requires caller to db.commit()
+        assert isinstance(side, type(u"")), type(side)
+        db = self._db
+        row = db.execute("SELECT * FROM `mailboxes`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, self._mailbox_id)).fetchone()
+        try:
+            sr = add_side(row, side)
+        except CrowdedError:
+            db.execute("UPDATE `mailboxes` SET `crowded`=?"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (True, self._app_id, self._mailbox_id))
+            db.commit()
+            raise
+        if sr.changed:
+            db.execute("UPDATE `mailboxes` SET"
+                       " `side1`=?, `side2`=?, `second`=?"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (sr.side1, sr.side2, when,
+                        self._app_id, self._mailbox_id))
 
     def get_messages(self):
         messages = []
         db = self._db
         for row in db.execute("SELECT * FROM `messages`"
-                              " WHERE `appid`=? AND `channelid`=?"
+                              " WHERE `app_id`=? AND `mailbox_id`=?"
                               " ORDER BY `server_rx` ASC",
-                              (self._appid, self._channelid)).fetchall():
-            if row["phase"] in (u"_allocate", u"_deallocate"):
-                continue
-            messages.append({"phase": row["phase"], "body": row["body"],
-                             "server_rx": row["server_rx"], "id": row["msgid"]})
+                              (self._app_id, self._mailbox_id)).fetchall():
+            sm = SidedMessage(side=row["side"], phase=row["phase"],
+                              body=row["body"], server_rx=row["server_rx"],
+                              msg_id=row["msg_id"])
+            messages.append(sm)
         return messages
 
-    def add_listener(self, ep):
-        self._listeners.add(ep)
+    def add_listener(self, handle, send_f, stop_f):
+        self._listeners[handle] = (send_f, stop_f)
         return self.get_messages()
 
-    def remove_listener(self, ep):
-        self._listeners.discard(ep)
+    def remove_listener(self, handle):
+        self._listeners.pop(handle)
 
-    def broadcast_message(self, phase, body, server_rx, msgid):
-        for ep in self._listeners:
-            ep.send_rendezvous_event({"phase": phase, "body": body,
-                                      "server_rx": server_rx, "id": msgid})
+    def broadcast_message(self, sm):
+        for (send_f, stop_f) in self._listeners.values():
+            send_f(sm)
 
-    def _add_message(self, side, phase, body, server_rx, msgid):
+    def _add_message(self, sm):
+        self._db.execute("INSERT INTO `messages`"
+                         " (`app_id`, `mailbox_id`, `side`, `phase`,  `body`,"
+                         "  `server_rx`, `msg_id`)"
+                         " VALUES (?,?,?,?,?, ?,?)",
+                         (self._app_id, self._mailbox_id, sm.side,
+                          sm.phase, sm.body, sm.server_rx, sm.msg_id))
+        self._db.commit()
+
+    def add_message(self, sm):
+        assert isinstance(sm, SidedMessage)
+        self._add_message(sm)
+        self.broadcast_message(sm)
+
+    def close(self, side, mood, when):
+        assert isinstance(side, type(u"")), type(side)
         db = self._db
-        db.execute("INSERT INTO `messages`"
-                   " (`appid`, `channelid`, `side`, `phase`,  `body`,"
-                   "  `server_rx`, `msgid`)"
-                   " VALUES (?,?,?,?,?, ?,?)",
-                   (self._appid, self._channelid, side, phase, body,
-                    server_rx, msgid))
-        db.commit()
+        row = db.execute("SELECT * FROM `mailboxes`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, self._mailbox_id)).fetchone()
+        if not row:
+            return
+        sr = remove_side(row, side)
+        if sr.empty:
+            rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
+                              " WHERE `app_id`=? AND `mailbox_id`=?",
+                              (self._app_id, self._mailbox_id)).fetchall()
+            num_sides = len(rows)
+            self._summarize_and_store(row, num_sides, mood, when, pruned=False)
+            self._delete()
+            db.commit()
+        elif sr.changed:
+            db.execute("UPDATE `mailboxes`"
+                       " SET `side1`=?, `side2`=?, `first_mood`=?"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (sr.side1, sr.side2, mood,
+                        self._app_id, self._mailbox_id))
+            db.commit()
 
-    def allocate(self, side):
-        self._add_message(side, ALLOCATE, None, time.time(), None)
+    def _delete(self):
+        # requires caller to db.commit()
+        self._db.execute("DELETE FROM `mailboxes`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, self._mailbox_id))
+        self._db.execute("DELETE FROM `messages`"
+                         " WHERE `app_id`=? AND `mailbox_id`=?",
+                         (self._app_id, self._mailbox_id))
 
-    def add_message(self, side, phase, body, server_rx, msgid):
-        self._add_message(side, phase, body, server_rx, msgid)
-        self.broadcast_message(phase, body, server_rx, msgid)
-        return self.get_messages() # for rendezvous_web.py POST /add
+        # Shut down any listeners, just in case they're still lingering
+        # around.
+        for (send_f, stop_f) in self._listeners.values():
+            stop_f()
 
-    def deallocate(self, side, mood):
-        self._add_message(side, DEALLOCATE, mood, time.time(), None)
-        db = self._db
-        seen = set([row["side"] for row in
-                    db.execute("SELECT `side` FROM `messages`"
-                               " WHERE `appid`=? AND `channelid`=?",
-                               (self._appid, self._channelid))])
-        freed = set([row["side"] for row in
-                     db.execute("SELECT `side` FROM `messages`"
-                                " WHERE `appid`=? AND `channelid`=?"
-                                " AND `phase`=?",
-                                (self._appid, self._channelid, DEALLOCATE))])
-        if seen - freed:
-            return False
-        self.delete_and_summarize()
-        return True
+        self._app.free_mailbox(self._mailbox_id)
+
+    def _summarize_and_store(self, row, num_sides, second_mood, delete_time,
+                             pruned):
+        u = self._summarize(row, num_sides, second_mood, delete_time, pruned)
+        self._db.execute("INSERT INTO `mailbox_usage`"
+                         " (`app_id`, "
+                         "  `started`, `total_time`, `waiting_time`, `result`)"
+                         " VALUES (?, ?,?,?,?)",
+                         (self._app_id,
+                          u.started, u.total_time, u.waiting_time, u.result))
+
+    def _summarize(self, row, num_sides, second_mood, delete_time, pruned):
+        started = row["started"]
+        if self._blur_usage:
+            started = self._blur_usage * (started // self._blur_usage)
+        waiting_time = None
+        if row["second"]:
+            waiting_time = row["second"] - row["started"]
+        total_time = delete_time - row["started"]
+
+        if num_sides == 0:
+            result = u"quiet"
+        elif num_sides == 1:
+            result = u"lonely"
+        else:
+            result = u"happy"
+
+        moods = set([row["first_mood"], second_mood])
+        if u"lonely" in moods:
+            result = u"lonely"
+        if u"errory" in moods:
+            result = u"errory"
+        if u"scary" in moods:
+            result = u"scary"
+        if pruned:
+            result = u"pruney"
+        if row["crowded"]:
+            result = u"crowded"
+
+        return Usage(started=started, waiting_time=waiting_time,
+                     total_time=total_time, result=result)
 
     def is_idle(self):
         if self._listeners:
             return False
         c = self._db.execute("SELECT `server_rx` FROM `messages`"
-                             " WHERE `appid`=? AND `channelid`=?"
+                             " WHERE `app_id`=? AND `mailbox_id`=?"
                              " ORDER BY `server_rx` DESC LIMIT 1",
-                             (self._appid, self._channelid))
+                             (self._app_id, self._mailbox_id))
         rows = c.fetchall()
         if not rows:
             return True
@@ -106,172 +224,224 @@ class Channel:
             return True
         return False
 
-    def _store_summary(self, summary):
-        (started, result, total_time, waiting_time) = summary
-        if self._blur_usage:
-            started = self._blur_usage * (started // self._blur_usage)
-        self._db.execute("INSERT INTO `usage`"
-                         " (`type`, `started`, `result`,"
-                         "  `total_time`, `waiting_time`)"
-                         " VALUES (?,?,?, ?,?)",
-                         (u"rendezvous", started, result,
-                          total_time, waiting_time))
-        self._db.commit()
-
-    def _summarize(self, messages, delete_time):
-        all_sides = set([m["side"] for m in messages])
-        if len(all_sides) == 0:
-            log.msg("_summarize was given zero messages") # shouldn't happen
-            return
-
-        started = min([m["server_rx"] for m in messages])
-        # 'total_time' is how long the channel was occupied. That ends now,
-        # both for channels that got pruned for inactivity, and for channels
-        # that got pruned because of two DEALLOCATE messages
-        total_time = delete_time - started
-
-        if len(all_sides) == 1:
-            return (started, "lonely", total_time, None)
-        if len(all_sides) > 2:
-            # TODO: it'll be useful to have more detail here
-            return (started, "crowded", total_time, None)
-
-        # exactly two sides were involved
-        A_side = sorted(messages, key=lambda m: m["server_rx"])[0]["side"]
-        B_side = list(all_sides - set([A_side]))[0]
-
-        # How long did the first side wait until the second side showed up?
-        first_A = min([m["server_rx"] for m in messages if m["side"] == A_side])
-        first_B = min([m["server_rx"] for m in messages if m["side"] == B_side])
-        waiting_time = first_B - first_A
-
-        # now, were all sides closed? If not, this is "pruney"
-        A_deallocs = [m for m in messages
-                      if m["phase"] == DEALLOCATE and m["side"] == A_side]
-        B_deallocs = [m for m in messages
-                      if m["phase"] == DEALLOCATE and m["side"] == B_side]
-        if not A_deallocs or not B_deallocs:
-            return (started, "pruney", total_time, None)
-
-        # ok, both sides closed. figure out the mood
-        A_mood = A_deallocs[0]["body"] # maybe None
-        B_mood = B_deallocs[0]["body"] # maybe None
-        mood = "quiet"
-        if A_mood == u"happy" and B_mood == u"happy":
-            mood = "happy"
-        if A_mood == u"lonely" or B_mood == u"lonely":
-            mood = "lonely"
-        if A_mood == u"errory" or B_mood == u"errory":
-            mood = "errory"
-        if A_mood == u"scary" or B_mood == u"scary":
-            mood = "scary"
-        return (started, mood, total_time, waiting_time)
-
-    def delete_and_summarize(self):
-        db = self._db
-        c = self._db.execute("SELECT * FROM `messages`"
-                             " WHERE `appid`=? AND `channelid`=?"
-                             " ORDER BY `server_rx`",
-                             (self._appid, self._channelid))
-        messages = c.fetchall()
-        summary = self._summarize(messages, time.time())
-        self._store_summary(summary)
-        db.execute("DELETE FROM `messages`"
-                   " WHERE `appid`=? AND `channelid`=?",
-                   (self._appid, self._channelid))
-        db.commit()
-
-        # Shut down any listeners, just in case they're still lingering
-        # around.
-        for ep in self._listeners:
-            ep.stop_rendezvous_watcher()
-
-        self._app.free_channel(self._channelid)
-
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
-        for ep in self._listeners:
-            ep.stop_rendezvous_watcher()
+        for (send_f, stop_f) in self._listeners.values():
+            stop_f()
 
 class AppNamespace:
-    def __init__(self, db, welcome, blur_usage, log_requests, appid):
+    def __init__(self, db, welcome, blur_usage, log_requests, app_id):
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
         self._log_requests = log_requests
-        self._appid = appid
-        self._channels = {}
+        self._app_id = app_id
+        self._mailboxes = {}
 
-    def get_allocated(self):
+    def get_nameplate_ids(self):
         db = self._db
-        c = db.execute("SELECT DISTINCT `channelid` FROM `messages`"
-                       " WHERE `appid`=?", (self._appid,))
-        return set([row["channelid"] for row in c.fetchall()])
+        # TODO: filter this to numeric ids?
+        c = db.execute("SELECT DISTINCT `id` FROM `nameplates`"
+                       " WHERE `app_id`=?", (self._app_id,))
+        return set([row["id"] for row in c.fetchall()])
 
-    def find_available_channelid(self):
-        allocated = self.get_allocated()
+    def _find_available_nameplate_id(self):
+        claimed = self.get_nameplate_ids()
         for size in range(1,4): # stick to 1-999 for now
             available = set()
-            for cid in range(10**(size-1), 10**size):
-                if cid not in allocated:
-                    available.add(cid)
+            for id_int in range(10**(size-1), 10**size):
+                id = u"%d" % id_int
+                if id not in claimed:
+                    available.add(id)
             if available:
                 return random.choice(list(available))
-        # ouch, 999 currently allocated. Try random ones for a while.
+        # ouch, 999 currently claimed. Try random ones for a while.
         for tries in range(1000):
-            cid = random.randrange(1000, 1000*1000)
-            if cid not in allocated:
-                return cid
-        raise ValueError("unable to find a free channel-id")
+            id_int = random.randrange(1000, 1000*1000)
+            id = u"%d" % id_int
+            if id not in claimed:
+                return id
+        raise ValueError("unable to find a free nameplate-id")
 
-    def allocate_channel(self, channelid, side):
-        channel = self.get_channel(channelid)
-        channel.allocate(side)
-        return channel
+    def allocate_nameplate(self, side, when):
+        nameplate_id = self._find_available_nameplate_id()
+        mailbox_id = self.claim_nameplate(nameplate_id, side, when)
+        del mailbox_id # ignored, they'll learn it from claim()
+        return nameplate_id
 
-    def get_channel(self, channelid):
-        assert isinstance(channelid, int)
-        if not channelid in self._channels:
+    def claim_nameplate(self, nameplate_id, side, when):
+        # when we're done:
+        # * there will be one row for the nameplate
+        #  * side1 or side2 will be populated
+        #  * started or second will be populated
+        #  * a mailbox id will be created, but not a mailbox row
+        #    (ids are randomly unique, so we can defer creation until 'open')
+        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+        assert isinstance(side, type(u"")), type(side)
+        db = self._db
+        row = db.execute("SELECT * FROM `nameplates`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, nameplate_id)).fetchone()
+        if row:
+            mailbox_id = row["mailbox_id"]
+            try:
+                sr = add_side(row, side)
+            except CrowdedError:
+                db.execute("UPDATE `nameplates` SET `crowded`=?"
+                           " WHERE `app_id`=? AND `id`=?",
+                           (True, self._app_id, nameplate_id))
+                db.commit()
+                raise
+            if sr.changed:
+                db.execute("UPDATE `nameplates` SET"
+                           " `side1`=?, `side2`=?, `updated`=?, `second`=?"
+                           " WHERE `app_id`=? AND `id`=?",
+                           (sr.side1, sr.side2, when, when,
+                            self._app_id, nameplate_id))
+        else:
             if self._log_requests:
-                log.msg("spawning #%d for appid %s" % (channelid, self._appid))
-            self._channels[channelid] = Channel(self, self._db, self._welcome,
-                                                self._blur_usage,
-                                                self._log_requests,
-                                                self._appid, channelid)
-        return self._channels[channelid]
+                log.msg("creating nameplate#%s for app_id %s" %
+                        (nameplate_id, self._app_id))
+            mailbox_id = generate_mailbox_id()
+            db.execute("INSERT INTO `nameplates`"
+                       " (`app_id`, `id`, `mailbox_id`, `side1`, `crowded`,"
+                       "  `updated`, `started`)"
+                       " VALUES(?,?,?,?,?, ?,?)",
+                       (self._app_id, nameplate_id, mailbox_id, side, False,
+                        when, when))
+        db.commit()
+        return mailbox_id
 
-    def free_channel(self, channelid):
-        # called from Channel.delete_and_summarize(), which deletes any
+    def release_nameplate(self, nameplate_id, side, when):
+        # when we're done:
+        # * in the nameplate row, side1 or side2 will be removed
+        # * if the nameplate is now unused:
+        #  * mailbox.nameplate_closed will be populated
+        #  * the nameplate row will be removed
+        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+        assert isinstance(side, type(u"")), type(side)
+        db = self._db
+        row = db.execute("SELECT * FROM `nameplates`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, nameplate_id)).fetchone()
+        if not row:
+            return
+        sr = remove_side(row, side)
+        if sr.empty:
+            db.execute("DELETE FROM `nameplates`"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (self._app_id, nameplate_id))
+            self._summarize_nameplate_and_store(row, when, pruned=False)
+            db.commit()
+        elif sr.changed:
+            db.execute("UPDATE `nameplates`"
+                       " SET `side1`=?, `side2`=?, `updated`=?"
+                       " WHERE `app_id`=? AND `id`=?",
+                       (sr.side1, sr.side2, when,
+                        self._app_id, nameplate_id))
+            db.commit()
+
+    def _summarize_nameplate_and_store(self, row, delete_time, pruned):
+        # requires caller to db.commit()
+        u = self._summarize_nameplate_usage(row, delete_time, pruned)
+        self._db.execute("INSERT INTO `nameplate_usage`"
+                         " (`app_id`,"
+                         " `started`, `total_time`, `waiting_time`, `result`)"
+                         " VALUES (?, ?,?,?,?)",
+                         (self._app_id,
+                          u.started, u.total_time, u.waiting_time, u.result))
+
+    def _summarize_nameplate_usage(self, row, delete_time, pruned):
+        started = row["started"]
+        if self._blur_usage:
+            started = self._blur_usage * (started // self._blur_usage)
+        waiting_time = None
+        if row["second"]:
+            waiting_time = row["second"] - row["started"]
+        total_time = delete_time - row["started"]
+        result = u"lonely"
+        if row["second"]:
+            result = u"happy"
+        if pruned:
+            result = u"pruney"
+        if row["crowded"]:
+            result = u"crowded"
+        return Usage(started=started, waiting_time=waiting_time,
+                     total_time=total_time, result=result)
+
+    def _prune_nameplate(self, row, delete_time):
+        # requires caller to db.commit()
+        db = self._db
+        db.execute("DELETE FROM `nameplates` WHERE `app_id`=? AND `id`=?",
+                   (self._app_id, row["id"]))
+        self._summarize_nameplate_and_store(row, delete_time, pruned=True)
+        # TODO: make a Nameplate object, keep track of when there's a
+        # websocket that's watching it, don't prune a nameplate that someone
+        # is watching, even if they started watching a long time ago
+
+    def prune_nameplates(self, old):
+        db = self._db
+        for row in db.execute("SELECT * FROM `nameplates`"
+                              " WHERE `updated` < ?",
+                              (old,)).fetchall():
+            self._prune_nameplate(row)
+        count = db.execute("SELECT COUNT(*) FROM `nameplates`").fetchone()[0]
+        return count
+
+    def open_mailbox(self, mailbox_id, side, when):
+        assert isinstance(mailbox_id, type(u"")), type(mailbox_id)
+        db = self._db
+        if not mailbox_id in self._mailboxes:
+            if self._log_requests:
+                log.msg("spawning #%s for app_id %s" % (mailbox_id,
+                                                        self._app_id))
+            db.execute("INSERT INTO `mailboxes`"
+                       " (`app_id`, `id`, `side1`, `crowded`, `started`)"
+                       " VALUES(?,?,?,?,?)",
+                       (self._app_id, mailbox_id, side, False, when))
+            db.commit() # XXX
+            # mailbox.open() does a SELECT to find the old sides
+            self._mailboxes[mailbox_id] = Mailbox(self, self._db,
+                                                  self._blur_usage,
+                                                  self._log_requests,
+                                                  self._app_id, mailbox_id)
+        mailbox = self._mailboxes[mailbox_id]
+        mailbox.open(side, when)
+        db.commit()
+        return mailbox
+
+    def free_mailbox(self, mailbox_id):
+        # called from Mailbox.delete_and_summarize(), which deletes any
         # messages
 
-        if channelid in self._channels:
-            self._channels.pop(channelid)
-        if self._log_requests:
-            log.msg("freed+killed #%d, now have %d DB channels, %d live" %
-                    (channelid, len(self.get_allocated()), len(self._channels)))
+        if mailbox_id in self._mailboxes:
+            self._mailboxes.pop(mailbox_id)
+        #if self._log_requests:
+        #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
+        #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
-    def prune_old_channels(self):
+    def prune_mailboxes(self, old):
         # For now, pruning is logged even if log_requests is False, to debug
         # the pruning process, and since pruning is triggered by a timer
-        # instead of by user action. It does reveal which channels were
+        # instead of by user action. It does reveal which mailboxes were
         # present when the pruning process began, though, so in the log run
         # it should do less logging.
         log.msg("  channel prune begins")
         # a channel is deleted when there are no listeners and there have
         # been no messages added in CHANNEL_EXPIRATION_TIME seconds
-        channels = set(self.get_allocated()) # these have messages
-        channels.update(self._channels) # these might have listeners
-        for channelid in channels:
-            log.msg("   channel prune checking %d" % channelid)
-            channel = self.get_channel(channelid)
+        mailboxes = set(self.get_claimed()) # these have messages
+        mailboxes.update(self._mailboxes) # these might have listeners
+        for mailbox_id in mailboxes:
+            log.msg("   channel prune checking %d" % mailbox_id)
+            channel = self.get_channel(mailbox_id)
             if channel.is_idle():
-                log.msg("   channel prune expiring %d" % channelid)
+                log.msg("   channel prune expiring %d" % mailbox_id)
                 channel.delete_and_summarize() # calls self.free_channel
-        log.msg("  channel prune done, %r left" % (self._channels.keys(),))
-        return bool(self._channels)
+        log.msg("  channel prune done, %r left" % (self._mailboxes.keys(),))
+        return bool(self._mailboxes)
 
     def _shutdown(self):
-        for channel in self._channels.values():
+        for channel in self._mailboxes.values():
             channel._shutdown()
 
 class Rendezvous(service.MultiService):
@@ -279,7 +449,7 @@ class Rendezvous(service.MultiService):
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
-        self._blur_usage = blur_usage
+        self._blur_usage = None
         log_requests = blur_usage is None
         self._log_requests = log_requests
         self._apps = {}
@@ -291,28 +461,31 @@ class Rendezvous(service.MultiService):
     def get_log_requests(self):
         return self._log_requests
 
-    def get_app(self, appid):
-        assert isinstance(appid, type(u""))
-        if not appid in self._apps:
+    def get_app(self, app_id):
+        assert isinstance(app_id, type(u""))
+        if not app_id in self._apps:
             if self._log_requests:
-                log.msg("spawning appid %s" % (appid,))
-            self._apps[appid] = AppNamespace(self._db, self._welcome,
+                log.msg("spawning app_id %s" % (app_id,))
+            self._apps[app_id] = AppNamespace(self._db, self._welcome,
                                              self._blur_usage,
-                                             self._log_requests, appid)
-        return self._apps[appid]
+                                             self._log_requests, app_id)
+        return self._apps[app_id]
 
-    def prune(self):
-        # As with AppNamespace.prune_old_channels, we log for now.
+    def prune(self, old=None):
+        # As with AppNamespace.prune_old_mailboxes, we log for now.
         log.msg("beginning app prune")
-        c = self._db.execute("SELECT DISTINCT `appid` FROM `messages`")
-        apps = set([row["appid"] for row in c.fetchall()]) # these have messages
+        if old is None:
+            old = time.time() - CHANNEL_EXPIRATION_TIME
+        c = self._db.execute("SELECT DISTINCT `app_id` FROM `messages`")
+        apps = set([row["app_id"] for row in c.fetchall()]) # these have messages
         apps.update(self._apps) # these might have listeners
-        for appid in apps:
-            log.msg(" app prune checking %r" % (appid,))
-            still_active = self.get_app(appid).prune_old_channels()
+        for app_id in apps:
+            log.msg(" app prune checking %r" % (app_id,))
+            app = self.get_app(app_id)
+            still_active = app.prune_nameplates(old) + app.prune_mailboxes(old)
             if not still_active:
-                log.msg("prune pops app %r" % (appid,))
-                self._apps.pop(appid)
+                log.msg("prune pops app %r" % (app_id,))
+                self._apps.pop(app_id)
         log.msg("app prune ends, %d remaining apps" % len(self._apps))
 
     def stopService(self):

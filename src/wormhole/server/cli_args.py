@@ -18,9 +18,9 @@ s = parser.add_subparsers(title="subcommands", dest="subcommand")
 # CLI: run-server
 sp_start = s.add_parser("start", description="Start a relay server",
                         usage="wormhole server start [opts] [TWISTD-ARGS..]")
-sp_start.add_argument("--rendezvous", default="tcp:3000", metavar="tcp:PORT",
+sp_start.add_argument("--rendezvous", default="tcp:4000", metavar="tcp:PORT",
                       help="endpoint specification for the rendezvous port")
-sp_start.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
+sp_start.add_argument("--transit", default="tcp:4001", metavar="tcp:PORT",
                       help="endpoint specification for the transit-relay port")
 sp_start.add_argument("--advertise-version", metavar="VERSION",
                       help="version to recommend to clients")

@@ -1,59 +1,286 @@
 from __future__ import print_function
 import json, itertools
 from binascii import hexlify
-import requests
-from six.moves.urllib_parse import urlencode
 from twisted.trial import unittest
 from twisted.internet import protocol, reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.internet.threads import deferToThread
 from twisted.internet.endpoints import clientFromString, connectProtocol
-from twisted.web.client import getPage, Agent, readBody
 from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
 from ..server import rendezvous, transit_server
-from ..twisted.eventsource import EventSource
+from ..server.rendezvous import Usage, SidedMessage
 
-class Reachable(ServerBase, unittest.TestCase):
+class Server(ServerBase, unittest.TestCase):
+    def test_apps(self):
+        app1 = self._rendezvous.get_app(u"appid1")
+        self.assertIdentical(app1, self._rendezvous.get_app(u"appid1"))
+        app2 = self._rendezvous.get_app(u"appid2")
+        self.assertNotIdentical(app1, app2)
 
-    def test_getPage(self):
-        # client.getPage requires bytes URL, returns bytes
-        url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
-        d = getPage(url)
-        def _got(res):
-            self.failUnlessEqual(res, b"Wormhole Relay\n")
-        d.addCallback(_got)
-        return d
+    def test_nameplate_allocation(self):
+        app = self._rendezvous.get_app(u"appid")
+        nids = set()
+        # this takes a second, and claims all the short-numbered nameplates
+        def add():
+            nameplate_id = app.allocate_nameplate(u"side1", 0)
+            self.assertEqual(type(nameplate_id), type(u""))
+            nid = int(nameplate_id)
+            nids.add(nid)
+        for i in range(9): add()
+        self.assertNotIn(0, nids)
+        self.assertEqual(set(range(1,10)), nids)
 
-    def test_agent(self):
-        url = self.relayurl.replace("wormhole-relay/", "").encode("ascii")
-        agent = Agent(reactor)
-        d = agent.request(b"GET", url)
-        def _check(resp):
-            self.failUnlessEqual(resp.code, 200)
-            return readBody(resp)
-        d.addCallback(_check)
-        def _got(res):
-            self.failUnlessEqual(res, b"Wormhole Relay\n")
-        d.addCallback(_got)
-        return d
+        for i in range(100-10): add()
+        self.assertEqual(len(nids), 99)
+        self.assertEqual(set(range(1,100)), nids)
 
-    def test_requests(self):
-        # requests requires bytes URL, returns unicode
-        url = self.relayurl.replace("wormhole-relay/", "")
-        def _get(url):
-            r = requests.get(url)
-            r.raise_for_status()
-            return r.text
-        d = deferToThread(_get, url)
-        def _got(res):
-            self.failUnlessEqual(res, "Wormhole Relay\n")
-        d.addCallback(_got)
-        return d
+        for i in range(1000-100): add()
+        self.assertEqual(len(nids), 999)
+        self.assertEqual(set(range(1,1000)), nids)
 
-def unjson(data):
-    return json.loads(data.decode("utf-8"))
+        add()
+        self.assertEqual(len(nids), 1000)
+        biggest = max(nids)
+        self.assert_(1000 <= biggest < 1000000, biggest)
+
+    def _nameplate(self, app, nameplate_id):
+        return app._db.execute("SELECT * FROM `nameplates`"
+                               " WHERE `app_id`='appid' AND `id`=?",
+                               (nameplate_id,)).fetchone()
+
+    def test_nameplate(self):
+        app = self._rendezvous.get_app(u"appid")
+        nameplate_id = app.allocate_nameplate(u"side1", 0)
+        self.assertEqual(type(nameplate_id), type(u""))
+        nid = int(nameplate_id)
+        self.assert_(0 < nid < 10, nid)
+        self.assertEqual(app.get_nameplate_ids(), set([nameplate_id]))
+        # allocate also does a claim
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["crowded"], False)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], None)
+
+        mailbox_id = app.claim_nameplate(nameplate_id, u"side1", 1)
+        self.assertEqual(type(mailbox_id), type(u""))
+        # duplicate claims by the same side are combined
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], None)
+
+        mailbox_id2 = app.claim_nameplate(nameplate_id, u"side1", 2)
+        self.assertEqual(mailbox_id, mailbox_id2)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], None)
+
+        # claim by the second side is new
+        mailbox_id3 = app.claim_nameplate(nameplate_id, u"side2", 3)
+        self.assertEqual(mailbox_id, mailbox_id3)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+        self.assertEqual(row["crowded"], False)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 3)
+
+        # a third claim marks the nameplate as "crowded", but leaves the two
+        # existing claims alone
+        self.assertRaises(rendezvous.CrowdedError,
+                          app.claim_nameplate, nameplate_id, u"side3", 0)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+        self.assertEqual(row["crowded"], True)
+
+        # releasing a non-existent nameplate is ignored
+        app.release_nameplate(nameplate_id+u"not", u"side4", 0)
+
+        # releasing a side that never claimed the nameplate is ignored
+        app.release_nameplate(nameplate_id, u"side4", 0)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+
+        # releasing one side leaves the second claim
+        app.release_nameplate(nameplate_id, u"side1", 5)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side2")
+        self.assertEqual(row["side2"], None)
+
+        # releasing one side multiple times is ignored
+        app.release_nameplate(nameplate_id, u"side1", 5)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row["side1"], u"side2")
+        self.assertEqual(row["side2"], None)
+
+        # releasing the second side frees the nameplate, and adds usage
+        app.release_nameplate(nameplate_id, u"side2", 6)
+        row = self._nameplate(app, nameplate_id)
+        self.assertEqual(row, None)
+        usage = app._db.execute("SELECT * FROM `nameplate_usage`").fetchone()
+        self.assertEqual(usage["app_id"], u"appid")
+        self.assertEqual(usage["started"], 0)
+        self.assertEqual(usage["waiting_time"], 3)
+        self.assertEqual(usage["total_time"], 6)
+        self.assertEqual(usage["result"], u"crowded")
+
+
+    def _mailbox(self, app, mailbox_id):
+        return app._db.execute("SELECT * FROM `mailboxes`"
+                               " WHERE `app_id`='appid' AND `id`=?",
+                               (mailbox_id,)).fetchone()
+
+    def test_mailbox(self):
+        app = self._rendezvous.get_app(u"appid")
+        mailbox_id = u"mid"
+        m1 = app.open_mailbox(mailbox_id, u"side1", 0)
+
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["crowded"], False)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], None)
+
+        # opening the same mailbox twice, by the same side, gets the same
+        # object
+        self.assertIdentical(m1, app.open_mailbox(mailbox_id, u"side1", 1))
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["crowded"], False)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], None)
+
+        # opening a second side gets the same object, and adds a new claim
+        self.assertIdentical(m1, app.open_mailbox(mailbox_id, u"side2", 2))
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+        self.assertEqual(row["crowded"], False)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 2)
+
+        # a third open marks it as crowded
+        self.assertRaises(rendezvous.CrowdedError,
+                          app.open_mailbox, mailbox_id, u"side3", 3)
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+        self.assertEqual(row["crowded"], True)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 2)
+
+        # closing a side that never claimed the mailbox is ignored
+        m1.close(u"side4", u"mood", 4)
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side1")
+        self.assertEqual(row["side2"], u"side2")
+        self.assertEqual(row["crowded"], True)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 2)
+
+        # closing one side leaves the second claim
+        m1.close(u"side1", u"mood", 5)
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side2")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["crowded"], True)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 2)
+
+        # closing one side multiple is ignored
+        m1.close(u"side1", u"mood", 6)
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row["side1"], u"side2")
+        self.assertEqual(row["side2"], None)
+        self.assertEqual(row["crowded"], True)
+        self.assertEqual(row["started"], 0)
+        self.assertEqual(row["second"], 2)
+
+        l1 = []; stop1 = []; stop1_f = lambda: stop1.append(True)
+        m1.add_listener("handle1", l1.append, stop1_f)
+
+        # closing the second side frees the mailbox, and adds usage
+        m1.close(u"side2", u"mood", 7)
+        self.assertEqual(stop1, [True])
+
+        row = self._mailbox(app, mailbox_id)
+        self.assertEqual(row, None)
+        usage = app._db.execute("SELECT * FROM `mailbox_usage`").fetchone()
+        self.assertEqual(usage["app_id"], u"appid")
+        self.assertEqual(usage["started"], 0)
+        self.assertEqual(usage["waiting_time"], 2)
+        self.assertEqual(usage["total_time"], 7)
+        self.assertEqual(usage["result"], u"crowded")
+
+    def _messages(self, app):
+        c = app._db.execute("SELECT * FROM `messages`"
+                            " WHERE `app_id`='appid' AND `mailbox_id`='mid'")
+        return c.fetchall()
+
+    def test_messages(self):
+        app = self._rendezvous.get_app(u"appid")
+        mailbox_id = u"mid"
+        m1 = app.open_mailbox(mailbox_id, u"side1", 0)
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase",
+                                    body=u"body", server_rx=1,
+                                    msg_id=u"msgid"))
+        msgs = self._messages(app)
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs[0]["body"], u"body")
+
+        l1 = []; stop1 = []; stop1_f = lambda: stop1.append(True)
+        l2 = []; stop2 = []; stop2_f = lambda: stop2.append(True)
+        old = m1.add_listener("handle1", l1.append, stop1_f)
+        self.assertEqual(len(old), 1)
+        self.assertEqual(old[0].side, u"side1")
+        self.assertEqual(old[0].body, u"body")
+
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase2",
+                                    body=u"body2", server_rx=1,
+                                    msg_id=u"msgid"))
+        self.assertEqual(len(l1), 1)
+        self.assertEqual(l1[0].body, u"body2")
+        old = m1.add_listener("handle2", l2.append, stop2_f)
+        self.assertEqual(len(old), 2)
+
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase3",
+                                    body=u"body3", server_rx=1,
+                                    msg_id=u"msgid"))
+        self.assertEqual(len(l1), 2)
+        self.assertEqual(l1[-1].body, u"body3")
+        self.assertEqual(len(l2), 1)
+        self.assertEqual(l2[-1].body, u"body3")
+
+        m1.remove_listener("handle1")
+
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase4",
+                                    body=u"body4", server_rx=1,
+                                    msg_id=u"msgid"))
+        self.assertEqual(len(l1), 2)
+        self.assertEqual(l1[-1].body, u"body3")
+        self.assertEqual(len(l2), 2)
+        self.assertEqual(l2[-1].body, u"body4")
+
+        m1._shutdown()
+        self.assertEqual(stop1, [])
+        self.assertEqual(stop2, [True])
+
+        # message adds are not idempotent: clients filter duplicates
+        m1.add_message(SidedMessage(side=u"side1", phase=u"phase",
+                                    body=u"body", server_rx=1,
+                                    msg_id=u"msgid"))
+        msgs = self._messages(app)
+        self.assertEqual(len(msgs), 5)
+        self.assertEqual(msgs[-1]["body"], u"body")
+
 
 def strip_message(msg):
     m2 = msg.copy()
@@ -63,323 +290,6 @@ def strip_message(msg):
 
 def strip_messages(messages):
     return [strip_message(m) for m in messages]
-
-class WebAPI(ServerBase, unittest.TestCase):
-    def build_url(self, path, appid, channelid):
-        url = self.relayurl+path
-        queryargs = []
-        if appid:
-            queryargs.append(("appid", appid))
-        if channelid:
-            queryargs.append(("channelid", channelid))
-        if queryargs:
-            url += "?" + urlencode(queryargs)
-        return url
-
-    def get(self, path, appid=None, channelid=None):
-        url = self.build_url(path, appid, channelid)
-        d = getPage(url.encode("ascii"))
-        d.addCallback(unjson)
-        return d
-
-    def post(self, path, data):
-        url = self.relayurl+path
-        d = getPage(url.encode("ascii"), method=b"POST",
-                    postdata=json.dumps(data).encode("utf-8"))
-        d.addCallback(unjson)
-        return d
-
-    def check_welcome(self, data):
-        self.failUnlessIn("welcome", data)
-        self.failUnlessEqual(data["welcome"], {"current_version": __version__})
-
-    def test_allocate_1(self):
-        d = self.get("list", "app1")
-        def _check_list_1(data):
-            self.check_welcome(data)
-            self.failUnlessEqual(data["channelids"], [])
-        d.addCallback(_check_list_1)
-
-        d.addCallback(lambda _: self.post("allocate", {"appid": "app1",
-                                                       "side": "abc"}))
-        def _allocated(data):
-            data.pop("sent", None)
-            self.failUnlessEqual(set(data.keys()),
-                                 set(["welcome", "channelid"]))
-            self.failUnlessIsInstance(data["channelid"], int)
-            self.cid = data["channelid"]
-        d.addCallback(_allocated)
-
-        d.addCallback(lambda _: self.get("list", "app1"))
-        def _check_list_2(data):
-            self.failUnlessEqual(data["channelids"], [self.cid])
-        d.addCallback(_check_list_2)
-
-        d.addCallback(lambda _: self.post("deallocate",
-                                          {"appid": "app1",
-                                           "channelid": str(self.cid),
-                                           "side": "abc"}))
-        def _check_deallocate(res):
-            self.failUnlessEqual(res["status"], "deleted")
-        d.addCallback(_check_deallocate)
-
-        d.addCallback(lambda _: self.get("list", "app1"))
-        def _check_list_3(data):
-            self.failUnlessEqual(data["channelids"], [])
-        d.addCallback(_check_list_3)
-
-        return d
-
-    def test_allocate_2(self):
-        d = self.post("allocate", {"appid": "app1", "side": "abc"})
-        def _allocated(data):
-            self.cid = data["channelid"]
-        d.addCallback(_allocated)
-
-        # second caller increases the number of known sides to 2
-        d.addCallback(lambda _: self.post("add",
-                                          {"appid": "app1",
-                                           "channelid": str(self.cid),
-                                           "side": "def",
-                                           "phase": "1",
-                                           "body": ""}))
-
-        d.addCallback(lambda _: self.get("list", "app1"))
-        d.addCallback(lambda data:
-                      self.failUnlessEqual(data["channelids"], [self.cid]))
-
-        d.addCallback(lambda _: self.post("deallocate",
-                                          {"appid": "app1",
-                                           "channelid": str(self.cid),
-                                           "side": "abc"}))
-        d.addCallback(lambda res:
-                      self.failUnlessEqual(res["status"], "waiting"))
-
-        d.addCallback(lambda _: self.post("deallocate",
-                                          {"appid": "app1",
-                                           "channelid": str(self.cid),
-                                           "side": "NOT"}))
-        d.addCallback(lambda res:
-                      self.failUnlessEqual(res["status"], "waiting"))
-
-        d.addCallback(lambda _: self.post("deallocate",
-                                          {"appid": "app1",
-                                           "channelid": str(self.cid),
-                                           "side": "def"}))
-        d.addCallback(lambda res:
-                      self.failUnlessEqual(res["status"], "deleted"))
-
-        d.addCallback(lambda _: self.get("list", "app1"))
-        d.addCallback(lambda data:
-                      self.failUnlessEqual(data["channelids"], []))
-
-        return d
-
-    UPGRADE_ERROR = "Sorry, you must upgrade your client to use this server."
-    def test_old_allocate(self):
-        # 0.4.0 used "POST /allocate/SIDE".
-        # 0.5.0 replaced it with "POST /allocate".
-        # test that an old client gets a useful error message, not a 404.
-        d = self.post("allocate/abc", {})
-        def _check(data):
-            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
-        d.addCallback(_check)
-        return d
-
-    def test_old_list(self):
-        # 0.4.0 used "GET /list".
-        # 0.5.0 replaced it with "GET /list?appid="
-        d = self.get("list", {}) # no appid
-        def _check(data):
-            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
-        d.addCallback(_check)
-        return d
-
-    def test_old_post(self):
-        # 0.4.0 used "POST /CID/SIDE/post/MSGNUM"
-        # 0.5.0 replaced it with "POST /add (json body)"
-        d = self.post("1/abc/post/pake", {})
-        def _check(data):
-            self.failUnlessEqual(data["welcome"]["error"], self.UPGRADE_ERROR)
-        d.addCallback(_check)
-        return d
-
-    def add_message(self, message, side="abc", phase="1"):
-        return self.post("add",
-                         {"appid": "app1",
-                          "channelid": str(self.cid),
-                         "side": side,
-                          "phase": phase,
-                          "body": message})
-
-    def parse_messages(self, messages):
-        out = set()
-        for m in messages:
-            self.failUnlessEqual(sorted(m.keys()), sorted(["phase", "body"]))
-            self.failUnlessIsInstance(m["phase"], type(u""))
-            self.failUnlessIsInstance(m["body"], type(u""))
-            out.add( (m["phase"], m["body"]) )
-        return out
-
-    def check_messages(self, one, two):
-        # Comparing lists-of-dicts is non-trivial in python3 because we can
-        # neither sort them (dicts are uncomparable), nor turn them into sets
-        # (dicts are unhashable). This is close enough.
-        self.failUnlessEqual(len(one), len(two), (one,two))
-        for d in one:
-            self.failUnlessIn(d, two)
-
-    def test_message(self):
-        # exercise POST /add
-        d = self.post("allocate", {"appid": "app1", "side": "abc"})
-        def _allocated(data):
-            self.cid = data["channelid"]
-        d.addCallback(_allocated)
-
-        d.addCallback(lambda _: self.add_message("msg1A"))
-        def _check1(data):
-            self.check_welcome(data)
-            self.failUnlessEqual(strip_messages(data["messages"]),
-                                 [{"phase": "1", "body": "msg1A"}])
-        d.addCallback(_check1)
-        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
-        d.addCallback(_check1)
-        d.addCallback(lambda _: self.add_message("msg1B", side="def"))
-        def _check2(data):
-            self.check_welcome(data)
-            self.failUnlessEqual(self.parse_messages(strip_messages(data["messages"])),
-                                 set([("1", "msg1A"),
-                                      ("1", "msg1B")]))
-        d.addCallback(_check2)
-        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
-        d.addCallback(_check2)
-
-        # adding a duplicate message is not an error, is ignored by clients
-        d.addCallback(lambda _: self.add_message("msg1B", side="def"))
-        def _check3(data):
-            self.check_welcome(data)
-            self.failUnlessEqual(self.parse_messages(strip_messages(data["messages"])),
-                                 set([("1", "msg1A"),
-                                      ("1", "msg1B")]))
-        d.addCallback(_check3)
-        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
-        d.addCallback(_check3)
-
-        d.addCallback(lambda _: self.add_message("msg2A", side="abc",
-                                                 phase="2"))
-        def _check4(data):
-            self.check_welcome(data)
-            self.failUnlessEqual(self.parse_messages(strip_messages(data["messages"])),
-                                 set([("1", "msg1A"),
-                                      ("1", "msg1B"),
-                                      ("2", "msg2A"),
-                                      ]))
-        d.addCallback(_check4)
-        d.addCallback(lambda _: self.get("get", "app1", str(self.cid)))
-        d.addCallback(_check4)
-
-        return d
-
-    def test_watch_message(self):
-        # exercise GET /get (the EventSource version)
-        # this API is scheduled to be removed after 0.6.0
-        return self._do_watch("get")
-
-    def test_watch(self):
-        # exercise GET /watch (the EventSource version)
-        return self._do_watch("watch")
-
-    def _do_watch(self, endpoint_name):
-        d = self.post("allocate", {"appid": "app1", "side": "abc"})
-        def _allocated(data):
-            self.cid = data["channelid"]
-            url = self.build_url(endpoint_name, "app1", self.cid)
-            self.o = OneEventAtATime(url, parser=json.loads)
-            return self.o.wait_for_connection()
-        d.addCallback(_allocated)
-        d.addCallback(lambda _: self.o.wait_for_next_event())
-        def _check_welcome(ev):
-            eventtype, data = ev
-            self.failUnlessEqual(eventtype, "welcome")
-            self.failUnlessEqual(data, {"current_version": __version__})
-        d.addCallback(_check_welcome)
-        d.addCallback(lambda _: self.add_message("msg1A"))
-        d.addCallback(lambda _: self.o.wait_for_next_event())
-        def _check_msg1(ev):
-            eventtype, data = ev
-            self.failUnlessEqual(eventtype, "message")
-            data.pop("sent", None)
-            self.failUnlessEqual(strip_message(data),
-                                 {"phase": "1", "body": "msg1A"})
-        d.addCallback(_check_msg1)
-
-        d.addCallback(lambda _: self.add_message("msg1B"))
-        d.addCallback(lambda _: self.add_message("msg2A", phase="2"))
-        d.addCallback(lambda _: self.o.wait_for_next_event())
-        def _check_msg2(ev):
-            eventtype, data = ev
-            self.failUnlessEqual(eventtype, "message")
-            data.pop("sent", None)
-            self.failUnlessEqual(strip_message(data),
-                                 {"phase": "1", "body": "msg1B"})
-        d.addCallback(_check_msg2)
-        d.addCallback(lambda _: self.o.wait_for_next_event())
-        def _check_msg3(ev):
-            eventtype, data = ev
-            self.failUnlessEqual(eventtype, "message")
-            data.pop("sent", None)
-            self.failUnlessEqual(strip_message(data),
-                                 {"phase": "2", "body": "msg2A"})
-        d.addCallback(_check_msg3)
-
-        d.addCallback(lambda _: self.o.close())
-        d.addCallback(lambda _: self.o.wait_for_disconnection())
-        return d
-
-class OneEventAtATime:
-    def __init__(self, url, parser=lambda e: e):
-        self.parser = parser
-        self.d = None
-        self._connected = False
-        self.connected_d = defer.Deferred()
-        self.disconnected_d = defer.Deferred()
-        self.events = []
-        self.es = EventSource(url, self.handler, when_connected=self.connected)
-        d = self.es.start()
-        d.addBoth(self.disconnected)
-
-    def close(self):
-        self.es.cancel()
-
-    def wait_for_next_event(self):
-        assert not self.d
-        if self.events:
-            event = self.events.pop(0)
-            return defer.succeed(event)
-        self.d = defer.Deferred()
-        return self.d
-
-    def handler(self, eventtype, data):
-        event = (eventtype, self.parser(data))
-        if self.d:
-            assert not self.events
-            d,self.d = self.d,None
-            d.callback(event)
-            return
-        self.events.append(event)
-
-    def wait_for_connection(self):
-        return self.connected_d
-    def connected(self):
-        self._connected = True
-        self.connected_d.callback(None)
-
-    def wait_for_disconnection(self):
-        return self.disconnected_d
-    def disconnected(self, why):
-        if not self._connected:
-            self.connected_d.errback(why)
-        self.disconnected_d.callback((why,))
 
 class WSClient(websocket.WebSocketClientProtocol):
     def __init__(self):
@@ -422,6 +332,10 @@ class WSClient(websocket.WebSocketClientProtocol):
 
     def send(self, mtype, **kwargs):
         kwargs["type"] = mtype
+        payload = json.dumps(kwargs).encode("utf-8")
+        self.sendMessage(payload, False)
+
+    def send_notype(self, **kwargs):
         payload = json.dumps(kwargs).encode("utf-8")
         self.sendMessage(payload, False)
 
@@ -520,7 +434,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def make_client(self):
-        f = WSFactory(self.rdv_ws_url)
+        f = WSFactory(self.relayurl)
         f.d = defer.Deferred()
         reactor.connectTCP("127.0.0.1", self.rdv_ws_port, f)
         c = yield f.d
@@ -539,289 +453,332 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(self._rendezvous._apps, {})
 
     @inlineCallbacks
-    def test_allocate_1(self):
+    def test_bind(self):
         c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
+        yield c1.next_non_ack()
+
+        c1.send(u"bind", appid=u"appid") # missing side=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"bind requires 'side'")
+
+        c1.send(u"bind", side=u"side") # missing appid=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"bind requires 'appid'")
+
         c1.send(u"bind", appid=u"appid", side=u"side")
         yield c1.sync()
         self.assertEqual(list(self._rendezvous._apps.keys()), [u"appid"])
+
+        c1.send(u"bind", appid=u"appid", side=u"side") # duplicate
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"already bound")
+
+        c1.send_notype(other="misc") # missing 'type'
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"missing 'type'")
+
+        c1.send("___unknown") # unknown type
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"unknown type")
+
+        c1.send("ping") # missing 'ping'
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"ping requires 'ping'")
+
+    @inlineCallbacks
+    def test_list(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+
+        c1.send(u"list") # too early, must bind first
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"must bind first")
+
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        c1.send(u"list")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"nameplates")
+        self.assertEqual(m[u"nameplates"], [])
+
         app = self._rendezvous.get_app(u"appid")
-        self.assertEqual(app.get_allocated(), set())
-        c1.send(u"list")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [])
-
-        c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
-        self.failUnlessIsInstance(cid, int)
-        self.assertEqual(app.get_allocated(), set([cid]))
-        channel = app.get_channel(cid)
-        self.assertEqual(channel.get_messages(), [])
+        nameplate_id1 = app.allocate_nameplate(u"side", 0)
+        app.claim_nameplate(u"np2", u"side", 0)
 
         c1.send(u"list")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [cid])
-
-        c1.send(u"deallocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
-        self.assertEqual(msg["status"], u"deleted")
-        self.assertEqual(app.get_allocated(), set())
-
-        c1.send(u"list")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [])
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"nameplates")
+        nids = set()
+        for n in m[u"nameplates"]:
+            self.assertEqual(type(n), dict)
+            self.assertEqual(list(n.keys()), [u"id"])
+            nids.add(n[u"id"])
+        self.assertEqual(nids, set([nameplate_id1, u"np2"]))
 
     @inlineCallbacks
-    def test_allocate_2(self):
+    def test_allocate(self):
         c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
+        yield c1.next_non_ack()
+
+        c1.send(u"allocate") # too early, must bind first
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"must bind first")
+
         c1.send(u"bind", appid=u"appid", side=u"side")
-        yield c1.sync()
         app = self._rendezvous.get_app(u"appid")
-        self.assertEqual(app.get_allocated(), set())
         c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
-        self.failUnlessIsInstance(cid, int)
-        self.assertEqual(app.get_allocated(), set([cid]))
-        channel = app.get_channel(cid)
-        self.assertEqual(channel.get_messages(), [])
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"allocated")
+        nameplate_id = m[u"nameplate"]
 
-        # second caller increases the number of known sides to 2
-        c2 = yield self.make_client()
-        msg = yield c2.next_non_ack()
-        self.check_welcome(msg)
-        c2.send(u"bind", appid=u"appid", side=u"side-2")
-        c2.send(u"claim", channelid=cid)
-        c2.send(u"add", phase="1", body="")
-        yield c2.sync()
+        nids = app.get_nameplate_ids()
+        self.assertEqual(len(nids), 1)
+        self.assertEqual(nameplate_id, list(nids)[0])
 
-        self.assertEqual(app.get_allocated(), set([cid]))
-        self.assertEqual(strip_messages(channel.get_messages()),
-                         [{"phase": "1", "body": ""}])
-
-        c1.send(u"list")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [cid])
-
-        c2.send(u"list")
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [cid])
-
-        c1.send(u"deallocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
-        self.assertEqual(msg["status"], u"waiting")
-
-        c2.send(u"deallocate")
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], u"deallocated")
-        self.assertEqual(msg["status"], u"deleted")
-
-        c2.send(u"list")
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], u"channelids")
-        self.assertEqual(msg["channelids"], [])
-
-    @inlineCallbacks
-    def test_allocate_and_claim(self):
-        c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
-        c1.send(u"bind", appid=u"appid", side=u"side")
         c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
-        c1.send(u"claim", channelid=cid)
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"],
+                         u"you already allocated one, don't be greedy")
+
+        c1.send(u"claim", nameplate=nameplate_id) # allocate+claim is ok
         yield c1.sync()
-        # there should no error
-        self.assertEqual(c1.errors, [])
+        row = app._db.execute("SELECT * FROM `nameplates`"
+                              " WHERE `app_id`='appid' AND `id`=?",
+                              (nameplate_id,)).fetchone()
+        self.assertEqual(row["side1"], u"side")
+        self.assertEqual(row["side2"], None)
 
     @inlineCallbacks
-    def test_allocate_and_claim_different(self):
+    def test_claim(self):
         c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
+        yield c1.next_non_ack()
         c1.send(u"bind", appid=u"appid", side=u"side")
-        c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
-        c1.send(u"claim", channelid=cid+1)
-        yield c1.sync()
-        # that should signal an error
-        self.assertEqual(len(c1.errors), 1, c1.errors)
-        msg = c1.errors[0]
-        self.assertEqual(msg["type"], "error")
-        self.assertEqual(msg["error"], "Already bound to channelid %d" % cid)
-        self.assertEqual(msg["orig"], {"type": "claim", "channelid": cid+1})
-
-    @inlineCallbacks
-    def test_message(self):
-        c1 = yield self.make_client()
-        msg = yield c1.next_non_ack()
-        self.check_welcome(msg)
-        c1.send(u"bind", appid=u"appid", side=u"side")
-        c1.send(u"allocate")
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], u"allocated")
-        cid = msg["channelid"]
         app = self._rendezvous.get_app(u"appid")
-        channel = app.get_channel(cid)
-        self.assertEqual(channel.get_messages(), [])
 
-        c1.send(u"watch")
-        yield c1.sync()
-        self.assertEqual(len(channel._listeners), 1)
-        c1.strip_acks()
-        self.assertEqual(c1.events, [])
+        c1.send(u"claim") # missing nameplate=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"claim requires 'nameplate'")
 
-        c1.send(u"add", phase="1", body="msg1A")
-        yield c1.sync()
-        c1.strip_acks()
-        self.assertEqual(strip_messages(channel.get_messages()),
-                         [{"phase": "1", "body": "msg1A"}])
-        self.assertEqual(len(c1.events), 1) # echo should be sent right away
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "1", "body": "msg1A"})
-        self.assertIn("server_tx", msg)
-        self.assertIsInstance(msg["server_tx"], float)
+        c1.send(u"claim", nameplate=u"np1")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"claimed")
+        mailbox_id = m[u"mailbox"]
+        self.assertEqual(type(mailbox_id), type(u""))
 
-        c1.send(u"add", phase="1", body="msg1B")
-        c1.send(u"add", phase="2", body="msg2A")
+        nids = app.get_nameplate_ids()
+        self.assertEqual(len(nids), 1)
+        self.assertEqual(u"np1", list(nids)[0])
 
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "1", "body": "msg1B"})
+        # claiming a nameplate will assign a random mailbox id, but won't
+        # create the mailbox itself
+        mailboxes = app._db.execute("SELECT * FROM `mailboxes`"
+                                    " WHERE `app_id`='appid'").fetchall()
+        self.assertEqual(len(mailboxes), 0)
 
-        msg = yield c1.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "2", "body": "msg2A"})
+    @inlineCallbacks
+    def test_claim_crowded(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        app = self._rendezvous.get_app(u"appid")
 
-        self.assertEqual(strip_messages(channel.get_messages()), [
-            {"phase": "1", "body": "msg1A"},
-            {"phase": "1", "body": "msg1B"},
-            {"phase": "2", "body": "msg2A"},
-            ])
+        app.claim_nameplate(u"np1", u"side1", 0)
+        app.claim_nameplate(u"np1", u"side2", 0)
 
-        # second client should see everything
-        c2 = yield self.make_client()
-        msg = yield c2.next_non_ack()
-        self.check_welcome(msg)
-        c2.send(u"bind", appid=u"appid", side=u"side")
-        c2.send(u"claim", channelid=cid)
-        # 'watch' triggers delivery of old messages, in temporal order
-        c2.send(u"watch")
+        # the third claim will signal crowding
+        c1.send(u"claim", nameplate=u"np1")
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"crowded")
 
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "1", "body": "msg1A"})
+    @inlineCallbacks
+    def test_release(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        app = self._rendezvous.get_app(u"appid")
 
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "1", "body": "msg1B"})
+        app.claim_nameplate(u"np1", u"side2", 0)
 
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "2", "body": "msg2A"})
+        c1.send(u"release") # didn't do claim first
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"],
+                         u"must claim a nameplate before releasing it")
 
-        # adding a duplicate is not an error, and clients will ignore it
-        c1.send(u"add", phase="2", body="msg2A")
+        c1.send(u"claim", nameplate=u"np1")
+        yield c1.next_non_ack()
 
-        # the duplicate message *does* get stored, and delivered
-        msg = yield c2.next_non_ack()
-        self.assertEqual(msg["type"], "message")
-        self.assertEqual(strip_message(msg["message"]),
-                         {"phase": "2", "body": "msg2A"})
+        c1.send(u"release")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"released")
+
+        row = app._db.execute("SELECT * FROM `nameplates`"
+                              " WHERE `app_id`='appid' AND `id`='np1'").fetchone()
+        self.assertEqual(row["side1"], u"side2")
+        self.assertEqual(row["side2"], None)
+
+        c1.send(u"release") # no longer claimed
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"],
+                         u"must claim a nameplate before releasing it")
+
+    @inlineCallbacks
+    def test_open(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        app = self._rendezvous.get_app(u"appid")
+
+        c1.send(u"open") # missing mailbox=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"open requires 'mailbox'")
+
+        mb1 = app.open_mailbox(u"mb1", u"side2", 0)
+        mb1.add_message(SidedMessage(side=u"side2", phase=u"phase",
+                                     body=u"body", server_rx=0,
+                                     msg_id=u"msgid"))
+
+        c1.send(u"open", mailbox=u"mb1")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"message")
+        self.assertEqual(m[u"body"], u"body")
+
+        mb1.add_message(SidedMessage(side=u"side2", phase=u"phase2",
+                                     body=u"body2", server_rx=0,
+                                     msg_id=u"msgid"))
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"message")
+        self.assertEqual(m[u"body"], u"body2")
+
+        c1.send(u"open", mailbox=u"mb1")
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"you already have a mailbox open")
+
+    @inlineCallbacks
+    def test_add(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send(u"bind", appid=u"appid", side=u"side")
+        app = self._rendezvous.get_app(u"appid")
+        mb1 = app.open_mailbox(u"mb1", u"side2", 0)
+        l1 = []; stop1 = []; stop1_f = lambda: stop1.append(True)
+        mb1.add_listener("handle1", l1.append, stop1_f)
+
+        c1.send(u"add") # didn't open first
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"must open mailbox before adding")
+
+        c1.send(u"open", mailbox=u"mb1")
+
+        c1.send(u"add", body=u"body") # missing phase=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"missing 'phase'")
+
+        c1.send(u"add", phase=u"phase") # missing body=
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"missing 'body'")
+
+        c1.send(u"add", phase=u"phase", body=u"body")
+        m = yield c1.next_non_ack() # echoed back
+        self.assertEqual(m[u"type"], u"message")
+        self.assertEqual(m[u"body"], u"body")
+
+        self.assertEqual(len(l1), 1)
+        self.assertEqual(l1[0].body, u"body")
+
+    @inlineCallbacks
+    def test_close(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send(u"bind", appid=u"appid", side=u"side")
+
+        c1.send(u"close", mood=u"mood") # must open first
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"must open mailbox before closing")
+
+        c1.send(u"open", mailbox=u"mb1")
+        c1.send(u"close", mood=u"mood")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m[u"type"], u"closed")
+
+        c1.send(u"close", mood=u"mood") # already closed
+        err = yield c1.next_non_ack()
+        self.assertEqual(err[u"type"], u"error")
+        self.assertEqual(err[u"error"], u"must open mailbox before closing")
 
 
 class Summary(unittest.TestCase):
-    def test_summarize(self):
-        c = rendezvous.Channel(None, None, None, None, False, None, None)
-        A = rendezvous.ALLOCATE
-        D = rendezvous.DEALLOCATE
+    def test_mailbox(self):
+        c = rendezvous.Mailbox(None, None, None, False, None, None)
+        # starts at time 1, maybe gets second open at time 3, closes at 5
+        base_row = {u"started": 1, u"second": None,
+                    u"first_mood": None, u"crowded": False}
+        def summ(num_sides, second_mood=None, pruned=False, **kwargs):
+            row = base_row.copy()
+            row.update(kwargs)
+            return c._summarize(row, num_sides, second_mood, 5, pruned)
 
-        messages = [{"server_rx": 1, "side": "a", "phase": A}]
-        self.failUnlessEqual(c._summarize(messages, 2),
-                             (1, "lonely", 1, None))
+        self.assertEqual(summ(1), Usage(1, None, 4, u"lonely"))
+        self.assertEqual(summ(1, u"lonely"), Usage(1, None, 4, u"lonely"))
+        self.assertEqual(summ(1, u"errory"), Usage(1, None, 4, u"errory"))
+        self.assertEqual(summ(1, crowded=True), Usage(1, None, 4, u"crowded"))
 
-        messages = [{"server_rx": 1, "side": "a", "phase": A},
-                    {"server_rx": 2, "side": "a", "phase": D, "body": "lonely"},
-                    ]
-        self.failUnlessEqual(c._summarize(messages, 3),
-                             (1, "lonely", 2, None))
+        self.assertEqual(summ(2, first_mood=u"happy",
+                              second=3, second_mood=u"happy"),
+                         Usage(1, 2, 4, u"happy"))
 
-        messages = [{"server_rx": 1, "side": "a", "phase": A},
-                    {"server_rx": 2, "side": "b", "phase": A},
-                    {"server_rx": 3, "side": "c", "phase": A},
-                    ]
-        self.failUnlessEqual(c._summarize(messages, 4),
-                             (1, "crowded", 3, None))
+        self.assertEqual(summ(2, first_mood=u"errory",
+                              second=3, second_mood=u"happy"),
+                         Usage(1, 2, 4, u"errory"))
 
-        base = [{"server_rx": 1, "side": "a", "phase": A},
-                {"server_rx": 2, "side": "a", "phase": "pake", "body": "msg1"},
-                {"server_rx": 10, "side": "b", "phase": "pake", "body": "msg2"},
-                {"server_rx": 11, "side": "b", "phase": "data", "body": "msg3"},
-                {"server_rx": 20, "side": "a", "phase": "data", "body": "msg4"},
-                ]
-        def make_moods(A_mood, B_mood):
-            return base + [
-                {"server_rx": 21, "side": "a", "phase": D, "body": A_mood},
-                {"server_rx": 30, "side": "b", "phase": D, "body": B_mood},
-                ]
+        self.assertEqual(summ(2, first_mood=u"happy",
+                              second=3, second_mood=u"errory"),
+                         Usage(1, 2, 4, u"errory"))
 
-        self.failUnlessEqual(c._summarize(make_moods("happy", "happy"), 41),
-                             (1, "happy", 40, 9))
+        self.assertEqual(summ(2, first_mood=u"scary",
+                              second=3, second_mood=u"happy"),
+                         Usage(1, 2, 4, u"scary"))
 
-        self.failUnlessEqual(c._summarize(make_moods("scary", "happy"), 41),
-                             (1, "scary", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods("happy", "scary"), 41),
-                             (1, "scary", 40, 9))
+        self.assertEqual(summ(2, first_mood=u"scary",
+                              second=3, second_mood=u"errory"),
+                         Usage(1, 2, 4, u"scary"))
 
-        self.failUnlessEqual(c._summarize(make_moods("lonely", "happy"), 41),
-                             (1, "lonely", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods("happy", "lonely"), 41),
-                             (1, "lonely", 40, 9))
+        self.assertEqual(summ(2, first_mood=u"happy", second=3, pruned=True),
+                         Usage(1, 2, 4, u"pruney"))
 
-        self.failUnlessEqual(c._summarize(make_moods("errory", "happy"), 41),
-                             (1, "errory", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods("happy", "errory"), 41),
-                             (1, "errory", 40, 9))
+    def test_nameplate(self):
+        a = rendezvous.AppNamespace(None, None, None, False, None)
+        # starts at time 1, maybe gets second open at time 3, closes at 5
+        base_row = {u"started": 1, u"second": None, u"crowded": False}
+        def summ(num_sides, pruned=False, **kwargs):
+            row = base_row.copy()
+            row.update(kwargs)
+            return a._summarize_nameplate_usage(row, 5, pruned)
 
-        # scary trumps other moods
-        self.failUnlessEqual(c._summarize(make_moods("scary", "lonely"), 41),
-                             (1, "scary", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods("scary", "errory"), 41),
-                             (1, "scary", 40, 9))
+        self.assertEqual(summ(1), Usage(1, None, 4, u"lonely"))
+        self.assertEqual(summ(1, crowded=True), Usage(1, None, 4, u"crowded"))
 
-        # older clients don't send a mood
-        self.failUnlessEqual(c._summarize(make_moods(None, None), 41),
-                             (1, "quiet", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods(None, "happy"), 41),
-                             (1, "quiet", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods(None, "happy"), 41),
-                             (1, "quiet", 40, 9))
-        self.failUnlessEqual(c._summarize(make_moods(None, "scary"), 41),
-                             (1, "scary", 40, 9))
+        self.assertEqual(summ(2, second=3), Usage(1, 2, 4, u"happy"))
+
+        self.assertEqual(summ(2, second=3, pruned=True),
+                         Usage(1, 2, 4, u"pruney"))
 
 class Accumulator(protocol.Protocol):
     def __init__(self):

@@ -1,0 +1,93 @@
+digraph {
+        api_get_code [label="get_code" shape="hexagon" color="red"]
+        api_input_code [label="input_code" shape="hexagon" color="red"]
+        api_set_code [label="set_code" shape="hexagon" color="red"]
+        send [label="API\nsend" shape="hexagon" color="red"]
+        get [label="API\nget" shape="hexagon" color="red"]
+        close [label="API\nclose" shape="hexagon" color="red"]
+
+        event_connected [label="connected" shape="box"]
+        event_learned_code [label="learned\ncode" shape="box"]
+        event_learned_nameplate [label="learned\nnameplate" shape="box"]
+        event_received_mailbox [label="received\nmailbox" shape="box"]
+        event_opened_mailbox [label="opened\nmailbox" shape="box"]
+        event_built_msg1 [label="built\nmsg1" shape="box"]
+        event_mailbox_used [label="mailbox\nused" shape="box"]
+        event_learned_PAKE [label="learned\nmsg2" shape="box"]
+        event_established_key [label="established\nkey" shape="box"]
+        event_computed_verifier [label="computed\nverifier" shape="box"]
+        event_received_confirm [label="received\nconfirm" shape="box"]
+        event_received_message [label="received\nmessage" shape="box"]
+        event_received_released [label="ack\nreleased" shape="box"]
+        event_received_closed [label="ack\nclosed" shape="box"]
+
+        event_connected -> api_get_code
+        event_connected -> api_input_code
+        api_get_code -> event_learned_code
+        api_input_code -> event_learned_code
+        api_set_code -> event_learned_code
+
+
+        maybe_build_msg1 [label="build\nmsg1"]
+        maybe_claim_nameplate [label="claim\nnameplate"]
+        maybe_send_pake [label="send\npake"]
+        maybe_send_phase_messages [label="send\nphase\nmessages"]
+
+        event_connected -> maybe_claim_nameplate
+        event_connected -> maybe_send_pake
+
+        event_built_msg1 -> maybe_send_pake
+
+        event_learned_code -> maybe_build_msg1
+        event_learned_code -> event_learned_nameplate
+
+        maybe_build_msg1 -> event_built_msg1
+        event_learned_nameplate -> maybe_claim_nameplate
+        maybe_claim_nameplate -> event_received_mailbox [style="dashed"]
+
+        event_received_mailbox -> event_opened_mailbox
+        maybe_claim_nameplate -> event_learned_PAKE [style="dashed"]
+        maybe_claim_nameplate -> event_received_confirm [style="dashed"]
+
+        event_opened_mailbox -> event_learned_PAKE [style="dashed"]
+        event_learned_PAKE -> event_mailbox_used [style="dashed"]
+        event_learned_PAKE -> event_received_confirm [style="dashed"]
+        event_received_confirm -> event_received_message [style="dashed"]
+
+        send -> maybe_send_phase_messages
+        release_nameplate [label="release\nnameplate"]
+        event_mailbox_used -> release_nameplate
+        event_opened_mailbox -> maybe_send_pake
+        event_opened_mailbox -> maybe_send_phase_messages
+
+        event_learned_PAKE -> event_established_key
+        event_established_key -> event_computed_verifier
+        event_established_key -> maybe_send_phase_messages
+
+        check_verifier [label="check\nverifier"]
+        event_computed_verifier -> check_verifier
+        event_received_confirm -> check_verifier
+
+        check_verifier -> error
+        event_received_message -> error
+        event_received_message -> get
+        event_established_key -> get
+
+        close -> close_mailbox
+        close -> release_nameplate
+        error [label="signal\nerror"]
+        error -> close_mailbox
+        error -> release_nameplate
+
+        release_nameplate -> event_received_released [style="dashed"]
+        close_mailbox [label="close\nmailbox"]
+        close_mailbox -> event_received_closed [style="dashed"]
+
+        maybe_close_websocket [label="close\nwebsocket"]
+        event_received_released -> maybe_close_websocket
+        event_received_closed -> maybe_close_websocket
+        maybe_close_websocket -> event_websocket_closed [style="dashed"]
+        event_websocket_closed [label="websocket\nclosed"]
+        
+        
+}
