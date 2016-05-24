@@ -297,8 +297,29 @@ class _Wormhole:
         """
         return self._API_derive_key(purpose, length)
 
-    def close(self, wait=False):
-        return self._API_close(wait)
+    def close(self, res=None):
+        """Collapse the wormhole, freeing up server resources and flushing
+        all pending messages. Returns a Deferred that fires when everything
+        is done. It fires with any argument close() was given, to enable use
+        as a d.addBoth() handler:
+
+          w = wormhole(...)
+          d = w.get()
+          ..
+          d.addBoth(w.close)
+          return d
+
+        Another reasonable approach is to use inlineCallbacks:
+
+          @inlineCallbacks
+          def pair(self, code):
+              w = wormhole(...)
+              try:
+                 them = yield w.get()
+              finally:
+                 yield w.close()
+        """
+        return self._API_close(res)
 
     # INTERNAL METHODS beyond here
 
@@ -690,14 +711,14 @@ class _Wormhole:
         if self.DEBUG: print("_signal_error done")
 
     @inlineCallbacks
-    def _API_close(self, wait=False, mood=u"happy"):
-        if self.DEBUG: print("close", wait)
+    def _API_close(self, res, mood=u"happy"):
+        if self.DEBUG: print("close")
         if self._close_called: raise UsageError
         self._close_called = True
         self._maybe_close(WormholeClosedError(), mood)
-        if wait:
-            if self.DEBUG: print("waiting for disconnect")
-            yield self._disconnect_waiter
+        if self.DEBUG: print("waiting for disconnect")
+        yield self._disconnect_waiter
+        returnValue(res)
 
     def _maybe_close(self, error, mood):
         if self._closing:
