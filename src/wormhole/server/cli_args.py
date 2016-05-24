@@ -24,6 +24,8 @@ sp_start.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                       help="endpoint specification for the transit-relay port")
 sp_start.add_argument("--advertise-version", metavar="VERSION",
                       help="version to recommend to clients")
+sp_start.add_argument("--signal-error", metavar="ERROR",
+                      help="force all clients to fail with a message")
 sp_start.add_argument("--blur-usage", default=None, type=int,
                       metavar="SECONDS",
                       help="round logged access times to improve privacy")
@@ -47,6 +49,8 @@ sp_restart.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
                         help="endpoint specification for the transit-relay port")
 sp_restart.add_argument("--advertise-version", metavar="VERSION",
                         help="version to recommend to clients")
+sp_restart.add_argument("--signal-error", metavar="ERROR",
+                        help="force all clients to fail with a message")
 sp_restart.add_argument("--blur-usage", default=None, type=int,
                         metavar="SECONDS",
                         help="round logged access times to improve privacy")

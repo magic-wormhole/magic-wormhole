@@ -13,7 +13,9 @@ class MyPlugin:
         from .server import RelayServer
         return RelayServer(self.args.rendezvous, self.args.transit,
                            self.args.advertise_version,
-                           "relay.sqlite", self.args.blur_usage)
+                           "relay.sqlite", self.args.blur_usage,
+                           signal_error=self.args.signal_error,
+                           )
 
 class MyTwistdConfig(twistd.ServerOptions):
     subCommands = [("XYZ", None, usage.Options, "node")]
