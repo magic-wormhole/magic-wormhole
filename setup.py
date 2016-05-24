@@ -24,7 +24,7 @@ setup(name="magic-wormhole",
                     ["wormhole = wormhole.cli.runner:entry",
                      "wormhole-server = wormhole.server.runner:entry",
                      ]},
-      install_requires=["spake2==0.3", "pynacl", "argparse",
+      install_requires=["spake2==0.7", "pynacl", "argparse",
                         "six",
                         "twisted==16.1.1", # since autobahn pins it
                         "autobahn[twisted]",
