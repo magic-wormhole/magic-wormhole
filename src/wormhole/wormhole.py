@@ -673,20 +673,19 @@ class _Wormhole:
     def _event_received_peer_message(self, side, phase, body):
         # any message in the mailbox means we no longer need the nameplate
         self._event_mailbox_used()
-        #if phase in self._received_messages:
-        #    # a nameplate collision would cause this
-        #    err = ServerError("got duplicate phase %s" % phase, self._ws_url)
-        #    return self._signal_error(err)
-        #self._received_messages[phase] = body
-        if phase == u"pake":
-            self._event_received_pake(body)
-            return
-        if phase == u"confirm":
-            self._event_received_confirm(body)
-            return
 
-        # It's a phase message, aimed at the application above us. Decrypt
-        # and deliver upstairs, notifying anyone waiting on it
+        if phase == u"pake":
+            return self._event_received_pake(body)
+        if phase == u"confirm":
+            return self._event_received_confirm(body)
+        if re.search(r'^\d+$', phase):
+            return self._event_received_phase_message(side, phase, body)
+        # ignore unrecognized phases, for forwards-compatibility
+        log.msg("received unknown phase '%s'" % phase)
+
+    def _event_received_phase_message(self, side, phase, body):
+        # It's a numbered phase message, aimed at the application above us.
+        # Decrypt and deliver upstairs, notifying anyone waiting on it
         try:
             data_key = self._derive_phase_key(side, phase)
             plaintext = self._decrypt_data(data_key, body)
