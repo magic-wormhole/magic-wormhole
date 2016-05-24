@@ -225,6 +225,7 @@ class _Wormhole:
         self._connection_waiters = []
         self._started_get_code = False
         self._get_code = None
+        self._started_input_code = False
         self._code = None
         self._nameplate_id = None
         self._nameplate_state = CLOSED
@@ -437,7 +438,8 @@ class _Wormhole:
         self._started_input_code = True
         with self._timing.add("API input_code"):
             yield self._when_connected()
-            ic = _InputCode(prompt, code_length, self._ws_send_command)
+            ic = _InputCode(self._reactor, prompt, code_length,
+                            self._ws_send_command, self._timing)
             self._response_handle_nameplates = ic._response_handle_nameplates
             # TODO: signal_error
             code = yield ic.go()
