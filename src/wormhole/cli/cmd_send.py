@@ -6,7 +6,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
 from ..wormhole import wormhole
-from ..twisted.transit import TransitSender
+from ..transit import TransitSender
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -41,7 +41,7 @@ def send(args, reactor=reactor):
     tor_manager = None
     if args.tor:
         with args.timing.add("import", which="tor_manager"):
-            from ..twisted.tor_manager import TorManager
+            from ..tor_manager import TorManager
         tor_manager = TorManager(reactor, timing=args.timing)
         # For now, block everything until Tor has started. Soon: launch tor
         # in parallel with everything else, make sure the TorManager can

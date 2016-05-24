@@ -4,7 +4,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 import txtorcon
 import ipaddr
-from ..timing import DebugTiming
+from .timing import DebugTiming
 from .transit import allocate_tcp_port
 
 class TorManager:
