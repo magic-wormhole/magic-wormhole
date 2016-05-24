@@ -68,7 +68,7 @@ from .rendezvous import CrowdedError, SidedMessage
 # -> {type: "add", phase: str, body: hex} # will send echo in a "message"
 #
 # -> {type: "close", mood: str} -> closed
-#  <- {type: "closed", status: waiting|deleted}
+#  <- {type: "closed"}
 #
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
 

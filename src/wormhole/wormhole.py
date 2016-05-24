@@ -14,7 +14,8 @@ from spake2 import SPAKE2_Symmetric
 from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
-from .errors import WrongPasswordError, UsageError, WelcomeError
+from .errors import (WrongPasswordError, UsageError, WelcomeError,
+                     WormholeClosedError)
 from .timing import DebugTiming
 from hkdf import Hkdf
 
@@ -205,6 +206,9 @@ class _WelcomeHandler:
         if "error" in welcome:
             return self._signal_error(WelcomeError(welcome["error"]))
 
+# states for nameplates, mailboxes, and the websocket connection
+(CLOSED, OPENING, OPEN, CLOSING) = ("closed", "opening", "open", "closing")
+
 
 class _Wormhole:
     def __init__(self, appid, relay_url, reactor, tor_manager, timing):
@@ -217,31 +221,28 @@ class _Wormhole:
         self._welcomer = _WelcomeHandler(self._ws_url, __version__,
                                          self._signal_error)
         self._side = hexlify(os.urandom(5)).decode("ascii")
-        self._connected = None
+        self._connection_state = CLOSED
         self._connection_waiters = []
         self._started_get_code = False
         self._get_code = None
         self._code = None
         self._nameplate_id = None
-        self._nameplate_claimed = False
-        self._nameplate_released = False
-        self._release_waiter = None
+        self._nameplate_state = CLOSED
         self._mailbox_id = None
-        self._mailbox_opened = False
-        self._mailbox_closed = False
-        self._close_waiter = None
+        self._mailbox_state = CLOSED
         self._flag_need_nameplate = True
         self._flag_need_to_see_mailbox_used = True
         self._flag_need_to_build_msg1 = True
         self._flag_need_to_send_PAKE = True
         self._key = None
-        self._closed = False
+        self._close_called = False # the close() API has been called
+        self._closing = False # we've started shutdown
         self._disconnect_waiter = defer.Deferred()
-        self._mood = u"happy"
         self._error = None
 
         self._get_verifier_called = False
-        self._verifier_waiter = defer.Deferred()
+        self._verifier = None
+        self._verifier_waiter = None
 
         self._next_send_phase = 0
         # send() queues plaintext here, waiting for a connection and the key
@@ -252,32 +253,61 @@ class _Wormhole:
         self._receive_waiters = {} # phase -> Deferred
         self._received_messages = {} # phase -> plaintext
 
-    def _signal_error(self, error):
-        # close the mailbox with an "errory" mood, errback all Deferreds,
-        # record the error, fail all subsequent API calls
-        if self.DEBUG: print("_signal_error", error)
-        self._error = error # causes new API calls to fail
-        for d in self._connection_waiters:
-            d.errback(error)
-        if self._get_code:
-            self._get_code._allocated_d.errback(error)
-        if not self._verifier_waiter.called:
-            self._verifier_waiter.errback(error)
-        for d in self._receive_waiters.values():
-            d.errback(error)
+    # API METHODS for applications to call
 
-        self._maybe_close(mood=u"errory")
-        if self._release_waiter and not self._release_waiter.called:
-            self._release_waiter.errback(error)
-        if self._close_waiter and not self._close_waiter.called:
-            self._close_waiter.errback(error)
-        # leave self._disconnect_waiter alone
-        if self.DEBUG: print("_signal_error done")
+    # You must use at least one of these entry points, to establish the
+    # wormhole code. Other APIs will stall or be queued until we have one.
+
+    # entry point 1: generate a new code. returns a Deferred
+    def get_code(self, code_length=2): # XX rename to allocate_code()? create_?
+        return self._API_get_code(code_length)
+
+    # entry point 2: interactively type in a code, with completion. returns
+    # Deferred
+    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
+        return self._API_input_code(prompt, code_length)
+
+    # entry point 3: paste in a fully-formed code. No return value.
+    def set_code(self, code):
+        self._API_set_code(code)
+
+    # todo: restore-saved-state entry points
+
+    def verify(self):
+        """Returns a Deferred that fires when we've heard back from the other
+        side, and have confirmed that they used the right wormhole code. When
+        successful, the Deferred fires with a "verifier" (a bytestring) which
+        can be compared out-of-band before making additional API calls. If
+        they used the wrong wormhole code, the Deferred errbacks with
+        WrongPasswordError.
+        """
+        return self._API_verify()
+
+    def send(self, outbound_data):
+        return self._API_send(outbound_data)
+
+    def get(self):
+        return self._API_get()
+
+    def derive_key(self, purpose, length):
+        """Derive a new key from the established wormhole channel for some
+        other purpose. This is a deterministic randomized function of the
+        session key and the 'purpose' string (unicode/py3-string). This
+        cannot be called until verify() or get() has fired.
+        """
+        return self._API_derive_key(purpose, length)
+
+    def close(self, wait=False):
+        return self._API_close(wait)
+
+    # INTERNAL METHODS beyond here
 
     def _start(self):
         d = self._connect() # causes stuff to happen
         d.addErrback(log.err)
         return d # fires when connection is established, if you care
+
+
 
     def _make_endpoint(self, hostname, port):
         if self._tor_manager:
@@ -289,6 +319,7 @@ class _Wormhole:
         # TODO: if we lose the connection, make a new one, re-establish the
         # state
         assert self._side
+        self._connection_state = OPENING
         p = urlparse(self._ws_url)
         f = WSFactory(self._ws_url)
         f.wormhole = self
@@ -311,16 +342,18 @@ class _Wormhole:
         self._ws_t = self._timing.add("websocket")
 
     def _event_ws_opened(self, _):
-        self._connected = True
+        self._connection_state = OPEN
+        if self._closing:
+            return self._maybe_finished_closing()
         self._ws_send_command(u"bind", appid=self._appid, side=self._side)
-        self._maybe_get_mailbox()
+        self._maybe_claim_nameplate()
         self._maybe_send_pake()
         waiters, self._connection_waiters = self._connection_waiters, []
         for d in waiters:
             d.callback(None)
 
     def _when_connected(self):
-        if self._connected:
+        if self._connection_state == OPEN:
             return defer.succeed(None)
         d = defer.Deferred()
         self._connection_waiters.append(d)
@@ -331,6 +364,7 @@ class _Wormhole:
         # their receives, and vice versa. They are also correlated with the
         # ACKs we get back from the server (which we otherwise ignore). There
         # are so few messages, 16 bits is enough to be mostly-unique.
+        if self.DEBUG: print("SEND", mtype)
         kwargs["id"] = hexlify(os.urandom(2)).decode("ascii")
         kwargs["type"] = mtype
         payload = json.dumps(kwargs).encode("utf-8")
@@ -358,7 +392,7 @@ class _Wormhole:
 
     # entry point 1: generate a new code
     @inlineCallbacks
-    def get_code(self, code_length=2): # XX rename to allocate_code()? create_?
+    def _API_get_code(self, code_length):
         if self._code is not None: raise UsageError
         if self._started_get_code: raise UsageError
         self._started_get_code = True
@@ -370,13 +404,13 @@ class _Wormhole:
             # TODO: signal_error
             code = yield gc.go()
             self._get_code = None
-            self._nameplate_claimed = True # side-effect of allocation
+            self._nameplate_state = OPEN
         self._event_learned_code(code)
         returnValue(code)
 
     # entry point 2: interactively type in a code, with completion
     @inlineCallbacks
-    def input_code(self, prompt="Enter wormhole code: ", code_length=2):
+    def _API_input_code(self, prompt, code_length):
         if self._code is not None: raise UsageError
         if self._started_input_code: raise UsageError
         self._started_input_code = True
@@ -390,7 +424,7 @@ class _Wormhole:
         returnValue(None)
 
     # entry point 3: paste in a fully-formed code
-    def set_code(self, code):
+    def _API_set_code(self, code):
         self._timing.add("API set_code")
         if not isinstance(code, type(u"")): raise TypeError(type(code))
         if self._code is not None: raise UsageError
@@ -437,13 +471,13 @@ class _Wormhole:
     # for each such condition Y, every _event_Y must call _maybe_X
 
     def _event_learned_nameplate(self):
-        self._maybe_get_mailbox()
+        self._maybe_claim_nameplate()
 
-    def _maybe_get_mailbox(self):
-        if not (self._nameplate_id and self._connected):
+    def _maybe_claim_nameplate(self):
+        if not (self._nameplate_id and self._connection_state == OPEN):
             return
         self._ws_send_command(u"claim", nameplate=self._nameplate_id)
-        self._nameplate_claimed = True
+        self._nameplate_state = OPEN
 
     def _response_handle_claimed(self, msg):
         mailbox_id = msg["mailbox"]
@@ -453,16 +487,19 @@ class _Wormhole:
 
     def _event_learned_mailbox(self):
         if not self._mailbox_id: raise UsageError
-        if self._mailbox_opened: raise UsageError
+        assert self._mailbox_state == CLOSED, self._mailbox_state
+        if self._closing:
+            return
         self._ws_send_command(u"open", mailbox=self._mailbox_id)
-        self._mailbox_opened = True
+        self._mailbox_state = OPEN
         # causes old messages to be sent now, and subscribes to new messages
         self._maybe_send_pake()
         self._maybe_send_phase_messages()
 
     def _maybe_send_pake(self):
         # TODO: deal with reentrant call
-        if not (self._connected and self._mailbox_opened
+        if not (self._connection_state == OPEN
+                and self._mailbox_state == OPEN
                 and self._flag_need_to_send_PAKE):
             return
         self._msg_send(u"pake", self._msg1)
@@ -477,44 +514,52 @@ class _Wormhole:
         self._timing.add("key established")
 
         # both sides send different (random) confirmation messages
-        confkey = self.derive_key(u"wormhole:confirmation")
+        confkey = self._derive_key(u"wormhole:confirmation")
         nonce = os.urandom(CONFMSG_NONCE_LENGTH)
         confmsg = make_confmsg(confkey, nonce)
         self._msg_send(u"confirm", confmsg)
 
-        verifier = self.derive_key(u"wormhole:verifier")
+        verifier = self._derive_key(u"wormhole:verifier")
         self._event_computed_verifier(verifier)
 
         self._maybe_send_phase_messages()
 
-    def get_verifier(self):
+    def _API_verify(self):
+        # TODO: rename "verify()", make it stall until confirm received. If
+        # you want to discover WrongPasswordError before doing send(), call
+        # verify() first. If you also want to deny a successful MitM (and
+        # have some other way to check a long verifier), use the return value
+        # of verify().
         if self._error: return defer.fail(self._error)
-        if self._closed: raise UsageError
         if self._get_verifier_called: raise UsageError
         self._get_verifier_called = True
+        if self._verifier:
+            return defer.succeed(self._verifier)
         # TODO: maybe have this wait on _event_received_confirm too
+        self._verifier_waiter = defer.Deferred()
         return self._verifier_waiter
 
     def _event_computed_verifier(self, verifier):
-        self._verifier_waiter.callback(verifier)
+        self._verifier = verifier
+        if self._verifier_waiter:
+            self._verifier_waiter.callback(verifier)
 
     def _event_received_confirm(self, body):
         # TODO: we might not have a master key yet, if the caller wasn't
         # waiting in _get_master_key() when a back-to-back pake+_confirm
         # message pair arrived.
-        confkey = self.derive_key(u"wormhole:confirmation")
+        confkey = self._derive_key(u"wormhole:confirmation")
         nonce = body[:CONFMSG_NONCE_LENGTH]
         if body != make_confmsg(confkey, nonce):
             # this makes all API calls fail
             if self.DEBUG: print("CONFIRM FAILED")
-            return self._signal_error(WrongPasswordError())
+            return self._signal_error(WrongPasswordError(), u"scary")
 
 
-    def send(self, outbound_data):
+    def _API_send(self, outbound_data):
         if self._error: raise self._error
         if not isinstance(outbound_data, type(b"")):
             raise TypeError(type(outbound_data))
-        if self._closed: raise UsageError
         phase = self._next_send_phase
         self._next_send_phase += 1
         self._plaintext_to_send.append( (phase, outbound_data) )
@@ -523,14 +568,16 @@ class _Wormhole:
 
     def _maybe_send_phase_messages(self):
         # TODO: deal with reentrant call
-        if not (self._connected and self._mailbox_opened and self._key):
+        if not (self._connection_state == OPEN
+                and self._mailbox_state == OPEN
+                and self._key):
             return
         plaintexts = self._plaintext_to_send
         self._plaintext_to_send = []
         for pm in plaintexts:
             (phase, plaintext) = pm
             assert isinstance(phase, int), type(phase)
-            data_key = self.derive_key(u"wormhole:phase:%d" % phase)
+            data_key = self._derive_key(u"wormhole:phase:%d" % phase)
             encrypted = self._encrypt_data(data_key, plaintext)
             self._msg_send(u"%d" % phase, encrypted)
 
@@ -550,8 +597,7 @@ class _Wormhole:
 
     def _msg_send(self, phase, body):
         if phase in self._sent_phases: raise UsageError
-        if not self._mailbox_opened: raise UsageError
-        if self._mailbox_closed: raise UsageError
+        assert self._mailbox_state == OPEN, self._mailbox_state
         self._sent_phases.add(phase)
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
@@ -566,8 +612,11 @@ class _Wormhole:
             self._maybe_release_nameplate()
             self._flag_need_to_see_mailbox_used = False
 
-    def derive_key(self, purpose, length=SecretBox.KEY_SIZE):
+    def _API_derive_key(self, purpose, length):
         if self._error: raise self._error
+        return self._derive_key(purpose, length)
+
+    def _derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         if self._key is None:
             raise UsageError # call derive_key after get_verifier() or get()
@@ -597,12 +646,19 @@ class _Wormhole:
             self._event_received_confirm(body)
             return
 
-        # now notify anyone waiting on it
+        # It's a phase message, aimed at the application above us. Decrypt
+        # and deliver upstairs, notifying anyone waiting on it
         try:
-            data_key = self.derive_key(u"wormhole:phase:%s" % phase)
+            data_key = self._derive_key(u"wormhole:phase:%s" % phase)
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
-            raise WrongPasswordError # TODO: signal
+            e = WrongPasswordError()
+            self._signal_error(e, u"scary") # flunk all other API calls
+            # make tests fail, if they aren't explicitly catching it
+            if self.DEBUG: print("CryptoError in msg received")
+            log.err(e)
+            if self.DEBUG: print(" did log.err", e)
+            return # ignore this message
         self._received_messages[phase] = plaintext
         if phase in self._receive_waiters:
             d = self._receive_waiters.pop(phase)
@@ -616,9 +672,8 @@ class _Wormhole:
         data = box.decrypt(encrypted)
         return data
 
-    def get(self):
+    def _API_get(self):
         if self._error: return defer.fail(self._error)
-        if self._closed: raise UsageError
         phase = u"%d" % self._next_receive_phase
         self._next_receive_phase += 1
         with self._timing.add("API get", phase=phase):
@@ -627,64 +682,117 @@ class _Wormhole:
             d = self._receive_waiters[phase] = defer.Deferred()
             return d
 
-    def _maybe_close(self, mood):
-        if self._closed:
+    def _signal_error(self, error, mood):
+        if self.DEBUG: print("_signal_error", error, mood)
+        if self._error:
             return
-        self.close(mood)
+        self._maybe_close(error, mood)
+        if self.DEBUG: print("_signal_error done")
 
     @inlineCallbacks
-    def close(self, mood=None, wait=False):
-        # TODO: auto-close on error, mostly for load-from-state
+    def _API_close(self, wait=False, mood=u"happy"):
         if self.DEBUG: print("close", wait)
-        if self._closed: raise UsageError
-        self._closed = True
-        if mood:
-            self._mood = mood
-        self._maybe_release_nameplate()
-        self._maybe_close_mailbox()
-        if wait:
-            if self._nameplate_claimed:
-                if self.DEBUG: print("waiting for released")
-                self._release_waiter = defer.Deferred()
-                yield self._release_waiter
-            if self._mailbox_opened:
-                if self.DEBUG: print("waiting for closed")
-                self._close_waiter = defer.Deferred()
-                yield self._close_waiter
-        if self.DEBUG: print("dropping connection")
-        self._drop_connection()
+        if self._close_called: raise UsageError
+        self._close_called = True
+        self._maybe_close(WormholeClosedError(), mood)
         if wait:
             if self.DEBUG: print("waiting for disconnect")
             yield self._disconnect_waiter
 
+    def _maybe_close(self, error, mood):
+        if self._closing:
+            return
+
+        # ordering constraints:
+        # * must wait for nameplate/mailbox acks before closing the websocket
+        # * must mark APIs for failure before errbacking Deferreds
+        #   * since we give up control
+        # * must mark self._closing before errbacking Deferreds
+        #   * since caller may call close() when we give up control
+        #   * and close() will reenter _maybe_close
+
+        self._error = error # causes new API calls to fail
+
+        # since we're about to give up control by errbacking any API
+        # Deferreds, set self._closing, to make sure that a new call to
+        # close() isn't going to confuse anything
+        self._closing = True
+
+        # now errback all API deferreds except close(): get_code,
+        # input_code, verify, get
+        for d in self._connection_waiters: # input_code, get_code (early)
+            if self.DEBUG: print("EB cw")
+            d.errback(error)
+        if self._get_code: # get_code (late)
+            if self.DEBUG: print("EB gc")
+            self._get_code._allocated_d.errback(error)
+        if self._verifier_waiter and not self._verifier_waiter.called:
+            if self.DEBUG: print("EB VW")
+            self._verifier_waiter.errback(error)
+        for d in self._receive_waiters.values():
+            if self.DEBUG: print("EB RW")
+            d.errback(error)
+        # Release nameplate and close mailbox, if either was claimed/open.
+        # Since _closing is True when both ACKs come back, the handlers will
+        # close the websocket. When *that* finishes, _disconnect_waiter()
+        # will fire.
+        self._maybe_release_nameplate()
+        self._maybe_close_mailbox(mood)
+        # In the off chance we got closed before we even claimed the
+        # nameplate, give _maybe_finished_closing a chance to run now.
+        self._maybe_finished_closing()
+
     def _maybe_release_nameplate(self):
-        if self.DEBUG: print("_maybe_release_nameplate", self._nameplate_claimed, self._nameplate_released)
-        if self._nameplate_claimed and not self._nameplate_released:
+        if self.DEBUG: print("_maybe_release_nameplate", self._nameplate_state)
+        if self._nameplate_state == OPEN:
             if self.DEBUG: print(" sending release")
             self._ws_send_command(u"release")
-            self._nameplate_released = True
+            self._nameplate_state = CLOSING
 
     def _response_handle_released(self, msg):
-        if self._release_waiter and not self._release_waiter.called:
-            self._release_waiter.callback(None)
+        self._nameplate_state = CLOSED
+        self._maybe_finished_closing()
 
-    def _maybe_close_mailbox(self):
-        if self.DEBUG: print("_maybe_close_mailbox", self._mailbox_opened, self._mailbox_closed)
-        if self._mailbox_opened and not self._mailbox_closed:
+    def _maybe_close_mailbox(self, mood):
+        if self.DEBUG: print("_maybe_close_mailbox", self._mailbox_state)
+        if self._mailbox_state == OPEN:
             if self.DEBUG: print(" sending close")
-            self._ws_send_command(u"close", mood=self._mood)
-            self._mailbox_closed = True
+            self._ws_send_command(u"close", mood=mood)
+            self._mailbox_state = CLOSING
 
     def _response_handle_closed(self, msg):
-        if self._close_waiter and not self._close_waiter.called:
-            self._close_waiter.callback(None)
+        self._mailbox_state = CLOSED
+        self._maybe_finished_closing()
+
+    def _maybe_finished_closing(self):
+        if self.DEBUG: print("_maybe_finished_closing", self._closing, self._nameplate_state, self._mailbox_state, self._connection_state)
+        if not self._closing:
+            return
+        if (self._nameplate_state == CLOSED
+            and self._mailbox_state == CLOSED
+            and self._connection_state == OPEN):
+            self._connection_state = CLOSING
+            self._drop_connection()
 
     def _drop_connection(self):
-        self._ws.transport.loseConnection() # probably flushes
+        # separate method so it can be overridden by tests
+        self._ws.transport.loseConnection() # probably flushes output
         # calls _ws_closed() when done
 
     def _ws_closed(self, wasClean, code, reason):
+        # For now (until we add reconnection), losing the websocket means
+        # losing everything. Make all API callers fail. Help someone waiting
+        # in close() to finish
+        self._connection_state = CLOSED
         self._disconnect_waiter.callback(None)
+        self._maybe_finished_closing()
+
+        # what needs to happen when _ws_closed() happens unexpectedly
+        # * errback all API deferreds
+        # * maybe: cause new API calls to fail
+        # * obviously can't release nameplate or close mailbox
+        # * can't re-close websocket
+        # * close(wait=True) callers should fire right away
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
     timing = timing or DebugTiming()

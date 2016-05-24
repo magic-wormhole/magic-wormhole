@@ -41,5 +41,8 @@ class ReflectionAttack(Exception):
 class UsageError(Exception):
     """The programmer did something wrong."""
 
+class WormholeClosedError(UsageError):
+    """API calls may not be made after close() is called."""
+
 class TransferError(Exception):
     """Something bad happened and the transfer failed."""
