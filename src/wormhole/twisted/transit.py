@@ -548,6 +548,7 @@ def there_can_be_only_one(contenders):
 
 class Common:
     RELAY_DELAY = 2.0
+    TRANSIT_KEY_LENGTH = SecretBox.KEY_SIZE
 
     def __init__(self, transit_relay, no_listen=False, tor_manager=None,
                  reactor=reactor, timing=None):
