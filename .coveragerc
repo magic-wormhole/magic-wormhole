@@ -1,3 +1,5 @@
+# -*- mode: conf -*-
+
 [run]
 # only record trace data for wormhole.*
 source =
