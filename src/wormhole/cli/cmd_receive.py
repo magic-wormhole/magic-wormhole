@@ -4,7 +4,7 @@ from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..wormhole import wormhole
-from ..twisted.transit import TransitReceiver
+from ..transit import TransitReceiver
 from ..errors import TransferError
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"

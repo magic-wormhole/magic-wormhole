@@ -1,7 +1,7 @@
 from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.python import log
-from ..twisted.transit import allocate_tcp_port
+from ..transit import allocate_tcp_port
 from ..server.server import RelayServer
 from .. import __version__
 

@@ -6,7 +6,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError
 from ..wormhole import wormhole
-from ..twisted.transit import TransitSender
+from ..transit import TransitSender
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 

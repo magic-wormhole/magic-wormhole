@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 import re, sys, time, socket, collections
 from binascii import hexlify, unhexlify
 from zope.interface import implementer
@@ -9,9 +9,9 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from nacl.secret import SecretBox
 from hkdf import Hkdf
-from ..errors import UsageError
-from ..timing import DebugTiming
-from . import ipaddrs
+from .errors import UsageError
+from .timing import DebugTiming
+from .twisted import ipaddrs
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
