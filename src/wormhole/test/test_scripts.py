@@ -7,11 +7,11 @@ from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 from ..cli import runner, cmd_send, cmd_receive
-from ..cli.cmd_send import build_phase1_data
+from ..cli.cmd_send import build_offer
 from ..errors import TransferError, WrongPasswordError
 from ..timing import DebugTiming
 
-class Phase1Data(unittest.TestCase):
+class OfferData(unittest.TestCase):
     def setUp(self):
         self._things_to_delete = []
 
@@ -29,7 +29,7 @@ class Phase1Data(unittest.TestCase):
         args.stdout = io.StringIO()
         args.stderr = io.StringIO()
 
-        d, fd_to_send = build_phase1_data(args)
+        d, fd_to_send = build_offer(args)
 
         self.assertIn("message", d)
         self.assertNotIn("file", d)
@@ -52,7 +52,7 @@ class Phase1Data(unittest.TestCase):
         args.stdout = io.StringIO()
         args.stderr = io.StringIO()
 
-        d, fd_to_send = build_phase1_data(args)
+        d, fd_to_send = build_offer(args)
 
         self.assertNotIn("message", d)
         self.assertIn("file", d)
@@ -73,7 +73,7 @@ class Phase1Data(unittest.TestCase):
         args.stdout = io.StringIO()
         args.stderr = io.StringIO()
 
-        e = self.assertRaises(TransferError, build_phase1_data, args)
+        e = self.assertRaises(TransferError, build_offer, args)
         self.assertEqual(str(e),
                          "Cannot send: no file/directory named '%s'" % filename)
 
@@ -96,7 +96,7 @@ class Phase1Data(unittest.TestCase):
         args.stdout = io.StringIO()
         args.stderr = io.StringIO()
 
-        d, fd_to_send = build_phase1_data(args)
+        d, fd_to_send = build_offer(args)
 
         self.assertNotIn("message", d)
         self.assertNotIn("file", d)
@@ -151,7 +151,7 @@ class Phase1Data(unittest.TestCase):
         args.stdout = io.StringIO()
         args.stderr = io.StringIO()
 
-        e = self.assertRaises(TypeError, build_phase1_data, args)
+        e = self.assertRaises(TypeError, build_offer, args)
         self.assertEqual(str(e),
                          "'%s' is neither file nor directory" % filename)
 

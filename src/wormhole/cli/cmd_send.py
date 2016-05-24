@@ -21,22 +21,6 @@ def send(args, reactor=reactor):
     * any other error: something unexpected happened
     """
     assert isinstance(args.relay_url, type(u""))
-    if args.zeromode:
-        assert not args.code
-        args.code = u"0-"
-
-    # TODO: parallelize the roundtrip that allocates the channel with the
-    # (blocking) local IO (file os.stat, zipfile generation)
-    phase1, fd_to_send = build_phase1_data(args)
-
-    other_cmd = "wormhole receive"
-    if args.verify:
-        other_cmd = "wormhole --verify receive"
-    if args.zeromode:
-        other_cmd += " -0"
-
-    print(u"On the other computer, please run: %s" % other_cmd,
-          file=args.stdout)
 
     tor_manager = None
     if args.tor:
@@ -51,13 +35,27 @@ def send(args, reactor=reactor):
 
     w = wormhole(APPID, args.relay_url, reactor, tor_manager,
                  timing=args.timing)
-
-    d = _send(reactor, w, args, phase1, fd_to_send, tor_manager)
+    d = _send(reactor, w, args, tor_manager)
     d.addBoth(w.close)
     yield d
 
 @inlineCallbacks
-def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
+def _send(reactor, w, args, tor_manager):
+    # TODO: run the blocking zip-the-directory IO in a thread, let the
+    # wormhole exchange happen in parallel
+    offer, fd_to_send = build_offer(args)
+
+    other_cmd = "wormhole receive"
+    if args.verify:
+        other_cmd = "wormhole --verify receive"
+    if args.zeromode:
+        assert not args.code
+        args.code = u"0-"
+        other_cmd += " -0"
+
+    print(u"On the other computer, please run: %s" % other_cmd,
+          file=args.stdout)
+
     transit_sender = None
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
@@ -65,7 +63,7 @@ def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
                                        tor_manager=tor_manager,
                                        reactor=reactor,
                                        timing=args.timing)
-        phase1["transit"] = transit_data = {}
+        offer["transit"] = transit_data = {}
         transit_data["relay_connection_hints"] = transit_sender.get_relay_hints()
         direct_hints = yield transit_sender.get_direct_hints()
         transit_data["direct_connection_hints"] = direct_hints
@@ -101,27 +99,27 @@ def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
                                    transit_sender.TRANSIT_KEY_LENGTH)
         transit_sender.set_transit_key(transit_key)
 
-    my_phase1_bytes = json.dumps(phase1).encode("utf-8")
-    w.send(my_phase1_bytes)
+    my_offer_bytes = json.dumps(offer).encode("utf-8")
+    w.send(my_offer_bytes)
 
     # this may raise WrongPasswordError
-    them_phase1_bytes = yield w.get()
+    them_answer_bytes = yield w.get()
 
-    them_phase1 = json.loads(them_phase1_bytes.decode("utf-8"))
+    them_answer = json.loads(them_answer_bytes.decode("utf-8"))
 
     if fd_to_send is None:
-        if them_phase1["message_ack"] == "ok":
+        if them_answer["message_ack"] == "ok":
             print(u"text message sent", file=args.stdout)
             returnValue(None) # terminates this function
-        raise TransferError("error sending text: %r" % (them_phase1,))
+        raise TransferError("error sending text: %r" % (them_answer,))
 
-    if "error" in them_phase1:
+    if "error" in them_answer:
         raise TransferError("remote error, transfer abandoned: %s"
-                            % them_phase1["error"])
-    if them_phase1.get("file_ack") != "ok":
+                            % them_answer["error"])
+    if them_answer.get("file_ack") != "ok":
         raise TransferError("ambiguous response from remote, "
-                            "transfer abandoned: %s" % (them_phase1,))
-    tdata = them_phase1["transit"]
+                            "transfer abandoned: %s" % (them_answer,))
+    tdata = them_answer["transit"]
     # XXX the downside of closing above, rather than here, is that it leaves
     # the channel claimed for a longer time
     #yield w.close()
@@ -129,8 +127,8 @@ def _send(reactor, w, args, phase1, fd_to_send, tor_manager):
                              args.stdout, args.hide_progress, args.timing)
     returnValue(None)
 
-def build_phase1_data(args):
-    phase1 = {}
+def build_offer(args):
+    offer = {}
 
     text = args.text
     if text == "-":
@@ -141,9 +139,9 @@ def build_phase1_data(args):
 
     if text is not None:
         print(u"Sending text message (%d bytes)" % len(text), file=args.stdout)
-        phase1 = { "message": text }
+        offer = { "message": text }
         fd_to_send = None
-        return phase1, fd_to_send
+        return offer, fd_to_send
 
     what = os.path.join(args.cwd, args.what)
     what = what.rstrip(os.sep)
@@ -155,14 +153,14 @@ def build_phase1_data(args):
     if os.path.isfile(what):
         # we're sending a file
         filesize = os.stat(what).st_size
-        phase1["file"] = {
+        offer["file"] = {
             "filename": basename,
             "filesize": filesize,
             }
         print(u"Sending %d byte file named '%s'" % (filesize, basename),
               file=args.stdout)
         fd_to_send = open(what, "rb")
-        return phase1, fd_to_send
+        return offer, fd_to_send
 
     if os.path.isdir(what):
         print(u"Building zipfile..", file=args.stdout)
@@ -188,7 +186,7 @@ def build_phase1_data(args):
         fd_to_send.seek(0,2)
         filesize = fd_to_send.tell()
         fd_to_send.seek(0,0)
-        phase1["directory"] = {
+        offer["directory"] = {
             "mode": "zipfile/deflated",
             "dirname": basename,
             "zipsize": filesize,
@@ -197,7 +195,7 @@ def build_phase1_data(args):
             }
         print(u"Sending directory (%d bytes compressed) named '%s'"
               % (filesize, basename), file=args.stdout)
-        return phase1, fd_to_send
+        return offer, fd_to_send
 
     raise TypeError("'%s' is neither file nor directory" % args.what)
 
