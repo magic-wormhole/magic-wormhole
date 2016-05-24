@@ -11,7 +11,7 @@ from nacl.secret import SecretBox
 from hkdf import Hkdf
 from .errors import UsageError
 from .timing import DebugTiming
-from .twisted import ipaddrs
+from . import ipaddrs
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
