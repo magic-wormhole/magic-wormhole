@@ -82,10 +82,12 @@ class TwistedReceiver:
                     returnValue(None)
                 raise TransferError("unexpected close")
             #print("GOT", them_d)
+            recognized = False
             if u"transit" in them_d:
+                recognized = True
                 yield self._parse_transit(them_d[u"transit"], w)
-                continue
             if u"offer" in them_d:
+                recognized = True
                 if not want_offer:
                     raise TransferError("duplicate offer")
                 try:
@@ -94,8 +96,8 @@ class TwistedReceiver:
                     self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
                 returnValue(None)
-            log.msg("unrecognized message %r" % (them_d,))
-            raise TransferError("expected offer, got none")
+            if not recognized:
+                log.msg("unrecognized message %r" % (them_d,))
 
     def _send_data(self, data, w):
         data_bytes = json.dumps(data).encode("utf-8")
