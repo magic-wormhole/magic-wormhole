@@ -3,9 +3,10 @@ import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.python import log
 from ..wormhole import wormhole
 from ..transit import TransitReceiver
-from ..errors import TransferError
+from ..errors import TransferError, WormholeClosedError
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -29,24 +30,26 @@ class TwistedReceiver:
         assert isinstance(args.relay_url, type(u""))
         self.args = args
         self._reactor = reactor
+        self._tor_manager = None
 
     def msg(self, *args, **kwargs):
         print(*args, file=self.args.stdout, **kwargs)
 
     @inlineCallbacks
     def go(self):
-        tor_manager = None
         if self.args.tor:
             with self.args.timing.add("import", which="tor_manager"):
                 from ..tor_manager import TorManager
-            tor_manager = TorManager(self._reactor, timing=self.args.timing)
+            self._tor_manager = TorManager(self._reactor,
+                                           timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            yield tor_manager.start()
+            yield self._tor_manager.start()
+
         w = wormhole(APPID, self.args.relay_url, self._reactor,
-                     tor_manager, timing=self.args.timing)
+                     self._tor_manager, timing=self.args.timing)
         # I wanted to do this instead:
         #
         #    try:
@@ -57,41 +60,60 @@ class TwistedReceiver:
         # but when _go had a UsageError, the stacktrace was always displayed
         # as coming from the "yield self._go" line, which wasn't very useful
         # for tracking it down.
-        d = self._go(w, tor_manager)
+        d = self._go(w)
         d.addBoth(w.close)
         yield d
 
     @inlineCallbacks
-    def _go(self, w, tor_manager):
+    def _go(self, w):
         yield self.handle_code(w)
         verifier = yield w.verify()
         self.show_verifier(verifier)
-        them_d = yield self.get_data(w)
-        try:
-            if "message" in them_d:
-                self.handle_text(them_d, w)
+
+        want_offer = True
+        done = False
+
+        while True:
+            try:
+                them_d = yield self.get_data(w)
+            except WormholeClosedError:
+                if done:
+                    returnValue(None)
+                raise TransferError("unexpected close")
+            if u"offer" in them_d:
+                if not want_offer:
+                    raise TransferError("duplicate offer")
+                try:
+                    self.parse_offer(them_d[u"offer"], w)
+                except RespondError as r:
+                    data = json.dumps({"error": r.response}).encode("utf-8")
+                    w.send(data)
+                    raise TransferError(r.response)
                 returnValue(None)
-            if "file" in them_d:
-                f = self.handle_file(them_d)
-                rp = yield self.establish_transit(w, them_d, tor_manager)
-                yield self.transfer_data(rp, f)
-                self.write_file(f)
-                yield self.close_transit(rp)
-            elif "directory" in them_d:
-                f = self.handle_directory(them_d)
-                rp = yield self.establish_transit(w, them_d, tor_manager)
-                yield self.transfer_data(rp, f)
-                self.write_directory(f)
-                yield self.close_transit(rp)
-            else:
-                self.msg(u"I don't know what they're offering\n")
-                self.msg(u"Offer details:", them_d)
-                raise RespondError("unknown offer type")
-        except RespondError as r:
-            data = json.dumps({"error": r.response}).encode("utf-8")
-            w.send(data)
-            raise TransferError(r.response)
-        returnValue(None)
+            log.msg("unrecognized message %r" % (them_d,))
+            raise TransferError("expected offer, got none")
+
+    @inlineCallbacks
+    def parse_offer(self, them_d, w):
+        if "message" in them_d:
+            self.handle_text(them_d, w)
+            returnValue(None)
+        if "file" in them_d:
+            f = self.handle_file(them_d)
+            rp = yield self.establish_transit(w, them_d)
+            yield self.transfer_data(rp, f)
+            self.write_file(f)
+            yield self.close_transit(rp)
+        elif "directory" in them_d:
+            f = self.handle_directory(them_d)
+            rp = yield self.establish_transit(w, them_d)
+            yield self.transfer_data(rp, f)
+            self.write_directory(f)
+            yield self.close_transit(rp)
+        else:
+            self.msg(u"I don't know what they're offering\n")
+            self.msg(u"Offer details: %r" % (them_d,))
+            raise RespondError("unknown offer type")
 
     @inlineCallbacks
     def handle_code(self, w):
@@ -122,7 +144,7 @@ class TwistedReceiver:
     def handle_text(self, them_d, w):
         # we're receiving a text message
         self.msg(them_d["message"])
-        data = json.dumps({"message_ack": "ok"}).encode("utf-8")
+        data = json.dumps({"answer": {"message_ack": "ok"}}).encode("utf-8")
         w.send(data)
 
     def handle_file(self, them_d):
@@ -181,10 +203,10 @@ class TwistedReceiver:
             t.detail(answer="yes")
 
     @inlineCallbacks
-    def establish_transit(self, w, them_d, tor_manager):
+    def establish_transit(self, w, them_d):
         transit_receiver = TransitReceiver(self.args.transit_helper,
                                            no_listen=self.args.no_listen,
-                                           tor_manager=tor_manager,
+                                           tor_manager=self._tor_manager,
                                            reactor=self._reactor,
                                            timing=self.args.timing)
         transit_key = w.derive_key(APPID+u"/transit-key",
@@ -193,10 +215,12 @@ class TwistedReceiver:
         direct_hints = yield transit_receiver.get_direct_hints()
         relay_hints = yield transit_receiver.get_relay_hints()
         data = json.dumps({
-            "file_ack": "ok",
-            "transit": {
-                "direct_connection_hints": direct_hints,
-                "relay_connection_hints": relay_hints,
+            "answer": {
+                "file_ack": "ok",
+                "transit": {
+                    "direct_connection_hints": direct_hints,
+                    "relay_connection_hints": relay_hints,
+                    },
                 },
             }).encode("utf-8")
         w.send(data)

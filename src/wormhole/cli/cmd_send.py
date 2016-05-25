@@ -1,10 +1,11 @@
 from __future__ import print_function
 import os, sys, json, binascii, six, tempfile, zipfile
 from tqdm import tqdm
+from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..errors import TransferError
+from ..errors import TransferError, WormholeClosedError
 from ..wormhole import wormhole
 from ..transit import TransitSender
 
@@ -56,6 +57,30 @@ def _send(reactor, w, args, tor_manager):
     print(u"On the other computer, please run: %s" % other_cmd,
           file=args.stdout)
 
+    if args.code:
+        w.set_code(args.code)
+        code = args.code
+    else:
+        code = yield w.get_code(args.code_length)
+
+    if not args.zeromode:
+        print(u"Wormhole code is: %s" % code, file=args.stdout)
+    print(u"", file=args.stdout)
+
+    # TODO: don't stall on w.verify() unless they want it
+    verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+    if args.verify:
+        verifier = binascii.hexlify(verifier_bytes).decode("ascii")
+        while True:
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
+            if ok.lower() == "yes":
+                break
+            if ok.lower() == "no":
+                err = "sender rejected verification check, abandoned transfer"
+                reject_data = json.dumps({"error": err}).encode("utf-8")
+                w.send(reject_data)
+                raise TransferError(err)
+
     transit_sender = None
     if fd_to_send:
         transit_sender = TransitSender(args.transit_helper,
@@ -68,64 +93,34 @@ def _send(reactor, w, args, tor_manager):
         direct_hints = yield transit_sender.get_direct_hints()
         transit_data["direct_connection_hints"] = direct_hints
 
-    if args.code:
-        w.set_code(args.code)
-        code = args.code
-    else:
-        code = yield w.get_code(args.code_length)
-
-    if not args.zeromode:
-        print(u"Wormhole code is: %s" % code, file=args.stdout)
-    print(u"", file=args.stdout)
-
-    # get the verifier, because that also lets us derive the transit key,
-    # which we want to set before revealing the connection hints to the far
-    # side, so we'll be ready for them when they connect
-    verifier_bytes = yield w.verify()
-    verifier = binascii.hexlify(verifier_bytes).decode("ascii")
-
-    if args.verify:
-        while True:
-            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
-            if ok.lower() == "yes":
-                break
-            if ok.lower() == "no":
-                err = "sender rejected verification check, abandoned transfer"
-                reject_data = json.dumps({"error": err}).encode("utf-8")
-                w.send(reject_data)
-                raise TransferError(err)
-    if fd_to_send is not None:
+        # TODO: move this down below w.get()
         transit_key = w.derive_key(APPID+"/transit-key",
                                    transit_sender.TRANSIT_KEY_LENGTH)
         transit_sender.set_transit_key(transit_key)
 
-    my_offer_bytes = json.dumps(offer).encode("utf-8")
+    my_offer_bytes = json.dumps({"offer": offer}).encode("utf-8")
     w.send(my_offer_bytes)
 
-    # this may raise WrongPasswordError
-    them_answer_bytes = yield w.get()
+    want_answer = True
+    done = False
 
-    them_answer = json.loads(them_answer_bytes.decode("utf-8"))
-
-    if fd_to_send is None:
-        if them_answer["message_ack"] == "ok":
-            print(u"text message sent", file=args.stdout)
-            returnValue(None) # terminates this function
-        raise TransferError("error sending text: %r" % (them_answer,))
-
-    if "error" in them_answer:
-        raise TransferError("remote error, transfer abandoned: %s"
-                            % them_answer["error"])
-    if them_answer.get("file_ack") != "ok":
-        raise TransferError("ambiguous response from remote, "
-                            "transfer abandoned: %s" % (them_answer,))
-    tdata = them_answer["transit"]
-    # XXX the downside of closing above, rather than here, is that it leaves
-    # the channel claimed for a longer time
-    #yield w.close()
-    yield _send_file_twisted(tdata, transit_sender, fd_to_send,
-                             args.stdout, args.hide_progress, args.timing)
-    returnValue(None)
+    while True:
+        try:
+            them_d_bytes = yield w.get()
+        except WormholeClosedError:
+            if done:
+                returnValue(None)
+            raise TransferError("unexpected close")
+        # TODO: get() fired, so now it's safe to use w.derive_key()
+        them_d = json.loads(them_d_bytes.decode("utf-8"))
+        if u"answer" in them_d:
+            if not want_answer:
+                raise TransferError("duplicate answer")
+            them_answer = them_d[u"answer"]
+            yield handle_answer(them_answer, args, fd_to_send, transit_sender)
+            done = True
+            returnValue(None)
+        log.msg("unrecognized message %r" % (them_d,))
 
 def build_offer(args):
     offer = {}
@@ -198,6 +193,27 @@ def build_offer(args):
         return offer, fd_to_send
 
     raise TypeError("'%s' is neither file nor directory" % args.what)
+
+@inlineCallbacks
+def handle_answer(them_answer, args, fd_to_send, transit_sender):
+    if fd_to_send is None:
+        if them_answer["message_ack"] == "ok":
+            print(u"text message sent", file=args.stdout)
+            returnValue(None) # terminates this function
+        raise TransferError("error sending text: %r" % (them_answer,))
+
+    if "error" in them_answer:
+        raise TransferError("remote error, transfer abandoned: %s"
+                            % them_answer["error"])
+    if them_answer.get("file_ack") != "ok":
+        raise TransferError("ambiguous response from remote, "
+                            "transfer abandoned: %s" % (them_answer,))
+
+    tdata = them_answer["transit"]
+    yield _send_file_twisted(tdata, transit_sender, fd_to_send,
+                             args.stdout, args.hide_progress,
+                             args.timing)
+
 
 @inlineCallbacks
 def _send_file_twisted(tdata, transit_sender, fd_to_send,
