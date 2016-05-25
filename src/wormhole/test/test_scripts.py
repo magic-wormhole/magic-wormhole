@@ -7,9 +7,12 @@ from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 from ..cli import runner, cmd_send, cmd_receive
-from ..cli.cmd_send import build_offer
 from ..errors import TransferError, WrongPasswordError
 from ..timing import DebugTiming
+
+def build_offer(args):
+    s = cmd_send.Sender(args, None)
+    return s._build_offer()
 
 class OfferData(unittest.TestCase):
     def setUp(self):
