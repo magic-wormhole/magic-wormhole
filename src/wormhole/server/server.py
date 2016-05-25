@@ -48,8 +48,9 @@ class RelayServer(service.MultiService):
         rendezvous = Rendezvous(db, welcome, blur_usage)
         rendezvous.setServiceParent(self) # for the pruning timer
 
+        root = Root()
         wsrf = WebSocketRendezvousFactory(None, rendezvous)
-        root = WebSocketResource(wsrf)
+        root.putChild(b"v1", WebSocketResource(wsrf))
 
         site = PrivacyEnhancedSite(root)
         if blur_usage:
