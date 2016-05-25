@@ -132,16 +132,19 @@ class Sender:
             # TODO: get() fired, so now it's safe to use w.derive_key()
             them_d = json.loads(them_d_bytes.decode("utf-8"))
             #print("GOT", them_d)
+            recognized = False
             if u"transit" in them_d:
+                recognized = True
                 yield self._handle_transit(them_d[u"transit"])
-                continue
             if u"answer" in them_d:
+                recognized = True
                 if not want_answer:
                     raise TransferError("duplicate answer")
                 yield self._handle_answer(them_d[u"answer"])
                 done = True
                 returnValue(None)
-            log.msg("unrecognized message %r" % (them_d,))
+            if not recognized:
+                log.msg("unrecognized message %r" % (them_d,))
 
     def _handle_transit(self, receiver_hints):
         ts = self._transit_sender
