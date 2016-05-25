@@ -128,11 +128,11 @@ class Misc(unittest.TestCase):
         self.assertIsInstance(portno, int)
 
 class Hints(unittest.TestCase):
-    def test_endpoint_from_hint(self):
+    def test_endpoint_from_hint_obj(self):
         c = transit.Common(u"")
-        ep = c._endpoint_from_hint(transit.DirectTCPV1Hint("localhost", 1234))
+        ep = c._endpoint_from_hint_obj(transit.DirectTCPV1Hint("localhost", 1234))
         self.assertIsInstance(ep, endpoints.HostnameEndpoint)
-        ep = c._endpoint_from_hint("unknown:stuff:yowza:pivlor")
+        ep = c._endpoint_from_hint_obj("unknown:stuff:yowza:pivlor")
         self.assertEqual(ep, None)
 
 
@@ -1212,7 +1212,7 @@ class Transit(unittest.TestCase):
         connectors[0].callback("winner")
         self.assertEqual(results, ["winner"])
 
-    def _endpoint_from_hint(self, hint):
+    def _endpoint_from_hint_obj(self, hint):
         if hint == DIRECT_HINT_INTERNAL:
             return "direct"
         elif hint == RELAY_HINT_FIRST:
@@ -1231,7 +1231,7 @@ class Transit(unittest.TestCase):
 
         direct_connectors = []
         relay_connectors = []
-        s._endpoint_from_hint = self._endpoint_from_hint
+        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         def _start_connector(ep, description, is_relay=False):
             d = defer.Deferred()
             if ep == "direct":
@@ -1270,7 +1270,7 @@ class Transit(unittest.TestCase):
 
         direct_connectors = []
         relay_connectors = []
-        s._endpoint_from_hint = self._endpoint_from_hint
+        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         def _start_connector(ep, description, is_relay=False):
             d = defer.Deferred()
             if ep == "direct":

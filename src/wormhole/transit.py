@@ -79,6 +79,10 @@ def build_relay_handshake(key):
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return b"please relay "+hexlify(token)+b"\n"
 
+
+# These namedtuples are "hint objects". The JSON-serializable dictionaries
+# are "hint dicts".
+
 # DirectTCPV1Hint and TorTCPV1Hint mean the following protocol:
 # * make a TCP connection (possibly via Tor)
 # * send the sender/receiver handshake bytes first
@@ -92,7 +96,7 @@ TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port"])
 # the rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
 
-def describe_hint(hint):
+def describe_hint_obj(hint):
     if isinstance(hint, DirectTCPV1Hint):
         return u"tcp:%s:%d" % (hint.hostname, hint.port)
     elif isinstance(hint, TorTCPV1Hint):
@@ -100,7 +104,7 @@ def describe_hint(hint):
     else:
         return str(hint)
 
-def parse_hint_tcp(hint):
+def parse_hint_argv(hint):
     assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
@@ -573,11 +577,11 @@ class Common:
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise UsageError
-            relay = RelayV1Hint(hints=[parse_hint_tcp(transit_relay)])
+            relay = RelayV1Hint(hints=[parse_hint_argv(transit_relay)])
             self._transit_relays = [relay]
         else:
             self._transit_relays = []
-        self._their_direct_hints = []
+        self._their_direct_hints = [] # hintobjs
         self._their_relay_hints = []
         self._tor_manager = tor_manager
         self._transit_key = None
@@ -658,7 +662,7 @@ class Common:
         self._listener_d.addErrback(lambda f: None)
         self._listener_d.cancel()
 
-    def _parse_tcp_v1_hint(self, hint):
+    def _parse_tcp_v1_hint(self, hint): # hint_struct -> hint_obj
         hint_type = hint.get(u"type", u"")
         if hint_type not in [u"direct-tcp-v1", u"tor-tcp-v1"]:
             log.msg("unknown hint type: %r" % (hint,))
@@ -676,12 +680,12 @@ class Common:
             return TorTCPV1Hint(hint[u"hostname"], hint[u"port"])
 
     def add_connection_hints(self, hints):
-        for h in hints:
+        for h in hints: # hint structs
             hint_type = h.get(u"type", u"")
             if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
                 dh = self._parse_tcp_v1_hint(h)
                 if dh:
-                    self._their_direct_hints.append(dh)
+                    self._their_direct_hints.append(dh) # hint_obj
             elif hint_type == u"relay-v1":
                 # TODO: each relay-v1 clause describes a different relay,
                 # with a set of equally-valid ways to connect to it. Treat
@@ -769,14 +773,14 @@ class Common:
             contenders.append(self._listener_d)
         relay_delay = 0
 
-        for hint in self._their_direct_hints:
+        for hint_obj in self._their_direct_hints:
             # Check the hint type to see if we can support it (e.g. skip
             # onion hints on a non-Tor client). Do not increase relay_delay
             # unless we have at least one viable hint.
-            ep = self._endpoint_from_hint(hint)
+            ep = self._endpoint_from_hint_obj(hint_obj)
             if not ep:
                 continue
-            description = "->%s" % describe_hint(hint)
+            description = "->%s" % describe_hint_obj(hint_obj)
             d = self._start_connector(ep, description)
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
@@ -787,11 +791,11 @@ class Common:
         # resolve quickly. Many direct hints will be to unused local-network
         # IP addresses, which won't answer, and would take the full TCP
         # timeout (30s or more) to fail.
-        for hint in self._their_relay_hints:
-            ep = self._endpoint_from_hint(hint)
+        for hint_obj in self._their_relay_hints:
+            ep = self._endpoint_from_hint_obj(hint_obj)
             if not ep:
                 continue
-            description = "->relay:%s" % describe_hint(hint)
+            description = "->relay:%s" % describe_hint_obj(hint_obj)
             d = task.deferLater(self._reactor, relay_delay,
                                 self._start_connector, ep, description,
                                 is_relay=True)
@@ -822,7 +826,7 @@ class Common:
         d.addCallback(lambda p: p.startNegotiation())
         return d
 
-    def _endpoint_from_hint(self, hint):
+    def _endpoint_from_hint_obj(self, hint):
         if self._tor_manager:
             if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
                 # our TorManager will return None for non-public IPv4
