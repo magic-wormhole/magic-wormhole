@@ -652,6 +652,8 @@ class _Wormhole:
 
     def _API_derive_key(self, purpose, length):
         if self._error: raise self._error
+        if self._key is None:
+            raise UsageError # call derive_key after get_verifier() or get()
         if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
         return self._derive_key(to_bytes(purpose), length)
 
@@ -673,6 +675,9 @@ class _Wormhole:
     def _event_received_peer_message(self, side, phase, body):
         # any message in the mailbox means we no longer need the nameplate
         self._event_mailbox_used()
+
+        if self._closing:
+            log.msg("received peer message while closing '%s'" % phase)
 
         if phase == u"pake":
             return self._event_received_pake(body)
