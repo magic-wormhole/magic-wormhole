@@ -106,11 +106,8 @@ class Sender:
             self._transit_sender = ts
 
             # for now, send this before the main offer
-            direct_hints = yield ts.get_direct_hints()
-            sender_hints = {"relay_connection_hints": ts.get_relay_hints(),
-                            "direct_connection_hints": direct_hints,
-                            }
-            self._send_data({u"transit": sender_hints}, w)
+            hints = yield ts.get_connection_hints()
+            self._send_data({u"transit": {"hints-v1": hints}}, w)
 
             # TODO: move this down below w.get()
             transit_key = w.derive_key(APPID+"/transit-key",
@@ -146,10 +143,9 @@ class Sender:
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))
 
-    def _handle_transit(self, receiver_hints):
+    def _handle_transit(self, receiver_transit):
         ts = self._transit_sender
-        ts.add_their_direct_hints(receiver_hints["direct_connection_hints"])
-        ts.add_their_relay_hints(receiver_hints["relay_connection_hints"])
+        ts.add_connection_hints(receiver_transit.get("hints-v1", []))
 
     def _build_offer(self):
         offer = {}

@@ -130,15 +130,15 @@ class TwistedReceiver:
             self._msg(u"Verifier %s." % verifier_hex)
 
     @inlineCallbacks
-    def _parse_transit(self, sender_hints, w):
+    def _parse_transit(self, sender_transit, w):
         if self._transit_receiver:
             # TODO: accept multiple messages, add the additional hints to the
             # existing TransitReceiver
             return
-        yield self._build_transit(w, sender_hints)
+        yield self._build_transit(w, sender_transit)
 
     @inlineCallbacks
-    def _build_transit(self, w, sender_hints):
+    def _build_transit(self, w, sender_transit):
         tr = TransitReceiver(self.args.transit_helper,
                              no_listen=self.args.no_listen,
                              tor_manager=self._tor_manager,
@@ -148,16 +148,10 @@ class TwistedReceiver:
         transit_key = w.derive_key(APPID+u"/transit-key", tr.TRANSIT_KEY_LENGTH)
         tr.set_transit_key(transit_key)
 
-        tr.add_their_direct_hints(sender_hints["direct_connection_hints"])
-        tr.add_their_relay_hints(sender_hints["relay_connection_hints"])
-
-        direct_hints = yield tr.get_direct_hints()
-        relay_hints = yield tr.get_relay_hints()
-        receiver_hints = {
-            "direct_connection_hints": direct_hints,
-            "relay_connection_hints": relay_hints,
-            }
-        self._send_data({u"transit": receiver_hints}, w)
+        tr.add_connection_hints(sender_transit.get("hints-v1", []))
+        receiver_hints = yield tr.get_connection_hints()
+        receiver_transit = {"hints-v1": receiver_hints}
+        self._send_data({u"transit": receiver_transit}, w)
         # TODO: send more hints as the TransitReceiver produces them
 
     @inlineCallbacks

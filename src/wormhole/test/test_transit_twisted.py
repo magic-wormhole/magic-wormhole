@@ -130,31 +130,38 @@ class Misc(unittest.TestCase):
 class Hints(unittest.TestCase):
     def test_endpoint_from_hint(self):
         c = transit.Common(u"")
-        ep = c._endpoint_from_hint("tcp:localhost:1234")
+        ep = c._endpoint_from_hint(transit.DirectTCPV1Hint("localhost", 1234))
         self.assertIsInstance(ep, endpoints.HostnameEndpoint)
         ep = c._endpoint_from_hint("unknown:stuff:yowza:pivlor")
-        self.assertEqual(ep, None)
-        ep = c._endpoint_from_hint("tooshort")
         self.assertEqual(ep, None)
 
 
 class Basic(unittest.TestCase):
+    @inlineCallbacks
     def test_relay_hints(self):
-        URL = u"RELAYURL"
-        c = transit.Common(URL)
-        self.assertEqual(c.get_relay_hints(), [URL])
+        URL = u"tcp:host:1234"
+        c = transit.Common(URL, no_listen=True)
+        hints = yield c.get_connection_hints()
+        self.assertEqual(hints, [{"type": "relay-v1",
+                                  "hints": [{"type": "direct-tcp-v1",
+                                            "hostname": u"host",
+                                            "port": 1234}],
+                                  }])
         self.assertRaises(UsageError, transit.Common, 123)
 
+    @inlineCallbacks
     def test_no_relay_hints(self):
-        c = transit.Common(None)
-        self.assertEqual(c.get_relay_hints(), [])
+        c = transit.Common(None, no_listen=True)
+        hints = yield c.get_connection_hints()
+        self.assertEqual(hints, [])
 
-    def test_bad_hints(self):
+    def test_ignore_bad_hints(self):
         c = transit.Common(u"")
-        self.assertRaises(TypeError, c.add_their_direct_hints, [123])
-        c.add_their_direct_hints([u"URL"])
-        self.assertRaises(TypeError, c.add_their_relay_hints, [123])
-        c.add_their_relay_hints([u"URL"])
+        c.add_connection_hints([{"type": "unknown"}])
+        c.add_connection_hints([{"type": "relay-v1",
+                                 "hints": [{"type": "unknown"}]}])
+        self.assertEqual(c._their_direct_hints, [])
+        self.assertEqual(c._their_relay_hints, [])
 
     def test_transit_key_wait(self):
         KEY = b"123"
@@ -214,8 +221,7 @@ class Listener(unittest.TestCase):
         hints, ep = c._build_listener()
         self.assertIsInstance(hints, (list, set))
         if hints:
-            self.assertIsInstance(hints[0], type(u""))
-            self.assert_(hints[0].startswith(u"tcp:"))
+            self.assertIsInstance(hints[0], transit.DirectTCPV1Hint)
         self.assertIsInstance(ep, endpoints.TCP4ServerEndpoint)
 
     def test_get_direct_hints(self):
@@ -223,7 +229,7 @@ class Listener(unittest.TestCase):
         c = transit.TransitSender(u"")
 
         results = []
-        d = c.get_direct_hints()
+        d = c.get_connection_hints()
         d.addBoth(results.append)
         self.assertEqual(len(results), 1)
         hints = results[0]
@@ -232,7 +238,7 @@ class Listener(unittest.TestCase):
         # start a second listener
         self.assert_(c._listener)
         results = []
-        d = c.get_direct_hints()
+        d = c.get_connection_hints()
         d.addBoth(results.append)
         self.assertEqual(results, [hints])
 
@@ -1166,9 +1172,19 @@ class FileConsumer(unittest.TestCase):
         self.assertEqual(f.getvalue(), b"."*99+b"!")
 
 
-DIRECT_HINT = u"tcp:direct:1234"
-RELAY_HINT = u"tcp:relay:1234"
-UNUSABLE_HINT = u"unusable:foo:bar"
+DIRECT_HINT = {u"type": u"direct-tcp-v1",
+               u"hostname": u"direct", u"port": 1234}
+RELAY_HINT = {u"type": u"relay-v1",
+              u"hints": [{u"type": u"direct-tcp-v1",
+                          u"hostname": u"relay", u"port": 1234}]}
+UNUSABLE_HINT = {u"type": u"unknown"}
+RELAY_HINT2 = {u"type": u"relay-v1",
+               u"hints": [{u"type": u"direct-tcp-v1",
+                           u"hostname": u"relay", u"port": 1234},
+                          UNUSABLE_HINT]}
+DIRECT_HINT_INTERNAL = transit.DirectTCPV1Hint(u"direct", 1234)
+RELAY_HINT_FIRST = transit.DirectTCPV1Hint(u"relay", 1234)
+RELAY_HINT_INTERNAL = transit.RelayV1Hint([RELAY_HINT_FIRST])
 
 class Transit(unittest.TestCase):
     @inlineCallbacks
@@ -1176,10 +1192,9 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender(u"", reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_direct_hints() # start the listener
+        hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_their_direct_hints([DIRECT_HINT, UNUSABLE_HINT])
-        s.add_their_relay_hints([])
+        s.add_connection_hints([DIRECT_HINT, UNUSABLE_HINT])
 
         connectors = []
         def _start_connector(ep, description, is_relay=False):
@@ -1198,24 +1213,21 @@ class Transit(unittest.TestCase):
         self.assertEqual(results, ["winner"])
 
     def _endpoint_from_hint(self, hint):
-        if hint == DIRECT_HINT:
+        if hint == DIRECT_HINT_INTERNAL:
             return "direct"
-        elif hint == RELAY_HINT:
+        elif hint == RELAY_HINT_FIRST:
             return "relay"
-        elif hint == UNUSABLE_HINT:
-            return None
         else:
-            return "ep"
+            return None
 
     @inlineCallbacks
     def test_wait_for_relay(self):
         clock = task.Clock()
-        s = transit.TransitSender(u"", reactor=clock)
+        s = transit.TransitSender(u"", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_direct_hints() # start the listener
+        hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_their_direct_hints([DIRECT_HINT, UNUSABLE_HINT])
-        s.add_their_relay_hints([RELAY_HINT])
+        s.add_connection_hints([DIRECT_HINT, UNUSABLE_HINT, RELAY_HINT])
 
         direct_connectors = []
         relay_connectors = []
@@ -1250,12 +1262,11 @@ class Transit(unittest.TestCase):
     @inlineCallbacks
     def test_no_direct_hints(self):
         clock = task.Clock()
-        s = transit.TransitSender(u"", reactor=clock)
+        s = transit.TransitSender(u"", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_direct_hints() # start the listener
+        hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_their_direct_hints([UNUSABLE_HINT])
-        s.add_their_relay_hints([RELAY_HINT, UNUSABLE_HINT])
+        s.add_connection_hints([UNUSABLE_HINT, RELAY_HINT2])
 
         direct_connectors = []
         relay_connectors = []
@@ -1301,14 +1312,11 @@ class Full(unittest.TestCase):
         s.set_transit_key(KEY)
         r.set_transit_key(KEY)
 
-        shints = yield s.get_direct_hints()
-        rhints = yield r.get_direct_hints()
+        shints = yield s.get_connection_hints()
+        rhints = yield r.get_connection_hints()
 
-        s.add_their_direct_hints(rhints)
-        r.add_their_direct_hints(shints)
-
-        s.add_their_relay_hints([])
-        r.add_their_relay_hints([])
+        s.add_connection_hints(rhints)
+        r.add_connection_hints(shints)
 
         (x,y) = yield self.doBoth(s.connect(), r.connect())
         self.assertIsInstance(x, transit.Connection)
