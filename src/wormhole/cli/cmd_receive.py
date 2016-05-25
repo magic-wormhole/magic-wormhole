@@ -31,6 +31,7 @@ class TwistedReceiver:
         self.args = args
         self._reactor = reactor
         self._tor_manager = None
+        self._transit_receiver = None
 
     def msg(self, *args, **kwargs):
         print(*args, file=self.args.stdout, **kwargs)
@@ -75,45 +76,39 @@ class TwistedReceiver:
 
         while True:
             try:
-                them_d = yield self.get_data(w)
+                them_d = yield self._get_data(w)
             except WormholeClosedError:
                 if done:
                     returnValue(None)
                 raise TransferError("unexpected close")
+            #print("GOT", them_d)
+            if u"transit" in them_d:
+                yield self._parse_transit(them_d[u"transit"], w)
+                continue
             if u"offer" in them_d:
                 if not want_offer:
                     raise TransferError("duplicate offer")
                 try:
-                    self.parse_offer(them_d[u"offer"], w)
+                    yield self.parse_offer(them_d[u"offer"], w)
                 except RespondError as r:
-                    data = json.dumps({"error": r.response}).encode("utf-8")
-                    w.send(data)
+                    self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
                 returnValue(None)
             log.msg("unrecognized message %r" % (them_d,))
             raise TransferError("expected offer, got none")
 
+    def _send_data(self, data, w):
+        data_bytes = json.dumps(data).encode("utf-8")
+        w.send(data_bytes)
+
     @inlineCallbacks
-    def parse_offer(self, them_d, w):
-        if "message" in them_d:
-            self.handle_text(them_d, w)
-            returnValue(None)
-        if "file" in them_d:
-            f = self.handle_file(them_d)
-            rp = yield self.establish_transit(w, them_d)
-            yield self.transfer_data(rp, f)
-            self.write_file(f)
-            yield self.close_transit(rp)
-        elif "directory" in them_d:
-            f = self.handle_directory(them_d)
-            rp = yield self.establish_transit(w, them_d)
-            yield self.transfer_data(rp, f)
-            self.write_directory(f)
-            yield self.close_transit(rp)
-        else:
-            self.msg(u"I don't know what they're offering\n")
-            self.msg(u"Offer details: %r" % (them_d,))
-            raise RespondError("unknown offer type")
+    def _get_data(self, w):
+        # this may raise WrongPasswordError
+        them_bytes = yield w.get()
+        them_d = json.loads(them_bytes.decode("utf-8"))
+        if "error" in them_d:
+            raise TransferError(them_d["error"])
+        returnValue(them_d)
 
     @inlineCallbacks
     def handle_code(self, w):
@@ -133,19 +128,65 @@ class TwistedReceiver:
             self.msg(u"Verifier %s." % verifier_hex)
 
     @inlineCallbacks
-    def get_data(self, w):
-        # this may raise WrongPasswordError
-        them_bytes = yield w.get()
-        them_d = json.loads(them_bytes.decode("utf-8"))
-        if "error" in them_d:
-            raise TransferError(them_d["error"])
-        returnValue(them_d)
+    def _parse_transit(self, sender_hints, w):
+        if self._transit_receiver:
+            # TODO: accept multiple messages, add the additional hints to the
+            # existing TransitReceiver
+            return
+        yield self._build_transit(w, sender_hints)
+
+    @inlineCallbacks
+    def _build_transit(self, w, sender_hints):
+        tr = TransitReceiver(self.args.transit_helper,
+                             no_listen=self.args.no_listen,
+                             tor_manager=self._tor_manager,
+                             reactor=self._reactor,
+                             timing=self.args.timing)
+        self._transit_receiver = tr
+        transit_key = w.derive_key(APPID+u"/transit-key", tr.TRANSIT_KEY_LENGTH)
+        tr.set_transit_key(transit_key)
+
+        tr.add_their_direct_hints(sender_hints["direct_connection_hints"])
+        tr.add_their_relay_hints(sender_hints["relay_connection_hints"])
+
+        direct_hints = yield tr.get_direct_hints()
+        relay_hints = yield tr.get_relay_hints()
+        receiver_hints = {
+            "direct_connection_hints": direct_hints,
+            "relay_connection_hints": relay_hints,
+            }
+        self._send_data({u"transit": receiver_hints}, w)
+        # TODO: send more hints as the TransitReceiver produces them
+
+    @inlineCallbacks
+    def parse_offer(self, them_d, w):
+        if "message" in them_d:
+            self.handle_text(them_d, w)
+            returnValue(None)
+        # transit will be created by this point, but not connected
+        if "file" in them_d:
+            f = self.handle_file(them_d)
+            self._send_permission(w)
+            rp = yield self._establish_transit()
+            yield self._transfer_data(rp, f)
+            self.write_file(f)
+            yield self.close_transit(rp)
+        elif "directory" in them_d:
+            f = self.handle_directory(them_d)
+            self._send_permission(w)
+            rp = yield self._establish_transit()
+            yield self._transfer_data(rp, f)
+            self.write_directory(f)
+            yield self.close_transit(rp)
+        else:
+            self.msg(u"I don't know what they're offering\n")
+            self.msg(u"Offer details: %r" % (them_d,))
+            raise RespondError("unknown offer type")
 
     def handle_text(self, them_d, w):
         # we're receiving a text message
         self.msg(them_d["message"])
-        data = json.dumps({"answer": {"message_ack": "ok"}}).encode("utf-8")
-        w.send(data)
+        self._send_data({"answer": {"message_ack": "ok"}}, w)
 
     def handle_file(self, them_d):
         file_data = them_d["file"]
@@ -202,39 +243,18 @@ class TwistedReceiver:
                 raise RespondError("transfer rejected")
             t.detail(answer="yes")
 
-    @inlineCallbacks
-    def establish_transit(self, w, them_d):
-        transit_receiver = TransitReceiver(self.args.transit_helper,
-                                           no_listen=self.args.no_listen,
-                                           tor_manager=self._tor_manager,
-                                           reactor=self._reactor,
-                                           timing=self.args.timing)
-        transit_key = w.derive_key(APPID+u"/transit-key",
-                                   transit_receiver.TRANSIT_KEY_LENGTH)
-        transit_receiver.set_transit_key(transit_key)
-        direct_hints = yield transit_receiver.get_direct_hints()
-        relay_hints = yield transit_receiver.get_relay_hints()
-        data = json.dumps({
-            "answer": {
-                "file_ack": "ok",
-                "transit": {
-                    "direct_connection_hints": direct_hints,
-                    "relay_connection_hints": relay_hints,
-                    },
-                },
-            }).encode("utf-8")
-        w.send(data)
+    def _send_permission(self, w):
+        self._send_data({"answer": { "file_ack": "ok" }}, w)
 
-        # now receive the rest of the owl
-        tdata = them_d["transit"]
-        transit_receiver.add_their_direct_hints(tdata["direct_connection_hints"])
-        transit_receiver.add_their_relay_hints(tdata["relay_connection_hints"])
-        record_pipe = yield transit_receiver.connect()
+    @inlineCallbacks
+    def _establish_transit(self):
+        record_pipe = yield self._transit_receiver.connect()
         self.args.timing.add("transit connected")
         returnValue(record_pipe)
 
     @inlineCallbacks
-    def transfer_data(self, record_pipe, f):
+    def _transfer_data(self, record_pipe, f):
+        # now receive the rest of the owl
         self.msg(u"Receiving (%s).." % record_pipe.describe())
 
         with self.args.timing.add("rx file"):

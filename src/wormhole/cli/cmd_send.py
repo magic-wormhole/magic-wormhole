@@ -51,6 +51,10 @@ class Sender:
         d.addBoth(w.close)
         yield d
 
+    def _send_data(self, data, w):
+        data_bytes = json.dumps(data).encode("utf-8")
+        w.send(data_bytes)
+
     @inlineCallbacks
     def _go(self, w):
         # TODO: run the blocking zip-the-directory IO in a thread, let the
@@ -100,18 +104,20 @@ class Sender:
                                reactor=self._reactor,
                                timing=self._timing)
             self._transit_sender = ts
-            offer["transit"] = transit_data = {}
-            transit_data["relay_connection_hints"] = ts.get_relay_hints()
+
+            # for now, send this before the main offer
             direct_hints = yield ts.get_direct_hints()
-            transit_data["direct_connection_hints"] = direct_hints
+            sender_hints = {"relay_connection_hints": ts.get_relay_hints(),
+                            "direct_connection_hints": direct_hints,
+                            }
+            self._send_data({u"transit": sender_hints}, w)
 
             # TODO: move this down below w.get()
             transit_key = w.derive_key(APPID+"/transit-key",
                                        ts.TRANSIT_KEY_LENGTH)
             ts.set_transit_key(transit_key)
 
-        my_offer_bytes = json.dumps({"offer": offer}).encode("utf-8")
-        w.send(my_offer_bytes)
+        self._send_data({"offer": offer}, w)
 
         want_answer = True
         done = False
@@ -125,14 +131,22 @@ class Sender:
                 raise TransferError("unexpected close")
             # TODO: get() fired, so now it's safe to use w.derive_key()
             them_d = json.loads(them_d_bytes.decode("utf-8"))
+            #print("GOT", them_d)
+            if u"transit" in them_d:
+                yield self._handle_transit(them_d[u"transit"])
+                continue
             if u"answer" in them_d:
                 if not want_answer:
                     raise TransferError("duplicate answer")
-                them_answer = them_d[u"answer"]
-                yield self._handle_answer(them_answer)
+                yield self._handle_answer(them_d[u"answer"])
                 done = True
                 returnValue(None)
             log.msg("unrecognized message %r" % (them_d,))
+
+    def _handle_transit(self, receiver_hints):
+        ts = self._transit_sender
+        ts.add_their_direct_hints(receiver_hints["direct_connection_hints"])
+        ts.add_their_relay_hints(receiver_hints["relay_connection_hints"])
 
     def _build_offer(self):
         offer = {}
@@ -223,15 +237,12 @@ class Sender:
             raise TransferError("ambiguous response from remote, "
                                 "transfer abandoned: %s" % (them_answer,))
 
-        tdata = them_answer["transit"]
-        yield self._send_file_twisted(tdata)
+        yield self._send_file_twisted()
 
 
     @inlineCallbacks
-    def _send_file_twisted(self, tdata):
+    def _send_file_twisted(self):
         ts = self._transit_sender
-        ts.add_their_direct_hints(tdata["direct_connection_hints"])
-        ts.add_their_relay_hints(tdata["relay_connection_hints"])
 
         self._fd_to_send.seek(0,2)
         filesize = self._fd_to_send.tell()
