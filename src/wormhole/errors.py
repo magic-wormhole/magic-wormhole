@@ -1,4 +1,4 @@
-import functools, textwrap
+import functools
 
 class ServerError(Exception):
     def __init__(self, message, relay):
@@ -21,8 +21,10 @@ class Timeout(Exception):
     pass
 
 class WelcomeError(Exception):
-    """The server told us to signal an error, probably because our version is
-    too old to possibly work."""
+    """
+    The relay server told us to signal an error, probably because our version
+    is too old to possibly work. The server said:"""
+    pass
 
 class WrongPasswordError(Exception):
     """
@@ -32,8 +34,7 @@ class WrongPasswordError(Exception):
     chance.
     """
     # or the data blob was corrupted, and that's why decrypt failed
-    def __init__(self):
-        Exception.__init__(self, textwrap.dedent(self.__doc__.strip()))
+    pass
 
 class ReflectionAttack(Exception):
     """An attacker (or bug) reflected our outgoing message back to us."""
