@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii, six, tempfile, zipfile
+import os, sys, json, binascii, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -164,16 +164,16 @@ class TwistedReceiver:
             f = self._handle_file(them_d)
             self._send_permission(w)
             rp = yield self._establish_transit()
-            yield self._transfer_data(rp, f)
+            datahash = yield self._transfer_data(rp, f)
             self._write_file(f)
-            yield self._close_transit(rp)
+            yield self._close_transit(rp, datahash)
         elif "directory" in them_d:
             f = self._handle_directory(them_d)
             self._send_permission(w)
             rp = yield self._establish_transit()
-            yield self._transfer_data(rp, f)
+            datahash = yield self._transfer_data(rp, f)
             self._write_directory(f)
-            yield self._close_transit(rp)
+            yield self._close_transit(rp, datahash)
         else:
             self._msg(u"I don't know what they're offering\n")
             self._msg(u"Offer details: %r" % (them_d,))
@@ -257,9 +257,12 @@ class TwistedReceiver:
             progress = tqdm(file=self.args.stdout,
                             disable=self.args.hide_progress,
                             unit="B", unit_scale=True, total=self.xfersize)
+            hasher = hashlib.sha256()
             with progress:
                 received = yield record_pipe.writeToFile(f, self.xfersize,
-                                                         progress.update)
+                                                         progress.update,
+                                                         hasher.update)
+            datahash = hasher.digest()
 
         # except TransitError
         if received < self.xfersize:
@@ -268,6 +271,7 @@ class TwistedReceiver:
             self._msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
             raise TransferError("Connection dropped before full file received")
         assert received == self.xfersize
+        returnValue(datahash)
 
     def _write_file(self, f):
         tmp_name = f.name
@@ -290,7 +294,10 @@ class TwistedReceiver:
             f.close()
 
     @inlineCallbacks
-    def _close_transit(self, record_pipe):
+    def _close_transit(self, record_pipe, datahash):
+        datahash_hex = binascii.hexlify(datahash).decode("ascii")
+        ack = {u"ack": u"ok", u"sha256": datahash_hex}
+        ack_bytes = json.dumps(ack).encode("utf-8")
         with self.args.timing.add("send ack"):
-            yield record_pipe.send_record(b"ok\n")
+            yield record_pipe.send_record(ack_bytes)
             yield record_pipe.close()

@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii, six, tempfile, zipfile
+import os, sys, json, binascii, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
 from twisted.python import log
 from twisted.protocols import basic
@@ -236,11 +236,11 @@ class Sender:
             raise TransferError("ambiguous response from remote, "
                                 "transfer abandoned: %s" % (them_answer,))
 
-        yield self._send_file_twisted()
+        yield self._send_file()
 
 
     @inlineCallbacks
-    def _send_file_twisted(self):
+    def _send_file(self):
         ts = self._transit_sender
 
         self._fd_to_send.seek(0,2)
@@ -253,10 +253,12 @@ class Sender:
         stdout = self._args.stdout
         print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
 
+        hasher = hashlib.sha256()
         progress = tqdm(file=stdout, disable=self._args.hide_progress,
                         unit="B", unit_scale=True,
                         total=filesize)
-        def _count(data):
+        def _count_and_hash(data):
+            hasher.update(data)
             progress.update(len(data))
             return data
         fs = basic.FileSender()
@@ -264,14 +266,22 @@ class Sender:
         with self._timing.add("tx file"):
             with progress:
                 yield fs.beginFileTransfer(self._fd_to_send, record_pipe,
-                                           transform=_count)
+                                           transform=_count_and_hash)
 
+        expected_hash = hasher.digest()
+        expected_hex = binascii.hexlify(expected_hash).decode("ascii")
         print(u"File sent.. waiting for confirmation", file=stdout)
         with self._timing.add("get ack") as t:
-            ack = yield record_pipe.receive_record()
+            ack_bytes = yield record_pipe.receive_record()
             record_pipe.close()
-            if ack != b"ok\n":
+            ack = json.loads(ack_bytes.decode("utf-8"))
+            ok = ack.get(u"ack", u"")
+            if ok != u"ok":
                 t.detail(ack="failed")
                 raise TransferError("Transfer failed (remote says: %r)" % ack)
+            if u"sha256" in ack:
+                if ack[u"sha256"] != expected_hex:
+                    t.detail(datahash="failed")
+                    raise TransferError("Transfer failed (bad remote hash)")
             print(u"Confirmation received. Transfer complete.", file=stdout)
             t.detail(ack="ok")
