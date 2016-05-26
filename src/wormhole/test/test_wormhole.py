@@ -232,15 +232,15 @@ class Basic(unittest.TestCase):
         out = ws.outbound()
         self.assertEqual(len(out), 2, out)
         self.check_out(out[0], type=u"release")
-        self.check_out(out[1], type=u"add", phase=u"confirm")
+        self.check_out(out[1], type=u"add", phase=u"version")
         self.assertNoResult(v)
 
         # hearing a valid confirmation message doesn't throw an error
         plaintext = json.dumps({}).encode("utf-8")
-        data_key = w._derive_phase_key(side2, u"confirm")
+        data_key = w._derive_phase_key(side2, u"version")
         confmsg = w._encrypt_data(data_key, plaintext)
         confirm2_hex = hexlify(confmsg).decode("ascii")
-        response(w, type=u"message", phase=u"confirm", body=confirm2_hex,
+        response(w, type=u"message", phase=u"version", body=confirm2_hex,
                  side=side2)
 
         # and it releases the verifier
@@ -532,7 +532,7 @@ class Basic(unittest.TestCase):
         else:
             w._key = b"wrongkey"
         plaintext = json.dumps({}).encode("utf-8")
-        data_key = w._derive_phase_key(side2, u"confirm")
+        data_key = w._derive_phase_key(side2, u"version")
         confmsg = w._encrypt_data(data_key, plaintext)
         w._key = None
 
@@ -612,7 +612,7 @@ class Basic(unittest.TestCase):
         self.failureResultOf(w.verify(), WelcomeError)
 
     def test_confirm_error(self):
-        # we should only receive the "confirm" message after we receive the
+        # we should only receive the "version" message after we receive the
         # PAKE message, by which point we should know the key. If the
         # confirmation message doesn't decrypt, we signal an error.
         timing = DebugTiming()
@@ -646,7 +646,7 @@ class Basic(unittest.TestCase):
         nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
         badconfirm = wormhole.make_confmsg(confkey, nonce)
         badconfirm_hex = hexlify(badconfirm).decode("ascii")
-        response(w, type=u"message", phase=u"confirm", body=badconfirm_hex,
+        response(w, type=u"message", phase=u"version", body=badconfirm_hex,
                  side=u"s2")
 
         self.failureResultOf(d1, WrongPasswordError)

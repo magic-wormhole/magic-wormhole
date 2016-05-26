@@ -558,7 +558,7 @@ class _Wormhole:
         # dictionary of version flags to let the other Wormhole know what
         # we're capable of (for future expansion)
         plaintext = json.dumps(self._my_versions).encode("utf-8")
-        phase = u"confirm"
+        phase = u"version"
         data_key = self._derive_phase_key(self._side, phase)
         encrypted = self._encrypt_data(data_key, plaintext)
         self._msg_send(phase, encrypted)
@@ -588,7 +588,7 @@ class _Wormhole:
 
     def _event_received_confirm(self, side, body):
         # We ought to have the master key by now, because sensible peers
-        # should always send "pake" before sending "confirm". It might be
+        # should always send "pake" before sending "version". It might be
         # nice to relax this requirement, which means storing the received
         # confirmation message, and having _event_established_key call
         # _check_confirmation()
@@ -603,7 +603,7 @@ class _Wormhole:
         self._confirmation_checked = True
 
         side, body = self._confirmation_message
-        data_key = self._derive_phase_key(side, u"confirm")
+        data_key = self._derive_phase_key(side, u"version")
         try:
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
@@ -717,7 +717,7 @@ class _Wormhole:
 
         if phase == u"pake":
             return self._event_received_pake(body)
-        if phase == u"confirm":
+        if phase == u"version":
             return self._event_received_confirm(side, body)
         if re.search(r'^\d+$', phase):
             return self._event_received_phase_message(side, phase, body)
