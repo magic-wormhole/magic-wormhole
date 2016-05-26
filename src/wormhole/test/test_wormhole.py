@@ -239,8 +239,8 @@ class Basic(unittest.TestCase):
         plaintext = json.dumps({}).encode("utf-8")
         data_key = w._derive_phase_key(side2, u"version")
         confmsg = w._encrypt_data(data_key, plaintext)
-        confirm2_hex = hexlify(confmsg).decode("ascii")
-        response(w, type=u"message", phase=u"version", body=confirm2_hex,
+        version2_hex = hexlify(confmsg).decode("ascii")
+        response(w, type=u"message", phase=u"version", body=version2_hex,
                  side=side2)
 
         # and it releases the verifier
@@ -515,7 +515,7 @@ class Basic(unittest.TestCase):
 
     def _test_verifier(self, when, order, success):
         assert when in ("early", "middle", "late")
-        assert order in ("key-then-confirm", "confirm-then-key")
+        assert order in ("key-then-version", "version-then-key")
         assert isinstance(success, bool)
         #print(when, order, success)
 
@@ -540,22 +540,22 @@ class Basic(unittest.TestCase):
             d = w.verify()
             self.assertNoResult(d)
 
-        if order == "key-then-confirm":
+        if order == "key-then-version":
             w._key = b"key"
             w._event_established_key()
         else:
-            w._event_received_confirm(side2, confmsg)
+            w._event_received_version(side2, confmsg)
 
         if when == "middle":
             d = w.verify()
         if d:
             self.assertNoResult(d) # still waiting for other msg
 
-        if order == "confirm-then-key":
+        if order == "version-then-key":
             w._key = b"key"
             w._event_established_key()
         else:
-            w._event_received_confirm(side2, confmsg)
+            w._event_received_version(side2, confmsg)
 
         if when == "late":
             d = w.verify()
@@ -567,7 +567,7 @@ class Basic(unittest.TestCase):
 
     def test_verifier(self):
         for when in ("early", "middle", "late"):
-            for order in ("key-then-confirm", "confirm-then-key"):
+            for order in ("key-then-version", "version-then-key"):
                 for success in (False, True):
                     self._test_verifier(when, order, success)
 
@@ -611,7 +611,7 @@ class Basic(unittest.TestCase):
         self.failureResultOf(w.get(), WelcomeError)
         self.failureResultOf(w.verify(), WelcomeError)
 
-    def test_confirm_error(self):
+    def test_version_error(self):
         # we should only receive the "version" message after we receive the
         # PAKE message, by which point we should know the key. If the
         # confirmation message doesn't decrypt, we signal an error.
@@ -641,12 +641,12 @@ class Basic(unittest.TestCase):
         self.assertNoResult(d1)
         self.assertNoResult(d2) # verify() waits for confirmation
 
-        # sending a random confirm message will cause a confirmation error
+        # sending a random version message will cause a confirmation error
         confkey = w.derive_key(u"WRONG", SecretBox.KEY_SIZE)
         nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
-        badconfirm = wormhole.make_confmsg(confkey, nonce)
-        badconfirm_hex = hexlify(badconfirm).decode("ascii")
-        response(w, type=u"message", phase=u"version", body=badconfirm_hex,
+        badversion = wormhole.make_confmsg(confkey, nonce)
+        badversion_hex = hexlify(badversion).decode("ascii")
+        response(w, type=u"message", phase=u"version", body=badversion_hex,
                  side=u"s2")
 
         self.failureResultOf(d1, WrongPasswordError)

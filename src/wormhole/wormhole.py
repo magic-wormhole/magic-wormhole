@@ -39,7 +39,7 @@ def to_bytes(u):
 #   * early warmup for connection hints ("I can do tor, spin up HS")
 #   * wordlist l10n identifier
 # phase=pake: just the SPAKE2 'start' message (binary)
-# phase=confirm: key verification (HKDF(key, nonce)+nonce)
+# phase=version: version data, key verification (HKDF(key, nonce)+nonce)
 # phase=1,2,3,..: application messages
 
 class WSClient(websocket.WebSocketClientProtocol):
@@ -238,8 +238,8 @@ class _Wormhole:
         self._flag_need_to_send_PAKE = True
         self._key = None
 
-        self._confirmation_message = None
-        self._confirmation_checked = False
+        self._version_message = None
+        self._version_checked = False
         self._get_verifier_called = False
         self._verifier = None # bytes
         self._verify_result = None # bytes or a Failure
@@ -544,16 +544,16 @@ class _Wormhole:
     def _event_established_key(self):
         self._timing.add("key established")
 
-        # both sides send different (random) confirmation messages
-        self._send_confirmation_message()
+        # both sides send different (random) version messages
+        self._send_version_message()
 
         verifier = self._derive_key(b"wormhole:verifier")
         self._event_computed_verifier(verifier)
 
-        self._maybe_check_confirmation()
+        self._maybe_check_version()
         self._maybe_send_phase_messages()
 
-    def _send_confirmation_message(self):
+    def _send_version_message(self):
         # this is encrypted like a normal phase message, and includes a
         # dictionary of version flags to let the other Wormhole know what
         # we're capable of (for future expansion)
@@ -577,7 +577,7 @@ class _Wormhole:
         self._maybe_notify_verify()
 
     def _maybe_notify_verify(self):
-        if not (self._verifier and self._confirmation_checked):
+        if not (self._verifier and self._version_checked):
             return
         if self._error:
             self._verify_result = failure.Failure(self._error)
@@ -586,23 +586,23 @@ class _Wormhole:
         if self._verifier_waiter and not self._verifier_waiter.called:
             self._verifier_waiter.callback(self._verify_result)
 
-    def _event_received_confirm(self, side, body):
+    def _event_received_version(self, side, body):
         # We ought to have the master key by now, because sensible peers
         # should always send "pake" before sending "version". It might be
         # nice to relax this requirement, which means storing the received
-        # confirmation message, and having _event_established_key call
-        # _check_confirmation()
-        self._confirmation_message = (side, body)
-        self._maybe_check_confirmation()
+        # version message, and having _event_established_key call
+        # _check_version()
+        self._version_message = (side, body)
+        self._maybe_check_version()
 
-    def _maybe_check_confirmation(self):
-        if not (self._key and self._confirmation_message):
+    def _maybe_check_version(self):
+        if not (self._key and self._version_message):
             return
-        if self._confirmation_checked:
+        if self._version_checked:
             return
-        self._confirmation_checked = True
+        self._version_checked = True
 
-        side, body = self._confirmation_message
+        side, body = self._version_message
         data_key = self._derive_phase_key(side, u"version")
         try:
             plaintext = self._decrypt_data(data_key, body)
@@ -718,7 +718,7 @@ class _Wormhole:
         if phase == u"pake":
             return self._event_received_pake(body)
         if phase == u"version":
-            return self._event_received_confirm(side, body)
+            return self._event_received_version(side, body)
         if re.search(r'^\d+$', phase):
             return self._event_received_phase_message(side, phase, body)
         # ignore unrecognized phases, for forwards-compatibility
