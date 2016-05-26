@@ -419,8 +419,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     # optional callable which will be called on each write (with the number
     # of bytes written). Returns a Deferred that fires (with the number of
     # bytes written) when the count is reached or the RecordPipe is closed.
-    def writeToFile(self, f, expected, progress=None):
-        fc = FileConsumer(f, progress)
+    def writeToFile(self, f, expected, progress=None, hasher=None):
+        fc = FileConsumer(f, progress, hasher)
         return self.connectConsumer(fc, expected)
 
 class OutboundConnectionFactory(protocol.ClientFactory):
@@ -863,13 +863,14 @@ class TransitReceiver(Common):
 
 # based on twisted.protocols.ftp.FileConsumer, but don't close the filehandle
 # when done, and add a progress function that gets called with the length of
-# each write.
+# each write, and a hasher function that gets called with the data.
 
 @implementer(interfaces.IConsumer)
 class FileConsumer:
-    def __init__(self, f, progress=None):
+    def __init__(self, f, progress=None, hasher=None):
         self._f = f
         self._progress = progress
+        self._hasher = hasher
         self._producer = None
 
     def registerProducer(self, producer, streaming):
@@ -881,6 +882,8 @@ class FileConsumer:
         self._f.write(bytes)
         if self._progress:
             self._progress(len(bytes))
+        if self._hasher:
+            self._hasher(bytes)
 
     def unregisterProducer(self):
         assert self._producer
