@@ -1,8 +1,80 @@
-import argparse
+import click
 from textwrap import dedent
 from . import public_relay
 from .. import __version__
 
+class Common:
+    def __init__(self, stuff):
+        self.stuff = stuff
+
+ALIASES = {
+    "tx": "send",
+    "rx": "receive",
+    }
+class AliasedGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd_name = ALIASES.get(cmd_name, cmd_name)
+        return click.Group.get_command(self, ctx, cmd_name)
+
+@click.group()
+#@click.command(cls=AliasedGroup)
+@click.option("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
+              metavar="URL",
+              help="rendezvous relay to use",
+              )
+@click.option("--transit-helper", default=public_relay.TRANSIT_RELAY,
+              metavar="tcp:HOST:PORT",
+              help="transit relay to use",
+              )
+@click.option("-c", "--code-length", default=2,
+              metavar="NUMWORDS",
+              help="length of code (in bytes/words)",
+              )
+@click.option("-v", "--verify", is_flag=True, default=False,
+              help="display (and wait for acceptance of) verification string",
+              )
+@click.option("--hide-progress", is_flag=True, default=False,
+              help="supress progress-bar display",
+              )
+@click.option("--dump-timing", type=type(u""), # TODO: hide from --help output
+              default=None,
+              metavar="FILE.json",
+              help="(debug) write timing data to file")
+@click.option("--no-listen", is_flag=True, default=False,
+               help="(debug) don't open a listening socket for Transit")
+@click.option("--tor", is_flag=True, default=True,
+               help="use Tor when connecting")
+@click.version_option(message="magic-wormhole %(version)s", version=__version__)
+@click.pass_context
+def cli(ctx, relay_url, transit_helper):
+    """
+    Create a Magic Wormhole and communicate through it. Wormholes are created
+    by speaking the same magic CODE in two different places at the same time.
+    Wormholes are secure against anyone who doesn't use the same code."""
+    ctx.obj = Common(relay_url)
+
+@cli.command()
+@click.argument("what")
+@click.pass_obj
+def send(obj, what):
+    """Send a text message, file, or directory"""
+    print obj
+    print what
+
+@cli.command()
+@click.argument("what")
+@click.pass_obj
+def receive(obj, what):
+    """Receive anything sent by 'wormhole send'."""
+    print obj
+    print what
+
+# for now, use "python -m wormhole.cli.cli_args --version", etc
+if __name__ == "__main__":
+    cli()
+
+
+import argparse
 parser = argparse.ArgumentParser(
     usage="wormhole SUBCOMMAND (subcommand-options)",
     description=dedent("""
@@ -14,23 +86,6 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--version", action="version",
                     version="magic-wormhole "+ __version__)
 g = parser.add_argument_group("wormhole configuration options")
-g.add_argument("--relay-url", default=public_relay.RENDEZVOUS_RELAY,
-               metavar="URL", help="rendezvous relay to use", type=type(u""))
-g.add_argument("--transit-helper", default=public_relay.TRANSIT_RELAY,
-               metavar="tcp:HOST:PORT", help="transit relay to use",
-               type=type(u""))
-g.add_argument("-c", "--code-length", type=int, default=2,
-               metavar="WORDS", help="length of code (in bytes/words)")
-g.add_argument("-v", "--verify", action="store_true",
-               help="display (and wait for acceptance of) verification string")
-g.add_argument("--hide-progress", action="store_true",
-               help="supress progress-bar display")
-g.add_argument("--dump-timing", type=type(u""), # TODO: hide from --help output
-               metavar="FILE", help="(debug) write timing data to file")
-g.add_argument("--no-listen", action="store_true",
-               help="(debug) don't open a listening socket for Transit")
-g.add_argument("--tor", action="store_true",
-               help="use Tor when connecting")
 parser.set_defaults(timing=None)
 subparsers = parser.add_subparsers(title="subcommands",
                                    dest="subcommand")
