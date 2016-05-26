@@ -3,6 +3,7 @@ digraph {
         api_get_code [label="get_code" shape="hexagon" color="red"]
         api_input_code [label="input_code" shape="hexagon" color="red"]
         api_set_code [label="set_code" shape="hexagon" color="red"]
+        verify [label="verify" shape="hexagon" color="red"]
         send [label="API\nsend" shape="hexagon" color="red"]
         get [label="API\nget" shape="hexagon" color="red"]
         close [label="API\nclose" shape="hexagon" color="red"]
@@ -63,13 +64,18 @@ digraph {
 
         event_learned_PAKE -> event_established_key
         event_established_key -> event_computed_verifier
+        event_established_key -> check_confirmation
         event_established_key -> maybe_send_phase_messages
 
-        check_verifier [label="check\nverifier"]
-        event_computed_verifier -> check_verifier
-        event_received_confirm -> check_verifier
+        check_confirmation [label="check\nconfirmation"]
+        event_received_confirm -> check_confirmation
 
-        check_verifier -> error
+        notify_verifier [label="notify\nverifier"]
+        check_confirmation -> notify_verifier
+        verify -> notify_verifier
+        event_computed_verifier -> notify_verifier
+
+        check_confirmation -> error
         event_received_message -> error
         event_received_message -> get
         event_established_key -> get
@@ -89,6 +95,4 @@ digraph {
         event_received_closed -> maybe_close_websocket
         maybe_close_websocket -> event_websocket_closed [style="dashed"]
         event_websocket_closed [label="websocket\nclosed"]
-        
-        
 }
