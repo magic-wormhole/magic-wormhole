@@ -213,6 +213,8 @@ class _WelcomeHandler:
 
 
 class _Wormhole:
+    DEBUG = False
+
     def __init__(self, appid, relay_url, reactor, tor_manager, timing):
         self._appid = appid
         self._ws_url = relay_url
@@ -403,7 +405,6 @@ class _Wormhole:
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
 
-    DEBUG=False
     def _ws_dispatch_response(self, payload):
         msg = json.loads(payload.decode("utf-8"))
         if self.DEBUG and msg["type"]!="ack": print("DIS", msg["type"], msg)
