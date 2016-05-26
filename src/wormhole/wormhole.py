@@ -541,9 +541,6 @@ class _Wormhole:
             self._key = self._sp.finish(pake_msg)
         self._event_established_key()
 
-    def _derive_confirmation_key(self):
-        return self._derive_key(b"wormhole:confirmation")
-
     def _event_established_key(self):
         self._timing.add("key established")
 
