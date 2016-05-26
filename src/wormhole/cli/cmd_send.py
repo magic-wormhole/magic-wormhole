@@ -130,6 +130,9 @@ class Sender:
             them_d = json.loads(them_d_bytes.decode("utf-8"))
             #print("GOT", them_d)
             recognized = False
+            if u"error" in them_d:
+                raise TransferError("remote error, transfer abandoned: %s"
+                                    % them_d["error"])
             if u"transit" in them_d:
                 recognized = True
                 yield self._handle_transit(them_d[u"transit"])
@@ -229,9 +232,6 @@ class Sender:
                 returnValue(None) # terminates this function
             raise TransferError("error sending text: %r" % (them_answer,))
 
-        if "error" in them_answer:
-            raise TransferError("remote error, transfer abandoned: %s"
-                                % them_answer["error"])
         if them_answer.get("file_ack") != "ok":
             raise TransferError("ambiguous response from remote, "
                                 "transfer abandoned: %s" % (them_answer,))
