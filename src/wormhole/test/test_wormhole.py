@@ -570,25 +570,6 @@ class Basic(unittest.TestCase):
                 for success in (False, True):
                     self._test_verifier(when, order, success)
 
-    def test_verifier_4(self):
-        # ask early, key-then-confirm, success
-        timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
-        w._drop_connection = mock.Mock()
-        w._ws_send_command = mock.Mock()
-        w._mailbox_state = wormhole.OPEN
-        d = w.verify()
-        self.assertNoResult(d)
-
-        w._key = b"key"
-        w._event_established_key()
-        self.assertNoResult(d) # still waiting for confirmation message
-        confkey = w._derive_confirmation_key()
-        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
-        confmsg = wormhole.make_confmsg(confkey, nonce)
-        w._event_received_confirm(confmsg)
-        self.successResultOf(d)
-
 
     def test_api_errors(self):
         # doing things you're not supposed to do
