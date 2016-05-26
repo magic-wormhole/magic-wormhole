@@ -36,6 +36,9 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
     args.stdout = stdout
     args.stderr = stderr
     args.timing = timing = DebugTiming()
+    if args.log_to:
+        from twisted.python import log
+        log.startLogging(open(args.log_to, "wb"), setStdout=False)
 
     timing.add("command dispatch")
     timing.add("import", when=start, which="top").finish(when=top_import_finish)

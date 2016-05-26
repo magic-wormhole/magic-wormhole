@@ -29,6 +29,8 @@ g.add_argument("--dump-timing", type=type(u""), # TODO: hide from --help output
                metavar="FILE", help="(debug) write timing data to file")
 g.add_argument("--no-listen", action="store_true",
                help="(debug) don't open a listening socket for Transit")
+g.add_argument("--log-to", type=type(u""), # TODO: hide from --help
+               metavar="FILE", help="(debug) write twisted log to file")
 g.add_argument("--tor", action="store_true",
                help="use Tor when connecting")
 parser.set_defaults(timing=None)
