@@ -224,17 +224,16 @@ class Basic(unittest.TestCase):
         response(w, type=u"message", phase=u"pake", body=msg2_hex, side=side2)
 
         # hearing the peer's PAKE (msg2) makes us release the nameplate, send
-        # the confirmation message, delivered the verifier, and sends any
-        # queued phase messages
+        # the confirmation message, and sends any queued phase messages. It
+        # doesn't deliver the verifier because we're still waiting on the
+        # confirmation message.
         self.assertFalse(w._flag_need_to_see_mailbox_used)
         self.assertEqual(w._key, key)
         out = ws.outbound()
         self.assertEqual(len(out), 2, out)
         self.check_out(out[0], type=u"release")
         self.check_out(out[1], type=u"add", phase=u"confirm")
-        verifier = self.successResultOf(v)
-        self.assertEqual(verifier,
-                         w.derive_key(u"wormhole:verifier", SecretBox.KEY_SIZE))
+        self.assertNoResult(v)
 
         # hearing a valid confirmation message doesn't throw an error
         confkey = w.derive_key(u"wormhole:confirmation", SecretBox.KEY_SIZE)
@@ -243,6 +242,11 @@ class Basic(unittest.TestCase):
         confirm2_hex = hexlify(confirm2).decode("ascii")
         response(w, type=u"message", phase=u"confirm", body=confirm2_hex,
                  side=side2)
+
+        # and it releases the verifier
+        verifier = self.successResultOf(v)
+        self.assertEqual(verifier,
+                         w.derive_key(u"wormhole:verifier", SecretBox.KEY_SIZE))
 
         # an outbound message can now be sent immediately
         w.send(b"phase0-outbound")
@@ -506,10 +510,85 @@ class Basic(unittest.TestCase):
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
 
+    # make sure verify() can be called both before and after the verifier is
+    # computed
+
+    def _test_verifier(self, when, order, success):
+        assert when in ("early", "middle", "late")
+        assert order in ("key-then-confirm", "confirm-then-key")
+        assert isinstance(success, bool)
+        #print(when, order, success)
+
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w._drop_connection = mock.Mock()
+        w._ws_send_command = mock.Mock()
+        w._mailbox_state = wormhole.OPEN
+        d = None
+
+        if success:
+            w._key = b"key"
+        else:
+            w._key = b"wrongkey"
+        confkey = w._derive_confirmation_key()
+        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
+        confmsg = wormhole.make_confmsg(confkey, nonce)
+        w._key = None
+
+        if when == "early":
+            d = w.verify()
+            self.assertNoResult(d)
+
+        if order == "key-then-confirm":
+            w._key = b"key"
+            w._event_established_key()
+        else:
+            w._event_received_confirm(confmsg)
+
+        if when == "middle":
+            d = w.verify()
+        if d:
+            self.assertNoResult(d) # still waiting for other msg
+
+        if order == "confirm-then-key":
+            w._key = b"key"
+            w._event_established_key()
+        else:
+            w._event_received_confirm(confmsg)
+
+        if when == "late":
+            d = w.verify()
+        if success:
+            self.successResultOf(d)
+        else:
+            self.assertFailure(d, wormhole.WrongPasswordError)
+            self.flushLoggedErrors(WrongPasswordError)
+
     def test_verifier(self):
-        # make sure verify() can be called both before and after the verifier
-        # is computed
-        pass
+        for when in ("early", "middle", "late"):
+            for order in ("key-then-confirm", "confirm-then-key"):
+                for success in (False, True):
+                    self._test_verifier(when, order, success)
+
+    def test_verifier_4(self):
+        # ask early, key-then-confirm, success
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w._drop_connection = mock.Mock()
+        w._ws_send_command = mock.Mock()
+        w._mailbox_state = wormhole.OPEN
+        d = w.verify()
+        self.assertNoResult(d)
+
+        w._key = b"key"
+        w._event_established_key()
+        self.assertNoResult(d) # still waiting for confirmation message
+        confkey = w._derive_confirmation_key()
+        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
+        confmsg = wormhole.make_confmsg(confkey, nonce)
+        w._event_received_confirm(confmsg)
+        self.successResultOf(d)
+
 
     def test_api_errors(self):
         # doing things you're not supposed to do
@@ -578,8 +657,7 @@ class Basic(unittest.TestCase):
         msg2_hex = hexlify(msg2).decode("ascii")
         response(w, type=u"message", phase=u"pake", body=msg2_hex, side=u"s2")
         self.assertNoResult(d1)
-        self.successResultOf(d2) # early verify is unaffected
-        # TODO: change verify() to wait for "confirm"
+        self.assertNoResult(d2) # verify() waits for confirmation
 
         # sending a random confirm message will cause a confirmation error
         confkey = w.derive_key(u"WRONG", SecretBox.KEY_SIZE)
@@ -590,6 +668,7 @@ class Basic(unittest.TestCase):
                  side=u"s2")
 
         self.failureResultOf(d1, WrongPasswordError)
+        self.failureResultOf(d2, WrongPasswordError)
 
         # once the error is signalled, all API calls should fail
         self.assertRaises(WrongPasswordError, w.send, u"foo")

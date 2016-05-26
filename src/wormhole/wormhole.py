@@ -5,7 +5,7 @@ from binascii import hexlify, unhexlify
 from twisted.internet import defer, endpoints, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.python import log
+from twisted.python import log, failure
 from autobahn.twisted import websocket
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
@@ -237,14 +237,18 @@ class _Wormhole:
         self._flag_need_to_build_msg1 = True
         self._flag_need_to_send_PAKE = True
         self._key = None
+
+        self._confirmation_message = None
+        self._confirmation_checked = False
+        self._get_verifier_called = False
+        self._verifier = None # bytes
+        self._verify_result = None # bytes or a Failure
+        self._verifier_waiter = None
+
         self._close_called = False # the close() API has been called
         self._closing = False # we've started shutdown
         self._disconnect_waiter = defer.Deferred()
         self._error = None
-
-        self._get_verifier_called = False
-        self._verifier = None
-        self._verifier_waiter = None
 
         self._next_send_phase = 0
         # send() queues plaintext here, waiting for a connection and the key
@@ -549,38 +553,55 @@ class _Wormhole:
         verifier = self._derive_key(b"wormhole:verifier")
         self._event_computed_verifier(verifier)
 
+        self._maybe_check_confirmation()
         self._maybe_send_phase_messages()
 
     def _API_verify(self):
-        # TODO: rename "verify()", make it stall until confirm received. If
-        # you want to discover WrongPasswordError before doing send(), call
-        # verify() first. If you also want to deny a successful MitM (and
-        # have some other way to check a long verifier), use the return value
-        # of verify().
         if self._error: return defer.fail(self._error)
         if self._get_verifier_called: raise UsageError
         self._get_verifier_called = True
-        if self._verifier:
-            return defer.succeed(self._verifier)
-        # TODO: maybe have this wait on _event_received_confirm too
+        if self._verify_result:
+            return defer.succeed(self._verify_result) # bytes or Failure
         self._verifier_waiter = defer.Deferred()
         return self._verifier_waiter
 
     def _event_computed_verifier(self, verifier):
         self._verifier = verifier
-        if self._verifier_waiter:
-            self._verifier_waiter.callback(verifier)
+        self._maybe_notify_verify()
+
+    def _maybe_notify_verify(self):
+        if not (self._verifier and self._confirmation_checked):
+            return
+        if self._error:
+            self._verify_result = failure.Failure(self._error)
+        else:
+            self._verify_result = self._verifier
+        if self._verifier_waiter and not self._verifier_waiter.called:
+            self._verifier_waiter.callback(self._verify_result)
 
     def _event_received_confirm(self, body):
-        # TODO: we might not have a master key yet, if the caller wasn't
-        # waiting in _get_master_key() when a back-to-back pake+_confirm
-        # message pair arrived.
+        # We ought to have the master key by now, because sensible peers
+        # should always send "pake" before sending "confirm". It might be
+        # nice to relax this requirement, which means storing the received
+        # confirmation message, and having _event_established_key call
+        # _check_confirmation()
+        self._confirmation_message = body
+        self._maybe_check_confirmation()
+
+    def _maybe_check_confirmation(self):
+        if not (self._key and self._confirmation_message):
+            return
+        if self._confirmation_checked:
+            return
         confkey = self._derive_confirmation_key()
+        body = self._confirmation_message
         nonce = body[:CONFMSG_NONCE_LENGTH]
         if body != make_confmsg(confkey, nonce):
             # this makes all API calls fail
             if self.DEBUG: print("CONFIRM FAILED")
-            return self._signal_error(WrongPasswordError(), u"scary")
+            self._signal_error(WrongPasswordError(), u"scary")
+        self._confirmation_checked = True
+        self._maybe_notify_verify()
 
 
     def _API_send(self, outbound_data):
