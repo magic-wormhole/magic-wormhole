@@ -60,69 +60,28 @@ to be available, then returns it. The Wormhole is not meant as a long-term
 communication channel, but some protocols work better if they can exchange an
 initial pair of messages (perhaps offering some set of negotiable
 capabilities), and then follow up with a second pair (to reveal the results
-of the negotiation). Another use case is for an ACK that gets sent at the end
-of a file transfer: the Wormhole is held open until the Transit object
-reports completion, and the last message is a hash of the file contents to
-prove it was received correctly.
+of the negotiation).
 
 Note: the application developer must be careful to avoid deadlocks (if both
 sides want to `get()`, somebody has to `send()` first).
 
-When both sides are done, they must call `close()`, to let the library know
-that the connection is complete and it can deallocate the channel. If you
-forget to call `close()`, the server will not free the channel, and other
-users will suffer longer invitation codes as a result. To encourage
-`close()`, the library will log an error if a Wormhole object is destroyed
-before being closed.
-
-To make it easier to call `close()`, the blocking Wormhole objects can be
-used as a context manager. Just put your code in the body of a `with
-wormhole(ARGS) as w:` statement, and `close()` will automatically be called
-when the block exits (either successfully or due to an exception).
-
-## Examples
-
-The synchronous+blocking flow looks like this:
-
-```python
-from wormhole.blocking.transcribe import wormhole
-from wormhole.public_relay import RENDEZVOUS_RELAY
-mydata = b"initiator's data"
-with wormhole(u"appid", RENDEZVOUS_RELAY) as i:
-    code = i.get_code()
-    print("Invitation Code: %s" % code)
-    i.send(mydata)
-    theirdata = i.get()
-    print("Their data: %s" % theirdata.decode("ascii"))
-```
-
-```python
-import sys
-from wormhole.blocking.transcribe import wormhole
-from wormhole.public_relay import RENDEZVOUS_RELAY
-mydata = b"receiver's data"
-code = sys.argv[1]
-with wormhole(u"appid", RENDEZVOUS_RELAY) as r:
-    r.set_code(code)
-    r.send(mydata)
-    theirdata = r.get()
-    print("Their data: %s" % theirdata.decode("ascii"))
-```
+When both sides are done, they must call `close()`, to flush all pending
+`send()` calls, deallocate the channel, and close the websocket connection.
 
 ## Twisted
 
-The Twisted-friendly flow looks like this:
+The Twisted-friendly flow looks like this (note that passing reactor= is how
+you get a non-blocking Wormhole):
 
 ```python
 from twisted.internet import reactor
 from wormhole.public_relay import RENDEZVOUS_RELAY
-from wormhole.twisted.transcribe import wormhole
-outbound_message = b"outbound data"
+from wormhole import wormhole
 w1 = wormhole(u"appid", RENDEZVOUS_RELAY, reactor)
 d = w1.get_code()
 def _got_code(code):
     print "Invitation Code:", code
-    return w1.send(outbound_message)
+    return w1.send(b"outbound data")
 d.addCallback(_got_code)
 d.addCallback(lambda _: w1.get())
 def _got(inbound_message):
@@ -156,15 +115,19 @@ the rest of the protocol to proceed. If they do not match, then the two
 programs are not talking to each other (they may both be talking to a
 man-in-the-middle attacker), and the protocol should be abandoned.
 
-To retrieve the verifier, you call `w.get_verifier()` before any calls to
-`send()/get()`. Turn this into hex or Base64 to print it, or render it as
-ASCII-art, etc. Once the users are convinced that `get_verifier()` from both
-sides are the same, call `send()/get()` to continue the protocol. If you call
-`send()/get()` before `get_verifier()`, it will perform the complete protocol
-without pausing.
+To retrieve the verifier, you call `d=w.verify()` before any calls to
+`send()/get()`. The Deferred will not fire until internal key-confirmation
+has taken place (meaning the two sides have exchanged their initial PAKE
+messages, and the wormhole codes matched), so `verify()` is also a good way
+to detect typos or mistakes entering the code. The Deferred will errback with
+wormhole.WrongPasswordError if the codes did not match, or it will callback
+with the verifier bytes if they did match.
 
-The Twisted form of `get_verifier()` returns a Deferred that fires with the
-verifier bytes.
+Once retrieved, you can turn this into hex or Base64 to print it, or render
+it as ASCII-art, etc. Once the users are convinced that `verify()` from both
+sides are the same, call `send()/get()` to continue the protocol. If you call
+`send()/get()` before `verify()`, it will perform the complete protocol
+without pausing.
 
 ## Generating the Invitation Code
 
@@ -176,8 +139,8 @@ randomly-generated selection from the PGP wordlist, providing a default of 16
 bits of entropy. The initiating program should display this code to the user,
 who should transcribe it to the receiving user, who gives it to the Receiver
 object by calling `set_code()`. The receiving program can also use
-`input_code_with_completion()` to use a readline-based input function: this
-offers tab completion of allocated channel-ids and known codewords.
+`input_code()` to use a readline-based input function: this offers tab
+completion of allocated channel-ids and known codewords.
 
 Alternatively, the human users can agree upon an invitation code themselves,
 and provide it to both programs later (both sides call `set_code()`). They
@@ -212,59 +175,10 @@ the other. This must be the same for both clients, and is generally baked-in
 to the application source code or default config.
 
 This library includes the URL of a public relay run by the author.
-Application developers can use this one, or they can run their own (see
-src/wormhole/servers/relay.py) and configure their clients to use it instead.
-This URL is passed as a unicode string.
-
-## Polling and Shutdown
-
-TODO: this is mostly imaginary
-
-The reactor-based (Twisted-style) forms of these objects need to establish
-TCP connections, re-establish them if they are lost, and sometimes (for
-transports that don't support long-running connections) poll for new
-messages. They may also time out eventually. Longer delays mean less network
-traffic, but higher latency.
-
-These timers should be matched to the expectations, and expected behavior, of
-your users. In a file-transfer application, where the users are sitting next
-to each other, it is appropriate to poll very frequently (perhaps every
-500ms) for a few minutes, then give up. In an email-like messaging program
-where the introduction is establishing a long-term relationship, and the
-program can store any outgoing messages until the connection is established,
-it is probably better to poll once a minute for the first few minutes, then
-back off to once an hour, and not give up for several days.
-
-The `schedule=` constructor argument establishes the polling schedule. It
-should contain a sorted list of (when, interval) tuples (both floats). At
-`when` seconds after the first `start()` call, the polling interval will be
-set to `interval`.
-
-The `timeout=` argument provides a hard timeout. After this many seconds, the
-sync will be abandoned, and all callbacks will errback with a TimeoutError.
-
-Both have defaults suitable for face-to-face realtime setup environments.
-
-## Serialization
-
-TODO: only the Twisted form supports serialization so far
-
-You may not be able to hold the Wormhole object in memory for the whole sync
-process: maybe you allow it to wait for several days, but the program will be
-restarted during that time. To support this, you can persist the state of the
-object by calling `data = w.serialize()`, which will return a printable
-bytestring (the JSON-encoding of a small dictionary). To restore, use `w =
-wormhole_from_serialized(data, reactor)`.
-
-There is exactly one point at which you can serialize the wormhole: *after*
-establishing the invitation code, but before waiting for `get_verifier()` or
-`get()`, or calling `send()`. If you are creating a new invitation code, the
-correct time is during the callback fired by `get_code()`. If you are
-accepting a pre-generated code, the time is just after calling `set_code()`.
-
-To properly checkpoint the process, you should store the first message
-(returned by `start()`) next to the serialized wormhole instance, so you can
-re-send it if necessary.
+Application developers can use this one, or they can run their own (see the
+`wormhole-server` command and the `src/wormhole/server/` directory) and
+configure their clients to use it instead. This URL is passed as a unicode
+string.
 
 ## Bytes, Strings, Unicode, and Python 3
 
@@ -283,4 +197,4 @@ in python3):
 * transit URLs
 * transit connection hints (e.g. "host:port")
 * application identifier
-* derived-key "purpose" string: `w.derive_key(PURPOSE)`
+* derived-key "purpose" string: `w.derive_key(PURPOSE, LENGTH)`

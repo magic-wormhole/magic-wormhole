@@ -53,8 +53,10 @@ delivered and used. If this does not feel strong enough, users can turn on
 additional verification that doesn't depend upon the secrecy of the channel.
 
 The notion of a "magic wormhole" comes from the image of two distant wizards
-speaking the same phrase at the same time, and causing a connection to be
-established between them. Transferring files securely should be that easy.
+speaking the same enchanted phrase at the same time, and causing a mystical
+connection to pop into existence between them. The wizards then throw books
+into the wormhole and they fall out the other side. Transferring files
+securely should be that easy.
 
 ## Design
 
@@ -76,27 +78,22 @@ of success.
 
 ## Timing
 
-At present, the two clients must be run within about 3 minutes of each other,
-as they will stop waiting after that time. This makes the tool most useful
-for people who are having a real-time conversation already, and want to
-graduate to a secure connection.
-
-Future releases should increase that to several hours. This will enable a
-mode in which two humans can decide on a code phrase offline, by choosing a
-channel number and a few random words, and then go back home to their
-computers later and begin the wormhole process. (This mode is already
-supported, but is not currently easy to use because the two users must type
-the phrases within three minutes of each other).
+The program does not have any built-in timeouts, however it is expected that
+both clients will be run within an hour or so of each other. This makes the
+tool most useful for people who are having a real-time conversation already,
+and want to graduate to a secure connection. Both clients must be left
+running until the transfer has finished.
 
 ## Relays
 
-The wormhole library requires a "Rendezvous Server": a simple relay that
-delivers messages from one client to another. This allows the wormhole codes
-to omit IP addresses and port numbers. The URL of a public server is baked
-into the library for use as a default, and will be freely available until
-volume or abuse makes it infeasible to support. Applications which desire
-more reliability can easily run their own relay and configure their clients
-to use it instead. Code for the Rendezvous Server is included in the library.
+The wormhole library requires a "Rendezvous Server": a simple WebSocket-based
+relay that delivers messages from one client to another. This allows the
+wormhole codes to omit IP addresses and port numbers. The URL of a public
+server is baked into the library for use as a default, and will be freely
+available until volume or abuse makes it infeasible to support. Applications
+which desire more reliability can easily run their own relay and configure
+their clients to use it instead. Code for the Rendezvous Server is included
+in the library.
 
 The file-transfer commands also use a "Transit Relay", which is another
 simple server that glues together two inbound TCP connections and transfers
@@ -127,33 +124,25 @@ Both commands accept:
 ## Library
 
 The `wormhole` module makes it possible for other applications to use these
-code-protected channels. This includes blocking/synchronous support and
-async/Twisted support, both for a symmetric scheme. The main module is named
-`wormhole.blocking.transcribe`, to reflect that it is for
-synchronous/blocking code, and uses a PAKE mode whereby one user transcribes
-their code to the other. (internal names may change in the future).
+code-protected channels. This includes Twisted support, and (in the future)
+will include blocking/synchronous support too. See docs/api.md for details.
 
-The file-transfer tools use a second module named
-`wormhole.blocking.transit`, which provides an encrypted record-pipe. It
-knows how to use the Transit Relay as well as direct connections, and
-attempts them all in parallel. `TransitSender` and `TransitReceiver` are
-distinct, although once the connection is established, data can flow in
-either direction. All data is encrypted (using nacl/libsodium "secretbox")
-using a key derived from the PAKE phase. See
-`src/wormhole/scripts/cmd_send.py` for examples.
+The file-transfer tools use a second module named `wormhole.transit`, which
+provides an encrypted record-pipe. It knows how to use the Transit Relay as
+well as direct connections, and attempts them all in parallel.
+`TransitSender` and `TransitReceiver` are distinct, although once the
+connection is established, data can flow in either direction. All data is
+encrypted (using nacl/libsodium "secretbox") using a key derived from the
+PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 
 ## License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
 
 This library is compatible with python2.7, 3.3, 3.4, and 3.5 . It is probably
-compatible with py2.6, but the latest Twisted (15.5.0) is not. The
+compatible with py2.6, but the latest Twisted (>=15.5.0) is not. The
 (daemonizing) 'wormhole server start' command does not yet work with py3, but
 will in the future once Twisted itself is finished being ported.
-
-This package depends upon the SPAKE2, pynacl, requests, and argparse
-libraries. To run a relay server, use the async support, or run the unit
-tests, you must also install Twisted.
 
 
 #### footnotes
