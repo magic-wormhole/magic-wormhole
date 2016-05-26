@@ -228,6 +228,7 @@ class _Wormhole:
         self._started_get_code = False
         self._get_code = None
         self._started_input_code = False
+        self._input_code_waiter = None
         self._code = None
         self._nameplate_id = None
         self._nameplate_state = CLOSED
@@ -450,8 +451,11 @@ class _Wormhole:
             ic = _InputCode(self._reactor, prompt, code_length,
                             self._ws_send_command, self._timing)
             self._response_handle_nameplates = ic._response_handle_nameplates
-            # TODO: signal_error
-            code = yield ic.go()
+            # we reveal the Deferred we're waiting on, so _signal_error can
+            # wake us up if something goes wrong (like a welcome error)
+            self._input_code_waiter = ic.go()
+            code = yield self._input_code_waiter
+            self._input_code_waiter = None
         self._event_learned_code(code)
         returnValue(None)
 
@@ -800,6 +804,8 @@ class _Wormhole:
 
         # now errback all API deferreds except close(): get_code,
         # input_code, verify, get
+        if self._input_code_waiter and not self._input_code_waiter.called:
+            self._input_code_waiter.errback(error)
         for d in self._connection_waiters: # input_code, get_code (early)
             if self.DEBUG: print("EB cw")
             d.errback(error)
