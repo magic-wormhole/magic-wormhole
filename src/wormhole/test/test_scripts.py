@@ -7,7 +7,7 @@ from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
 from .common import ServerBase
 from ..cli import runner, cmd_send, cmd_receive
-from ..errors import TransferError, WrongPasswordError
+from ..errors import TransferError, WrongPasswordError, WelcomeError
 from ..timing import DebugTiming
 
 def build_offer(args):
@@ -516,6 +516,43 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         self.failUnless(os.path.exists(fn))
         with open(fn, "r") as f:
             self.failUnlessEqual(f.read(), PRESERVE)
+
+class NotWelcome(ServerBase, unittest.TestCase):
+    def setUp(self):
+        self._setup_relay(error=u"please upgrade XYZ")
+
+    @inlineCallbacks
+    def test_sender(self):
+        common_args = ["--hide-progress", "--no-listen",
+                       "--relay-url", self.relayurl,
+                       "--transit-helper", ""]
+        send_args = common_args + [ "send", "--text", "hi",
+                                    "--code", u"1-abc" ]
+        sargs = runner.parser.parse_args(send_args)
+        sargs.cwd = self.mktemp()
+        sargs.stdout = io.StringIO()
+        sargs.stderr = io.StringIO()
+        sargs.timing = DebugTiming()
+
+        send_d = cmd_send.send(sargs)
+        f = yield self.assertFailure(send_d, WelcomeError)
+        self.assertEqual(str(f), "please upgrade XYZ")
+
+    @inlineCallbacks
+    def test_receiver(self):
+        common_args = ["--hide-progress", "--no-listen",
+                       "--relay-url", self.relayurl,
+                       "--transit-helper", ""]
+        receive_args = common_args + [ "receive", u"1-abc" ]
+        rargs = runner.parser.parse_args(receive_args)
+        rargs.cwd = self.mktemp()
+        rargs.stdout = io.StringIO()
+        rargs.stderr = io.StringIO()
+        rargs.timing = DebugTiming()
+
+        receive_d = cmd_receive.receive(rargs)
+        f = yield self.assertFailure(receive_d, WelcomeError)
+        self.assertEqual(str(f), "please upgrade XYZ")
 
 class Cleanup(ServerBase, unittest.TestCase):
     @inlineCallbacks

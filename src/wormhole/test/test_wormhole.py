@@ -87,10 +87,12 @@ class Welcome(unittest.TestCase):
 
         w.handle_welcome({u"error": u"oops"})
         self.assertEqual(len(se.mock_calls), 1)
-        self.assertEqual(len(se.mock_calls[0][1]), 1) # posargs
+        self.assertEqual(len(se.mock_calls[0][1]), 2) # posargs
         we = se.mock_calls[0][1][0]
         self.assertIsInstance(we, WelcomeError)
         self.assertEqual(we.args, (u"oops",))
+        mood = se.mock_calls[0][1][1]
+        self.assertEqual(mood, u"unwelcome")
         # alas WelcomeError instances don't compare against each other
         #self.assertEqual(se.mock_calls, [mock.call(WelcomeError(u"oops"))])
 

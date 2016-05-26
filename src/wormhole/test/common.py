@@ -7,13 +7,17 @@ from .. import __version__
 
 class ServerBase:
     def setUp(self):
+        self._setup_relay(None)
+
+    def _setup_relay(self, error):
         self.sp = service.MultiService()
         self.sp.startService()
         relayport = allocate_tcp_port()
         transitport = allocate_tcp_port()
         s = RelayServer("tcp:%d:interface=127.0.0.1" % relayport,
                         "tcp:%s:interface=127.0.0.1" % transitport,
-                        __version__)
+                        advertise_version=__version__,
+                        signal_error=error)
         s.setServiceParent(self.sp)
         self._rendezvous = s._rendezvous
         self._transit_server = s._transit

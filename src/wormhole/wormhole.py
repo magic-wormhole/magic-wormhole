@@ -205,7 +205,8 @@ class _WelcomeHandler:
             self._version_warning_displayed = True
 
         if "error" in welcome:
-            return self._signal_error(WelcomeError(welcome["error"]))
+            return self._signal_error(WelcomeError(welcome["error"]),
+                                      u"unwelcome")
 
 # states for nameplates, mailboxes, and the websocket connection
 (CLOSED, OPENING, OPEN, CLOSING) = ("closed", "opening", "open", "closing")
