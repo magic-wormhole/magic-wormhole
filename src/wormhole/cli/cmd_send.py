@@ -106,8 +106,12 @@ class Sender:
             self._transit_sender = ts
 
             # for now, send this before the main offer
-            hints = yield ts.get_connection_hints()
-            self._send_data({u"transit": {"hints-v1": hints}}, w)
+            sender_abilities = ts.get_connection_abilities()
+            sender_hints = yield ts.get_connection_hints()
+            sender_transit = {"abilities-v1": sender_abilities,
+                              "hints-v1": sender_hints,
+                              }
+            self._send_data({u"transit": sender_transit}, w)
 
             # TODO: move this down below w.get()
             transit_key = w.derive_key(APPID+"/transit-key",

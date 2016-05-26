@@ -602,6 +602,11 @@ class Common:
         ep = endpoints.serverFromString(reactor, "tcp:%d" % portnum)
         return direct_hints, ep
 
+    def get_connection_abilities(self):
+        return [{u"type": u"direct-tcp-v1"},
+                {u"type": u"relay-v1"},
+                ]
+
     @inlineCallbacks
     def get_connection_hints(self):
         hints = []

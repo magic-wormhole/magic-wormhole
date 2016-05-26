@@ -149,8 +149,11 @@ class TwistedReceiver:
         tr.set_transit_key(transit_key)
 
         tr.add_connection_hints(sender_transit.get("hints-v1", []))
+        receiver_abilities = tr.get_connection_abilities()
         receiver_hints = yield tr.get_connection_hints()
-        receiver_transit = {"hints-v1": receiver_hints}
+        receiver_transit = {"abilities-v1": receiver_abilities,
+                            "hints-v1": receiver_hints,
+                            }
         self._send_data({u"transit": receiver_transit}, w)
         # TODO: send more hints as the TransitReceiver produces them
 
