@@ -236,10 +236,10 @@ class Basic(unittest.TestCase):
         self.assertNoResult(v)
 
         # hearing a valid confirmation message doesn't throw an error
-        confkey = w.derive_key(u"wormhole:confirmation", SecretBox.KEY_SIZE)
-        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
-        confirm2 = wormhole.make_confmsg(confkey, nonce)
-        confirm2_hex = hexlify(confirm2).decode("ascii")
+        plaintext = json.dumps({}).encode("utf-8")
+        data_key = w._derive_phase_key(side2, u"confirm")
+        confmsg = w._encrypt_data(data_key, plaintext)
+        confirm2_hex = hexlify(confmsg).decode("ascii")
         response(w, type=u"message", phase=u"confirm", body=confirm2_hex,
                  side=side2)
 
@@ -524,15 +524,16 @@ class Basic(unittest.TestCase):
         w._drop_connection = mock.Mock()
         w._ws_send_command = mock.Mock()
         w._mailbox_state = wormhole.OPEN
+        side2 = u"side2"
         d = None
 
         if success:
             w._key = b"key"
         else:
             w._key = b"wrongkey"
-        confkey = w._derive_confirmation_key()
-        nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
-        confmsg = wormhole.make_confmsg(confkey, nonce)
+        plaintext = json.dumps({}).encode("utf-8")
+        data_key = w._derive_phase_key(side2, u"confirm")
+        confmsg = w._encrypt_data(data_key, plaintext)
         w._key = None
 
         if when == "early":
@@ -543,7 +544,7 @@ class Basic(unittest.TestCase):
             w._key = b"key"
             w._event_established_key()
         else:
-            w._event_received_confirm(confmsg)
+            w._event_received_confirm(side2, confmsg)
 
         if when == "middle":
             d = w.verify()
@@ -554,7 +555,7 @@ class Basic(unittest.TestCase):
             w._key = b"key"
             w._event_established_key()
         else:
-            w._event_received_confirm(confmsg)
+            w._event_received_confirm(side2, confmsg)
 
         if when == "late":
             d = w.verify()
@@ -821,6 +822,22 @@ class Wormholes(ServerBase, unittest.TestCase):
         dataY = yield w2.get()
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
+        yield w1.close()
+        yield w2.close()
+
+    @inlineCallbacks
+    def test_versions(self):
+        # there's no API for this yet, but make sure the internals work
+        w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        w1._my_versions = {u"w1": 123}
+        w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        w2._my_versions = {u"w2": 456}
+        code = yield w1.get_code()
+        w2.set_code(code)
+        yield w1.verify()
+        self.assertEqual(w1._their_versions, {u"w2": 456})
+        yield w2.verify()
+        self.assertEqual(w2._their_versions, {u"w1": 123})
         yield w1.close()
         yield w2.close()
 

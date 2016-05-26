@@ -245,6 +245,9 @@ class _Wormhole:
         self._verify_result = None # bytes or a Failure
         self._verifier_waiter = None
 
+        self._my_versions = {} # sent
+        self._their_versions = {} # received
+
         self._close_called = False # the close() API has been called
         self._closing = False # we've started shutdown
         self._disconnect_waiter = defer.Deferred()
@@ -545,16 +548,23 @@ class _Wormhole:
         self._timing.add("key established")
 
         # both sides send different (random) confirmation messages
-        confkey = self._derive_confirmation_key()
-        nonce = os.urandom(CONFMSG_NONCE_LENGTH)
-        confmsg = make_confmsg(confkey, nonce)
-        self._msg_send(u"confirm", confmsg)
+        self._send_confirmation_message()
 
         verifier = self._derive_key(b"wormhole:verifier")
         self._event_computed_verifier(verifier)
 
         self._maybe_check_confirmation()
         self._maybe_send_phase_messages()
+
+    def _send_confirmation_message(self):
+        # this is encrypted like a normal phase message, and includes a
+        # dictionary of version flags to let the other Wormhole know what
+        # we're capable of (for future expansion)
+        plaintext = json.dumps(self._my_versions).encode("utf-8")
+        phase = u"confirm"
+        data_key = self._derive_phase_key(self._side, phase)
+        encrypted = self._encrypt_data(data_key, plaintext)
+        self._msg_send(phase, encrypted)
 
     def _API_verify(self):
         if self._error: return defer.fail(self._error)
@@ -579,13 +589,13 @@ class _Wormhole:
         if self._verifier_waiter and not self._verifier_waiter.called:
             self._verifier_waiter.callback(self._verify_result)
 
-    def _event_received_confirm(self, body):
+    def _event_received_confirm(self, side, body):
         # We ought to have the master key by now, because sensible peers
         # should always send "pake" before sending "confirm". It might be
         # nice to relax this requirement, which means storing the received
         # confirmation message, and having _event_established_key call
         # _check_confirmation()
-        self._confirmation_message = body
+        self._confirmation_message = (side, body)
         self._maybe_check_confirmation()
 
     def _maybe_check_confirmation(self):
@@ -593,16 +603,24 @@ class _Wormhole:
             return
         if self._confirmation_checked:
             return
-        confkey = self._derive_confirmation_key()
-        body = self._confirmation_message
-        nonce = body[:CONFMSG_NONCE_LENGTH]
-        if body != make_confmsg(confkey, nonce):
+        self._confirmation_checked = True
+
+        side, body = self._confirmation_message
+        data_key = self._derive_phase_key(side, u"confirm")
+        try:
+            plaintext = self._decrypt_data(data_key, body)
+        except CryptoError:
             # this makes all API calls fail
             if self.DEBUG: print("CONFIRM FAILED")
             self._signal_error(WrongPasswordError(), u"scary")
-        self._confirmation_checked = True
+            return
+        msg = json.loads(plaintext.decode("utf-8"))
+        self._version_received(msg)
+
         self._maybe_notify_verify()
 
+    def _version_received(self, msg):
+        self._their_versions = msg
 
     def _API_send(self, outbound_data):
         if self._error: raise self._error
@@ -703,7 +721,7 @@ class _Wormhole:
         if phase == u"pake":
             return self._event_received_pake(body)
         if phase == u"confirm":
-            return self._event_received_confirm(body)
+            return self._event_received_confirm(side, body)
         if re.search(r'^\d+$', phase):
             return self._event_received_phase_message(side, phase, body)
         # ignore unrecognized phases, for forwards-compatibility
