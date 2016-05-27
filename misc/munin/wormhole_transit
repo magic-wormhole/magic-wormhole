@@ -67,11 +67,11 @@ CONFIG = """\
 graph_title Magic-Wormhole Transit Usage
 graph_vlabel Bytes per Hour
 graph_category network
-transit.label Transit Bytes
-transit.draw LINE1
-transit.type DERIVE
-transit.min 0
-transit.cdef transit,3600,*
+bytes.label Transit Bytes
+bytes.draw LINE1
+bytes.type DERIVE
+bytes.min 0
+bytes.cdef bytes,3600,*
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
@@ -79,4 +79,4 @@ if len(sys.argv) > 1 and sys.argv[1] == "config":
     sys.exit(0)
 
 c = count_events()
-print "nameplates.value", c["transit bytes"]
+print "bytes.value", c["transit bytes"]
