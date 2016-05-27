@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, time
+import os, time, json
 from collections import defaultdict
 from .database import get_db
 from ..errors import UsageError
@@ -54,6 +54,8 @@ def print_event(event):
           ))
 
 def show_usage(args):
+    print("closed for renovation")
+    return 0
     if not os.path.exists("relay.sqlite"):
         raise UsageError("cannot find relay.sqlite, please run from the server directory")
     oldest = None
@@ -135,4 +137,106 @@ def tail_usage(args):
             time.sleep(2)
     except KeyboardInterrupt:
         return 0
+    return 0
+
+def count_channels(args):
+    if not os.path.exists("relay.sqlite"):
+        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+    db = get_db("relay.sqlite")
+    c_list = []
+    c_dict = {}
+    def add(key, value):
+        c_list.append((key, value))
+        c_dict[key] = value
+    OLD = time.time() - 10*60
+    def q(query, values=()):
+        return db.execute(query, values).fetchone()[0]
+    add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplates`"))
+
+    add("total nameplates", q("SELECT COUNT() FROM `nameplates`"))
+    add("waiting nameplates", q("SELECT COUNT() FROM `nameplates`"
+                                " WHERE `second` is null"))
+    add("connected nameplates", q("SELECT COUNT() FROM `nameplates`"
+                                  " WHERE `second` is not null"))
+    add("stale nameplates", q("SELECT COUNT() FROM `nameplates`"
+                              " where `updated` < ?", (OLD,)))
+
+    add("total mailboxes", q("SELECT COUNT() FROM `mailboxes`"))
+    add("waiting mailboxes", q("SELECT COUNT() FROM `mailboxes`"
+                                " WHERE `second` is null"))
+    add("connected mailboxes", q("SELECT COUNT() FROM `mailboxes`"
+                                 " WHERE `second` is not null"))
+
+    stale_mailboxes = 0
+    for mbox_row in db.execute("SELECT * FROM `mailboxes`").fetchall():
+        newest = db.execute("SELECT `server_rx` FROM `messages`"
+                            " WHERE `app_id`=? AND `mailbox_id`=?"
+                            " ORDER BY `server_rx` DESC LIMIT 1",
+                            (mbox_row["app_id"], mbox_row["id"])).fetchone()
+        if newest and newest[0] < OLD:
+            stale_mailboxes += 1
+    add("stale mailboxes", stale_mailboxes)
+
+    add("messages", q("SELECT COUNT() FROM `messages`"))
+
+    if args.json:
+        print(json.dumps(c_dict))
+    else:
+        for (key, value) in c_list:
+            print(key, value)
+    return 0
+
+def count_events(args):
+    if not os.path.exists("relay.sqlite"):
+        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+    db = get_db("relay.sqlite")
+    c_list = []
+    c_dict = {}
+    def add(key, value):
+        c_list.append((key, value))
+        c_dict[key] = value
+    def q(query, values=()):
+        return db.execute(query, values).fetchone()[0]
+
+    add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplate_usage`"))
+
+    add("total nameplates", q("SELECT COUNT() FROM `nameplate_usage`"))
+    add("happy nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
+                              " WHERE `result`='happy'"))
+    add("lonely nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
+                               " WHERE `result`='lonely'"))
+    add("pruney nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
+                               " WHERE `result`='pruney'"))
+    add("crowded nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
+                                " WHERE `result`='crowded'"))
+
+    add("total mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"))
+    add("happy mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                             " WHERE `result`='happy'"))
+    add("scary mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                             " WHERE `result`='scary'"))
+    add("lonely mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                              " WHERE `result`='lonely'"))
+    add("errory mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                              " WHERE `result`='errory'"))
+    add("pruney mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                              " WHERE `result`='pruney'"))
+    add("crowded mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
+                               " WHERE `result`='crowded'"))
+
+    add("total transit", q("SELECT COUNT() FROM `transit_usage`"))
+    add("happy transit", q("SELECT COUNT() FROM `transit_usage`"
+                           " WHERE `result`='happy'"))
+    add("lonely transit", q("SELECT COUNT() FROM `transit_usage`"
+                            " WHERE `result`='lonely'"))
+    add("errory transit", q("SELECT COUNT() FROM `transit_usage`"
+                            " WHERE `result`='errory'"))
+
+    add("transit bytes", q("SELECT SUM(`total_bytes`) FROM `transit_usage`"))
+
+    if args.json:
+        print(json.dumps(c_dict))
+    else:
+        for (key, value) in c_list:
+            print(key, value)
     return 0

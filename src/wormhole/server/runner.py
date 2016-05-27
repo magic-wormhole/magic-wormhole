@@ -18,6 +18,12 @@ def dispatch(args):
     if args.func == "usage/tail":
         from . import cmd_usage
         return cmd_usage.tail_usage(args)
+    if args.func == "usage/count-channels":
+        from . import cmd_usage
+        return cmd_usage.count_channels(args)
+    if args.func == "usage/count-events":
+        from . import cmd_usage
+        return cmd_usage.count_events(args)
 
     raise ValueError("unknown args.func %s" % args.func)
 

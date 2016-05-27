@@ -66,3 +66,12 @@ sp_show_usage.set_defaults(func="usage/usage")
 sp_tail_usage = s.add_parser("tail-usage", description="Follow latest usage",
                              usage="wormhole server tail-usage")
 sp_tail_usage.set_defaults(func="usage/tail")
+
+sp_count_channels = s.add_parser("count-channels",
+                                 description="Count active channels")
+sp_count_channels.add_argument("--json", action="store_true")
+sp_count_channels.set_defaults(func="usage/count-channels")
+
+sp_count_events = s.add_parser("count-events", description="Count events")
+sp_count_events.add_argument("--json", action="store_true")
+sp_count_events.set_defaults(func="usage/count-events")
