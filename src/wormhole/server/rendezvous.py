@@ -52,11 +52,9 @@ SidedMessage = namedtuple("SidedMessage", ["side", "phase", "body",
                                            "server_rx", "msg_id"])
 
 class Mailbox:
-    def __init__(self, app, db, blur_usage, log_requests, app_id, mailbox_id):
+    def __init__(self, app, db, app_id, mailbox_id):
         self._app = app
         self._db = db
-        self._blur_usage = blur_usage
-        self._log_requests = log_requests
         self._app_id = app_id
         self._mailbox_id = mailbox_id
         self._listeners = {} # handle -> (send_f, stop_f)
@@ -99,11 +97,15 @@ class Mailbox:
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
+        # TODO: update 'updated'
         self._listeners[handle] = (send_f, stop_f)
         return self.get_messages()
 
     def remove_listener(self, handle):
         self._listeners.pop(handle)
+
+    def has_listeners(self):
+        return bool(self._listeners)
 
     def broadcast_message(self, sm):
         for (send_f, stop_f) in self._listeners.values():
@@ -133,11 +135,8 @@ class Mailbox:
             return
         sr = remove_side(row, side)
         if sr.empty:
-            rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
-                              " WHERE `app_id`=? AND `mailbox_id`=?",
-                              (self._app_id, self._mailbox_id)).fetchall()
-            num_sides = len(rows)
-            self._summarize_and_store(row, num_sides, mood, when, pruned=False)
+            self._app._summarize_mailbox_and_store(self._mailbox_id, row,
+                                                   mood, when, pruned=False)
             self._delete()
             db.commit()
         elif sr.changed:
@@ -164,61 +163,8 @@ class Mailbox:
 
         self._app.free_mailbox(self._mailbox_id)
 
-    def _summarize_and_store(self, row, num_sides, second_mood, delete_time,
-                             pruned):
-        u = self._summarize(row, num_sides, second_mood, delete_time, pruned)
-        self._db.execute("INSERT INTO `mailbox_usage`"
-                         " (`app_id`, "
-                         "  `started`, `total_time`, `waiting_time`, `result`)"
-                         " VALUES (?, ?,?,?,?)",
-                         (self._app_id,
-                          u.started, u.total_time, u.waiting_time, u.result))
-
-    def _summarize(self, row, num_sides, second_mood, delete_time, pruned):
-        started = row["started"]
-        if self._blur_usage:
-            started = self._blur_usage * (started // self._blur_usage)
-        waiting_time = None
-        if row["second"]:
-            waiting_time = row["second"] - row["started"]
-        total_time = delete_time - row["started"]
-
-        if num_sides == 0:
-            result = u"quiet"
-        elif num_sides == 1:
-            result = u"lonely"
-        else:
-            result = u"happy"
-
-        moods = set([row["first_mood"], second_mood])
-        if u"lonely" in moods:
-            result = u"lonely"
-        if u"errory" in moods:
-            result = u"errory"
-        if u"scary" in moods:
-            result = u"scary"
-        if pruned:
-            result = u"pruney"
-        if row["crowded"]:
-            result = u"crowded"
-
-        return Usage(started=started, waiting_time=waiting_time,
-                     total_time=total_time, result=result)
-
-    def is_idle(self):
-        if self._listeners:
-            return False
-        c = self._db.execute("SELECT `server_rx` FROM `messages`"
-                             " WHERE `app_id`=? AND `mailbox_id`=?"
-                             " ORDER BY `server_rx` DESC LIMIT 1",
-                             (self._app_id, self._mailbox_id))
-        rows = c.fetchall()
-        if not rows:
-            return True
-        old = time.time() - CHANNEL_EXPIRATION_TIME
-        if rows[0]["server_rx"] < old:
-            return True
-        return False
+    def is_active(self):
+        return bool(self._listeners)
 
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
@@ -226,13 +172,21 @@ class Mailbox:
             stop_f()
 
 class AppNamespace:
-    def __init__(self, db, welcome, blur_usage, log_requests, app_id):
+    def __init__(self, db, blur_usage, log_requests, app_id):
         self._db = db
-        self._welcome = welcome
         self._blur_usage = blur_usage
         self._log_requests = log_requests
         self._app_id = app_id
         self._mailboxes = {}
+
+    def is_active(self):
+        # An idle AppNamespace does not need to be kept in memory: it can be
+        # reconstructed from the DB if needed. And active one must be kept
+        # alive.
+        for mb in self._mailboxes.values():
+            if mb.is_active():
+                return True
+        return False
 
     def get_nameplate_ids(self):
         db = self._db
@@ -265,7 +219,7 @@ class AppNamespace:
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
-    def claim_nameplate(self, nameplate_id, side, when):
+    def claim_nameplate(self, nameplate_id, side, when, _test_mailbox_id=None):
         # when we're done:
         # * there will be one row for the nameplate
         #  * side1 or side2 will be populated
@@ -298,7 +252,10 @@ class AppNamespace:
             if self._log_requests:
                 log.msg("creating nameplate#%s for app_id %s" %
                         (nameplate_id, self._app_id))
-            mailbox_id = generate_mailbox_id()
+            if _test_mailbox_id is not None: # for unit tests
+                mailbox_id = _test_mailbox_id
+            else:
+                mailbox_id = generate_mailbox_id()
             db.execute("INSERT INTO `nameplates`"
                        " (`app_id`, `id`, `mailbox_id`, `side1`, `crowded`,"
                        "  `updated`, `started`)"
@@ -365,25 +322,6 @@ class AppNamespace:
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
-    def _prune_nameplate(self, row, delete_time):
-        # requires caller to db.commit()
-        db = self._db
-        db.execute("DELETE FROM `nameplates` WHERE `app_id`=? AND `id`=?",
-                   (self._app_id, row["id"]))
-        self._summarize_nameplate_and_store(row, delete_time, pruned=True)
-        # TODO: make a Nameplate object, keep track of when there's a
-        # websocket that's watching it, don't prune a nameplate that someone
-        # is watching, even if they started watching a long time ago
-
-    def prune_nameplates(self, old):
-        db = self._db
-        for row in db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `updated` < ?",
-                              (old,)).fetchall():
-            self._prune_nameplate(row)
-        count = db.execute("SELECT COUNT(*) FROM `nameplates`").fetchone()[0]
-        return count
-
     def open_mailbox(self, mailbox_id, side, when):
         assert isinstance(mailbox_id, type(u"")), type(mailbox_id)
         db = self._db
@@ -398,8 +336,6 @@ class AppNamespace:
             db.commit() # XXX
             # mailbox.open() does a SELECT to find the old sides
             self._mailboxes[mailbox_id] = Mailbox(self, self._db,
-                                                  self._blur_usage,
-                                                  self._log_requests,
                                                   self._app_id, mailbox_id)
         mailbox = self._mailboxes[mailbox_id]
         mailbox.open(side, when)
@@ -416,25 +352,178 @@ class AppNamespace:
         #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
         #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
-    def prune_mailboxes(self, old):
+    def _summarize_mailbox_and_store(self, mailbox_id, row,
+                                     second_mood, delete_time, pruned):
+        db = self._db
+        rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
+                          " WHERE `app_id`=? AND `mailbox_id`=?",
+                          (self._app_id, mailbox_id)).fetchall()
+        num_sides = len(rows)
+        u = self._summarize_mailbox(row, num_sides, second_mood, delete_time,
+                                    pruned)
+        db.execute("INSERT INTO `mailbox_usage`"
+                   " (`app_id`,"
+                   "  `started`, `total_time`, `waiting_time`, `result`)"
+                   " VALUES (?, ?,?,?,?)",
+                   (self._app_id,
+                    u.started, u.total_time, u.waiting_time, u.result))
+
+    def _summarize_mailbox(self, row, num_sides, second_mood, delete_time,
+                           pruned):
+        started = row["started"]
+        if self._blur_usage:
+            started = self._blur_usage * (started // self._blur_usage)
+        waiting_time = None
+        if row["second"]:
+            waiting_time = row["second"] - row["started"]
+        total_time = delete_time - row["started"]
+
+        if num_sides == 0:
+            result = u"quiet"
+        elif num_sides == 1:
+            result = u"lonely"
+        else:
+            result = u"happy"
+
+        moods = set([row["first_mood"], second_mood])
+        if u"lonely" in moods:
+            result = u"lonely"
+        if u"errory" in moods:
+            result = u"errory"
+        if u"scary" in moods:
+            result = u"scary"
+        if pruned:
+            result = u"pruney"
+        if row["crowded"]:
+            result = u"crowded"
+
+        return Usage(started=started, waiting_time=waiting_time,
+                     total_time=total_time, result=result)
+
+    def prune(self, now, old):
         # For now, pruning is logged even if log_requests is False, to debug
         # the pruning process, and since pruning is triggered by a timer
         # instead of by user action. It does reveal which mailboxes were
         # present when the pruning process began, though, so in the log run
         # it should do less logging.
-        log.msg("  channel prune begins")
-        # a channel is deleted when there are no listeners and there have
-        # been no messages added in CHANNEL_EXPIRATION_TIME seconds
-        mailboxes = set(self.get_claimed()) # these have messages
-        mailboxes.update(self._mailboxes) # these might have listeners
-        for mailbox_id in mailboxes:
-            log.msg("   channel prune checking %d" % mailbox_id)
-            channel = self.get_channel(mailbox_id)
-            if channel.is_idle():
-                log.msg("   channel prune expiring %d" % mailbox_id)
-                channel.delete_and_summarize() # calls self.free_channel
-        log.msg("  channel prune done, %r left" % (self._mailboxes.keys(),))
-        return bool(self._mailboxes)
+        log.msg(" prune begins (%s)" % self._app_id)
+        db = self._db
+        modified = False
+        # for all `mailboxes`: classify as new or old
+        OLD = 0; NEW = 1
+        all_mailboxes = {}
+        all_mailbox_rows = {}
+        for row in db.execute("SELECT * FROM `mailboxes`"
+                              " WHERE `app_id`=?",
+                              (self._app_id,)).fetchall():
+            mailbox_id = row["id"]
+            all_mailbox_rows[mailbox_id] = row
+            if row["started"] > old:
+                which = NEW
+            elif row["second"] and row["second"] > old:
+                which = NEW
+            else:
+                which = OLD
+            all_mailboxes[mailbox_id] = which
+        #log.msg(" 2: all_mailboxes", all_mailboxes, all_mailbox_rows)
+
+        # for all mailbox ids used by `messages`:
+        #   if there is no matching mailbox: delete the messages
+        #   if there is at least one new message (select when>old limit 1):
+        #     classify the mailbox as new
+        for row in db.execute("SELECT DISTINCT(`mailbox_id`)"
+                              " FROM `messages`"
+                              " WHERE `app_id`=?",
+                              (self._app_id,)).fetchall():
+            mailbox_id = row["mailbox_id"]
+            if mailbox_id not in all_mailboxes:
+                log.msg("  deleting orphan messages", mailbox_id)
+                db.execute("DELETE FROM `messages`"
+                           " WHERE `app_id`=? AND `mailbox_id`=?",
+                           (self._app_id, mailbox_id))
+                modified = True
+            else:
+                new_msgs = db.execute("SELECT * FROM `messages`"
+                                      " WHERE `app_id`=? AND `mailbox_id`=?"
+                                      "  AND `server_rx` > ?"
+                                      " LIMIT 1",
+                                      (self._app_id, mailbox_id, old)
+                                      ).fetchall()
+                if new_msgs:
+                    #log.msg(" 3-: saved by new messages", new_msgs)
+                    all_mailboxes[mailbox_id] = NEW
+        #log.msg(" 4: all_mailboxes", all_mailboxes)
+
+        # for all mailbox objects with active listeners:
+        #   classify the mailbox as new
+        for mailbox_id in self._mailboxes:
+            #log.msg(" -5: checking", mailbox_id, self._mailboxes[mailbox_id])
+            if self._mailboxes[mailbox_id].has_listeners():
+                all_mailboxes[mailbox_id] = NEW
+        #log.msg(" 5: all_mailboxes", all_mailboxes)
+
+        # for all `nameplates`:
+        #   classify as new or old
+        #   if the linked mailbox exists:
+        #     if it is new:
+        #       classify nameplate as new
+        #     if it is old:
+        #       if the nameplate is new:
+        #         classify mailbox as new
+        all_nameplates = {}
+        all_nameplate_rows = {}
+        for row in db.execute("SELECT * FROM `nameplates`"
+                              " WHERE `app_id`=?",
+                              (self._app_id,)).fetchall():
+            nameplate_id = row["id"]
+            all_nameplate_rows[nameplate_id] = row
+            if row["updated"] > old:
+                which = NEW
+            else:
+                which = OLD
+            mailbox_id = row["mailbox_id"]
+            if mailbox_id in all_mailboxes:
+                if all_mailboxes[mailbox_id] == NEW:
+                    which = NEW
+                else:
+                    if which == NEW:
+                        all_mailboxes[mailbox_id] = NEW
+            all_nameplates[nameplate_id] = which
+        #log.msg(" 6: all_nameplates", all_nameplates, all_nameplate_rows)
+
+        # delete all old nameplates
+        #   invariant check: if there is a linked mailbox, it is old
+
+        for nameplate_id, which in all_nameplates.items():
+            if which == OLD:
+                log.msg("  deleting nameplate", nameplate_id)
+                row = all_nameplate_rows[nameplate_id]
+                self._summarize_nameplate_and_store(row, now, pruned=True)
+                db.execute("DELETE FROM `nameplates`"
+                           " WHERE `app_id`=? AND `id`=?",
+                           (self._app_id, nameplate_id))
+                modified = True
+
+        # delete all messages for old mailboxes
+        # delete all old mailboxes
+
+        for mailbox_id, which in all_mailboxes.items():
+            if which == OLD:
+                log.msg("  deleting mailbox", mailbox_id)
+                self._summarize_mailbox_and_store(mailbox_id,
+                                                  all_mailbox_rows[mailbox_id],
+                                                  u"pruney", now, pruned=True)
+                db.execute("DELETE FROM `messages`"
+                           " WHERE `app_id`=? AND `mailbox_id`=?",
+                           (self._app_id, mailbox_id))
+                db.execute("DELETE FROM `mailboxes`"
+                           " WHERE `app_id`=? AND `id`=?",
+                           (self._app_id, mailbox_id))
+                modified = True
+
+        if modified:
+            db.commit()
+        log.msg("  prune complete, modified:", modified)
 
     def _shutdown(self):
         for channel in self._mailboxes.values():
@@ -462,25 +551,35 @@ class Rendezvous(service.MultiService):
         if not app_id in self._apps:
             if self._log_requests:
                 log.msg("spawning app_id %s" % (app_id,))
-            self._apps[app_id] = AppNamespace(self._db, self._welcome,
-                                             self._blur_usage,
-                                             self._log_requests, app_id)
+            self._apps[app_id] = AppNamespace(self._db,
+                                              self._blur_usage,
+                                              self._log_requests, app_id)
         return self._apps[app_id]
 
-    def prune(self, old=None):
+    def get_all_apps(self):
+        apps = set()
+        for row in self._db.execute("SELECT DISTINCT `app_id`"
+                                    " FROM `nameplates`").fetchall():
+            apps.add(row["app_id"])
+        for row in self._db.execute("SELECT DISTINCT `app_id`"
+                                    " FROM `mailboxes`").fetchall():
+            apps.add(row["app_id"])
+        for row in self._db.execute("SELECT DISTINCT `app_id`"
+                                    " FROM `messages`").fetchall():
+            apps.add(row["app_id"])
+        return apps
+
+    def prune(self, now=None, old=None):
         # As with AppNamespace.prune_old_mailboxes, we log for now.
         log.msg("beginning app prune")
-        if old is None:
-            old = time.time() - CHANNEL_EXPIRATION_TIME
-        c = self._db.execute("SELECT DISTINCT `app_id` FROM `messages`")
-        apps = set([row["app_id"] for row in c.fetchall()]) # these have messages
-        apps.update(self._apps) # these might have listeners
-        for app_id in apps:
+        now = now or time.time()
+        old = old or (now - CHANNEL_EXPIRATION_TIME)
+        for app_id in sorted(self.get_all_apps()):
             log.msg(" app prune checking %r" % (app_id,))
             app = self.get_app(app_id)
-            still_active = app.prune_nameplates(old) + app.prune_mailboxes(old)
-            if not still_active:
-                log.msg("prune pops app %r" % (app_id,))
+            app.prune(now, old)
+            if not app.is_active(): # meaning no websockets
+                log.msg(" pruning idle app", app_id)
                 self._apps.pop(app_id)
         log.msg("app prune ends, %d remaining apps" % len(self._apps))
 

@@ -1,7 +1,9 @@
 from __future__ import print_function
 import json, itertools
 from binascii import hexlify
+import mock
 from twisted.trial import unittest
+from twisted.python import log
 from twisted.internet import protocol, reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.endpoints import clientFromString, connectProtocol
@@ -9,7 +11,8 @@ from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
 from ..server import rendezvous, transit_server
-from ..server.rendezvous import Usage, SidedMessage
+from ..server.rendezvous import Usage, SidedMessage, Mailbox
+from ..server.database import get_db
 
 class Server(ServerBase, unittest.TestCase):
     def test_apps(self):
@@ -280,6 +283,175 @@ class Server(ServerBase, unittest.TestCase):
         msgs = self._messages(app)
         self.assertEqual(len(msgs), 5)
         self.assertEqual(msgs[-1]["body"], u"body")
+
+class Prune(unittest.TestCase):
+
+    def test_apps(self):
+        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None)
+        app = rv.get_app(u"appid")
+        app.allocate_nameplate(u"side", 121)
+        app.prune = mock.Mock()
+        rv.prune(now=123, old=122)
+        self.assertEqual(app.prune.mock_calls, [mock.call(123, 122)])
+
+    def test_active(self):
+        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None)
+        app = rv.get_app(u"appid1")
+        self.assertFalse(app.is_active())
+
+        mb = app.open_mailbox(u"mbid", u"side1", 0)
+        self.assertFalse(mb.is_active())
+        self.assertFalse(app.is_active())
+
+        mb.add_listener(u"handle", None, None)
+        self.assertTrue(mb.is_active())
+        self.assertTrue(app.is_active())
+
+        mb.remove_listener(u"handle")
+        self.assertFalse(mb.is_active())
+        self.assertFalse(app.is_active())
+
+    def test_basic(self):
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, 3600)
+
+        # timestamps <=50 are "old", >=51 are "new"
+        #OLD = "old"; NEW = "new"
+        #when = {OLD: 1, NEW: 60}
+        new_nameplates = set()
+        new_mailboxes = set()
+        new_messages = set()
+
+        APPID = u"appid"
+        app = rv.get_app(APPID)
+
+        # Exercise the first-vs-second newness tests. These nameplates have
+        # no mailbox.
+        app.claim_nameplate(u"np-1", u"side1", 1)
+        app.claim_nameplate(u"np-2", u"side1", 1)
+        app.claim_nameplate(u"np-2", u"side2", 2)
+        app.claim_nameplate(u"np-3", u"side1", 60)
+        new_nameplates.add(u"np-3")
+        app.claim_nameplate(u"np-4", u"side1", 1)
+        app.claim_nameplate(u"np-4", u"side2", 60)
+        new_nameplates.add(u"np-4")
+        app.claim_nameplate(u"np-5", u"side1", 60)
+        app.claim_nameplate(u"np-5", u"side2", 61)
+        new_nameplates.add(u"np-5")
+
+        # same for mailboxes
+        app.open_mailbox(u"mb-11", u"side1", 1)
+        app.open_mailbox(u"mb-12", u"side1", 1)
+        app.open_mailbox(u"mb-12", u"side2", 2)
+        app.open_mailbox(u"mb-13", u"side1", 60)
+        new_mailboxes.add(u"mb-13")
+        app.open_mailbox(u"mb-14", u"side1", 1)
+        app.open_mailbox(u"mb-14", u"side2", 60)
+        new_mailboxes.add(u"mb-14")
+        app.open_mailbox(u"mb-15", u"side1", 60)
+        app.open_mailbox(u"mb-15", u"side2", 61)
+        new_mailboxes.add(u"mb-15")
+
+        rv.prune(now=123, old=50)
+
+        nameplates = set([row["id"] for row in
+                          db.execute("SELECT * FROM `nameplates`").fetchall()])
+        self.assertEqual(new_nameplates, nameplates)
+        mailboxes = set([row["id"] for row in
+                         db.execute("SELECT * FROM `mailboxes`").fetchall()])
+        self.assertEqual(new_mailboxes, mailboxes)
+        messages = set([row["msg_id"] for row in
+                          db.execute("SELECT * FROM `messages`").fetchall()])
+        self.assertEqual(new_messages, messages)
+
+    def test_lots(self):
+        OLD = "old"; NEW = "new"
+        for nameplate in [None, OLD, NEW]:
+            for mailbox in [None, OLD, NEW]:
+                listeners = [False]
+                if mailbox is not None:
+                    listeners = [False, True]
+                for has_listeners in listeners:
+                    for messages in [None, OLD, NEW]:
+                        self.one(nameplate, mailbox, has_listeners, messages)
+
+    #def test_one(self):
+    #    # to debug specific problems found by test_lots
+    #    self.one(None, "old", True, None)
+
+    def one(self, nameplate, mailbox, has_listeners, messages):
+        desc = ("nameplate=%s, mailbox=%s, has_listeners=%s,"
+                " messages=%s" %
+                (nameplate, mailbox, has_listeners, messages))
+        log.msg(desc)
+
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, 3600)
+        APPID = u"appid"
+        app = rv.get_app(APPID)
+
+        # timestamps <=50 are "old", >=51 are "new"
+        OLD = "old"; NEW = "new"
+        when = {OLD: 1, NEW: 60}
+        nameplate_survives = False
+        mailbox_survives = False
+        messages_survive = False
+
+        mbid = u"mbid"
+        if nameplate is not None:
+            app.claim_nameplate(u"npid", u"side1", when[nameplate],
+                                _test_mailbox_id=mbid)
+        if mailbox is not None:
+            mb = app.open_mailbox(mbid, u"side1", when[mailbox])
+        else:
+            # We might want a Mailbox, because that's the easiest way to add
+            # a "messages" row, but we can't use app.open_mailbox() because
+            # that modifies both the "mailboxes" table and app._mailboxes,
+            # and sometimes we're testing what happens when there are
+            # messages but not a mailbox
+            mb = Mailbox(app, db, APPID, mbid)
+            # we need app._mailboxes to know about this, because that's
+            # where it looks to find listeners
+            app._mailboxes[mbid] = mb
+
+        if messages is not None:
+            sm = SidedMessage(u"side1", u"phase", u"body", when[messages],
+                              u"msgid")
+            mb.add_message(sm)
+
+        if has_listeners:
+            mb.add_listener("handle", None, None)
+
+        if mailbox is None and messages is not None:
+            # orphaned messages, even new ones, can't keep a nameplate alive
+            messages = None
+            messages_survive = False
+
+        if (nameplate is NEW or mailbox is NEW
+            or has_listeners or messages is NEW):
+            if nameplate is not None:
+                nameplate_survives = True
+            if mailbox is not None:
+                mailbox_survives = True
+            if messages is not None:
+                messages_survive = True
+
+        rv.prune(now=123, old=50)
+
+        nameplates = set([row["id"] for row in
+                          db.execute("SELECT * FROM `nameplates`").fetchall()])
+        self.assertEqual(nameplate_survives, bool(nameplates),
+                         ("nameplate", nameplate_survives, nameplates, desc))
+
+        mailboxes = set([row["id"] for row in
+                         db.execute("SELECT * FROM `mailboxes`").fetchall()])
+        self.assertEqual(mailbox_survives, bool(mailboxes),
+                         ("mailbox", mailbox_survives, mailboxes, desc))
+
+        messages = set([row["msg_id"] for row in
+                          db.execute("SELECT * FROM `messages`").fetchall()])
+        self.assertEqual(messages_survive, bool(messages),
+                         ("messages", messages_survive, messages, desc))
 
 
 def strip_message(msg):
@@ -726,14 +898,15 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
 class Summary(unittest.TestCase):
     def test_mailbox(self):
-        c = rendezvous.Mailbox(None, None, None, False, None, None)
+        app = rendezvous.AppNamespace(None, None, False, None)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         base_row = {u"started": 1, u"second": None,
                     u"first_mood": None, u"crowded": False}
         def summ(num_sides, second_mood=None, pruned=False, **kwargs):
             row = base_row.copy()
             row.update(kwargs)
-            return c._summarize(row, num_sides, second_mood, 5, pruned)
+            return app._summarize_mailbox(row, num_sides, second_mood, 5,
+                                          pruned)
 
         self.assertEqual(summ(1), Usage(1, None, 4, u"lonely"))
         self.assertEqual(summ(1, u"lonely"), Usage(1, None, 4, u"lonely"))
@@ -764,7 +937,7 @@ class Summary(unittest.TestCase):
                          Usage(1, 2, 4, u"pruney"))
 
     def test_nameplate(self):
-        a = rendezvous.AppNamespace(None, None, None, False, None)
+        a = rendezvous.AppNamespace(None, None, False, None)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         base_row = {u"started": 1, u"second": None, u"crowded": False}
         def summ(num_sides, pruned=False, **kwargs):
