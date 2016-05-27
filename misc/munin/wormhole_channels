@@ -1,0 +1,85 @@
+#! /usr/bin/env python
+
+"""
+Use the following in /etc/munin/plugin-conf.d/wormhole :
+
+[wormhole_*]
+env.serverdir /path/to/your/wormhole/server
+"""
+
+import os, sys, time, sqlite3
+
+def count_events():
+    serverdir = os.environ["serverdir"]
+    dbfile = os.path.join(serverdir, "relay.sqlite")
+    if not os.path.exists("relay.sqlite"):
+        print "cannot find relay.sqlite, please set env.serverdir"
+        sys.exit(1)
+    db = sqlite3.connect(dbfile)
+    db.row_factory = sqlite3.Row
+
+    c_list = []
+    c_dict = {}
+    def add(key, value):
+        c_list.append((key, value))
+        c_dict[key] = value
+    def q(query, values=()):
+        return db.execute(query, values).fetchone()[0]
+    OLD = time.time() - 10*60
+    add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplates`"))
+
+    add("total nameplates", q("SELECT COUNT() FROM `nameplates`"))
+    add("waiting nameplates", q("SELECT COUNT() FROM `nameplates`"
+                                " WHERE `second` is null"))
+    add("connected nameplates", q("SELECT COUNT() FROM `nameplates`"
+                                  " WHERE `second` is not null"))
+    add("stale nameplates", q("SELECT COUNT() FROM `nameplates`"
+                              " where `updated` < ?", (OLD,)))
+
+    add("total mailboxes", q("SELECT COUNT() FROM `mailboxes`"))
+    add("waiting mailboxes", q("SELECT COUNT() FROM `mailboxes`"
+                                " WHERE `second` is null"))
+    add("connected mailboxes", q("SELECT COUNT() FROM `mailboxes`"
+                                 " WHERE `second` is not null"))
+
+    stale_mailboxes = 0
+    for mbox_row in db.execute("SELECT * FROM `mailboxes`").fetchall():
+        newest = db.execute("SELECT `server_rx` FROM `messages`"
+                            " WHERE `app_id`=? AND `mailbox_id`=?"
+                            " ORDER BY `server_rx` DESC LIMIT 1",
+                            (mbox_row["app_id"], mbox_row["id"])).fetchone()
+        if newest and newest[0] < OLD:
+            stale_mailboxes += 1
+    add("stale mailboxes", stale_mailboxes)
+
+    add("messages", q("SELECT COUNT() FROM `messages`"))
+
+    return c_dict
+
+CONFIG = """\
+graph_title Magic-Wormhole Active Channels
+graph_vlabel Channels
+graph_category network
+nameplates.label Total Nameplates
+nameplates.draw LINE2
+nameplates.type GAUGE
+waiting_nameplates.label Waiting Nameplates
+waiting_nameplates.draw LINE2
+waiting_nameplates.type GAUGE
+mailboxes.label Total Mailboxes
+mailboxes.draw LINE2
+mailboxes.type GAUGE
+waiting_mailboxes.label Waiting Mailboxes
+waiting_mailboxes.draw LINE2
+waiting_mailboxes.type GAUGE
+"""
+
+if len(sys.argv) > 1 and sys.argv[1] == "config":
+    print CONFIG.rstrip()
+    sys.exit(0)
+
+c = count_events()
+print "nameplates.value", c["total nameplates"]
+print "waiting_nameplates.value", c["waiting nameplates"]
+print "mailboxes.value", c["total mailboxes"]
+print "waiting_mailboxes.value", c["waiting mailboxes"]
