@@ -65,20 +65,23 @@ def count_events():
 
 CONFIG = """\
 graph_title Magic-Wormhole Server Events
-graph_vlabel Events per time
+graph_vlabel Events per Hour
 graph_category network
 nameplates.label Nameplates
 nameplates.draw LINE
 nameplates.type DERIVE
 nameplates.min 0
+nameplates.cdef nameplates,3600,*
 mailboxes.label Mailboxes
 mailboxes.draw LINE
 mailboxes.type DERIVE
 mailboxes.min 0
+mailboxes.cdef mailboxes,3600,*
 transit.label Transit
 transit.draw LINE
 transit.type DERIVE
 transit.min 0
+transit.cdef transit,3600,*
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
