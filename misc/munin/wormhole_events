@@ -12,7 +12,7 @@ import os, sys, sqlite3
 def count_events():
     serverdir = os.environ["serverdir"]
     dbfile = os.path.join(serverdir, "relay.sqlite")
-    if not os.path.exists("relay.sqlite"):
+    if not os.path.exists(dbfile):
         print "cannot find relay.sqlite, please set env.serverdir"
         sys.exit(1)
     db = sqlite3.connect(dbfile)
