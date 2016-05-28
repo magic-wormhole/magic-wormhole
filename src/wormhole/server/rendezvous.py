@@ -13,10 +13,6 @@ MB = 1000*1000
 CHANNEL_EXPIRATION_TIME = 3*DAY
 EXPIRATION_CHECK_PERIOD = 2*HOUR
 
-def get_sides(row):
-    return set([s for s in [row["side1"], row["side2"]] if s])
-def make_sides(sides):
-    return list(sides) + [None] * (2 - len(sides))
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
 
