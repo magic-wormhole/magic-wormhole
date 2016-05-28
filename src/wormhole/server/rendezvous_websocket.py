@@ -211,10 +211,10 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             raise Error("missing 'phase'")
         if "body" not in msg:
             raise Error("missing 'body'")
-        msgid = msg.get("id") # optional
+        msg_id = msg.get("id") # optional
         sm = SidedMessage(side=self._side, phase=msg["phase"],
                           body=msg["body"], server_rx=server_rx,
-                          msg_id=msgid)
+                          msg_id=msg_id)
         self._mailbox.add_message(sm)
 
     def handle_close(self, msg, server_rx):
