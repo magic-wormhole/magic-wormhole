@@ -43,9 +43,9 @@ sp_stop.set_defaults(func="server/stop")
 
 sp_restart = s.add_parser("restart", description="Restart the relay server",
                           usage="wormhole server restart")
-sp_restart.add_argument("--rendezvous", default="tcp:3000", metavar="tcp:PORT",
+sp_restart.add_argument("--rendezvous", default="tcp:4000", metavar="tcp:PORT",
                         help="endpoint specification for the rendezvous port")
-sp_restart.add_argument("--transit", default="tcp:3001", metavar="tcp:PORT",
+sp_restart.add_argument("--transit", default="tcp:4001", metavar="tcp:PORT",
                         help="endpoint specification for the transit-relay port")
 sp_restart.add_argument("--advertise-version", metavar="VERSION",
                         help="version to recommend to clients")
