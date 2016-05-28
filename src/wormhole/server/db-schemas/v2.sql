@@ -18,6 +18,7 @@ CREATE TABLE `nameplates`
  `mailbox_id` VARCHAR, -- really a foreign key
  `side1` VARCHAR, -- side name, or NULL
  `side2` VARCHAR, -- side name, or NULL
+ `request_id` VARCHAR, -- from 'allocate' message, for future deduplication
  `crowded` BOOLEAN, -- at some point, three or more sides were involved
  `updated` INTEGER, -- time of last activity, used for pruning
  -- timing data
@@ -27,6 +28,7 @@ CREATE TABLE `nameplates`
 CREATE INDEX `nameplates_idx` ON `nameplates` (`app_id`, `id`);
 CREATE INDEX `nameplates_updated_idx` ON `nameplates` (`app_id`, `updated`);
 CREATE INDEX `nameplates_mailbox_idx` ON `nameplates` (`app_id`, `mailbox_id`);
+CREATE INDEX `nameplates_request_idx` ON `nameplates` (`app_id`, `request_id`);
 
 -- Clients exchange messages through a "mailbox", which has a long (randomly
 -- unique) identifier and a queue of messages.
