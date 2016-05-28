@@ -534,7 +534,7 @@ class Rendezvous(service.MultiService):
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
-        self._blur_usage = None
+        self._blur_usage = blur_usage
         log_requests = blur_usage is None
         self._log_requests = log_requests
         self._apps = {}

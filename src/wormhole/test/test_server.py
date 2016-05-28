@@ -953,6 +953,40 @@ class Summary(unittest.TestCase):
         self.assertEqual(summ(2, second=3, pruned=True),
                          Usage(1, 2, 4, u"pruney"))
 
+    def test_blur(self):
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, 3600)
+        APPID = u"appid"
+        app = rv.get_app(APPID)
+        app.claim_nameplate(u"npid", u"side1", 10) # start time is 10
+        rv.prune(now=123, old=50)
+        # start time should be rounded to top of the hour (blur_usage=3600)
+        row = db.execute("SELECT * FROM `nameplate_usage`").fetchone()
+        self.assertEqual(row["started"], 0)
+
+        app = rv.get_app(APPID)
+        app.open_mailbox(u"mbid", u"side1", 20) # start time is 20
+        rv.prune(now=123, old=50)
+        row = db.execute("SELECT * FROM `mailbox_usage`").fetchone()
+        self.assertEqual(row["started"], 0)
+
+    def test_no_blur(self):
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, None)
+        APPID = u"appid"
+        app = rv.get_app(APPID)
+        app.claim_nameplate(u"npid", u"side1", 10) # start time is 10
+        rv.prune(now=123, old=50)
+        row = db.execute("SELECT * FROM `nameplate_usage`").fetchone()
+        self.assertEqual(row["started"], 10)
+
+        app = rv.get_app(APPID)
+        app.open_mailbox(u"mbid", u"side1", 20) # start time is 20
+        rv.prune(now=123, old=50)
+        row = db.execute("SELECT * FROM `mailbox_usage`").fetchone()
+        self.assertEqual(row["started"], 20)
+
+
 class Accumulator(protocol.Protocol):
     def __init__(self):
         self.data = b""
