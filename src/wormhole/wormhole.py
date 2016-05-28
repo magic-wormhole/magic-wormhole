@@ -887,7 +887,7 @@ def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
     w._start()
     return w
 
-def wormhole_from_serialized(data, reactor, timing=None):
-    timing = timing or DebugTiming()
-    w = _Wormhole.from_serialized(data, reactor, timing)
-    return w
+#def wormhole_from_serialized(data, reactor, timing=None):
+#    timing = timing or DebugTiming()
+#    w = _Wormhole.from_serialized(data, reactor, timing)
+#    return w
