@@ -1,5 +1,5 @@
 from __future__ import print_function, absolute_import
-import os, sys, json, re, unicodedata
+import os, sys, json, re
 from six.moves.urllib_parse import urlparse
 from binascii import hexlify, unhexlify
 from twisted.internet import defer, endpoints, error
@@ -18,6 +18,7 @@ from . import codes
 from .errors import (WrongPasswordError, UsageError, WelcomeError,
                      WormholeClosedError)
 from .timing import DebugTiming
+from .util import to_bytes
 from hkdf import Hkdf
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -28,8 +29,6 @@ CONFMSG_MAC_LENGTH = 256//8
 def make_confmsg(confkey, nonce):
     return nonce+HKDF(confkey, CONFMSG_MAC_LENGTH, nonce)
 
-def to_bytes(u):
-    return unicodedata.normalize("NFC", u).encode("utf-8")
 
 # We send the following messages through the relay server to the far side (by
 # sending "add" commands to the server, and getting "message" responses):
