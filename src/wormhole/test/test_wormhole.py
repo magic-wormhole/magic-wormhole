@@ -10,6 +10,8 @@ from .. import wormhole
 from ..errors import WrongPasswordError, WelcomeError, UsageError
 from spake2 import SPAKE2_Symmetric
 from ..timing import DebugTiming
+from ..util import (bytes_to_dict, dict_to_bytes,
+                    hexstr_to_bytes, bytes_to_hexstr)
 from nacl.secret import SecretBox
 
 APPID = u"appid"
@@ -149,9 +151,8 @@ class Basic(unittest.TestCase):
         sp2 = SPAKE2_Symmetric(wormhole.to_bytes(code),
                                idSymmetric=wormhole.to_bytes(APPID))
         msg2 = sp2.start()
-        msg2_hex = hexlify(msg2).decode("ascii")
         key = sp2.finish(msg1)
-        return key, msg2_hex
+        return key, msg2
 
     def test_create(self):
         wormhole._Wormhole(APPID, u"relay_url", reactor, None, None)
@@ -219,11 +220,16 @@ class Basic(unittest.TestCase):
                  side=w._side)
         self.assertNoResult(v)
 
+        # extract our outbound PAKE message
+        body = bytes_to_dict(hexstr_to_bytes(out[1][u"body"]))
+        msg1 = hexstr_to_bytes(body[u"pake_v1"])
+
         # next we build the simulated peer's PAKE operation
         side2 = w._side + u"other"
-        msg1 = unhexlify(out[1][u"body"].encode("ascii"))
-        key, msg2_hex = self.make_pake(CODE, side2, msg1)
-        response(w, type=u"message", phase=u"pake", body=msg2_hex, side=side2)
+        key, msg2 = self.make_pake(CODE, side2, msg1)
+        payload = {u"pake_v1": bytes_to_hexstr(msg2)}
+        body_hex = bytes_to_hexstr(dict_to_bytes(payload))
+        response(w, type=u"message", phase=u"pake", body=body_hex, side=side2)
 
         # hearing the peer's PAKE (msg2) makes us release the nameplate, send
         # the confirmation message, and sends any queued phase messages. It
@@ -638,8 +644,9 @@ class Basic(unittest.TestCase):
 
         sp2 = SPAKE2_Symmetric(b"", idSymmetric=wormhole.to_bytes(APPID))
         msg2 = sp2.start()
-        msg2_hex = hexlify(msg2).decode("ascii")
-        response(w, type=u"message", phase=u"pake", body=msg2_hex, side=u"s2")
+        payload = {u"pake_v1": bytes_to_hexstr(msg2)}
+        body_hex = bytes_to_hexstr(dict_to_bytes(payload))
+        response(w, type=u"message", phase=u"pake", body=body_hex, side=u"s2")
         self.assertNoResult(d1)
         self.assertNoResult(d2) # verify() waits for confirmation
 

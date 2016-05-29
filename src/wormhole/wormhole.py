@@ -538,12 +538,16 @@ class _Wormhole:
                 and self._mailbox_state == OPEN
                 and self._flag_need_to_send_PAKE):
             return
-        self._msg_send(u"pake", self._msg1)
+        body = {u"pake_v1": bytes_to_hexstr(self._msg1)}
+        payload = dict_to_bytes(body)
+        self._msg_send(u"pake", payload)
         self._flag_need_to_send_PAKE = False
 
     def _event_received_pake(self, pake_msg):
+        payload = bytes_to_dict(pake_msg)
+        msg2 = hexstr_to_bytes(payload[u"pake_v1"])
         with self._timing.add("pake2", waiting="crypto"):
-            self._key = self._sp.finish(pake_msg)
+            self._key = self._sp.finish(msg2)
         self._event_established_key()
 
     def _event_established_key(self):
