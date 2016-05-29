@@ -49,7 +49,7 @@ from ..util import dict_to_bytes, bytes_to_dict
 
 # connection -> welcome
 #  <- {type: "welcome", welcome: {}} # .welcome keys are all optional:
-#        current_version: out-of-date clients display a warning
+#        current_cli_version: out-of-date clients display a warning
 #        motd: all clients display message, then continue normally
 #        error: all clients display mesage, then terminate with error
 # -> {type: "bind", appid:, side:}

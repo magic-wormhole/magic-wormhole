@@ -615,7 +615,8 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
 
     def check_welcome(self, data):
         self.failUnlessIn("welcome", data)
-        self.failUnlessEqual(data["welcome"], {"current_version": __version__})
+        self.failUnlessEqual(data["welcome"],
+                             {"current_cli_version": __version__})
 
     @inlineCallbacks
     def test_welcome(self):

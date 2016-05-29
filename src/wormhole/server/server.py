@@ -32,16 +32,21 @@ class RelayServer(service.MultiService):
 
         db = get_db(db_url)
         welcome = {
-            "current_version": __version__,
+            # The primary (python CLI) implementation will emit a message if
+            # its version does not match this key. If/when we have
+            # distributions which include older version, but we still expect
+            # them to be compatible, stop sending this key.
+            "current_cli_version": __version__,
+
             # adding .motd will cause all clients to display the message,
             # then keep running normally
             #"motd": "Welcome to the public relay.\nPlease enjoy this service.",
-            #
+
             # adding .error will cause all clients to fail, with this message
             #"error": "This server has been disabled, see URL for details.",
             }
         if advertise_version:
-            welcome["current_version"] = advertise_version
+            welcome["current_cli_version"] = advertise_version
         if signal_error:
             welcome["error"] = signal_error
 

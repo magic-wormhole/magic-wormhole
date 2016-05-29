@@ -36,11 +36,11 @@ def response(w, **kwargs):
 
 class Welcome(unittest.TestCase):
     def test_tolerate_no_current_version(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"current_version", None)
+        w = wormhole._WelcomeHandler(u"relay_url", u"current_cli_version", None)
         w.handle_welcome({})
 
     def test_print_motd(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"current_version", None)
+        w = wormhole._WelcomeHandler(u"relay_url", u"current_cli_version", None)
         with mock.patch("sys.stderr") as stderr:
             w.handle_welcome({u"motd": u"message of\nthe day"})
         self.assertEqual(stderr.method_calls,
@@ -55,11 +55,11 @@ class Welcome(unittest.TestCase):
     def test_current_version(self):
         w = wormhole._WelcomeHandler(u"relay_url", u"2.0", None)
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_version": u"2.0"})
+            w.handle_welcome({u"current_cli_version": u"2.0"})
         self.assertEqual(stderr.method_calls, [])
 
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_version": u"3.0"})
+            w.handle_welcome({u"current_cli_version": u"3.0"})
         exp1 = (u"Warning: errors may occur unless both sides are"
                 " running the same version")
         exp2 = (u"Server claims 3.0 is current, but ours is 2.0")
@@ -72,13 +72,13 @@ class Welcome(unittest.TestCase):
 
         # warning is only displayed once
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_version": u"3.0"})
+            w.handle_welcome({u"current_cli_version": u"3.0"})
         self.assertEqual(stderr.method_calls, [])
 
     def test_non_release_version(self):
         w = wormhole._WelcomeHandler(u"relay_url", u"2.0-dirty", None)
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_version": u"3.0"})
+            w.handle_welcome({u"current_cli_version": u"3.0"})
         self.assertEqual(stderr.method_calls, [])
 
     def test_signal_error(self):
