@@ -47,10 +47,13 @@ class Welcome(unittest.TestCase):
                          [mock.call.write(u"Server (at relay_url) says:\n"
                                           " message of\n the day"),
                           mock.call.write(u"\n")])
-        # motd is only displayed once
+        # motd can be displayed multiple times
         with mock.patch("sys.stderr") as stderr2:
             w.handle_welcome({u"motd": u"second message"})
-        self.assertEqual(stderr2.method_calls, [])
+        self.assertEqual(stderr2.method_calls,
+                         [mock.call.write(u"Server (at relay_url) says:\n"
+                                          " second message"),
+                          mock.call.write(u"\n")])
 
     def test_current_version(self):
         w = wormhole._WelcomeHandler(u"relay_url", u"2.0", None)

@@ -178,18 +178,15 @@ class _WelcomeHandler:
     def __init__(self, url, current_version, signal_error):
         self._ws_url = url
         self._version_warning_displayed = False
-        self._motd_displayed = False
         self._current_version = current_version
         self._signal_error = signal_error
 
     def handle_welcome(self, welcome):
-        if ("motd" in welcome and
-            not self._motd_displayed):
+        if "motd" in welcome:
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
             print("Server (at %s) says:\n %s" %
                   (self._ws_url, motd_formatted), file=sys.stderr)
-            self._motd_displayed = True
 
         # Only warn if we're running a release version (e.g. 0.0.6, not
         # 0.0.6-DISTANCE-gHASH). Only warn once.
