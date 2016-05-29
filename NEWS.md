@@ -1,6 +1,31 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.8.0 (28-May-2016)
+
+This release is completely incompatible with the previous 0.7.6 release.
+Clients using 0.7.6 or earlier will not even notice clients using 0.8.0
+or later.
+
+* Overhaul client-server websocket protocol, client-client PAKE
+  messages, per-message encryption-key derivation, relay-server database
+  schema, SPAKE2 key-derivation, and public relay URLs. Add version
+  fields and unknown-message tolerance to most protocol steps.
+* Hopefully this will provide forward-compatibility with future protocol
+  changes. I have several on my list, and the version fields should make
+  it possible to add these without a flag day (at worst a "flag month").
+* User-visible changes are minimal, although some operations should be
+  faster because we no longer need to wait for ACKs before proceeding.
+* API changes: `.send_data()/.get_data()` became `.send()/.get()`,
+  neither takes a phase= argument (the Wormhole is now a record pipe)
+  `.get_verifier()` became `.verify()` (and waits to receive the
+  key-confirmation message before firing its Deferred), wormholes are
+  constructed with a function call instead of a class constructor,
+  `close()` always waits for server ack of outbound messages. Note that
+  the API remains unstable until 1.0.0 .
+* misc/munin/ contains plugins for relay server operators
+
+
 ## Release 0.7.6 (08-May-2016)
 
 * Switch to "tqdm" for nicer CLI progress bars.
