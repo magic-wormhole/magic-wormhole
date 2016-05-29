@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii, six, tempfile, zipfile, hashlib
+import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -7,6 +7,7 @@ from twisted.python import log
 from ..wormhole import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -100,14 +101,14 @@ class TwistedReceiver:
                 log.msg("unrecognized message %r" % (them_d,))
 
     def _send_data(self, data, w):
-        data_bytes = json.dumps(data).encode("utf-8")
+        data_bytes = dict_to_bytes(data)
         w.send(data_bytes)
 
     @inlineCallbacks
     def _get_data(self, w):
         # this may raise WrongPasswordError
         them_bytes = yield w.get()
-        them_d = json.loads(them_bytes.decode("utf-8"))
+        them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
         returnValue(them_d)
@@ -125,7 +126,7 @@ class TwistedReceiver:
                                self.args.code_length)
 
     def _show_verifier(self, verifier):
-        verifier_hex = binascii.hexlify(verifier).decode("ascii")
+        verifier_hex = bytes_to_hexstr(verifier)
         if self.args.verify:
             self._msg(u"Verifier %s." % verifier_hex)
 
@@ -298,9 +299,9 @@ class TwistedReceiver:
 
     @inlineCallbacks
     def _close_transit(self, record_pipe, datahash):
-        datahash_hex = binascii.hexlify(datahash).decode("ascii")
+        datahash_hex = bytes_to_hexstr(datahash)
         ack = {u"ack": u"ok", u"sha256": datahash_hex}
-        ack_bytes = json.dumps(ack).encode("utf-8")
+        ack_bytes = dict_to_bytes(ack)
         with self.args.timing.add("send ack"):
             yield record_pipe.send_record(ack_bytes)
             yield record_pipe.close()

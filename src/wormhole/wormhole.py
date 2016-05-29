@@ -1,7 +1,6 @@
 from __future__ import print_function, absolute_import
-import os, sys, json, re
+import os, sys, re
 from six.moves.urllib_parse import urlparse
-from binascii import hexlify, unhexlify
 from twisted.internet import defer, endpoints, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -18,7 +17,8 @@ from . import codes
 from .errors import (WrongPasswordError, UsageError, WelcomeError,
                      WormholeClosedError)
 from .timing import DebugTiming
-from .util import to_bytes
+from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
+                   dict_to_bytes, bytes_to_dict)
 from hkdf import Hkdf
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -223,7 +223,7 @@ class _Wormhole:
 
         self._welcomer = _WelcomeHandler(self._ws_url, __version__,
                                          self._signal_error)
-        self._side = hexlify(os.urandom(5)).decode("ascii")
+        self._side = bytes_to_hexstr(os.urandom(5))
         self._connection_state = CLOSED
         self._connection_waiters = []
         self._started_get_code = False
@@ -398,14 +398,14 @@ class _Wormhole:
         # ACKs we get back from the server (which we otherwise ignore). There
         # are so few messages, 16 bits is enough to be mostly-unique.
         if self.DEBUG: print("SEND", mtype)
-        kwargs["id"] = hexlify(os.urandom(2)).decode("ascii")
+        kwargs["id"] = bytes_to_hexstr(os.urandom(2))
         kwargs["type"] = mtype
-        payload = json.dumps(kwargs).encode("utf-8")
+        payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
 
     def _ws_dispatch_response(self, payload):
-        msg = json.loads(payload.decode("utf-8"))
+        msg = bytes_to_dict(payload)
         if self.DEBUG and msg["type"]!="ack": print("DIS", msg["type"], msg)
         self._timing.add("ws_receive", _side=self._side, message=msg)
         mtype = msg["type"]
@@ -562,7 +562,7 @@ class _Wormhole:
         # this is encrypted like a normal phase message, and includes a
         # dictionary of version flags to let the other Wormhole know what
         # we're capable of (for future expansion)
-        plaintext = json.dumps(self._my_versions).encode("utf-8")
+        plaintext = dict_to_bytes(self._my_versions)
         phase = u"version"
         data_key = self._derive_phase_key(self._side, phase)
         encrypted = self._encrypt_data(data_key, plaintext)
@@ -616,7 +616,7 @@ class _Wormhole:
             if self.DEBUG: print("CONFIRM FAILED")
             self._signal_error(WrongPasswordError(), u"scary")
             return
-        msg = json.loads(plaintext.decode("utf-8"))
+        msg = bytes_to_dict(plaintext)
         self._version_received(msg)
 
         self._maybe_notify_verify()
@@ -681,9 +681,7 @@ class _Wormhole:
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
         self._timing.add("add", phase=phase)
-        self._ws_send_command(u"add", phase=phase,
-                              body=hexlify(body).decode("ascii"))
-
+        self._ws_send_command(u"add", phase=phase, body=bytes_to_hexstr(body))
 
     def _event_mailbox_used(self):
         if self.DEBUG: print("_event_mailbox_used")
@@ -708,7 +706,7 @@ class _Wormhole:
         side = msg["side"]
         phase = msg["phase"]
         assert isinstance(phase, type(u"")), type(phase)
-        body = unhexlify(msg["body"].encode("ascii"))
+        body = hexstr_to_bytes(msg["body"])
         if side == self._side:
             return
         self._event_received_peer_message(side, phase, body)

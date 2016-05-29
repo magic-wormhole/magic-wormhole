@@ -1,8 +1,9 @@
-import json, time
+import time
 from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
 from .rendezvous import CrowdedError, SidedMessage
+from ..util import dict_to_bytes, bytes_to_dict
 
 # The WebSocket allows the client to send "commands" to the server, and the
 # server to send "responses" to the client. Note that commands and responses
@@ -101,7 +102,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def onMessage(self, payload, isBinary):
         server_rx = time.time()
-        msg = json.loads(payload.decode("utf-8"))
+        msg = bytes_to_dict(payload)
         try:
             if "type" not in msg:
                 raise Error("missing 'type'")
@@ -227,7 +228,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def send(self, mtype, **kwargs):
         kwargs["type"] = mtype
         kwargs["server_tx"] = time.time()
-        payload = json.dumps(kwargs).encode("utf-8")
+        payload = dict_to_bytes(kwargs)
         self.sendMessage(payload, False)
 
     def onClose(self, wasClean, code, reason):

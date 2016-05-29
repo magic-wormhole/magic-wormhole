@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, json, binascii, six, tempfile, zipfile, hashlib
+import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
 from twisted.python import log
 from twisted.protocols import basic
@@ -8,6 +8,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError
 from ..wormhole import wormhole
 from ..transit import TransitSender
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -52,7 +53,7 @@ class Sender:
         yield d
 
     def _send_data(self, data, w):
-        data_bytes = json.dumps(data).encode("utf-8")
+        data_bytes = dict_to_bytes(data)
         w.send(data_bytes)
 
     @inlineCallbacks
@@ -86,14 +87,14 @@ class Sender:
         # TODO: don't stall on w.verify() unless they want it
         verifier_bytes = yield w.verify() # this may raise WrongPasswordError
         if args.verify:
-            verifier = binascii.hexlify(verifier_bytes).decode("ascii")
+            verifier = bytes_to_hexstr(verifier_bytes)
             while True:
                 ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
                 if ok.lower() == "yes":
                     break
                 if ok.lower() == "no":
                     err = "sender rejected verification check, abandoned transfer"
-                    reject_data = json.dumps({"error": err}).encode("utf-8")
+                    reject_data = dict_to_bytes({"error": err})
                     w.send(reject_data)
                     raise TransferError(err)
 
@@ -131,7 +132,7 @@ class Sender:
                     returnValue(None)
                 raise TransferError("unexpected close")
             # TODO: get() fired, so now it's safe to use w.derive_key()
-            them_d = json.loads(them_d_bytes.decode("utf-8"))
+            them_d = bytes_to_dict(them_d_bytes)
             #print("GOT", them_d)
             recognized = False
             if u"error" in them_d:
@@ -273,12 +274,12 @@ class Sender:
                                            transform=_count_and_hash)
 
         expected_hash = hasher.digest()
-        expected_hex = binascii.hexlify(expected_hash).decode("ascii")
+        expected_hex = bytes_to_hexstr(expected_hash)
         print(u"File sent.. waiting for confirmation", file=stdout)
         with self._timing.add("get ack") as t:
             ack_bytes = yield record_pipe.receive_record()
             record_pipe.close()
-            ack = json.loads(ack_bytes.decode("utf-8"))
+            ack = bytes_to_dict(ack_bytes)
             ok = ack.get(u"ack", u"")
             if ok != u"ok":
                 t.detail(ack="failed")
