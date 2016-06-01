@@ -16,6 +16,8 @@ wordlist. The receiving side offers tab-completion on the codewords, so
 usually only a few characters must be typed. Wormhole codes are single-use
 and do not need to be memorized.
 
+* [Slides from PyCon2016](http://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf)
+
 ## Installation
 
 ```$ pip install magic-wormhole```
