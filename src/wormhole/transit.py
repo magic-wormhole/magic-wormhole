@@ -612,10 +612,11 @@ class Common:
         hints = []
         direct_hints = yield self._get_direct_hints()
         for dh in direct_hints:
-            hints.append({u"type": u"direct-tcp-v1",
-                          u"hostname": dh.hostname,
-                          u"port": dh.port, # integer
-                          })
+            if dh.hostname != '127.0.0.1':
+                hints.append({u"type": u"direct-tcp-v1",
+                              u"hostname": dh.hostname,
+                              u"port": dh.port, # integer
+                              })
         for relay in self._transit_relays:
             rhint = {u"type": u"relay-v1", u"hints": []}
             for rh in relay.hints:
