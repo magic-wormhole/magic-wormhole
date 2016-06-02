@@ -826,8 +826,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         code = yield w1.get_code()
         code_no_dashes = code.replace('-', ' ')
 
-        with self.assertRaises(KeyFormatError):
+        with self.assertRaises(KeyFormatError) as ex:
             w2.set_code(code_no_dashes)
+
+        expected_msg = "code (%s) contains spaces." % (code_no_dashes,)
+        self.assertEqual(expected_msg, str(ex.exception))
 
         yield w1.close()
         yield w2.close()

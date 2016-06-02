@@ -479,10 +479,7 @@ class _Wormhole:
         # bail out early if the password contains spaces...
         # this should raise a useful error
         if ' ' in code:
-            raise KeyFormatError(
-                "code (%s) contains spaces. Words must be separated by dashes"
-                % code
-            )
+            raise KeyFormatError("code (%s) contains spaces." % code)
         self._code = code
         mo = re.search(r'^(\d+)-', code)
         if not mo:
