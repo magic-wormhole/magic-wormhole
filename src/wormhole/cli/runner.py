@@ -60,6 +60,9 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
             print(msg, file=stderr)
             print(file=stderr)
             print(str(f.value), file=stderr)
+        elif f.check(KeyFormatError):
+            msg = textwrap.fill("ERROR: " + textwrap.dedent(f.value.__doc__))
+            print(msg, file=stderr)
         else:
             print("ERROR:", f.value, file=stderr)
         raise SystemExit(1)

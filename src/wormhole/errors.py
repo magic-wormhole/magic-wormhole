@@ -39,7 +39,8 @@ class WrongPasswordError(Exception):
 class KeyFormatError(Exception):
     """
     The key you entered contains spaces. Magic-wormhole expects keys to be
-    separated by dashes.
+    separated by dashes. Please reenter the key you were given separating the
+    words with dashes.
     """
 
 class ReflectionAttack(Exception):
