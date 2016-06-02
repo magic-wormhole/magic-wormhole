@@ -25,7 +25,9 @@ and do not need to be memorized.
 On Debian/Ubuntu systems, you may first need `apt-get python-dev
 libffi-dev`. On Fedora it's `libffi-devel` and `python-devel`. On OS-X,
 you may need to install `pip` and run `xcode-select --install` to get
-GCC.
+GCC. On Windows you will need to use `pip install magic-wormhole[windows]`
+to install the extra required libraries. (Note: only python2 is supported
+on windows at this time).
 
 Developers can clone the source tree and run `tox` to run the unit tests on
 all supported (and installed) versions of python: 2.7, 3.3, 3.4, and 3.5.
