@@ -4,7 +4,8 @@ start = time.time()
 import os, sys, textwrap
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.task import react
-from ..errors import TransferError, WrongPasswordError, WelcomeError, Timeout
+from ..errors import (TransferError, WrongPasswordError, WelcomeError, Timeout,
+                      KeyFormatError)
 from ..timing import DebugTiming
 from .cli_args import parser
 top_import_finish = time.time()
@@ -49,7 +50,8 @@ def run(reactor, argv, cwd, stdout, stderr, executable=None):
     d.addBoth(_maybe_dump_timing)
     def _explain_error(f):
         # these errors don't print a traceback, just an explanation
-        f.trap(TransferError, WrongPasswordError, WelcomeError, Timeout)
+        f.trap(TransferError, WrongPasswordError, WelcomeError, Timeout,
+               KeyFormatError)
         if f.check(WrongPasswordError):
             msg = textwrap.fill("ERROR: " + textwrap.dedent(f.value.__doc__))
             print(msg, file=stderr)
