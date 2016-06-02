@@ -834,7 +834,7 @@ class Wormholes(ServerBase, unittest.TestCase):
 
         yield w1.close()
         yield w2.close()
-        self.flushLoggedErrors(ValueError)
+        self.flushLoggedErrors(KeyFormatError)
 
     @inlineCallbacks
     def test_verifier(self):
