@@ -163,6 +163,18 @@ class Basic(unittest.TestCase):
         self.assertEqual(c._their_direct_hints, [])
         self.assertEqual(c._their_relay_hints, [])
 
+    # @inlineCallbacks
+    def test_ignore_localhost_hint(self):
+        # this actually starts the listener
+        c = transit.TransitSender(u"")
+        results = []
+        d = c.get_connection_hints()
+        d.addBoth(results.append)
+        hints = results[0]
+        c._stop_listening()
+        for hint in hints:
+            self.assertFalse(hint[u'hostname'] == u'127.0.0.1')
+
     def test_transit_key_wait(self):
         KEY = b"123"
         c = transit.Common(u"")
