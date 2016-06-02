@@ -29,7 +29,7 @@ setup(name="magic-wormhole",
                         "autobahn[twisted] >= 0.14.1",
                         "hkdf", "tqdm",
                         ],
-      extras_require={"tor": ["txtorcon", "ipaddr"]},
+      extras_require={"tor": ["txtorcon", "ipaddress"]},
       test_suite="wormhole.test",
       cmdclass=commands,
       )

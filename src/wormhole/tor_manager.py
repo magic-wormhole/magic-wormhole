@@ -3,7 +3,7 @@ import time
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 import txtorcon
-import ipaddr
+import ipaddress
 from .timing import DebugTiming
 from .transit import allocate_tcp_port
 
@@ -112,7 +112,7 @@ class TorManager:
         # for numeric hostnames, skip RFC1918 addresses, since no Tor exit
         # node will be able to reach those. Likewise ignore IPv6 addresses.
         try:
-            a = ipaddr.IPAddress(host)
+            a = ipaddress.ip_address(host)
         except ValueError:
             return False # non-numeric, let Tor try it
         if a.version != 4:
