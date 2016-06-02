@@ -15,7 +15,7 @@ from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
 from .errors import (WrongPasswordError, UsageError, WelcomeError,
-                     WormholeClosedError)
+                     WormholeClosedError, KeyFormatError)
 from .timing import DebugTiming
 from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
                    dict_to_bytes, bytes_to_dict)
@@ -476,6 +476,10 @@ class _Wormhole:
 
     def _event_learned_code(self, code):
         self._timing.add("code established")
+        # bail out early if the password contains spaces...
+        # this should raise a useful error
+        if ' ' in code:
+            raise KeyFormatError("code (%s) contains spaces." % code)
         self._code = code
         mo = re.search(r'^(\d+)-', code)
         if not mo:

@@ -36,6 +36,13 @@ class WrongPasswordError(Exception):
     # or the data blob was corrupted, and that's why decrypt failed
     pass
 
+class KeyFormatError(Exception):
+    """
+    The key you entered contains spaces. Magic-wormhole expects keys to be
+    separated by dashes. Please reenter the key you were given separating the
+    words with dashes.
+    """
+
 class ReflectionAttack(Exception):
     """An attacker (or bug) reflected our outgoing message back to us."""
 

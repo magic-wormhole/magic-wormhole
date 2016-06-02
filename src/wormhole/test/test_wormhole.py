@@ -7,7 +7,8 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, gatherResults, inlineCallbacks
 from .common import ServerBase
 from .. import wormhole
-from ..errors import WrongPasswordError, WelcomeError, UsageError
+from ..errors import (WrongPasswordError, WelcomeError, UsageError,
+                      KeyFormatError)
 from spake2 import SPAKE2_Symmetric
 from ..timing import DebugTiming
 from ..util import (bytes_to_dict, dict_to_bytes,
@@ -819,6 +820,23 @@ class Wormholes(ServerBase, unittest.TestCase):
         self.flushLoggedErrors(WrongPasswordError)
 
     @inlineCallbacks
+    def test_wrong_password_with_spaces(self):
+        w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        code = yield w1.get_code()
+        code_no_dashes = code.replace('-', ' ')
+
+        with self.assertRaises(KeyFormatError) as ex:
+            w2.set_code(code_no_dashes)
+
+        expected_msg = "code (%s) contains spaces." % (code_no_dashes,)
+        self.assertEqual(expected_msg, str(ex.exception))
+
+        yield w1.close()
+        yield w2.close()
+        self.flushLoggedErrors(KeyFormatError)
+
+    @inlineCallbacks
     def test_verifier(self):
         w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
         w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
@@ -875,4 +893,3 @@ class Errors(ServerBase, unittest.TestCase):
         yield self.assertFailure(w.get_code(), UsageError)
         yield self.assertFailure(w.input_code(), UsageError)
         yield w.close()
-
