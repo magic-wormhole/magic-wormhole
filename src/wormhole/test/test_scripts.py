@@ -650,7 +650,7 @@ class ExtractFile(unittest.TestCase):
         zi.filename = "haha//root" # abspath squashes this, hopefully zipfile
                                    # does too
         zi.external_attr = 5 << 16
-        expected = os.path.join(extract_dir, "haha/root")
+        expected = os.path.join(extract_dir, "haha", "root")
         with mock.patch.object(cmd_receive.os, "chmod") as chmod:
             ef(zf, zi, extract_dir)
             self.assertEqual(zf.extract.mock_calls,
