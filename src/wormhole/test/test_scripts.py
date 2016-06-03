@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, re, io, zipfile, six
+import os, sys, re, io, zipfile, six, stat
 import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
@@ -288,9 +288,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             os.mkdir(os.path.join(send_dir, "middle"))
             source_dir = os.path.join(send_dir, "middle", send_dirname)
             os.mkdir(source_dir)
+            modes = {}
             for i in range(5):
-                with open(os.path.join(source_dir, str(i)), "w") as f:
+                path = os.path.join(source_dir, str(i))
+                with open(path, "w") as f:
                     f.write(message(i))
+                if i == 3:
+                    os.chmod(path, 0o755)
+                modes[i] = stat.S_IMODE(os.stat(path).st_mode)
             send_dirname_arg = os.path.join("middle", send_dirname)
             if addslash:
                 send_dirname_arg += os.sep
@@ -413,6 +418,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
+                self.failUnlessEqual(modes[i],
+                                     stat.S_IMODE(os.stat(fn).st_mode))
 
     def test_text(self):
         return self._do_test()
