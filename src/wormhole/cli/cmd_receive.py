@@ -284,29 +284,30 @@ class TwistedReceiver:
         self._msg(u"Received file written to %s" %
                   os.path.basename(self.abs_destname))
 
+    def _extract_file(self, zf, info, extract_dir):
+        """
+        the zipfile module does not restore file permissions
+        so we'll do it manually
+        """
+        out_path = os.path.join( extract_dir, info.filename )
+        out_path = os.path.abspath( out_path )
+        if not out_path.startswith( extract_dir ):
+            raise ValueError( "malicious zipfile, %s outside of extract_dir %s"
+                    % (info.filename, extract_dir) )
+
+        zf.extract( info.filename, path=extract_dir )
+
+        # not sure why zipfiles store the perms 16 bits away but they do
+        perm = info.external_attr >> 16
+        os.chmod( out_path, perm )
+
     def _write_directory(self, f):
-        def extract_file( zf, info, extract_dir ):
-            """
-            the zipfile module does not restore file permissions
-            so we'll do it manually
-            """
-            out_path = os.path.join( extract_dir, info.filename )
-            out_path = os.path.abspath( out_path )
-            if not out_path.startswith( extract_dir ):
-                raise ValueError( "malicious zipfile, %s outside of extract_dir %s"
-                        % (info.filename, extract_dir) )
-
-            zf.extract( info.filename, path=extract_dir )
-
-            # not sure why zipfiles store the perms 16 bits away but they do
-            perm = info.external_attr >> 16
-            os.chmod( out_path, perm )
 
         self._msg(u"Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
                 for info in zf.infolist():
-                    extract_file( zf, info, self.abs_destname )
+                    self._extract_file( zf, info, self.abs_destname )
 
             self._msg(u"Received files written to %s/" %
                       os.path.basename(self.abs_destname))

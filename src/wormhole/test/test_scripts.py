@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os, sys, re, io, zipfile, six
+import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
@@ -613,3 +614,44 @@ class Cleanup(ServerBase, unittest.TestCase):
         self.assertEqual(len(cids), 0)
         self.flushLoggedErrors(WrongPasswordError)
 
+class ExtractFile(unittest.TestCase):
+    def test_filenames(self):
+        args = mock.Mock()
+        args.relay_url = u""
+        ef = cmd_receive.TwistedReceiver(args)._extract_file
+        extract_dir = os.path.abspath(self.mktemp())
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "ok"
+        zi.external_attr = 5 << 16
+        expected = os.path.join(extract_dir, "ok")
+        with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+            ef(zf, zi, extract_dir)
+            self.assertEqual(zf.extract.mock_calls,
+                             [mock.call(zi.filename, path=extract_dir)])
+            self.assertEqual(chmod.mock_calls, [mock.call(expected, 5)])
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "../haha"
+        e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
+        self.assertIn("malicious zipfile", str(e))
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "haha//root" # abspath squashes this, hopefully zipfile
+                                   # does too
+        zi.external_attr = 5 << 16
+        expected = os.path.join(extract_dir, "haha/root")
+        with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+            ef(zf, zi, extract_dir)
+            self.assertEqual(zf.extract.mock_calls,
+                             [mock.call(zi.filename, path=extract_dir)])
+            self.assertEqual(chmod.mock_calls, [mock.call(expected, 5)])
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "/etc/passwd"
+        e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
+        self.assertIn("malicious zipfile", str(e))
