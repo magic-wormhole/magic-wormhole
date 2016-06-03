@@ -1,6 +1,6 @@
 # no unicode_literals untill twisted update
 from twisted.application import service
-from twisted.internet import reactor, defer
+from twisted.internet import defer, task
 from twisted.python import log
 from ..transit import allocate_tcp_port
 from ..server.server import RelayServer
@@ -36,8 +36,18 @@ class ServerBase:
         # relay's .stopService() drops all connections, which ought to
         # encourage those threads to terminate soon. If they don't, print a
         # warning to ease debugging.
+
+        # XXX FIXME there's something in _noclobber test that's not
+        # waiting for a close, I think -- was pretty relieably getting
+        # unclean-reactor, but adding a slight pause here stops it...
+        from twisted.internet import reactor
+
         tp = reactor.getThreadPool()
         if not tp.working:
+            d = defer.succeed(None)
+            d.addCallback(lambda _: self.sp.stopService())
+            d.addCallback(lambda _: task.deferLater(reactor, 0.1, lambda: None))
+            return d
             return self.sp.stopService()
         # disconnect all callers
         d = defer.maybeDeferred(self.sp.stopService)

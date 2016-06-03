@@ -462,8 +462,10 @@ class _Wormhole:
     # entry point 3: paste in a fully-formed code
     def _API_set_code(self, code):
         self._timing.add("API set_code")
-        if not isinstance(code, type("")): raise TypeError(type(code))
-        if self._code is not None: raise UsageError
+        if not isinstance(code, type(u"")):
+            raise TypeError("Unexpected code type '{}'".format(type(code)))
+        if self._code is not None:
+            raise UsageError
         self._event_learned_code(code)
 
     # TODO: entry point 4: restore pre-contact saved state (we haven't heard

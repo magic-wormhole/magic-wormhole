@@ -7,33 +7,32 @@ from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
 from .common import ServerBase
-from ..cli import runner, cmd_send, cmd_receive
+from ..cli import cmd_send, cmd_receive
+from ..cli.cli import Config
 from ..errors import TransferError, WrongPasswordError, WelcomeError
-from ..timing import DebugTiming
+
 
 def build_offer(args):
     s = cmd_send.Sender(args, None)
     return s._build_offer()
 
+
 class OfferData(unittest.TestCase):
     def setUp(self):
         self._things_to_delete = []
+        self.cfg = cfg = Config()
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
 
     def tearDown(self):
         for fn in self._things_to_delete:
             if os.path.exists(fn):
                 os.unlink(fn)
+        del self.cfg
 
     def test_text(self):
-        message = "blah blah blah ponies"
-
-        send_args = [ "send", "--text", message ]
-        args = runner.parser.parse_args(send_args)
-        args.cwd = os.getcwd()
-        args.stdout = io.StringIO()
-        args.stderr = io.StringIO()
-
-        d, fd_to_send = build_offer(args)
+        self.cfg.text = message = "blah blah blah ponies"
+        d, fd_to_send = build_offer(self.cfg)
 
         self.assertIn("message", d)
         self.assertNotIn("file", d)
@@ -42,7 +41,7 @@ class OfferData(unittest.TestCase):
         self.assertEqual(fd_to_send, None)
 
     def test_file(self):
-        filename = "my file"
+        self.cfg.what = filename = "my file"
         message = b"yay ponies\n"
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -50,13 +49,8 @@ class OfferData(unittest.TestCase):
         with open(abs_filename, "wb") as f:
             f.write(message)
 
-        send_args = [ "send", filename ]
-        args = runner.parser.parse_args(send_args)
-        args.cwd = send_dir
-        args.stdout = io.StringIO()
-        args.stderr = io.StringIO()
-
-        d, fd_to_send = build_offer(args)
+        self.cfg.cwd = send_dir
+        d, fd_to_send = build_offer(self.cfg)
 
         self.assertNotIn("message", d)
         self.assertIn("file", d)
@@ -67,17 +61,12 @@ class OfferData(unittest.TestCase):
         self.assertEqual(fd_to_send.read(), message)
 
     def test_missing_file(self):
-        filename = "missing"
+        self.cfg.what = filename = "missing"
         send_dir = self.mktemp()
         os.mkdir(send_dir)
+        self.cfg.cwd = send_dir
 
-        send_args = [ "send", filename ]
-        args = runner.parser.parse_args(send_args)
-        args.cwd = send_dir
-        args.stdout = io.StringIO()
-        args.stderr = io.StringIO()
-
-        e = self.assertRaises(TransferError, build_offer, args)
+        e = self.assertRaises(TransferError, build_offer, self.cfg)
         self.assertEqual(str(e),
                          "Cannot send: no file/directory named '%s'" % filename)
 
@@ -94,13 +83,10 @@ class OfferData(unittest.TestCase):
         send_dir_arg = send_dir
         if addslash:
             send_dir_arg += os.sep
-        send_args = [ "send", send_dir_arg ]
-        args = runner.parser.parse_args(send_args)
-        args.cwd = parent_dir
-        args.stdout = io.StringIO()
-        args.stderr = io.StringIO()
+        self.cfg.what = send_dir_arg
+        self.cfg.cwd = parent_dir
 
-        d, fd_to_send = build_offer(args)
+        d, fd_to_send = build_offer(self.cfg)
 
         self.assertNotIn("message", d)
         self.assertNotIn("file", d)
@@ -130,10 +116,11 @@ class OfferData(unittest.TestCase):
         return self._do_test_directory(addslash=True)
 
     def test_unknown(self):
-        filename = "unknown"
+        self.cfg.what = filename = "unknown"
         send_dir = self.mktemp()
         os.mkdir(send_dir)
         abs_filename = os.path.abspath(os.path.join(send_dir, filename))
+        self.cfg.cwd = send_dir
 
         try:
             os.mkfifo(abs_filename)
@@ -149,13 +136,7 @@ class OfferData(unittest.TestCase):
         self.assertFalse(os.path.isfile(abs_filename))
         self.assertFalse(os.path.isdir(abs_filename))
 
-        send_args = [ "send", filename ]
-        args = runner.parser.parse_args(send_args)
-        args.cwd = send_dir
-        args.stdout = io.StringIO()
-        args.stderr = io.StringIO()
-
-        e = self.assertRaises(TypeError, build_offer, args)
+        e = self.assertRaises(TypeError, build_offer, self.cfg)
         self.assertEqual(str(e),
                          "'%s' is neither file nor directory" % filename)
 
@@ -203,27 +184,24 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
+    @inlineCallbacks
     def test_version(self):
         # "wormhole" must be on the path, so e.g. "pip install -e ." in a
         # virtualenv. This guards against an environment where the tests
         # below might run the wrong executable.
+        self.maxDiff = None
         wormhole = self.find_executable()
-        d = getProcessOutputAndValue(wormhole, ["--version"])
-        def _check(res):
-            out, err, rc = res
-            # argparse on py2 and py3.3 sends --version to stderr
-            # argparse on py3.4/py3.5 sends --version to stdout
-            # aargh
-            err = err.decode("utf-8")
-            if "DistributionNotFound" in err:
-                log.msg("stderr was %s" % err)
-                last = err.strip().split("\n")[-1]
-                self.fail("wormhole not runnable: %s" % last)
-            ver = out.decode("utf-8") or err
-            self.failUnlessEqual(ver, "magic-wormhole "+__version__+os.linesep)
-            self.failUnlessEqual(rc, 0)
-        d.addCallback(_check)
-        return d
+        # we must pass on the environment so that "something" doesn't
+        # get sad about UTF8 vs. ascii encodings
+        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"], env=os.environ)
+        err = err.decode("utf-8")
+        if "DistributionNotFound" in err:
+            log.msg("stderr was %s" % err)
+            last = err.strip().split("\n")[-1]
+            self.fail("wormhole not runnable: %s" % last)
+        ver = out.decode("utf-8") or err
+        self.failUnlessEqual(ver.strip(), "magic-wormhole {}".format(__version__))
+        self.failUnlessEqual(rc, 0)
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -238,20 +216,18 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False):
         assert mode in ("text", "file", "directory")
-        common_args = ["--hide-progress",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        code = "1-abc"
-        message = "test message"
+        send_cfg = Config()
+        recv_cfg = Config()
+        message = "blah blah blah ponies"
 
-        send_args = common_args + [
-            "send",
-            "--code", code,
-            ]
-
-        receive_args = common_args + [
-            "receive",
-            ]
+        for cfg in [send_cfg, recv_cfg]:
+            cfg.hide_progress = True
+            cfg.relay_url = self.relayurl
+            cfg.transit_helper = ""
+            cfg.listen = True
+            cfg.code = "1-abc"
+            cfg.stdout = io.StringIO()
+            cfg.stderr = io.StringIO()
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -259,19 +235,18 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         os.mkdir(receive_dir)
 
         if mode == "text":
-            send_args.extend(["--text", message])
+            send_cfg.text = message
 
         elif mode == "file":
             send_filename = "testfile"
             with open(os.path.join(send_dir, send_filename), "w") as f:
                 f.write(message)
-            send_args.append(send_filename)
+            send_cfg.what = send_filename
             receive_filename = send_filename
 
-            receive_args.append("--accept-file")
+            recv_cfg.accept_file = True
             if override_filename:
-                receive_args.extend(["-o", "outfile"])
-                receive_filename = "outfile"
+                recv_cfg.output_file = receive_filename = "outfile"
 
         elif mode == "directory":
             # $send_dir/
@@ -299,22 +274,48 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_dirname_arg = os.path.join("middle", send_dirname)
             if addslash:
                 send_dirname_arg += os.sep
-            send_args.append(send_dirname_arg)
+            send_cfg.what = send_dirname_arg
             receive_dirname = send_dirname
 
-            receive_args.append("--accept-file")
+            recv_cfg.accept_file = True
             if override_filename:
-                receive_args.extend(["-o", "outdir"])
-                receive_dirname = "outdir"
-
-        receive_args.append(code)
+                recv_cfg.output_file = receive_dirname = "outdir"
 
         if as_subprocess:
             wormhole_bin = self.find_executable()
-            send_d = getProcessOutputAndValue(wormhole_bin, send_args,
-                                              path=send_dir)
-            receive_d = getProcessOutputAndValue(wormhole_bin, receive_args,
-                                                 path=receive_dir)
+            if send_cfg.text:
+                content_args = ['--text', send_cfg.text]
+            elif send_cfg.what:
+                content_args = [send_cfg.what]
+
+            send_args = [
+                    '--hide-progress',
+                    '--relay-url', self.relayurl,
+                    '--transit-helper', '',
+                    'send',
+                    '--code', send_cfg.code,
+                ] + content_args
+
+            send_d = getProcessOutputAndValue(
+                wormhole_bin, send_args,
+                path=send_dir,
+            )
+            recv_args = [
+                '--hide-progress',
+                '--relay-url', self.relayurl,
+                '--transit-helper', '',
+                'receive',
+                '--accept-file',
+                recv_cfg.code,
+            ]
+            if override_filename:
+                recv_args.extend(['-o', receive_filename])
+
+            receive_d = getProcessOutputAndValue(
+                wormhole_bin, recv_args,
+                path=receive_dir,
+            )
+
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],
                                                           True)
             send_stdout = send_res[0].decode("utf-8")
@@ -327,27 +328,21 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.assertEqual((send_rc, receive_rc), (0, 0),
                              (send_res, receive_res))
         else:
-            sargs = runner.parser.parse_args(send_args)
-            sargs.cwd = send_dir
-            sargs.stdout = io.StringIO()
-            sargs.stderr = io.StringIO()
-            sargs.timing = DebugTiming()
-            rargs = runner.parser.parse_args(receive_args)
-            rargs.cwd = receive_dir
-            rargs.stdout = io.StringIO()
-            rargs.stderr = io.StringIO()
-            rargs.timing = DebugTiming()
-            send_d = cmd_send.send(sargs)
-            receive_d = cmd_receive.receive(rargs)
+            send_cfg.cwd = send_dir
+            send_d = cmd_send.send(send_cfg)
+
+            recv_cfg.cwd = receive_dir
+            receive_d = cmd_receive.receive(recv_cfg)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
 
             yield gatherResults([send_d, receive_d], True)
-            send_stdout = sargs.stdout.getvalue()
-            send_stderr = sargs.stderr.getvalue()
-            receive_stdout = rargs.stdout.getvalue()
-            receive_stderr = rargs.stderr.getvalue()
+            # XXX need captured stdin/stdout from sender/receiver
+            send_stdout = send_cfg.stdout.getvalue()
+            send_stderr = send_cfg.stderr.getvalue()
+            receive_stdout = recv_cfg.stdout.getvalue()
+            receive_stderr = recv_cfg.stderr.getvalue()
 
             # all output here comes from a StringIO, which uses \n for
             # newlines, even if we're on windows
@@ -367,7 +362,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         "wormhole receive{NL}"
                         "Wormhole code is: {code}{NL}{NL}"
                         "text message sent{NL}").format(bytes=len(message),
-                                                        code=code,
+                                                        code=send_cfg.code,
                                                         NL=NL)
             self.failUnlessEqual(send_stdout, expected)
         elif mode == "file":
@@ -377,7 +372,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=code, NL=NL),
+                              .format(code=send_cfg.code, NL=NL),
                               send_stdout)
             self.failUnlessIn("File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
@@ -388,7 +383,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=code, NL=NL), send_stdout)
+                              .format(code=send_cfg.code, NL=NL), send_stdout)
             self.failUnlessIn("File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
                               .format(NL=NL), send_stdout)
@@ -440,14 +435,21 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_file_noclobber(self):
-        common_args = ["--hide-progress", "--no-listen",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        code = "1-abc"
+        send_cfg = Config()
+        recv_cfg = Config()
+
+        for cfg in [send_cfg, recv_cfg]:
+            cfg.hide_progress = True
+            cfg.relay_url = self.relayurl
+            cfg.transit_helper = ""
+            cfg.listen = False
+            cfg.code = code = "1-abc"
+            cfg.stdout = io.StringIO()
+            cfg.stderr = io.StringIO()
+
         message = "test message"
 
-        send_args = common_args + [ "send", "--code", code ]
-        receive_args = common_args + [ "receive", "--accept-file", code ]
+        recv_cfg.accept_file = True
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -457,26 +459,19 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         send_filename = "testfile"
         with open(os.path.join(send_dir, send_filename), "w") as f:
             f.write(message)
-        send_args.append(send_filename)
-        receive_filename = send_filename
+        send_cfg.what = receive_filename = send_filename
+        recv_cfg.what = receive_filename
 
         PRESERVE = "don't clobber me\n"
         clobberable = os.path.join(receive_dir, receive_filename)
         with open(clobberable, "w") as f:
             f.write(PRESERVE)
 
-        sargs = runner.parser.parse_args(send_args)
-        sargs.cwd = send_dir
-        sargs.stdout = io.StringIO()
-        sargs.stderr = io.StringIO()
-        sargs.timing = DebugTiming()
-        rargs = runner.parser.parse_args(receive_args)
-        rargs.cwd = receive_dir
-        rargs.stdout = io.StringIO()
-        rargs.stderr = io.StringIO()
-        rargs.timing = DebugTiming()
-        send_d = cmd_send.send(sargs)
-        receive_d = cmd_receive.receive(rargs)
+        send_cfg.cwd = send_dir
+        send_d = cmd_send.send(send_cfg)
+
+        recv_cfg.cwd = receive_dir
+        receive_d = cmd_receive.receive(recv_cfg)
 
         # both sides will fail because of the pre-existing file
 
@@ -486,10 +481,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         f = yield self.assertFailure(receive_d, TransferError)
         self.assertEqual(str(f), "file already exists")
 
-        send_stdout = sargs.stdout.getvalue()
-        send_stderr = sargs.stderr.getvalue()
-        receive_stdout = rargs.stdout.getvalue()
-        receive_stderr = rargs.stderr.getvalue()
+        send_stdout = send_cfg.stdout.getvalue()
+        send_stderr = send_cfg.stderr.getvalue()
+        receive_stdout = recv_cfg.stdout.getvalue()
+        receive_stderr = recv_cfg.stderr.getvalue()
 
         # all output here comes from a StringIO, which uses \n for
         # newlines, even if we're on windows
@@ -528,63 +523,56 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 class NotWelcome(ServerBase, unittest.TestCase):
     def setUp(self):
         self._setup_relay(error="please upgrade XYZ")
+        self.cfg = cfg = Config()
+        cfg.hide_progress = True
+        cfg.listen = False
+        cfg.relay_url = self.relayurl
+        cfg.transit_helper = ""
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
 
     @inlineCallbacks
     def test_sender(self):
-        common_args = ["--hide-progress", "--no-listen",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        send_args = common_args + [ "send", "--text", "hi",
-                                    "--code", "1-abc" ]
-        sargs = runner.parser.parse_args(send_args)
-        sargs.cwd = self.mktemp()
-        sargs.stdout = io.StringIO()
-        sargs.stderr = io.StringIO()
-        sargs.timing = DebugTiming()
+        self.cfg.text = "hi"
+        self.cfg.code = "1-abc"
 
-        send_d = cmd_send.send(sargs)
+        send_d = cmd_send.send(self.cfg)
         f = yield self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
 
     @inlineCallbacks
     def test_receiver(self):
-        common_args = ["--hide-progress", "--no-listen",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        receive_args = common_args + [ "receive", "1-abc" ]
-        rargs = runner.parser.parse_args(receive_args)
-        rargs.cwd = self.mktemp()
-        rargs.stdout = io.StringIO()
-        rargs.stderr = io.StringIO()
-        rargs.timing = DebugTiming()
+        self.cfg.code = "1-abc"
 
-        receive_d = cmd_receive.receive(rargs)
+        receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
 
-class Cleanup(ServerBase, unittest.TestCase):
-    @inlineCallbacks
-    def test_text(self):
-        # the rendezvous channel should be deleted after success
-        code = "1-abc"
-        common_args = ["--hide-progress",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        sargs = runner.parser.parse_args(common_args +
-                                         ["send",
-                                          "--text", "secret message",
-                                          "--code", code])
-        sargs.stdout = io.StringIO()
-        sargs.stderr = io.StringIO()
-        sargs.timing = DebugTiming()
-        rargs = runner.parser.parse_args(common_args +
-                                         ["receive", code])
-        rargs.stdout = io.StringIO()
-        rargs.stderr = io.StringIO()
-        rargs.timing = DebugTiming()
-        send_d = cmd_send.send(sargs)
-        receive_d = cmd_receive.receive(rargs)
 
+class Cleanup(ServerBase, unittest.TestCase):
+
+    def setUp(self):
+        d = super(Cleanup, self).setUp()
+        self.cfg = cfg = Config()
+        # common options for all tests in this suite
+        cfg.hide_progress = True
+        cfg.relay_url = self.relayurl
+        cfg.transit_helper = ""
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
+        return d
+
+    @inlineCallbacks
+    @mock.patch('sys.stdout')
+    def test_text(self, stdout):
+        # the rendezvous channel should be deleted after success
+        self.cfg.text = "hello"
+        self.cfg.code = "1-abc"
+
+        send_d = cmd_send.send(self.cfg)
+        receive_d = cmd_receive.receive(self.cfg)
+
+        # XXX DeferredList?
         yield send_d
         yield receive_d
 
@@ -595,23 +583,12 @@ class Cleanup(ServerBase, unittest.TestCase):
     def test_text_wrong_password(self):
         # if the password was wrong, the rendezvous channel should still be
         # deleted
-        common_args = ["--hide-progress",
-                       "--relay-url", self.relayurl,
-                       "--transit-helper", ""]
-        sargs = runner.parser.parse_args(common_args +
-                                         ["send",
-                                          "--text", "secret message",
-                                          "--code", "1-abc"])
-        sargs.stdout = io.StringIO()
-        sargs.stderr = io.StringIO()
-        sargs.timing = DebugTiming()
-        rargs = runner.parser.parse_args(common_args +
-                                         ["receive", "1-WRONG"])
-        rargs.stdout = io.StringIO()
-        rargs.stderr = io.StringIO()
-        rargs.timing = DebugTiming()
-        send_d = cmd_send.send(sargs)
-        receive_d = cmd_receive.receive(rargs)
+        self.cfg.text = "secret message"
+        self.cfg.code = "1-abc"
+        send_d = cmd_send.send(self.cfg)
+
+        self.cfg.code = "1-WRONG"
+        receive_d = cmd_receive.receive(self.cfg)
 
         # both sides should be capable of detecting the mismatch
         yield self.assertFailure(send_d, WrongPasswordError)
