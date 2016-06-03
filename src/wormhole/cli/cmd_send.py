@@ -197,7 +197,6 @@ class Sender:
             # We're sending a directory. Create a zipfile in a tempdir and
             # send that.
             fd_to_send = tempfile.SpooledTemporaryFile()
-            # TODO: I think ZIP_DEFLATED means compressed.. check it
             num_files = 0
             num_bytes = 0
             tostrip = len(what.split(os.sep))

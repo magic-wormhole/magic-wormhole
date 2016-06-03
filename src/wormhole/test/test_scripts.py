@@ -1,5 +1,6 @@
 from __future__ import print_function
-import os, sys, re, io, zipfile, six
+import os, sys, re, io, zipfile, six, stat
+import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
@@ -287,9 +288,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             os.mkdir(os.path.join(send_dir, "middle"))
             source_dir = os.path.join(send_dir, "middle", send_dirname)
             os.mkdir(source_dir)
+            modes = {}
             for i in range(5):
-                with open(os.path.join(source_dir, str(i)), "w") as f:
+                path = os.path.join(source_dir, str(i))
+                with open(path, "w") as f:
                     f.write(message(i))
+                if i == 3:
+                    os.chmod(path, 0o755)
+                modes[i] = stat.S_IMODE(os.stat(path).st_mode)
             send_dirname_arg = os.path.join("middle", send_dirname)
             if addslash:
                 send_dirname_arg += os.sep
@@ -412,6 +418,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
+                self.failUnlessEqual(modes[i],
+                                     stat.S_IMODE(os.stat(fn).st_mode))
 
     def test_text(self):
         return self._do_test()
@@ -613,3 +621,44 @@ class Cleanup(ServerBase, unittest.TestCase):
         self.assertEqual(len(cids), 0)
         self.flushLoggedErrors(WrongPasswordError)
 
+class ExtractFile(unittest.TestCase):
+    def test_filenames(self):
+        args = mock.Mock()
+        args.relay_url = u""
+        ef = cmd_receive.TwistedReceiver(args)._extract_file
+        extract_dir = os.path.abspath(self.mktemp())
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "ok"
+        zi.external_attr = 5 << 16
+        expected = os.path.join(extract_dir, "ok")
+        with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+            ef(zf, zi, extract_dir)
+            self.assertEqual(zf.extract.mock_calls,
+                             [mock.call(zi.filename, path=extract_dir)])
+            self.assertEqual(chmod.mock_calls, [mock.call(expected, 5)])
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "../haha"
+        e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
+        self.assertIn("malicious zipfile", str(e))
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "haha//root" # abspath squashes this, hopefully zipfile
+                                   # does too
+        zi.external_attr = 5 << 16
+        expected = os.path.join(extract_dir, "haha/root")
+        with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+            ef(zf, zi, extract_dir)
+            self.assertEqual(zf.extract.mock_calls,
+                             [mock.call(zi.filename, path=extract_dir)])
+            self.assertEqual(chmod.mock_calls, [mock.call(expected, 5)])
+
+        zf = mock.Mock()
+        zi = mock.Mock()
+        zi.filename = "/etc/passwd"
+        e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
+        self.assertIn("malicious zipfile", str(e))

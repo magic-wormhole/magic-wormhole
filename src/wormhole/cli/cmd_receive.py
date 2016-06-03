@@ -223,7 +223,7 @@ class TwistedReceiver:
         destname = os.path.basename(destname)
         if self.args.output_file:
             destname = self.args.output_file # override
-        abs_destname = os.path.join(self.args.cwd, destname)
+        abs_destname = os.path.abspath( os.path.join(self.args.cwd, destname) )
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
@@ -284,15 +284,31 @@ class TwistedReceiver:
         self._msg(u"Received file written to %s" %
                   os.path.basename(self.abs_destname))
 
+    def _extract_file(self, zf, info, extract_dir):
+        """
+        the zipfile module does not restore file permissions
+        so we'll do it manually
+        """
+        out_path = os.path.join( extract_dir, info.filename )
+        out_path = os.path.abspath( out_path )
+        if not out_path.startswith( extract_dir ):
+            raise ValueError( "malicious zipfile, %s outside of extract_dir %s"
+                    % (info.filename, extract_dir) )
+
+        zf.extract( info.filename, path=extract_dir )
+
+        # not sure why zipfiles store the perms 16 bits away but they do
+        perm = info.external_attr >> 16
+        os.chmod( out_path, perm )
+
     def _write_directory(self, f):
+
         self._msg(u"Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
-                zf.extractall(path=self.abs_destname)
-                # extractall() appears to offer some protection against
-                # malicious pathnames. For example, "/tmp/oops" and
-                # "../tmp/oops" both do the same thing as the (safe)
-                # "tmp/oops".
+                for info in zf.infolist():
+                    self._extract_file( zf, info, self.abs_destname )
+
             self._msg(u"Received files written to %s/" %
                       os.path.basename(self.abs_destname))
             f.close()
