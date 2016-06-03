@@ -88,6 +88,7 @@ def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
         import readline
         c = CodeInputter(initial_channelids, get_channel_ids, code_length)
         readline.parse_and_bind("tab: complete")
+        readline.parse_and_bind("bind ^I rl_complete")
         readline.set_completer(c.wrap_completer)
         readline.set_completer_delims("")
     except ImportError:
