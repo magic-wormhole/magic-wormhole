@@ -39,15 +39,15 @@ def kill_server():
         f = open("twistd.pid", "r")
     except EnvironmentError:
         print("Unable to find twistd.pid . Is this really a server directory?")
-        return 1
+        return
     pid = int(f.read().strip())
     f.close()
     os.kill(pid, 15)
     print("server process %d sent SIGTERM" % pid)
-    return 0
+    return
 
 def stop_server(args):
-    return kill_server()
+    kill_server()
 
 def restart_server(args):
     kill_server()

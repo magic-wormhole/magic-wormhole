@@ -19,15 +19,19 @@ setup(name="magic-wormhole",
                 "wormhole.test",
                 ],
       package_data={"wormhole.server": ["db-schemas/*.sql"]},
-      entry_points={"console_scripts":
-                    ["wormhole = wormhole.cli.runner:entry",
-                     "wormhole-server = wormhole.server.runner:entry",
-                     ]},
+      entry_points={
+          "console_scripts":
+          [
+              "wormhole = wormhole.cli.cli:wormhole",
+              "wormhole-server = wormhole.server.cli:server",
+          ]
+      },
       install_requires=["spake2==0.7", "pynacl", "argparse",
                         "six",
                         "twisted",
                         "autobahn[twisted] >= 0.14.1",
                         "hkdf", "tqdm",
+                        "click",
                         ],
       extras_require={':sys_platform=="win32"': ["pypiwin32"],
                       "tor": ["txtorcon", "ipaddress"]},

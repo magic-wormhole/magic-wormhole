@@ -141,7 +141,7 @@ class TwistedReceiver:
     @inlineCallbacks
     def _build_transit(self, w, sender_transit):
         tr = TransitReceiver(self.args.transit_helper,
-                             no_listen=self.args.no_listen,
+                             no_listen=(not self.args.listen),
                              tor_manager=self._tor_manager,
                              reactor=self._reactor,
                              timing=self.args.timing)
