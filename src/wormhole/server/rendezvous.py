@@ -10,8 +10,8 @@ HOUR = 60*MINUTE
 DAY = 24*HOUR
 MB = 1000*1000
 
-CHANNEL_EXPIRATION_TIME = 3*DAY
-EXPIRATION_CHECK_PERIOD = 2*HOUR
+CHANNEL_EXPIRATION_TIME = 2*HOUR
+EXPIRATION_CHECK_PERIOD = 1*HOUR
 
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
