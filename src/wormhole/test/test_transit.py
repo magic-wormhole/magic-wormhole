@@ -163,7 +163,6 @@ class Basic(unittest.TestCase):
         self.assertEqual(c._their_direct_hints, [])
         self.assertEqual(c._their_relay_hints, [])
 
-    # @inlineCallbacks
     def test_ignore_localhost_hint(self):
         # this actually starts the listener
         c = transit.TransitSender(u"")
