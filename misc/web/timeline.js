@@ -184,8 +184,8 @@ d3.json("data.json", function(d) {
         } else if (ev.name === "ws_receive") {
             if (ev.details.message.type !== "message")
                 return;
-            id = ev.details.message.message.id;
-            phase = ev.details.message.message.phase;
+            id = ev.details.message.id;
+            phase = ev.details.message.phase;
         } else
             return;
 
@@ -205,7 +205,7 @@ d3.json("data.json", function(d) {
             cm.tx_x = x_offset(TX_COLUMN, ev.side_name);
             cm.tx_side_name = ev.side_name;
         } else { // message
-            cm.server_rx = ev.details.message.message.server_rx - first;
+            cm.server_rx = ev.details.message.server_rx - first;
             cm.arrivals.push({server_tx: ev.details.message.server_tx - first,
                               rx: ev.start,
                               rx_x: x_offset(RX_COLUMN, ev.side_name)});
