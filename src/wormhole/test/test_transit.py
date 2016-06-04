@@ -171,6 +171,11 @@ class Basic(unittest.TestCase):
         d.addBoth(results.append)
         hints = results[0]
         c._stop_listening()
+        # If there are non-localhost hints, then localhost hints should be
+        # removed. But if the only hint is localhost, it should stay.
+        if len(hints) == 1:
+            if hints[0][u'hostname'] == u'127.0.0.1':
+                return
         for hint in hints:
             self.assertFalse(hint[u'hostname'] == u'127.0.0.1')
 
