@@ -15,7 +15,7 @@ from ..util import (bytes_to_dict, dict_to_bytes,
                     hexstr_to_bytes, bytes_to_hexstr)
 from nacl.secret import SecretBox
 
-APPID = u"appid"
+APPID = "appid"
 
 class MockWebSocket:
     def __init__(self):
@@ -37,83 +37,83 @@ def response(w, **kwargs):
 
 class Welcome(unittest.TestCase):
     def test_tolerate_no_current_version(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"current_cli_version", None)
+        w = wormhole._WelcomeHandler("relay_url", "current_cli_version", None)
         w.handle_welcome({})
 
     def test_print_motd(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"current_cli_version", None)
+        w = wormhole._WelcomeHandler("relay_url", "current_cli_version", None)
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"motd": u"message of\nthe day"})
+            w.handle_welcome({"motd": "message of\nthe day"})
         self.assertEqual(stderr.method_calls,
-                         [mock.call.write(u"Server (at relay_url) says:\n"
+                         [mock.call.write("Server (at relay_url) says:\n"
                                           " message of\n the day"),
-                          mock.call.write(u"\n")])
+                          mock.call.write("\n")])
         # motd can be displayed multiple times
         with mock.patch("sys.stderr") as stderr2:
-            w.handle_welcome({u"motd": u"second message"})
+            w.handle_welcome({"motd": "second message"})
         self.assertEqual(stderr2.method_calls,
-                         [mock.call.write(u"Server (at relay_url) says:\n"
+                         [mock.call.write("Server (at relay_url) says:\n"
                                           " second message"),
-                          mock.call.write(u"\n")])
+                          mock.call.write("\n")])
 
     def test_current_version(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"2.0", None)
+        w = wormhole._WelcomeHandler("relay_url", "2.0", None)
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_cli_version": u"2.0"})
+            w.handle_welcome({"current_cli_version": "2.0"})
         self.assertEqual(stderr.method_calls, [])
 
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_cli_version": u"3.0"})
-        exp1 = (u"Warning: errors may occur unless both sides are"
+            w.handle_welcome({"current_cli_version": "3.0"})
+        exp1 = ("Warning: errors may occur unless both sides are"
                 " running the same version")
-        exp2 = (u"Server claims 3.0 is current, but ours is 2.0")
+        exp2 = ("Server claims 3.0 is current, but ours is 2.0")
         self.assertEqual(stderr.method_calls,
                          [mock.call.write(exp1),
-                          mock.call.write(u"\n"),
+                          mock.call.write("\n"),
                           mock.call.write(exp2),
-                          mock.call.write(u"\n"),
+                          mock.call.write("\n"),
                           ])
 
         # warning is only displayed once
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_cli_version": u"3.0"})
+            w.handle_welcome({"current_cli_version": "3.0"})
         self.assertEqual(stderr.method_calls, [])
 
     def test_non_release_version(self):
-        w = wormhole._WelcomeHandler(u"relay_url", u"2.0-dirty", None)
+        w = wormhole._WelcomeHandler("relay_url", "2.0-dirty", None)
         with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({u"current_cli_version": u"3.0"})
+            w.handle_welcome({"current_cli_version": "3.0"})
         self.assertEqual(stderr.method_calls, [])
 
     def test_signal_error(self):
         se = mock.Mock()
-        w = wormhole._WelcomeHandler(u"relay_url", u"2.0", se)
+        w = wormhole._WelcomeHandler("relay_url", "2.0", se)
         w.handle_welcome({})
         self.assertEqual(se.mock_calls, [])
 
-        w.handle_welcome({u"error": u"oops"})
+        w.handle_welcome({"error": "oops"})
         self.assertEqual(len(se.mock_calls), 1)
         self.assertEqual(len(se.mock_calls[0][1]), 2) # posargs
         we = se.mock_calls[0][1][0]
         self.assertIsInstance(we, WelcomeError)
-        self.assertEqual(we.args, (u"oops",))
+        self.assertEqual(we.args, ("oops",))
         mood = se.mock_calls[0][1][1]
-        self.assertEqual(mood, u"unwelcome")
+        self.assertEqual(mood, "unwelcome")
         # alas WelcomeError instances don't compare against each other
-        #self.assertEqual(se.mock_calls, [mock.call(WelcomeError(u"oops"))])
+        #self.assertEqual(se.mock_calls, [mock.call(WelcomeError("oops"))])
 
 class InputCode(unittest.TestCase):
     def test_list(self):
         send_command = mock.Mock()
-        ic = wormhole._InputCode(None, u"prompt", 2, send_command,
+        ic = wormhole._InputCode(None, "prompt", 2, send_command,
                                  DebugTiming())
         d = ic._list()
         self.assertNoResult(d)
-        self.assertEqual(send_command.mock_calls, [mock.call(u"list")])
-        ic._response_handle_nameplates({u"type": u"nameplates",
-                                        u"nameplates": [{u"id": u"123"}]})
+        self.assertEqual(send_command.mock_calls, [mock.call("list")])
+        ic._response_handle_nameplates({"type": "nameplates",
+                                        "nameplates": [{"id": "123"}]})
         res = self.successResultOf(d)
-        self.assertEqual(res, [u"123"])
+        self.assertEqual(res, ["123"])
 
 class GetCode(unittest.TestCase):
     def test_get(self):
@@ -121,14 +121,14 @@ class GetCode(unittest.TestCase):
         gc = wormhole._GetCode(2, send_command, DebugTiming())
         d = gc.go()
         self.assertNoResult(d)
-        self.assertEqual(send_command.mock_calls, [mock.call(u"allocate")])
+        self.assertEqual(send_command.mock_calls, [mock.call("allocate")])
         # TODO: nameplate attributes get added and checked here
-        gc._response_handle_allocated({u"type": u"allocated",
-                                       u"nameplate": u"123"})
+        gc._response_handle_allocated({"type": "allocated",
+                                       "nameplate": "123"})
         code = self.successResultOf(d)
-        self.assertIsInstance(code, type(u""))
-        self.assert_(code.startswith(u"123-"))
-        pieces = code.split(u"-")
+        self.assertIsInstance(code, type(""))
+        self.assert_(code.startswith("123-"))
+        pieces = code.split("-")
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
 
@@ -148,7 +148,7 @@ class Basic(unittest.TestCase):
         out = ws.outbound()
         self.assertEqual(len(out), len(types), (out, types))
         for i,t in enumerate(types):
-            self.assertEqual(out[i][u"type"], t, (i,t,out))
+            self.assertEqual(out[i]["type"], t, (i,t,out))
         return out
 
     def make_pake(self, code, side, msg1):
@@ -159,7 +159,7 @@ class Basic(unittest.TestCase):
         return key, msg2
 
     def test_create(self):
-        wormhole._Wormhole(APPID, u"relay_url", reactor, None, None)
+        wormhole._Wormhole(APPID, "relay_url", reactor, None, None)
 
     def test_basic(self):
         # We don't call w._start(), so this doesn't create a WebSocket
@@ -172,9 +172,9 @@ class Basic(unittest.TestCase):
 
         timing = DebugTiming()
         with mock.patch("wormhole.wormhole._WelcomeHandler") as wh_c:
-            w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+            w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         wh = wh_c.return_value
-        self.assertEqual(w._ws_url, u"relay_url")
+        self.assertEqual(w._ws_url, "relay_url")
         self.assertTrue(w._flag_need_nameplate)
         self.assertTrue(w._flag_need_to_build_msg1)
         self.assertTrue(w._flag_need_to_send_PAKE)
@@ -190,50 +190,50 @@ class Basic(unittest.TestCase):
         w._event_ws_opened(None)
         out = ws.outbound()
         self.assertEqual(len(out), 1)
-        self.check_out(out[0], type=u"bind", appid=APPID, side=w._side)
-        self.assertIn(u"id", out[0])
+        self.check_out(out[0], type="bind", appid=APPID, side=w._side)
+        self.assertIn("id", out[0])
 
         # WelcomeHandler should get called upon 'welcome' response. Its full
         # behavior is exercised in 'Welcome' above.
-        WELCOME = {u"foo": u"bar"}
+        WELCOME = {"foo": "bar"}
         response(w, type="welcome", welcome=WELCOME)
         self.assertEqual(wh.mock_calls, [mock.call.handle_welcome(WELCOME)])
 
         # because we're connected, setting the code also claims the mailbox
-        CODE = u"123-foo-bar"
+        CODE = "123-foo-bar"
         w.set_code(CODE)
         self.assertFalse(w._flag_need_to_build_msg1)
         out = ws.outbound()
         self.assertEqual(len(out), 1)
-        self.check_out(out[0], type=u"claim", nameplate=u"123")
+        self.check_out(out[0], type="claim", nameplate="123")
 
         # the server reveals the linked mailbox
-        response(w, type=u"claimed", mailbox=u"mb456")
+        response(w, type="claimed", mailbox="mb456")
 
         # that triggers event_learned_mailbox, which should send open() and
         # PAKE
         self.assertEqual(w._mailbox_state, wormhole.OPEN)
         out = ws.outbound()
         self.assertEqual(len(out), 2)
-        self.check_out(out[0], type=u"open", mailbox=u"mb456")
-        self.check_out(out[1], type=u"add", phase=u"pake")
+        self.check_out(out[0], type="open", mailbox="mb456")
+        self.check_out(out[1], type="add", phase="pake")
         self.assertNoResult(v)
 
         # server echoes back all "add" messages
-        response(w, type=u"message", phase=u"pake", body=out[1][u"body"],
+        response(w, type="message", phase="pake", body=out[1]["body"],
                  side=w._side)
         self.assertNoResult(v)
 
         # extract our outbound PAKE message
-        body = bytes_to_dict(hexstr_to_bytes(out[1][u"body"]))
-        msg1 = hexstr_to_bytes(body[u"pake_v1"])
+        body = bytes_to_dict(hexstr_to_bytes(out[1]["body"]))
+        msg1 = hexstr_to_bytes(body["pake_v1"])
 
         # next we build the simulated peer's PAKE operation
-        side2 = w._side + u"other"
+        side2 = w._side + "other"
         key, msg2 = self.make_pake(CODE, side2, msg1)
-        payload = {u"pake_v1": bytes_to_hexstr(msg2)}
+        payload = {"pake_v1": bytes_to_hexstr(msg2)}
         body_hex = bytes_to_hexstr(dict_to_bytes(payload))
-        response(w, type=u"message", phase=u"pake", body=body_hex, side=side2)
+        response(w, type="message", phase="pake", body=body_hex, side=side2)
 
         # hearing the peer's PAKE (msg2) makes us release the nameplate, send
         # the confirmation message, and sends any queued phase messages. It
@@ -243,72 +243,72 @@ class Basic(unittest.TestCase):
         self.assertEqual(w._key, key)
         out = ws.outbound()
         self.assertEqual(len(out), 2, out)
-        self.check_out(out[0], type=u"release")
-        self.check_out(out[1], type=u"add", phase=u"version")
+        self.check_out(out[0], type="release")
+        self.check_out(out[1], type="add", phase="version")
         self.assertNoResult(v)
 
         # hearing a valid confirmation message doesn't throw an error
         plaintext = json.dumps({}).encode("utf-8")
-        data_key = w._derive_phase_key(side2, u"version")
+        data_key = w._derive_phase_key(side2, "version")
         confmsg = w._encrypt_data(data_key, plaintext)
         version2_hex = hexlify(confmsg).decode("ascii")
-        response(w, type=u"message", phase=u"version", body=version2_hex,
+        response(w, type="message", phase="version", body=version2_hex,
                  side=side2)
 
         # and it releases the verifier
         verifier = self.successResultOf(v)
         self.assertEqual(verifier,
-                         w.derive_key(u"wormhole:verifier", SecretBox.KEY_SIZE))
+                         w.derive_key("wormhole:verifier", SecretBox.KEY_SIZE))
 
         # an outbound message can now be sent immediately
         w.send(b"phase0-outbound")
         out = ws.outbound()
         self.assertEqual(len(out), 1)
-        self.check_out(out[0], type=u"add", phase=u"0")
+        self.check_out(out[0], type="add", phase="0")
         # decrypt+check the outbound message
-        p0_outbound = unhexlify(out[0][u"body"].encode("ascii"))
-        msgkey0 = w._derive_phase_key(w._side, u"0")
+        p0_outbound = unhexlify(out[0]["body"].encode("ascii"))
+        msgkey0 = w._derive_phase_key(w._side, "0")
         p0_plaintext = w._decrypt_data(msgkey0, p0_outbound)
         self.assertEqual(p0_plaintext, b"phase0-outbound")
 
         # get() waits for the inbound message to arrive
         md = w.get()
         self.assertNoResult(md)
-        self.assertIn(u"0", w._receive_waiters)
-        self.assertNotIn(u"0", w._received_messages)
-        msgkey1 = w._derive_phase_key(side2, u"0")
+        self.assertIn("0", w._receive_waiters)
+        self.assertNotIn("0", w._received_messages)
+        msgkey1 = w._derive_phase_key(side2, "0")
         p0_inbound = w._encrypt_data(msgkey1, b"phase0-inbound")
         p0_inbound_hex = hexlify(p0_inbound).decode("ascii")
-        response(w, type=u"message", phase=u"0", body=p0_inbound_hex,
+        response(w, type="message", phase="0", body=p0_inbound_hex,
                  side=side2)
         p0_in = self.successResultOf(md)
         self.assertEqual(p0_in, b"phase0-inbound")
-        self.assertNotIn(u"0", w._receive_waiters)
-        self.assertIn(u"0", w._received_messages)
+        self.assertNotIn("0", w._receive_waiters)
+        self.assertIn("0", w._received_messages)
 
         # receiving an inbound message will queue it until get() is called
-        msgkey2 = w._derive_phase_key(side2, u"1")
+        msgkey2 = w._derive_phase_key(side2, "1")
         p1_inbound = w._encrypt_data(msgkey2, b"phase1-inbound")
         p1_inbound_hex = hexlify(p1_inbound).decode("ascii")
-        response(w, type=u"message", phase=u"1", body=p1_inbound_hex,
+        response(w, type="message", phase="1", body=p1_inbound_hex,
                  side=side2)
-        self.assertIn(u"1", w._received_messages)
-        self.assertNotIn(u"1", w._receive_waiters)
+        self.assertIn("1", w._received_messages)
+        self.assertNotIn("1", w._receive_waiters)
         p1_in = self.successResultOf(w.get())
         self.assertEqual(p1_in, b"phase1-inbound")
-        self.assertIn(u"1", w._received_messages)
-        self.assertNotIn(u"1", w._receive_waiters)
+        self.assertIn("1", w._received_messages)
+        self.assertNotIn("1", w._receive_waiters)
 
         d = w.close()
         self.assertNoResult(d)
         out = ws.outbound()
         self.assertEqual(len(out), 1)
-        self.check_out(out[0], type=u"close", mood=u"happy")
+        self.check_out(out[0], type="close", mood="happy")
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"released")
+        response(w, type="released")
         self.assertEqual(w._drop_connection.mock_calls, [])
-        response(w, type=u"closed")
+        response(w, type="closed")
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
         w._ws_closed(True, None, None)
         self.assertEqual(self.successResultOf(d), None)
@@ -317,7 +317,7 @@ class Basic(unittest.TestCase):
         # Close before the connection is established. The connection still
         # gets established, but it is then torn down before sending anything.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
 
         d = w.close()
@@ -335,14 +335,14 @@ class Basic(unittest.TestCase):
     def test_close_wait_1(self):
         # close before even claiming the nameplate
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
 
         d = w.close()
-        self.check_outbound(ws, [u"bind"])
+        self.check_outbound(ws, ["bind"])
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
         self.assertNoResult(d)
@@ -354,27 +354,27 @@ class Basic(unittest.TestCase):
         # Close after claiming the nameplate, but before opening the mailbox.
         # The 'claimed' response arrives before we close.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        CODE = u"123-foo-bar"
+        CODE = "123-foo-bar"
         w.set_code(CODE)
-        self.check_outbound(ws, [u"bind", u"claim"])
+        self.check_outbound(ws, ["bind", "claim"])
 
-        response(w, type=u"claimed", mailbox=u"mb123")
+        response(w, type="claimed", mailbox="mb123")
 
         d = w.close()
-        self.check_outbound(ws, [u"open", u"add", u"release", u"close"])
+        self.check_outbound(ws, ["open", "add", "release", "close"])
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"released")
+        response(w, type="released")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"closed")
+        response(w, type="closed")
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
         self.assertNoResult(d)
 
@@ -385,22 +385,22 @@ class Basic(unittest.TestCase):
         # close after claiming the nameplate, but before opening the mailbox
         # The 'claimed' response arrives after we start to close.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        CODE = u"123-foo-bar"
+        CODE = "123-foo-bar"
         w.set_code(CODE)
-        self.check_outbound(ws, [u"bind", u"claim"])
+        self.check_outbound(ws, ["bind", "claim"])
 
         d = w.close()
-        response(w, type=u"claimed", mailbox=u"mb123")
-        self.check_outbound(ws, [u"release"])
+        response(w, type="claimed", mailbox="mb123")
+        self.check_outbound(ws, ["release"])
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"released")
+        response(w, type="released")
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
         self.assertNoResult(d)
 
@@ -410,26 +410,26 @@ class Basic(unittest.TestCase):
     def test_close_wait_4(self):
         # close after both claiming the nameplate and opening the mailbox
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        CODE = u"123-foo-bar"
+        CODE = "123-foo-bar"
         w.set_code(CODE)
-        response(w, type=u"claimed", mailbox=u"mb456")
-        self.check_outbound(ws, [u"bind", u"claim", u"open", u"add"])
+        response(w, type="claimed", mailbox="mb456")
+        self.check_outbound(ws, ["bind", "claim", "open", "add"])
 
         d = w.close()
-        self.check_outbound(ws, [u"release", u"close"])
+        self.check_outbound(ws, ["release", "close"])
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"released")
+        response(w, type="released")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"closed")
+        response(w, type="closed")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
 
@@ -440,34 +440,34 @@ class Basic(unittest.TestCase):
         # close after claiming the nameplate, opening the mailbox, then
         # releasing the nameplate
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        CODE = u"123-foo-bar"
+        CODE = "123-foo-bar"
         w.set_code(CODE)
-        response(w, type=u"claimed", mailbox=u"mb456")
+        response(w, type="claimed", mailbox="mb456")
 
         w._key = b""
-        msgkey = w._derive_phase_key(u"side2", u"misc")
+        msgkey = w._derive_phase_key("side2", "misc")
         p1_inbound = w._encrypt_data(msgkey, b"")
         p1_inbound_hex = hexlify(p1_inbound).decode("ascii")
-        response(w, type=u"message", phase=u"misc", side=u"side2",
+        response(w, type="message", phase="misc", side="side2",
                  body=p1_inbound_hex)
-        self.check_outbound(ws, [u"bind", u"claim", u"open", u"add",
-                                 u"release"])
+        self.check_outbound(ws, ["bind", "claim", "open", "add",
+                                 "release"])
 
         d = w.close()
-        self.check_outbound(ws, [u"close"])
+        self.check_outbound(ws, ["close"])
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"released")
+        response(w, type="released")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [])
 
-        response(w, type=u"closed")
+        response(w, type="closed")
         self.assertNoResult(d)
         self.assertEqual(w._drop_connection.mock_calls, [mock.call()])
 
@@ -481,11 +481,11 @@ class Basic(unittest.TestCase):
 
     def test_get_code_mock(self):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         ws = MockWebSocket() # TODO: mock w._ws_send_command instead
         w._event_connected(ws)
         w._event_ws_opened(None)
-        self.check_outbound(ws, [u"bind"])
+        self.check_outbound(ws, ["bind"])
 
         gc_c = mock.Mock()
         gc = gc_c.return_value = mock.Mock()
@@ -494,31 +494,31 @@ class Basic(unittest.TestCase):
             d = w.get_code()
         self.assertNoResult(d)
 
-        gc_d.callback(u"123-foo-bar")
+        gc_d.callback("123-foo-bar")
         code = self.successResultOf(d)
-        self.assertEqual(code, u"123-foo-bar")
+        self.assertEqual(code, "123-foo-bar")
 
     def test_get_code_real(self):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        self.check_outbound(ws, [u"bind"])
+        self.check_outbound(ws, ["bind"])
 
         d = w.get_code()
 
         out = ws.outbound()
         self.assertEqual(len(out), 1)
-        self.check_out(out[0], type=u"allocate")
+        self.check_out(out[0], type="allocate")
         # TODO: nameplate attributes go here
         self.assertNoResult(d)
 
-        response(w, type=u"allocated", nameplate=u"123")
+        response(w, type="allocated", nameplate="123")
         code = self.successResultOf(d)
-        self.assertIsInstance(code, type(u""))
-        self.assert_(code.startswith(u"123-"))
-        pieces = code.split(u"-")
+        self.assertIsInstance(code, type(""))
+        self.assert_(code.startswith("123-"))
+        pieces = code.split("-")
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
 
@@ -532,11 +532,11 @@ class Basic(unittest.TestCase):
         #print(when, order, success)
 
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         w._ws_send_command = mock.Mock()
         w._mailbox_state = wormhole.OPEN
-        side2 = u"side2"
+        side2 = "side2"
         d = None
 
         if success:
@@ -544,7 +544,7 @@ class Basic(unittest.TestCase):
         else:
             w._key = b"wrongkey"
         plaintext = json.dumps({}).encode("utf-8")
-        data_key = w._derive_phase_key(side2, u"version")
+        data_key = w._derive_phase_key(side2, "version")
         confmsg = w._encrypt_data(data_key, plaintext)
         w._key = None
 
@@ -595,12 +595,12 @@ class Basic(unittest.TestCase):
         # states in which we might see it.
 
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        self.check_outbound(ws, [u"bind"])
+        self.check_outbound(ws, ["bind"])
 
         d1 = w.get()
         d2 = w.verify()
@@ -611,15 +611,15 @@ class Basic(unittest.TestCase):
         self.assertNoResult(d2)
         self.assertNoResult(d3)
 
-        w._signal_error(WelcomeError(u"you are not actually welcome"), u"pouty")
+        w._signal_error(WelcomeError("you are not actually welcome"), "pouty")
         self.failureResultOf(d1, WelcomeError)
         self.failureResultOf(d2, WelcomeError)
         self.failureResultOf(d3, WelcomeError)
 
         # once the error is signalled, all API calls should fail
-        self.assertRaises(WelcomeError, w.send, u"foo")
+        self.assertRaises(WelcomeError, w.send, "foo")
         self.assertRaises(WelcomeError,
-                          w.derive_key, u"foo", SecretBox.KEY_SIZE)
+                          w.derive_key, "foo", SecretBox.KEY_SIZE)
         self.failureResultOf(w.get(), WelcomeError)
         self.failureResultOf(w.verify(), WelcomeError)
 
@@ -628,13 +628,13 @@ class Basic(unittest.TestCase):
         # PAKE message, by which point we should know the key. If the
         # confirmation message doesn't decrypt, we signal an error.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, u"relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
-        w.set_code(u"123-foo-bar")
-        response(w, type=u"claimed", mailbox=u"mb456")
+        w.set_code("123-foo-bar")
+        response(w, type="claimed", mailbox="mb456")
 
         d1 = w.get()
         d2 = w.verify()
@@ -642,33 +642,33 @@ class Basic(unittest.TestCase):
         self.assertNoResult(d2)
 
         out = ws.outbound()
-        # [u"bind", u"claim", u"open", u"add"]
+        # ["bind", "claim", "open", "add"]
         self.assertEqual(len(out), 4)
-        self.assertEqual(out[3][u"type"], u"add")
+        self.assertEqual(out[3]["type"], "add")
 
         sp2 = SPAKE2_Symmetric(b"", idSymmetric=wormhole.to_bytes(APPID))
         msg2 = sp2.start()
-        payload = {u"pake_v1": bytes_to_hexstr(msg2)}
+        payload = {"pake_v1": bytes_to_hexstr(msg2)}
         body_hex = bytes_to_hexstr(dict_to_bytes(payload))
-        response(w, type=u"message", phase=u"pake", body=body_hex, side=u"s2")
+        response(w, type="message", phase="pake", body=body_hex, side="s2")
         self.assertNoResult(d1)
         self.assertNoResult(d2) # verify() waits for confirmation
 
         # sending a random version message will cause a confirmation error
-        confkey = w.derive_key(u"WRONG", SecretBox.KEY_SIZE)
+        confkey = w.derive_key("WRONG", SecretBox.KEY_SIZE)
         nonce = os.urandom(wormhole.CONFMSG_NONCE_LENGTH)
         badversion = wormhole.make_confmsg(confkey, nonce)
         badversion_hex = hexlify(badversion).decode("ascii")
-        response(w, type=u"message", phase=u"version", body=badversion_hex,
-                 side=u"s2")
+        response(w, type="message", phase="version", body=badversion_hex,
+                 side="s2")
 
         self.failureResultOf(d1, WrongPasswordError)
         self.failureResultOf(d2, WrongPasswordError)
 
         # once the error is signalled, all API calls should fail
-        self.assertRaises(WrongPasswordError, w.send, u"foo")
+        self.assertRaises(WrongPasswordError, w.send, "foo")
         self.assertRaises(WrongPasswordError,
-                          w.derive_key, u"foo", SecretBox.KEY_SIZE)
+                          w.derive_key, "foo", SecretBox.KEY_SIZE)
         self.failureResultOf(w.get(), WrongPasswordError)
         self.failureResultOf(w.verify(), WrongPasswordError)
 
@@ -757,8 +757,8 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1.send(b"data1")
         w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
         d = w2.get()
-        w1.set_code(u"123-abc-def")
-        w2.set_code(u"123-abc-def")
+        w1.set_code("123-abc-def")
+        w2.set_code("123-abc-def")
         dataY = yield d
         self.assertEqual(dataY, b"data1")
         yield w1.close()
@@ -768,8 +768,8 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_fixed_code(self):
         w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
         w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
-        w1.set_code(u"123-purple-elephant")
-        w2.set_code(u"123-purple-elephant")
+        w1.set_code("123-purple-elephant")
+        w2.set_code("123-purple-elephant")
         w1.send(b"data1"), w2.send(b"data2")
         dl = yield self.doBoth(w1.get(), w2.get())
         (dataX, dataY) = dl
@@ -783,8 +783,8 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_multiple_messages(self):
         w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
         w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
-        w1.set_code(u"123-purple-elephant")
-        w2.set_code(u"123-purple-elephant")
+        w1.set_code("123-purple-elephant")
+        w2.set_code("123-purple-elephant")
         w1.send(b"data1"), w2.send(b"data2")
         w1.send(b"data3"), w2.send(b"data4")
         dl = yield self.doBoth(w1.get(), w2.get())
@@ -859,15 +859,15 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_versions(self):
         # there's no API for this yet, but make sure the internals work
         w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
-        w1._my_versions = {u"w1": 123}
+        w1._my_versions = {"w1": 123}
         w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
-        w2._my_versions = {u"w2": 456}
+        w2._my_versions = {"w2": 456}
         code = yield w1.get_code()
         w2.set_code(code)
         yield w1.verify()
-        self.assertEqual(w1._their_versions, {u"w2": 456})
+        self.assertEqual(w1._their_versions, {"w2": 456})
         yield w2.verify()
-        self.assertEqual(w2._their_versions, {u"w1": 123})
+        self.assertEqual(w2._their_versions, {"w1": 123})
         yield w1.close()
         yield w2.close()
 
@@ -876,11 +876,11 @@ class Errors(ServerBase, unittest.TestCase):
     def test_codes_1(self):
         w = wormhole.wormhole(APPID, self.relayurl, reactor)
         # definitely too early
-        self.assertRaises(UsageError, w.derive_key, u"purpose", 12)
+        self.assertRaises(UsageError, w.derive_key, "purpose", 12)
 
-        w.set_code(u"123-purple-elephant")
+        w.set_code("123-purple-elephant")
         # code can only be set once
-        self.assertRaises(UsageError, w.set_code, u"123-nope")
+        self.assertRaises(UsageError, w.set_code, "123-nope")
         yield self.assertFailure(w.get_code(), UsageError)
         yield self.assertFailure(w.input_code(), UsageError)
         yield w.close()
@@ -889,7 +889,7 @@ class Errors(ServerBase, unittest.TestCase):
     def test_codes_2(self):
         w = wormhole.wormhole(APPID, self.relayurl, reactor)
         yield w.get_code()
-        self.assertRaises(UsageError, w.set_code, u"123-nope")
+        self.assertRaises(UsageError, w.set_code, "123-nope")
         yield self.assertFailure(w.get_code(), UsageError)
         yield self.assertFailure(w.input_code(), UsageError)
         yield w.close()

@@ -68,9 +68,9 @@ def show_usage(args):
                    " ORDER BY `started` ASC LIMIT ?",
                    (args.n,))
     for row in c.fetchall():
-        if row["type"] == u"rendezvous":
+        if row["type"] == "rendezvous":
             counters = rendezvous_counters
-        elif row["type"] == u"transit":
+        elif row["type"] == "transit":
             counters = transit_counters
             total_transit_bytes += row["total_bytes"]
         else:

@@ -115,14 +115,14 @@ class TransitConnection(protocol.Protocol):
         finished = time.time()
         if not self._had_buddy: # 1
             total_time = finished - self._started
-            self.factory.recordUsage(self._started, u"lonely", 0,
+            self.factory.recordUsage(self._started, "lonely", 0,
                                      total_time, None)
         if self._had_buddy and self._buddy: # 2,4
             total_bytes = self._total_sent + self._buddy._total_sent
             starts = [self._started, self._buddy._started]
             total_time = finished - min(starts)
             waiting_time = max(starts) - min(starts)
-            self.factory.recordUsage(self._started, u"happy", total_bytes,
+            self.factory.recordUsage(self._started, "happy", total_bytes,
                                      total_time, waiting_time)
 
     def disconnect(self):
@@ -130,7 +130,7 @@ class TransitConnection(protocol.Protocol):
         self.factory.transitFailed(self)
         finished = time.time()
         total_time = finished - self._started
-        self.factory.recordUsage(self._started, u"errory", 0,
+        self.factory.recordUsage(self._started, "errory", 0,
                                  total_time, None)
 
 class Transit(protocol.ServerFactory, service.MultiService):

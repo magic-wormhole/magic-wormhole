@@ -1,3 +1,4 @@
+# No unicode_literals
 import json, unicodedata
 from binascii import hexlify, unhexlify
 

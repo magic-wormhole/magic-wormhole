@@ -164,7 +164,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if self._did_allocate:
             raise Error("you already allocated one, don't be greedy")
         nameplate_id = self._app.allocate_nameplate(self._side, server_rx)
-        assert isinstance(nameplate_id, type(u""))
+        assert isinstance(nameplate_id, type(""))
         self._did_allocate = True
         self.send("allocated", nameplate=nameplate_id)
 
@@ -172,7 +172,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if "nameplate" not in msg:
             raise Error("claim requires 'nameplate'")
         nameplate_id = msg["nameplate"]
-        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+        assert isinstance(nameplate_id, type("")), type(nameplate_id)
         self._nameplate_id = nameplate_id
         try:
             mailbox_id = self._app.claim_nameplate(nameplate_id, self._side,
@@ -195,7 +195,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         if "mailbox" not in msg:
             raise Error("open requires 'mailbox'")
         mailbox_id = msg["mailbox"]
-        assert isinstance(mailbox_id, type(u""))
+        assert isinstance(mailbox_id, type(""))
         self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
                                                server_rx)
         def _send(sm):

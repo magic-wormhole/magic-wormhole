@@ -5,23 +5,23 @@ from .. import util
 
 class Utils(unittest.TestCase):
     def test_to_bytes(self):
-        b = util.to_bytes(u"abc")
+        b = util.to_bytes("abc")
         self.assertIsInstance(b, type(b""))
         self.assertEqual(b, b"abc")
 
         A = unicodedata.lookup("LATIN SMALL LETTER A WITH DIAERESIS")
-        b = util.to_bytes(A + u"bc")
+        b = util.to_bytes(A + "bc")
         self.assertIsInstance(b, type(b""))
         self.assertEqual(b, b"\xc3\xa4\x62\x63")
 
     def test_bytes_to_hexstr(self):
         b = b"\x00\x45\x91\xfe\xff"
         hexstr = util.bytes_to_hexstr(b)
-        self.assertIsInstance(hexstr, type(u""))
-        self.assertEqual(hexstr, u"004591feff")
+        self.assertIsInstance(hexstr, type(""))
+        self.assertEqual(hexstr, "004591feff")
 
     def test_hexstr_to_bytes(self):
-        hexstr = u"004591feff"
+        hexstr = "004591feff"
         b = util.hexstr_to_bytes(hexstr)
         hexstr = util.bytes_to_hexstr(b)
         self.assertIsInstance(b, type(b""))
@@ -37,4 +37,4 @@ class Utils(unittest.TestCase):
         b = b'{"a": "b", "c": 2}'
         d = util.bytes_to_dict(b)
         self.assertIsInstance(d, dict)
-        self.assertEqual(d, {u"a": u"b", u"c": 2})
+        self.assertEqual(d, {"a": "b", "c": 2})

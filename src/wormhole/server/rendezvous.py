@@ -63,7 +63,7 @@ class Mailbox:
 
     def open(self, side, when):
         # requires caller to db.commit()
-        assert isinstance(side, type(u"")), type(side)
+        assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `mailboxes`"
                          " WHERE `app_id`=? AND `id`=?",
@@ -126,7 +126,7 @@ class Mailbox:
         self.broadcast_message(sm)
 
     def close(self, side, mood, when):
-        assert isinstance(side, type(u"")), type(side)
+        assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `mailboxes`"
                          " WHERE `app_id`=? AND `id`=?",
@@ -200,7 +200,7 @@ class AppNamespace:
         for size in range(1,4): # stick to 1-999 for now
             available = set()
             for id_int in range(10**(size-1), 10**size):
-                id = u"%d" % id_int
+                id = "%d" % id_int
                 if id not in claimed:
                     available.add(id)
             if available:
@@ -208,7 +208,7 @@ class AppNamespace:
         # ouch, 999 currently claimed. Try random ones for a while.
         for tries in range(1000):
             id_int = random.randrange(1000, 1000*1000)
-            id = u"%d" % id_int
+            id = "%d" % id_int
             if id not in claimed:
                 return id
         raise ValueError("unable to find a free nameplate-id")
@@ -226,8 +226,8 @@ class AppNamespace:
         #  * started or second will be populated
         #  * a mailbox id will be created, but not a mailbox row
         #    (ids are randomly unique, so we can defer creation until 'open')
-        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
-        assert isinstance(side, type(u"")), type(side)
+        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
                          " WHERE `app_id`=? AND `id`=?",
@@ -271,8 +271,8 @@ class AppNamespace:
         # * if the nameplate is now unused:
         #  * mailbox.nameplate_closed will be populated
         #  * the nameplate row will be removed
-        assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
-        assert isinstance(side, type(u"")), type(side)
+        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
                          " WHERE `app_id`=? AND `id`=?",
@@ -312,18 +312,18 @@ class AppNamespace:
         if row["second"]:
             waiting_time = row["second"] - row["started"]
         total_time = delete_time - row["started"]
-        result = u"lonely"
+        result = "lonely"
         if row["second"]:
-            result = u"happy"
+            result = "happy"
         if pruned:
-            result = u"pruney"
+            result = "pruney"
         if row["crowded"]:
-            result = u"crowded"
+            result = "crowded"
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
     def open_mailbox(self, mailbox_id, side, when):
-        assert isinstance(mailbox_id, type(u"")), type(mailbox_id)
+        assert isinstance(mailbox_id, type("")), type(mailbox_id)
         db = self._db
         if not mailbox_id in self._mailboxes:
             if self._log_requests:
@@ -379,23 +379,23 @@ class AppNamespace:
         total_time = delete_time - row["started"]
 
         if num_sides == 0:
-            result = u"quiet"
+            result = "quiet"
         elif num_sides == 1:
-            result = u"lonely"
+            result = "lonely"
         else:
-            result = u"happy"
+            result = "happy"
 
         moods = set([row["first_mood"], second_mood])
-        if u"lonely" in moods:
-            result = u"lonely"
-        if u"errory" in moods:
-            result = u"errory"
-        if u"scary" in moods:
-            result = u"scary"
+        if "lonely" in moods:
+            result = "lonely"
+        if "errory" in moods:
+            result = "errory"
+        if "scary" in moods:
+            result = "scary"
         if pruned:
-            result = u"pruney"
+            result = "pruney"
         if row["crowded"]:
-            result = u"crowded"
+            result = "crowded"
 
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
@@ -512,7 +512,7 @@ class AppNamespace:
                 log.msg("  deleting mailbox", mailbox_id)
                 self._summarize_mailbox_and_store(mailbox_id,
                                                   all_mailbox_rows[mailbox_id],
-                                                  u"pruney", now, pruned=True)
+                                                  "pruney", now, pruned=True)
                 db.execute("DELETE FROM `messages`"
                            " WHERE `app_id`=? AND `mailbox_id`=?",
                            (self._app_id, mailbox_id))
@@ -547,7 +547,7 @@ class Rendezvous(service.MultiService):
         return self._log_requests
 
     def get_app(self, app_id):
-        assert isinstance(app_id, type(u""))
+        assert isinstance(app_id, type(""))
         if not app_id in self._apps:
             if self._log_requests:
                 log.msg("spawning app_id %s" % (app_id,))
