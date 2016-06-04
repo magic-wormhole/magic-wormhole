@@ -597,8 +597,14 @@ class Common:
         if self._no_listen or self._tor_manager:
             return ([], None)
         portnum = allocate_tcp_port()
+        addresses = ipaddrs.find_addresses()
+        non_loopback_addresses = [a for a in addresses if a != "127.0.0.1"]
+        if non_loopback_addresses:
+            # some test hosts, including the appveyor VMs, *only* have
+            # 127.0.0.1, and the tests will hang badly if we remove it.
+            addresses = non_loopback_addresses
         direct_hints = [DirectTCPV1Hint(six.u(addr), portnum)
-                        for addr in ipaddrs.find_addresses()]
+                        for addr in addresses]
         ep = endpoints.serverFromString(reactor, "tcp:%d" % portnum)
         return direct_hints, ep
 
