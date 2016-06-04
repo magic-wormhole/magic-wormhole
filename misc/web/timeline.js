@@ -508,7 +508,7 @@ d3.json("data.json", function(d) {
             chart.selectAll("circle.c2c").filter(d => d.col == dot.col)
                 .attr("r", 10);
             chart.selectAll("line.c2c")
-                .classed("active", d => d[2] == dot.col);
+                .classed("active", d => d.col == dot.col);
         })
         .on("mouseout", dot => {
             tip.hide(dot);
