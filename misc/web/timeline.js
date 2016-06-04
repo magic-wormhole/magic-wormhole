@@ -4,6 +4,7 @@ var container = d3.select("#viz");
 var data;
 var items;
 var globals = {};
+var server_time_offset=0, rx_time_offset=0; // in seconds, relative to tx
 
 var zoom = d3.behavior.zoom().scaleExtent([1, Infinity]);
 function zoomin() {
@@ -131,6 +132,17 @@ d3.json("data.json", function(d) {
                      details: e.details
                     };
         if (e.stop) rel_e.stop = e.stop - first;
+        if (side_name == "receive") {
+            rel_e.start -= rx_time_offset;
+            if (e.stop)
+                rel_e.stop -= rx_time_offset;
+        }
+        if (rel_e.details.message) {
+            if (rel_e.details.message.server_rx)
+                rel_e.details.message.server_rx -= server_time_offset;
+            if (rel_e.details.message.server_tx)
+                rel_e.details.message.server_tx -= server_time_offset;
+        }
 
         // sort events into categories, assign X coordinates to some
         if (proc_map[e.name]) {
