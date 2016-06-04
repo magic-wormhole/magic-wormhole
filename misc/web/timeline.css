@@ -48,6 +48,10 @@ rect.proc-span-import {
     fill: #fcc;
 }
 
+rect.proc-span-websocket {
+    fill: #cfc;
+}
+
 rect.api {
     fill: #cfc;
 }

@@ -57,6 +57,7 @@ const server_message_color = {
 
 const proc_map = {
     "command dispatch": "dispatch",
+    "open websocket": "websocket",
     "code established": "code-established",
     "key established": "key-established",
     "transit connected": "transit-connected",
@@ -135,6 +136,8 @@ d3.json("data.json", function(d) {
         if (proc_map[e.name]) {
             rel_e.category = "proc";
             rel_e.x = x_offset(3, side_name);
+            if (e.name === "open websocket")
+                rel_e.x = x_offset(4, side_name);
             rel_e.text = proc_map[e.name];
             if (e.name === "import")
                 rel_e.text += " " + e.details.which;
