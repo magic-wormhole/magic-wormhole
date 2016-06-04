@@ -77,15 +77,15 @@ class _GetCode:
     @inlineCallbacks
     def go(self):
         with self._timing.add("allocate"):
-            self._send_command(u"allocate")
+            self._send_command("allocate")
             nameplate_id = yield self._allocated_d
         code = codes.make_code(nameplate_id, self._code_length)
-        assert isinstance(code, type(u"")), type(code)
+        assert isinstance(code, type("")), type(code)
         returnValue(code)
 
     def _response_handle_allocated(self, msg):
         nid = msg["nameplate"]
-        assert isinstance(nid, type(u"")), type(nid)
+        assert isinstance(nid, type("")), type(nid)
         self._allocated_d.callback(nid)
 
 class _InputCode:
@@ -99,7 +99,7 @@ class _InputCode:
     @inlineCallbacks
     def _list(self):
         self._lister_d = defer.Deferred()
-        self._send_command(u"list")
+        self._send_command("list")
         nameplates = yield self._lister_d
         self._lister_d = None
         returnValue(nameplates)
@@ -135,8 +135,8 @@ class _InputCode:
         nids = []
         for n in nameplates:
             assert isinstance(n, dict), type(n)
-            nameplate_id = n[u"id"]
-            assert isinstance(nameplate_id, type(u"")), type(nameplate_id)
+            nameplate_id = n["id"]
+            assert isinstance(nameplate_id, type("")), type(nameplate_id)
             nids.append(nameplate_id)
         self._lister_d.callback(nids)
 
@@ -202,7 +202,7 @@ class _WelcomeHandler:
 
         if "error" in welcome:
             return self._signal_error(WelcomeError(welcome["error"]),
-                                      u"unwelcome")
+                                      "unwelcome")
 
 # states for nameplates, mailboxes, and the websocket connection
 (CLOSED, OPENING, OPEN, CLOSING) = ("closed", "opening", "open", "closing")
@@ -378,7 +378,7 @@ class _Wormhole:
         self._connection_state = OPEN
         if self._closing:
             return self._maybe_finished_closing()
-        self._ws_send_command(u"bind", appid=self._appid, side=self._side)
+        self._ws_send_command("bind", appid=self._appid, side=self._side)
         self._maybe_claim_nameplate()
         self._maybe_send_pake()
         waiters, self._connection_waiters = self._connection_waiters, []
@@ -462,7 +462,7 @@ class _Wormhole:
     # entry point 3: paste in a fully-formed code
     def _API_set_code(self, code):
         self._timing.add("API set_code")
-        if not isinstance(code, type(u"")): raise TypeError(type(code))
+        if not isinstance(code, type("")): raise TypeError(type(code))
         if self._code is not None: raise UsageError
         self._event_learned_code(code)
 
@@ -488,7 +488,7 @@ class _Wormhole:
         if not mo:
             raise ValueError("code (%s) must start with NN-" % code)
         nid = mo.group(1)
-        assert isinstance(nid, type(u"")), type(nid)
+        assert isinstance(nid, type("")), type(nid)
         self._nameplate_id = nid
         # fire more events
         self._maybe_build_msg1()
@@ -516,12 +516,12 @@ class _Wormhole:
     def _maybe_claim_nameplate(self):
         if not (self._nameplate_id and self._connection_state == OPEN):
             return
-        self._ws_send_command(u"claim", nameplate=self._nameplate_id)
+        self._ws_send_command("claim", nameplate=self._nameplate_id)
         self._nameplate_state = OPEN
 
     def _response_handle_claimed(self, msg):
         mailbox_id = msg["mailbox"]
-        assert isinstance(mailbox_id, type(u"")), type(mailbox_id)
+        assert isinstance(mailbox_id, type("")), type(mailbox_id)
         self._mailbox_id = mailbox_id
         self._event_learned_mailbox()
 
@@ -530,7 +530,7 @@ class _Wormhole:
         assert self._mailbox_state == CLOSED, self._mailbox_state
         if self._closing:
             return
-        self._ws_send_command(u"open", mailbox=self._mailbox_id)
+        self._ws_send_command("open", mailbox=self._mailbox_id)
         self._mailbox_state = OPEN
         # causes old messages to be sent now, and subscribes to new messages
         self._maybe_send_pake()
@@ -542,14 +542,14 @@ class _Wormhole:
                 and self._mailbox_state == OPEN
                 and self._flag_need_to_send_PAKE):
             return
-        body = {u"pake_v1": bytes_to_hexstr(self._msg1)}
+        body = {"pake_v1": bytes_to_hexstr(self._msg1)}
         payload = dict_to_bytes(body)
-        self._msg_send(u"pake", payload)
+        self._msg_send("pake", payload)
         self._flag_need_to_send_PAKE = False
 
     def _event_received_pake(self, pake_msg):
         payload = bytes_to_dict(pake_msg)
-        msg2 = hexstr_to_bytes(payload[u"pake_v1"])
+        msg2 = hexstr_to_bytes(payload["pake_v1"])
         with self._timing.add("pake2", waiting="crypto"):
             self._key = self._sp.finish(msg2)
         self._event_established_key()
@@ -571,7 +571,7 @@ class _Wormhole:
         # dictionary of version flags to let the other Wormhole know what
         # we're capable of (for future expansion)
         plaintext = dict_to_bytes(self._my_versions)
-        phase = u"version"
+        phase = "version"
         data_key = self._derive_phase_key(self._side, phase)
         encrypted = self._encrypt_data(data_key, plaintext)
         self._msg_send(phase, encrypted)
@@ -616,13 +616,13 @@ class _Wormhole:
         self._version_checked = True
 
         side, body = self._version_message
-        data_key = self._derive_phase_key(side, u"version")
+        data_key = self._derive_phase_key(side, "version")
         try:
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
             # this makes all API calls fail
             if self.DEBUG: print("CONFIRM FAILED")
-            self._signal_error(WrongPasswordError(), u"scary")
+            self._signal_error(WrongPasswordError(), "scary")
             return
         msg = bytes_to_dict(plaintext)
         self._version_received(msg)
@@ -643,8 +643,8 @@ class _Wormhole:
             self._maybe_send_phase_messages()
 
     def _derive_phase_key(self, side, phase):
-        assert isinstance(side, type(u"")), type(side)
-        assert isinstance(phase, type(u"")), type(phase)
+        assert isinstance(side, type("")), type(side)
+        assert isinstance(phase, type("")), type(phase)
         side_bytes = side.encode("ascii")
         phase_bytes = phase.encode("ascii")
         purpose = (b"wormhole:phase:"
@@ -663,7 +663,7 @@ class _Wormhole:
         for pm in plaintexts:
             (phase_int, plaintext) = pm
             assert isinstance(phase_int, int), type(phase_int)
-            phase = u"%d" % phase_int
+            phase = "%d" % phase_int
             data_key = self._derive_phase_key(self._side, phase)
             encrypted = self._encrypt_data(data_key, plaintext)
             self._msg_send(phase, encrypted)
@@ -689,7 +689,7 @@ class _Wormhole:
         # TODO: retry on failure, with exponential backoff. We're guarding
         # against the rendezvous server being temporarily offline.
         self._timing.add("add", phase=phase)
-        self._ws_send_command(u"add", phase=phase, body=bytes_to_hexstr(body))
+        self._ws_send_command("add", phase=phase, body=bytes_to_hexstr(body))
 
     def _event_mailbox_used(self):
         if self.DEBUG: print("_event_mailbox_used")
@@ -701,7 +701,7 @@ class _Wormhole:
         if self._error: raise self._error
         if self._key is None:
             raise UsageError # call derive_key after get_verifier() or get()
-        if not isinstance(purpose, type(u"")): raise TypeError(type(purpose))
+        if not isinstance(purpose, type("")): raise TypeError(type(purpose))
         return self._derive_key(to_bytes(purpose), length)
 
     def _derive_key(self, purpose, length=SecretBox.KEY_SIZE):
@@ -713,7 +713,7 @@ class _Wormhole:
     def _response_handle_message(self, msg):
         side = msg["side"]
         phase = msg["phase"]
-        assert isinstance(phase, type(u"")), type(phase)
+        assert isinstance(phase, type("")), type(phase)
         body = hexstr_to_bytes(msg["body"])
         if side == self._side:
             return
@@ -726,9 +726,9 @@ class _Wormhole:
         if self._closing:
             log.msg("received peer message while closing '%s'" % phase)
 
-        if phase == u"pake":
+        if phase == "pake":
             return self._event_received_pake(body)
-        if phase == u"version":
+        if phase == "version":
             return self._event_received_version(side, body)
         if re.search(r'^\d+$', phase):
             return self._event_received_phase_message(side, phase, body)
@@ -743,7 +743,7 @@ class _Wormhole:
             plaintext = self._decrypt_data(data_key, body)
         except CryptoError:
             e = WrongPasswordError()
-            self._signal_error(e, u"scary") # flunk all other API calls
+            self._signal_error(e, "scary") # flunk all other API calls
             # make tests fail, if they aren't explicitly catching it
             if self.DEBUG: print("CryptoError in msg received")
             log.err(e)
@@ -764,7 +764,7 @@ class _Wormhole:
 
     def _API_get(self):
         if self._error: return defer.fail(self._error)
-        phase = u"%d" % self._next_receive_phase
+        phase = "%d" % self._next_receive_phase
         self._next_receive_phase += 1
         with self._timing.add("API get", phase=phase):
             if phase in self._received_messages:
@@ -780,7 +780,7 @@ class _Wormhole:
         if self.DEBUG: print("_signal_error done")
 
     @inlineCallbacks
-    def _API_close(self, res, mood=u"happy"):
+    def _API_close(self, res, mood="happy"):
         if self.DEBUG: print("close")
         if self._close_called: raise UsageError
         self._close_called = True
@@ -838,7 +838,7 @@ class _Wormhole:
         if self.DEBUG: print("_maybe_release_nameplate", self._nameplate_state)
         if self._nameplate_state == OPEN:
             if self.DEBUG: print(" sending release")
-            self._ws_send_command(u"release")
+            self._ws_send_command("release")
             self._nameplate_state = CLOSING
 
     def _response_handle_released(self, msg):
@@ -849,7 +849,7 @@ class _Wormhole:
         if self.DEBUG: print("_maybe_close_mailbox", self._mailbox_state)
         if self._mailbox_state == OPEN:
             if self.DEBUG: print(" sending close")
-            self._ws_send_command(u"close", mood=mood)
+            self._ws_send_command("close", mood=mood)
             self._mailbox_state = CLOSING
 
     def _response_handle_closed(self, msg):
