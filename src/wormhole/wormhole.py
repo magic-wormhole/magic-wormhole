@@ -223,6 +223,7 @@ class _Wormhole:
         self._side = bytes_to_hexstr(os.urandom(5))
         self._connection_state = CLOSED
         self._connection_waiters = []
+        self._ws_t = None
         self._started_get_code = False
         self._get_code = None
         self._started_input_code = False
@@ -350,6 +351,7 @@ class _Wormhole:
         # state
         assert self._side
         self._connection_state = OPENING
+        self._ws_t = self._timing.add("open websocket")
         p = urlparse(self._ws_url)
         f = WSFactory(self._ws_url)
         f.wormhole = self
@@ -369,7 +371,7 @@ class _Wormhole:
 
     def _event_connected(self, ws):
         self._ws = ws
-        self._ws_t = self._timing.add("websocket")
+        self._ws_t.finish()
 
     def _event_ws_opened(self, _):
         self._connection_state = OPEN

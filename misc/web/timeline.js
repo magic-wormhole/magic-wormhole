@@ -57,6 +57,7 @@ const server_message_color = {
 
 const proc_map = {
     "command dispatch": "dispatch",
+    "open websocket": "websocket",
     "code established": "code-established",
     "key established": "key-established",
     "transit connected": "transit-connected",
@@ -135,6 +136,8 @@ d3.json("data.json", function(d) {
         if (proc_map[e.name]) {
             rel_e.category = "proc";
             rel_e.x = x_offset(3, side_name);
+            if (e.name === "open websocket")
+                rel_e.x = x_offset(4, side_name);
             rel_e.text = proc_map[e.name];
             if (e.name === "import")
                 rel_e.text += " " + e.details.which;
@@ -184,8 +187,8 @@ d3.json("data.json", function(d) {
         } else if (ev.name === "ws_receive") {
             if (ev.details.message.type !== "message")
                 return;
-            id = ev.details.message.message.id;
-            phase = ev.details.message.message.phase;
+            id = ev.details.message.id;
+            phase = ev.details.message.phase;
         } else
             return;
 
@@ -205,7 +208,7 @@ d3.json("data.json", function(d) {
             cm.tx_x = x_offset(TX_COLUMN, ev.side_name);
             cm.tx_side_name = ev.side_name;
         } else { // message
-            cm.server_rx = ev.details.message.message.server_rx - first;
+            cm.server_rx = ev.details.message.server_rx - first;
             cm.arrivals.push({server_tx: ev.details.message.server_tx - first,
                               rx: ev.start,
                               rx_x: x_offset(RX_COLUMN, ev.side_name)});
@@ -508,7 +511,7 @@ d3.json("data.json", function(d) {
             chart.selectAll("circle.c2c").filter(d => d.col == dot.col)
                 .attr("r", 10);
             chart.selectAll("line.c2c")
-                .classed("active", d => d[2] == dot.col);
+                .classed("active", d => d.col == dot.col);
         })
         .on("mouseout", dot => {
             tip.hide(dot);
@@ -703,7 +706,26 @@ d3.json("data.json", function(d) {
 
 
     redraw();
-    return;
+});
+
+/*
+TODO
+
+* identify the largest gaps in the timeline (biggest is probably waiting for
+  the recipient to start the program, followed by waiting for recipient to
+  type in code, followed by waiting for recipient to approve transfer, with
+  the time of actual transfer being anywhere among the others).
+* identify groups of events that are separated by those gaps
+* put a [1 2 3 4 all] set of buttons at the top of the page
+* clicking on each button will zoom the display to 10% beyond the span of
+  events in the given group, or reset the zoom to include all events
+
+*/
+
+
+function OFF() {
+    /* leftover code from an older implementation, retained since there might
+    still be some useful pieces here */
 
 
     function y_off(d) {
@@ -1036,18 +1058,4 @@ d3.json("data.json", function(d) {
 
     redraw();
     $.get("done", function(_) {});
-});
-
-/*
-TODO
-
-* identify the largest gaps in the timeline (biggest is probably waiting for
-  the recipient to start the program, followed by waiting for recipient to
-  type in code, followed by waiting for recipient to approve transfer, with
-  the time of actual transfer being anywhere among the others).
-* identify groups of events that are separated by those gaps
-* put a [1 2 3 4 all] set of buttons at the top of the page
-* clicking on each button will zoom the display to 10% beyond the span of
-  events in the given group, or reset the zoom to include all events
-
-*/
+}
