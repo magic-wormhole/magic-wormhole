@@ -1,3 +1,4 @@
+# no unicode_literals untill twisted update
 from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.python import log

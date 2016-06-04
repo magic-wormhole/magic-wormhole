@@ -241,7 +241,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         common_args = ["--hide-progress",
                        "--relay-url", self.relayurl,
                        "--transit-helper", ""]
-        code = u"1-abc"
+        code = "1-abc"
         message = "test message"
 
         send_args = common_args + [
@@ -443,7 +443,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         common_args = ["--hide-progress", "--no-listen",
                        "--relay-url", self.relayurl,
                        "--transit-helper", ""]
-        code = u"1-abc"
+        code = "1-abc"
         message = "test message"
 
         send_args = common_args + [ "send", "--code", code ]
@@ -527,7 +527,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
 class NotWelcome(ServerBase, unittest.TestCase):
     def setUp(self):
-        self._setup_relay(error=u"please upgrade XYZ")
+        self._setup_relay(error="please upgrade XYZ")
 
     @inlineCallbacks
     def test_sender(self):
@@ -535,7 +535,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
                        "--relay-url", self.relayurl,
                        "--transit-helper", ""]
         send_args = common_args + [ "send", "--text", "hi",
-                                    "--code", u"1-abc" ]
+                                    "--code", "1-abc" ]
         sargs = runner.parser.parse_args(send_args)
         sargs.cwd = self.mktemp()
         sargs.stdout = io.StringIO()
@@ -551,7 +551,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         common_args = ["--hide-progress", "--no-listen",
                        "--relay-url", self.relayurl,
                        "--transit-helper", ""]
-        receive_args = common_args + [ "receive", u"1-abc" ]
+        receive_args = common_args + [ "receive", "1-abc" ]
         rargs = runner.parser.parse_args(receive_args)
         rargs.cwd = self.mktemp()
         rargs.stdout = io.StringIO()
@@ -566,7 +566,7 @@ class Cleanup(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_text(self):
         # the rendezvous channel should be deleted after success
-        code = u"1-abc"
+        code = "1-abc"
         common_args = ["--hide-progress",
                        "--relay-url", self.relayurl,
                        "--transit-helper", ""]
@@ -601,12 +601,12 @@ class Cleanup(ServerBase, unittest.TestCase):
         sargs = runner.parser.parse_args(common_args +
                                          ["send",
                                           "--text", "secret message",
-                                          "--code", u"1-abc"])
+                                          "--code", "1-abc"])
         sargs.stdout = io.StringIO()
         sargs.stderr = io.StringIO()
         sargs.timing = DebugTiming()
         rargs = runner.parser.parse_args(common_args +
-                                         ["receive", u"1-WRONG"])
+                                         ["receive", "1-WRONG"])
         rargs.stdout = io.StringIO()
         rargs.stderr = io.StringIO()
         rargs.timing = DebugTiming()
@@ -624,7 +624,7 @@ class Cleanup(ServerBase, unittest.TestCase):
 class ExtractFile(unittest.TestCase):
     def test_filenames(self):
         args = mock.Mock()
-        args.relay_url = u""
+        args.relay_url = ""
         ef = cmd_receive.TwistedReceiver(args)._extract_file
         extract_dir = os.path.abspath(self.mktemp())
 
