@@ -150,7 +150,7 @@ def count_channels(args):
         c_dict[key] = value
     OLD = time.time() - 10*60
     def q(query, values=()):
-        return db.execute(query, values).fetchone()[0]
+        return list(db.execute(query, values).fetchone().values())[0]
     add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplates`"))
 
     add("total nameplates", q("SELECT COUNT() FROM `nameplates`"))
@@ -196,7 +196,7 @@ def count_events(args):
         c_list.append((key, value))
         c_dict[key] = value
     def q(query, values=()):
-        return db.execute(query, values).fetchone()[0]
+        return list(db.execute(query, values).fetchone().values())[0]
 
     add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplate_usage`"))
 
