@@ -703,7 +703,26 @@ d3.json("data.json", function(d) {
 
 
     redraw();
-    return;
+});
+
+/*
+TODO
+
+* identify the largest gaps in the timeline (biggest is probably waiting for
+  the recipient to start the program, followed by waiting for recipient to
+  type in code, followed by waiting for recipient to approve transfer, with
+  the time of actual transfer being anywhere among the others).
+* identify groups of events that are separated by those gaps
+* put a [1 2 3 4 all] set of buttons at the top of the page
+* clicking on each button will zoom the display to 10% beyond the span of
+  events in the given group, or reset the zoom to include all events
+
+*/
+
+
+function OFF() {
+    /* leftover code from an older implementation, retained since there might
+    still be some useful pieces here */
 
 
     function y_off(d) {
@@ -1036,18 +1055,4 @@ d3.json("data.json", function(d) {
 
     redraw();
     $.get("done", function(_) {});
-});
-
-/*
-TODO
-
-* identify the largest gaps in the timeline (biggest is probably waiting for
-  the recipient to start the program, followed by waiting for recipient to
-  type in code, followed by waiting for recipient to approve transfer, with
-  the time of actual transfer being anywhere among the others).
-* identify groups of events that are separated by those gaps
-* put a [1 2 3 4 all] set of buttons at the top of the page
-* clicking on each button will zoom the display to 10% beyond the span of
-  events in the given group, or reset the zoom to include all events
-
-*/
+}
