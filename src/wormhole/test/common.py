@@ -14,6 +14,8 @@ class ServerBase:
         self.sp.startService()
         relayport = allocate_tcp_port()
         transitport = allocate_tcp_port()
+        # need to talk to twisted team about only using unicode in
+        # endpoints.serverFromString
         s = RelayServer("tcp:%d:interface=127.0.0.1" % relayport,
                         "tcp:%s:interface=127.0.0.1" % transitport,
                         advertise_version=__version__,

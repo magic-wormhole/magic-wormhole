@@ -1,4 +1,4 @@
-
+# no unicode_literals
 # Find all of our ip addresses. From tahoe's src/allmydata/util/iputil.py
 
 import os, re, subprocess, errno

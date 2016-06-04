@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import unicodedata
 from twisted.trial import unittest
 from .. import util

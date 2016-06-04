@@ -1,4 +1,4 @@
-
+from __future__ import unicode_literals
 # The PGP Word List, which maps bytes to phonetically-distinct words. There
 # are two lists, even and odd, and encodings should alternate between then to
 # detect dropped words. https://en.wikipedia.org/wiki/PGP_Words

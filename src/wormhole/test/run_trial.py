@@ -1,4 +1,4 @@
-
+from __future__ import unicode_literals
 # This is a tiny helper module, to let "python -m wormhole.test.run_trial
 # ARGS" does the same thing as running "trial ARGS" (unfortunately
 # twisted/scripts/trial.py does not have a '__name__=="__main__"' clause).

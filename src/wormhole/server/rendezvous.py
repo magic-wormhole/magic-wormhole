@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import os, time, random, base64
 from collections import namedtuple
 from twisted.python import log

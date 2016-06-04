@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service
