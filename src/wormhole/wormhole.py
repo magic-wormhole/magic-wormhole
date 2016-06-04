@@ -371,7 +371,8 @@ class _Wormhole:
 
     def _event_connected(self, ws):
         self._ws = ws
-        self._ws_t.finish()
+        if self._ws_t:
+            self._ws_t.finish()
 
     def _event_ws_opened(self, _):
         self._connection_state = OPEN
