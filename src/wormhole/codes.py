@@ -87,8 +87,10 @@ def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
     try:
         import readline
         c = CodeInputter(initial_channelids, get_channel_ids, code_length)
-        readline.parse_and_bind("tab: complete")
-        readline.parse_and_bind("bind ^I rl_complete")
+        if "libedit" in readline.__doc__:
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
         readline.set_completer(c.wrap_completer)
         readline.set_completer_delims("")
     except ImportError:
