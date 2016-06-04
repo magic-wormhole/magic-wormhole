@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import time
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError

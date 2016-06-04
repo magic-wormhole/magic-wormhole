@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from twisted.python import log
 from twisted.internet import defer
 from twisted.application import service

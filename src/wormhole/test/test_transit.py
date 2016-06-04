@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import io
 from binascii import hexlify, unhexlify
 from twisted.trial import unittest

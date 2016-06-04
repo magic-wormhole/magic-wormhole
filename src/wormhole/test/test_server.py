@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import json, itertools
 from binascii import hexlify
 import mock
@@ -375,9 +375,9 @@ class Prune(unittest.TestCase):
                     for messages in [None, OLD, NEW]:
                         self.one(nameplate, mailbox, has_listeners, messages)
 
-    #def test_one(self):
+    # def test_one(self):
     #    # to debug specific problems found by test_lots
-    #    self.one(None, "old", True, None)
+    #    self.one(None, "old", False, 'new')
 
     def one(self, nameplate, mailbox, has_listeners, messages):
         desc = ("nameplate=%s, mailbox=%s, has_listeners=%s,"
@@ -427,8 +427,8 @@ class Prune(unittest.TestCase):
             messages = None
             messages_survive = False
 
-        if (nameplate is NEW or mailbox is NEW
-            or has_listeners or messages is NEW):
+        if (nameplate == NEW or mailbox == NEW
+            or has_listeners or messages == NEW):
             if nameplate is not None:
                 nameplate_survives = True
             if mailbox is not None:

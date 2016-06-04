@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import unittest
 from binascii import unhexlify #, hexlify
 from hkdf import Hkdf
@@ -42,4 +42,3 @@ class TestKAT(unittest.TestCase):
 
 #if __name__ == '__main__':
 #    generate_KAT()
-

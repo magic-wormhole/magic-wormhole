@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 import os, sys, re, io, zipfile, six, stat
 import mock
 from twisted.trial import unittest

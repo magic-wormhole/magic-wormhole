@@ -1,3 +1,4 @@
+# no unicode_literals, revisit after twisted patch
 from __future__ import print_function, absolute_import
 import re, sys, time, socket
 from collections import namedtuple, deque
