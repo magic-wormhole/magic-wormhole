@@ -4,7 +4,7 @@ from .wordlist import (byte_to_even_word, byte_to_odd_word,
                        even_words_lowercase, odd_words_lowercase)
 
 def make_code(channel_id, code_length):
-    assert isinstance(channel_id, type(u"")), type(channel_id)
+    assert isinstance(channel_id, type("")), type(channel_id)
     words = []
     for i in range(code_length):
         # we start with an "odd word"
@@ -12,7 +12,7 @@ def make_code(channel_id, code_length):
             words.append(byte_to_odd_word[os.urandom(1)].lower())
         else:
             words.append(byte_to_even_word[os.urandom(1)].lower())
-    return u"%s-%s" % (channel_id, u"-".join(words))
+    return "%s-%s" % (channel_id, "-".join(words))
 
 def extract_channel_id(code):
     channel_id = int(code.split("-")[0])
