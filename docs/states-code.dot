@@ -1,0 +1,18 @@
+/* this state machine is just about the code */
+
+digraph {
+        need_code [label="need\ncode"]
+        asking_for_code [label="asking\nuser\nfor\ncode"]
+        creating_code [label="allocating\nnameplate"]
+        creating_code2 [label="generating\nsecret"]
+        know_code
+
+        need_code -> know_code [label="set_code()"]
+
+        need_code -> asking_for_code [label="input_code()"]
+        asking_for_code -> know_code [label="user typed code"]
+
+        need_code -> creating_code [label="get_code()"]
+        creating_code -> creating_code2 [label="rx allocation"]
+        creating_code2 -> know_code [label="generated secret"]
+}
