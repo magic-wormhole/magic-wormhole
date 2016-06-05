@@ -75,7 +75,16 @@ class TwistedReceiver:
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        verifier = yield w.verify()
+        yield w.establish_key()
+        def on_slow_connection():
+            print(u"Key established, waiting for confirmation...",
+                  file=self.args.stdout)
+        notify = self._reactor.callLater(1, on_slow_connection)
+        try:
+            verifier = yield w.verify()
+        finally:
+            if not notify.called:
+                notify.cancel()
         self._show_verifier(verifier)
 
         want_offer = True
