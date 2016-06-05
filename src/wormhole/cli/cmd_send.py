@@ -84,6 +84,9 @@ class Sender:
             print(u"Wormhole code is: %s" % code, file=args.stdout)
         print(u"", file=args.stdout)
 
+        key_established = yield w.establish_key()
+        print(u"Key established, waiting for confirmation...")
+
         # TODO: don't stall on w.verify() unless they want it
         verifier_bytes = yield w.verify() # this may raise WrongPasswordError
         if args.verify:
