@@ -86,7 +86,8 @@ class Sender:
         print(u"", file=args.stdout)
 
         key_established = yield w.establish_key()
-        print(u"Key established, waiting for confirmation...")
+        print(u"Key established, waiting for confirmation...",
+              file=args.stdout)
 
         # TODO: don't stall on w.verify() unless they want it
         verifier_bytes = yield w.verify() # this may raise WrongPasswordError
