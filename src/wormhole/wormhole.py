@@ -237,6 +237,7 @@ class _Wormhole:
         self._flag_need_to_see_mailbox_used = True
         self._flag_need_to_build_msg1 = True
         self._flag_need_to_send_PAKE = True
+        self._key_waiter = None
         self._key = None
 
         self._version_message = None
@@ -282,6 +283,15 @@ class _Wormhole:
         self._API_set_code(code)
 
     # todo: restore-saved-state entry points
+
+    def establish_key(self):
+        """
+        returns a Deferred that fires when we've established the shared key.
+        When successful, the Deferred fires with a simple `True`, otherwise
+        it fails.
+        
+        """
+        return self._API_establish_key()
 
     def verify(self):
         """Returns a Deferred that fires when we've heard back from the other
@@ -559,6 +569,7 @@ class _Wormhole:
 
     def _event_established_key(self):
         self._timing.add("key established")
+        self._maybe_notify_key()
 
         # both sides send different (random) version messages
         self._send_version_message()
@@ -568,6 +579,23 @@ class _Wormhole:
 
         self._maybe_check_version()
         self._maybe_send_phase_messages()
+
+    def _API_establish_key(self):
+        if self._error: return defer.fail(self._error)
+        if not self._key is None:
+            return defer.succeed(True)
+        self._key_waiter = defer.Deferred()
+        return self._key_waiter
+
+    def _maybe_notify_key(self):
+        if self._key is None:
+            return
+        if self._error:
+            result = failure.Failure(self._error)
+        else:
+            result = True
+        if self._key_waiter and not self._key_waiter.called:
+            self._key_waiter.callback(result)
 
     def _send_version_message(self):
         # this is encrypted like a normal phase message, and includes a
