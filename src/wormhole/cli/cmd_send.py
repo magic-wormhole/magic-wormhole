@@ -84,12 +84,19 @@ class Sender:
             print(u"Wormhole code is: %s" % code, file=args.stdout)
         print(u"", file=args.stdout)
 
-        key_established = yield w.establish_key()
-        print(u"Key established, waiting for confirmation...",
-              file=args.stdout)
+        yield w.establish_key()
+        def on_slow_connection():
+            print(u"Key established, waiting for confirmation...",
+                  file=args.stdout)
+        notify = self._reactor.callLater(1, on_slow_connection)
 
         # TODO: don't stall on w.verify() unless they want it
-        verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+        try:
+            verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+        finally:
+            if not notify.called:
+                notify.cancel()
+
         if args.verify:
             verifier = bytes_to_hexstr(verifier_bytes)
             while True:
