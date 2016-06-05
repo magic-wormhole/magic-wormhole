@@ -289,7 +289,7 @@ class _Wormhole:
         returns a Deferred that fires when we've established the shared key.
         When successful, the Deferred fires with a simple `True`, otherwise
         it fails.
-        
+
         """
         return self._API_establish_key()
 
@@ -852,6 +852,9 @@ class _Wormhole:
         if self._verifier_waiter and not self._verifier_waiter.called:
             if self.DEBUG: print("EB VW")
             self._verifier_waiter.errback(error)
+        if self._key_waiter and not self._key_waiter.called:
+            if self.DEBUG: print("EB KW")
+            self._key_waiter.errback(error)
         for d in self._receive_waiters.values():
             if self.DEBUG: print("EB RW")
             d.errback(error)
