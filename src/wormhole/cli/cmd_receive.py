@@ -64,7 +64,8 @@ class TwistedReceiver:
         # for tracking it down.
         d = self._go(w)
         d.addBoth(w.close)
-        yield d
+        rtn = yield d
+        returnValue(rtn)
 
     @inlineCallbacks
     def _go(self, w):
@@ -92,11 +93,11 @@ class TwistedReceiver:
                 if not want_offer:
                     raise TransferError("duplicate offer")
                 try:
-                    yield self._parse_offer(them_d[u"offer"], w)
+                    rtn = yield self._parse_offer(them_d[u"offer"], w)
                 except RespondError as r:
                     self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
-                returnValue(None)
+                returnValue(rtn)
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))
 
@@ -161,8 +162,7 @@ class TwistedReceiver:
     @inlineCallbacks
     def _parse_offer(self, them_d, w):
         if "message" in them_d:
-            self._handle_text(them_d, w)
-            returnValue(None)
+            returnValue(self._handle_text(them_d, w))
         # transit will be created by this point, but not connected
         if "file" in them_d:
             f = self._handle_file(them_d)
@@ -187,6 +187,7 @@ class TwistedReceiver:
         # we're receiving a text message
         self._msg(them_d["message"])
         self._send_data({"answer": {"message_ack": "ok"}}, w)
+        return them_d['message']
 
     def _handle_file(self, them_d):
         file_data = them_d["file"]

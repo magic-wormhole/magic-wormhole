@@ -3,13 +3,14 @@ from __future__ import print_function
 import time
 start = time.time()
 import traceback
+from os.path import expanduser, exists
 from textwrap import fill, dedent
 from sys import stdout, stderr
 from . import public_relay
 from .. import __version__
 from ..timing import DebugTiming
 from ..errors import WrongPasswordError, WelcomeError, KeyFormatError
-from twisted.internet.defer import inlineCallbacks, maybeDeferred
+from twisted.internet.defer import inlineCallbacks, maybeDeferred, returnValue
 from twisted.internet.task import react
 
 import click
@@ -129,7 +130,7 @@ def _dispatch_command(reactor, cfg, command):
     cfg.timing.add("import", when=start, which="top").finish(when=top_import_finish)
 
     try:
-        yield maybeDeferred(command)
+        rtn = yield maybeDeferred(command)
     except WrongPasswordError as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
@@ -149,6 +150,7 @@ def _dispatch_command(reactor, cfg, command):
     cfg.timing.add("exit")
     if cfg.dump_timing:
         cfg.timing.write(cfg.dump_timing, stderr)
+    returnValue(rtn)
         
 
 # wormhole send (or "wormhole tx")
@@ -225,5 +227,68 @@ def receive(cfg, code, zeromode, output_file, accept_file, only_text):
     else:
         cfg.code = None
 
-    react(_dispatch_command, (cfg, lambda: cmd_receive.receive(cfg)))
-    return
+    result = []
+    try:
+        def dispatcher(reactor):
+            d = _dispatch_command(reactor, cfg, lambda: cmd_receive.receive(cfg))
+            d.addCallback(lambda x: result.append(x))
+            return d
+        react(dispatcher)
+    except SystemExit:
+        return result[0]
+
+
+@wormhole.command(name="ssh-add")
+@click.option(
+    "-c", "--code-length", default=2,
+    metavar="NUMWORDS",
+    help="length of code (in bytes/words)",
+)
+@click.pass_context
+def ssh_add(ctx, code_length):
+    from wormhole import codes
+    from random import randint
+    # how to properly allocate a channel?
+    code = codes.make_code(unicode(randint(0, 2000)), code_length)
+    print("Now tell the other user to run:")
+    print()
+    print("   wormhole ssh-send {}".format(code))
+    print()
+
+    pubkey = ctx.invoke(
+        receive,
+        output_file='-',
+        accept_file=True,
+        only_text=True,
+        code=[code],
+    )
+    parts = pubkey.split()
+    kind = parts[0]
+    keyid = 'unknown' if len(parts) <= 2 else parts[2]
+    print("Received pubkey type='{}' id='{}'".format(kind, keyid))
+
+    path = expanduser('~/.ssh/authorized_keys')
+    if not exists(path):
+        print("Note: '{}' not found".format(path))
+    with open(path, 'a') as f:
+        f.write('{}\n'.format(pubkey.strip()))
+    print("Appended to '{}'".format(path))
+
+
+@wormhole.command(name="ssh-send")
+@click.argument(
+    "code", nargs=1, required=True,
+)
+@click.pass_context
+def ssh_send(ctx, code):
+    with open(expanduser('~/.ssh/id_rsa.pub'), 'r') as f:
+        pubkey = f.read()
+    parts = pubkey.strip().split()
+    kind = parts[0]
+    keyid = 'unknown' if len(parts) <= 2 else parts[2]
+    print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
+    ctx.invoke(
+        send,
+        text=pubkey,
+        code=code,
+    )
