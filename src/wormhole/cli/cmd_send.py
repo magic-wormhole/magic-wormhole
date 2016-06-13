@@ -48,9 +48,11 @@ class Sender:
         w = wormhole(APPID, self._args.relay_url,
                      self._reactor, self._tor_manager,
                      timing=self._timing)
-        d = self._go(w)
-        d.addBoth(w.close)
-        yield d
+        try:
+            rtn = yield self._go(w)
+        finally:
+            w.close()
+        returnValue(rtn)
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
@@ -100,7 +102,7 @@ class Sender:
 
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
-                               no_listen=args.no_listen,
+                               no_listen=(not args.listen),
                                tor_manager=self._tor_manager,
                                reactor=self._reactor,
                                timing=self._timing)
@@ -145,9 +147,9 @@ class Sender:
                 recognized = True
                 if not want_answer:
                     raise TransferError("duplicate answer")
-                yield self._handle_answer(them_d[u"answer"])
+                rtn = yield self._handle_answer(them_d[u"answer"])
                 done = True
-                returnValue(None)
+                returnValue(rtn)
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))
 
@@ -241,7 +243,6 @@ class Sender:
                                 "transfer abandoned: %s" % (them_answer,))
 
         yield self._send_file()
-
 
     @inlineCallbacks
     def _send_file(self):
