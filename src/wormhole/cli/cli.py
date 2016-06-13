@@ -11,6 +11,7 @@ from .. import __version__
 from ..timing import DebugTiming
 from ..errors import WrongPasswordError, WelcomeError, KeyFormatError
 from twisted.internet.defer import inlineCallbacks, maybeDeferred, returnValue
+from twisted.python.failure import Failure
 from twisted.internet.task import react
 
 import click
@@ -143,7 +144,10 @@ def _dispatch_command(reactor, cfg, command):
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
     except Exception as e:
-        traceback.print_exc()
+        # this prints a proper traceback, whereas
+        # traceback.print_exc() just prints a TB to the "yield"
+        # line above ...
+        Failure().printTraceback(file=stderr)
         print("ERROR:", e, file=stderr)
         raise SystemExit(1)
 
