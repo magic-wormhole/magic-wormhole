@@ -52,19 +52,10 @@ class TwistedReceiver:
 
         w = wormhole(APPID, self.args.relay_url, self._reactor,
                      self._tor_manager, timing=self.args.timing)
-        # I wanted to do this instead:
-        #
-        #    try:
-        #        yield self._go(w, tor_manager)
-        #    finally:
-        #        yield w.close()
-        #
-        # but when _go had a UsageError, the stacktrace was always displayed
-        # as coming from the "yield self._go" line, which wasn't very useful
-        # for tracking it down.
-        d = self._go(w)
-        d.addBoth(w.close)
-        rtn = yield d
+        try:
+            rtn = yield self._go(w)
+        finally:
+            w.close()
         returnValue(rtn)
 
     @inlineCallbacks
