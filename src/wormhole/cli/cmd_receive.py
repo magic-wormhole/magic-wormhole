@@ -12,6 +12,7 @@ from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
                     estimate_free_space)
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
+VERIFY_TIMER = 1
 
 class RespondError(Exception):
     def __init__(self, response):
@@ -78,8 +79,8 @@ class TwistedReceiver:
         yield w.establish_key()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
-                  file=self.args.stdout)
-        notify = self._reactor.callLater(1, on_slow_connection)
+                  file=self.args.stderr)
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
         try:
             verifier = yield w.verify()
         finally:
