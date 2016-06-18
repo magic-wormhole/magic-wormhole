@@ -1,4 +1,6 @@
-from __future__ import print_function, unicode_literals
+# NO unicode_literals or static.Data() will break, because it demands
+# a str on Python 2
+from __future__ import print_function
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service
