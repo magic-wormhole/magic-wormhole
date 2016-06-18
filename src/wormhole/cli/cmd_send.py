@@ -11,6 +11,7 @@ from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
+VERIFY_TIMER = 1
 
 def send(args, reactor=reactor):
     """I implement 'wormhole send'. I return a Deferred that fires with None
@@ -87,8 +88,8 @@ class Sender:
         yield w.establish_key()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
-                  file=args.stdout)
-        notify = self._reactor.callLater(1, on_slow_connection)
+                  file=args.stderr)
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
 
         # TODO: don't stall on w.verify() unless they want it
         try:
