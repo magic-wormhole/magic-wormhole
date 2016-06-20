@@ -53,8 +53,7 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, 
     """
     Start a relay server
     """
-    with cfg.timing.add("import", which="cmd_server_start"):
-        from wormhole.server.cmd_server import start_server
+    from wormhole.server.cmd_server import start_server
     cfg.no_daemon = no_daemon
     cfg.blur_usage = blur_usage
     cfg.advertise_version = advertise_version
@@ -98,8 +97,7 @@ def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit
     """
     Re-start a relay server
     """
-    with cfg.timing.add("import", which="cmd_server_restart"):
-        from wormhole.server.cmd_server import restart_server
+    from wormhole.server.cmd_server import restart_server
     cfg.no_daemon = no_daemon
     cfg.blur_usage = blur_usage
     cfg.advertise_version = advertise_version
@@ -116,8 +114,7 @@ def stop(cfg):
     """
     Stop a relay server
     """
-    with cfg.timing.add("import", which="cmd_server_stop"):
-        from wormhole.server.cmd_server import stop_server
+    from wormhole.server.cmd_server import stop_server
     stop_server(cfg)
 
 
@@ -127,8 +124,7 @@ def tail_usage(cfg):
     """
     Follow the latest usage
     """
-    with cfg.timing.add("import", which="cmd_tail_usage"):
-        from wormhole.server.cmd_usage import tail_usage
+    from wormhole.server.cmd_usage import tail_usage
     tail_usage(cfg)
 
 
@@ -141,8 +137,7 @@ def count_channels(cfg, json):
     """
     Count active channels
     """
-    with cfg.timing.add("import", which="cmd_count_channels"):
-        from wormhole.server.cmd_usage import count_channels
+    from wormhole.server.cmd_usage import count_channels
     cfg.json = json
     count_channels(cfg)
 
@@ -156,7 +151,6 @@ def count_events(cfg, json):
     """
     Count events
     """
-    with cfg.timing.add("import", which="cmd_count_events"):
-        from wormhole.server.cmd_usage import count_events
+    from wormhole.server.cmd_usage import count_events
     cfg.json = json
     count_events(cfg)
