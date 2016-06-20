@@ -151,12 +151,13 @@ def _dispatch_command(reactor, cfg, command):
     cfg.timing.add("exit")
     if cfg.dump_timing:
         cfg.timing.write(cfg.dump_timing, stderr)
-        
+
 
 # wormhole send (or "wormhole tx")
 @wormhole.command()
 @click.option(
-    "zeromode", "-0", default=False, is_flag=True,
+    "-0", "zeromode", default=False, is_flag=True,
+    help="enable no-code anything-goes mode",
 )
 @click.option(
     "--code", metavar="CODE",
@@ -183,6 +184,10 @@ def send(cfg, what, text, code, zeromode):
 # wormhole receive (or "wormhole rx")
 @wormhole.command()
 @click.option(
+    "-0", "zeromode", default=False, is_flag=True,
+    help="enable no-code anything-goes mode",
+)
+@click.option(
     "--only-text", "-t", is_flag=True,
     help="refuse file transfers, only accept text transfers",
 )
@@ -195,10 +200,6 @@ def send(cfg, what, text, code, zeromode):
     metavar="FILENAME|DIRNAME",
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
-)
-@click.option(
-    "-0", "zeromode", is_flag=True,
-    help="enable no-code anything-goes mode",
 )
 @click.argument(
     "code", nargs=-1, default=None,
