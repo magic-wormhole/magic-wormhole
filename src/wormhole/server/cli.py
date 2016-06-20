@@ -24,11 +24,11 @@ def server(ctx):
 
 @server.command()
 @click.option(
-    "--rendezvous", default="tcp:3000", metavar="tcp:PORT",
+    "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
     help="endpoint specification for the rendezvous port",
 )
 @click.option(
-    "--transit", default="tcp:3001", metavar="tcp:PORT",
+    "--transit", default="tcp:4001", metavar="tcp:PORT",
     help="endpoint specification for the transit-relay port",
 )
 @click.option(
@@ -69,11 +69,11 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, 
 # 'start' options...
 @server.command()
 @click.option(
-    "--rendezvous", default="tcp:3000", metavar="tcp:PORT",
+    "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
     help="endpoint specification for the rendezvous port",
 )
 @click.option(
-    "--transit", default="tcp:3001", metavar="tcp:PORT",
+    "--transit", default="tcp:4001", metavar="tcp:PORT",
     help="endpoint specification for the transit-relay port",
 )
 @click.option(
