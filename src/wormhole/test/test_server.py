@@ -324,23 +324,6 @@ class Prune(unittest.TestCase):
         rv.prune_all_apps(now=123, old=122)
         self.assertEqual(app.prune.mock_calls, [mock.call(123, 122)])
 
-    def test_active(self):
-        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None)
-        app = rv.get_app("appid1")
-        self.assertFalse(app.is_active())
-
-        mb = app.open_mailbox("mbid", "side1", 0)
-        self.assertFalse(mb.is_active())
-        self.assertFalse(app.is_active())
-
-        mb.add_listener("handle", None, None)
-        self.assertTrue(mb.is_active())
-        self.assertTrue(app.is_active())
-
-        mb.remove_listener("handle")
-        self.assertFalse(mb.is_active())
-        self.assertFalse(app.is_active())
-
     def test_nameplates(self):
         db = get_db(":memory:")
         rv = rendezvous.Rendezvous(db, None, 3600)

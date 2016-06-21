@@ -138,9 +138,6 @@ class Mailbox:
             stop_f()
         self._app.free_mailbox(self._mailbox_id)
 
-    def is_active(self):
-        return bool(self._listeners)
-
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
         for (send_f, stop_f) in self._listeners.values():
@@ -153,15 +150,6 @@ class AppNamespace:
         self._log_requests = log_requests
         self._app_id = app_id
         self._mailboxes = {}
-
-    def is_active(self):
-        # An idle AppNamespace does not need to be kept in memory: it can be
-        # reconstructed from the DB if needed. And active one must be kept
-        # alive.
-        for mb in self._mailboxes.values():
-            if mb.is_active():
-                return True
-        return False
 
     def get_nameplate_ids(self):
         db = self._db
@@ -558,10 +546,7 @@ class Rendezvous(service.MultiService):
             log.msg(" app prune checking %r" % (app_id,))
             app = self.get_app(app_id)
             app.prune(now, old)
-            if not app.is_active(): # meaning no websockets
-                log.msg(" pruning idle app", app_id)
-                self._apps.pop(app_id)
-        log.msg("app prune ends, %d remaining apps" % len(self._apps))
+        log.msg("app prune ends, %d apps" % len(self._apps))
 
     def stopService(self):
         # This forcibly boots any clients that are still connected, which
