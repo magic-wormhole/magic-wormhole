@@ -321,7 +321,7 @@ class Prune(unittest.TestCase):
         app = rv.get_app("appid")
         app.allocate_nameplate("side", 121)
         app.prune = mock.Mock()
-        rv.prune(now=123, old=122)
+        rv.prune_all_apps(now=123, old=122)
         self.assertEqual(app.prune.mock_calls, [mock.call(123, 122)])
 
     def test_active(self):
@@ -366,7 +366,7 @@ class Prune(unittest.TestCase):
         app.claim_nameplate("np-5", "side2", 61)
         new_nameplates.add("np-5")
 
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
 
         nameplates = set([row["name"] for row in
                           db.execute("SELECT * FROM `nameplates`").fetchall()])
@@ -400,7 +400,7 @@ class Prune(unittest.TestCase):
         app.open_mailbox("mb-15", "side2", 61)
         new_mailboxes.add("mb-15")
 
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
 
         mailboxes = set([row["id"] for row in
                          db.execute("SELECT * FROM `mailboxes`").fetchall()])
@@ -453,7 +453,7 @@ class Prune(unittest.TestCase):
             mailbox_survives = True
         messages_survive = mailbox_survives
 
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
 
         nameplates = set([row["name"] for row in
                           db.execute("SELECT * FROM `nameplates`").fetchall()])
@@ -995,14 +995,14 @@ class Summary(unittest.TestCase):
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
         # start time should be rounded to top of the hour (blur_usage=3600)
         row = db.execute("SELECT * FROM `nameplate_usage`").fetchone()
         self.assertEqual(row["started"], 0)
 
         app = rv.get_app(APPID)
         app.open_mailbox("mbid", "side1", 20) # start time is 20
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
         row = db.execute("SELECT * FROM `mailbox_usage`").fetchone()
         self.assertEqual(row["started"], 0)
 
@@ -1012,7 +1012,7 @@ class Summary(unittest.TestCase):
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
         row = db.execute("SELECT * FROM `nameplate_usage`").fetchone()
         self.assertEqual(row["started"], 10)
 
@@ -1020,7 +1020,7 @@ class Summary(unittest.TestCase):
         db.commit()
         app = rv.get_app(APPID)
         app.open_mailbox("mbid", "side1", 20) # start time is 20
-        rv.prune(now=123, old=50)
+        rv.prune_all_apps(now=123, old=50)
         row = db.execute("SELECT * FROM `mailbox_usage`").fetchone()
         self.assertEqual(row["started"], 20)
 

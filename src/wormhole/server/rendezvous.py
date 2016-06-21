@@ -518,7 +518,7 @@ class Rendezvous(service.MultiService):
         log_requests = blur_usage is None
         self._log_requests = log_requests
         self._apps = {}
-        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune)
+        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune_all_apps)
         t.setServiceParent(self)
 
     def get_welcome(self):
@@ -549,7 +549,7 @@ class Rendezvous(service.MultiService):
             apps.add(row["app_id"])
         return apps
 
-    def prune(self, now=None, old=None):
+    def prune_all_apps(self, now=None, old=None):
         # As with AppNamespace.prune_old_mailboxes, we log for now.
         log.msg("beginning app prune")
         now = now or time.time()
