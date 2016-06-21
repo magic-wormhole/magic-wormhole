@@ -403,6 +403,16 @@ class AppNamespace:
                      total_time=total_time, result=result)
 
     def prune(self, now, old):
+        # The pruning check runs every 10 minutes, and "old" is defined to be
+        # 11 minutes ago (unit tests can use different values). The client is
+        # allowed to disconnect for up to 9 minutes without losing the
+        # channel (nameplate, mailbox, and messages).
+
+        # Each time a client does something, the "updated" field is updated.
+        # If a client is subscribed to the mailbox when pruning check runs,
+        # the "updated" field is updated. After that check, if the "updated"
+        # field is "old", the channel is deleted.
+
         # For now, pruning is logged even if log_requests is False, to debug
         # the pruning process, and since pruning is triggered by a timer
         # instead of by user action. It does reveal which mailboxes were
