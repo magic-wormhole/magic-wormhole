@@ -13,7 +13,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from nacl.secret import SecretBox
 from hkdf import Hkdf
-from .errors import UsageError
+from .errors import InternalError
 from .timing import DebugTiming
 from . import ipaddrs
 
@@ -276,7 +276,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         return self._description
 
     def send_record(self, record):
-        if not isinstance(record, type(b"")): raise UsageError
+        if not isinstance(record, type(b"")): raise InternalError
         assert SecretBox.NONCE_SIZE == 24
         assert self.send_nonce < 2**(8*24)
         assert len(record) < 2**(8*4)
@@ -577,7 +577,7 @@ class Common:
                  reactor=reactor, timing=None):
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
-                raise UsageError
+                raise InternalError
             relay = RelayV1Hint(hints=[parse_hint_argv(transit_relay)])
             self._transit_relays = [relay]
         else:
@@ -812,6 +812,9 @@ class Common:
                                 self._start_connector, ep, description,
                                 is_relay=True)
             contenders.append(d)
+
+        if not contenders:
+            raise TransitError("No contenders for connection")
 
         winner = there_can_be_only_one(contenders)
         return self._not_forever(2*TIMEOUT, winner)

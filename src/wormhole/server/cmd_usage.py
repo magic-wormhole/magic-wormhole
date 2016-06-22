@@ -1,8 +1,8 @@
 from __future__ import print_function, unicode_literals
 import os, time, json
 from collections import defaultdict
+import click
 from .database import get_db
-from ..errors import UsageError
 
 def abbrev(t):
     if t is None:
@@ -57,7 +57,9 @@ def show_usage(args):
     print("closed for renovation")
     return 0
     if not os.path.exists("relay.sqlite"):
-        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+        raise click.UsageError(
+            "cannot find relay.sqlite, please run from the server directory"
+        )
     oldest = None
     newest = None
     rendezvous_counters = defaultdict(int)
@@ -116,7 +118,9 @@ def show_usage(args):
 
 def tail_usage(args):
     if not os.path.exists("relay.sqlite"):
-        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+        raise click.UsageError(
+            "cannot find relay.sqlite, please run from the server directory"
+        )
     db = get_db("relay.sqlite")
     # we don't seem to have unique row IDs, so this is an inaccurate and
     # inefficient hack
@@ -141,7 +145,9 @@ def tail_usage(args):
 
 def count_channels(args):
     if not os.path.exists("relay.sqlite"):
-        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+        raise click.UsageError(
+            "cannot find relay.sqlite, please run from the server directory"
+        )
     db = get_db("relay.sqlite")
     c_list = []
     c_dict = {}
@@ -188,7 +194,9 @@ def count_channels(args):
 
 def count_events(args):
     if not os.path.exists("relay.sqlite"):
-        raise UsageError("cannot find relay.sqlite, please run from the server directory")
+        raise click.UsageError(
+            "cannot find relay.sqlite, please run from the server directory"
+        )
     db = get_db("relay.sqlite")
     c_list = []
     c_dict = {}

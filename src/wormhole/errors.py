@@ -47,10 +47,10 @@ class KeyFormatError(Exception):
 class ReflectionAttack(Exception):
     """An attacker (or bug) reflected our outgoing message back to us."""
 
-class UsageError(Exception):
+class InternalError(Exception):
     """The programmer did something wrong."""
 
-class WormholeClosedError(UsageError):
+class WormholeClosedError(InternalError):
     """API calls may not be made after close() is called."""
 
 class TransferError(Exception):

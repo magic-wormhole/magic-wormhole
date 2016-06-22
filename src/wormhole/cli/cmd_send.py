@@ -48,9 +48,10 @@ class Sender:
         w = wormhole(APPID, self._args.relay_url,
                      self._reactor, self._tor_manager,
                      timing=self._timing)
-        d = self._go(w)
-        d.addBoth(w.close)
-        yield d
+        try:
+            yield self._go(w)
+        finally:
+            w.close()
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
@@ -100,7 +101,7 @@ class Sender:
 
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
-                               no_listen=args.no_listen,
+                               no_listen=(not args.listen),
                                tor_manager=self._tor_manager,
                                reactor=self._reactor,
                                timing=self._timing)

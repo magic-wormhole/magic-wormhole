@@ -14,7 +14,7 @@ from hashlib import sha256
 from . import __version__
 from . import codes
 #from .errors import ServerError, Timeout
-from .errors import (WrongPasswordError, UsageError, WelcomeError,
+from .errors import (WrongPasswordError, InternalError, WelcomeError,
                      WormholeClosedError, KeyFormatError)
 from .timing import DebugTiming
 from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
@@ -425,8 +425,8 @@ class _Wormhole:
     # entry point 1: generate a new code
     @inlineCallbacks
     def _API_get_code(self, code_length):
-        if self._code is not None: raise UsageError
-        if self._started_get_code: raise UsageError
+        if self._code is not None: raise InternalError
+        if self._started_get_code: raise InternalError
         self._started_get_code = True
         with self._timing.add("API get_code"):
             yield self._when_connected()
@@ -443,8 +443,8 @@ class _Wormhole:
     # entry point 2: interactively type in a code, with completion
     @inlineCallbacks
     def _API_input_code(self, prompt, code_length):
-        if self._code is not None: raise UsageError
-        if self._started_input_code: raise UsageError
+        if self._code is not None: raise InternalError
+        if self._started_input_code: raise InternalError
         self._started_input_code = True
         with self._timing.add("API input_code"):
             yield self._when_connected()
@@ -462,8 +462,10 @@ class _Wormhole:
     # entry point 3: paste in a fully-formed code
     def _API_set_code(self, code):
         self._timing.add("API set_code")
-        if not isinstance(code, type("")): raise TypeError(type(code))
-        if self._code is not None: raise UsageError
+        if not isinstance(code, type(u"")):
+            raise TypeError("Unexpected code type '{}'".format(type(code)))
+        if self._code is not None:
+            raise InternalError
         self._event_learned_code(code)
 
     # TODO: entry point 4: restore pre-contact saved state (we haven't heard
@@ -526,7 +528,7 @@ class _Wormhole:
         self._event_learned_mailbox()
 
     def _event_learned_mailbox(self):
-        if not self._mailbox_id: raise UsageError
+        if not self._mailbox_id: raise InternalError
         assert self._mailbox_state == CLOSED, self._mailbox_state
         if self._closing:
             return
@@ -578,7 +580,7 @@ class _Wormhole:
 
     def _API_verify(self):
         if self._error: return defer.fail(self._error)
-        if self._get_verifier_called: raise UsageError
+        if self._get_verifier_called: raise InternalError
         self._get_verifier_called = True
         if self._verify_result:
             return defer.succeed(self._verify_result) # bytes or Failure
@@ -683,7 +685,7 @@ class _Wormhole:
         return box.encrypt(data, nonce)
 
     def _msg_send(self, phase, body):
-        if phase in self._sent_phases: raise UsageError
+        if phase in self._sent_phases: raise InternalError
         assert self._mailbox_state == OPEN, self._mailbox_state
         self._sent_phases.add(phase)
         # TODO: retry on failure, with exponential backoff. We're guarding
@@ -700,14 +702,14 @@ class _Wormhole:
     def _API_derive_key(self, purpose, length):
         if self._error: raise self._error
         if self._key is None:
-            raise UsageError # call derive_key after get_verifier() or get()
+            raise InternalError # call derive_key after get_verifier() or get()
         if not isinstance(purpose, type("")): raise TypeError(type(purpose))
         return self._derive_key(to_bytes(purpose), length)
 
     def _derive_key(self, purpose, length=SecretBox.KEY_SIZE):
         if not isinstance(purpose, type(b"")): raise TypeError(type(purpose))
         if self._key is None:
-            raise UsageError # call derive_key after get_verifier() or get()
+            raise InternalError # call derive_key after get_verifier() or get()
         return HKDF(self._key, length, CTXinfo=purpose)
 
     def _response_handle_message(self, msg):
@@ -782,7 +784,7 @@ class _Wormhole:
     @inlineCallbacks
     def _API_close(self, res, mood="happy"):
         if self.DEBUG: print("close")
-        if self._close_called: raise UsageError
+        if self._close_called: raise InternalError
         self._close_called = True
         self._maybe_close(WormholeClosedError(), mood)
         if self.DEBUG: print("waiting for disconnect")
