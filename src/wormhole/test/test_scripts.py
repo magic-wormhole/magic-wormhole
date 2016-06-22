@@ -338,7 +338,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             # versa. Make sure we don't wait on one side exclusively
 
             yield gatherResults([send_d, receive_d], True)
-            # XXX need captured stdin/stdout from sender/receiver
             send_stdout = send_cfg.stdout.getvalue()
             send_stderr = send_cfg.stderr.getvalue()
             receive_stdout = recv_cfg.stdout.getvalue()
@@ -572,7 +571,6 @@ class Cleanup(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(self.cfg)
         receive_d = cmd_receive.receive(self.cfg)
 
-        # XXX DeferredList?
         yield send_d
         yield receive_d
 
