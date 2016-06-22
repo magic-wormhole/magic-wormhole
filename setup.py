@@ -34,8 +34,14 @@ setup(name="magic-wormhole",
           "hkdf", "tqdm",
           "click",
       ],
-      extras_require={':sys_platform=="win32"': ["pypiwin32"],
-                      "tor": ["txtorcon", "ipaddress"]},
+      extras_require={
+          ':sys_platform=="win32"': ["pypiwin32"],
+          "tor": ["txtorcon", "ipaddress"],
+          "dev": [
+              "mock",
+              "tox",
+          ],
+      },
       test_suite="wormhole.test",
       cmdclass=commands,
       )
