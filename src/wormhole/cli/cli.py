@@ -123,7 +123,7 @@ def wormhole(ctx, tor, no_listen, dump_timing, hide_progress,
 @inlineCallbacks
 def _dispatch_command(reactor, cfg, command):
     """
-    Internal helper. This calls the give command (a no-argument
+    Internal helper. This calls the given command (a no-argument
     callable) with the Config instance in cfg and interprets any
     errors for the user.
     """
