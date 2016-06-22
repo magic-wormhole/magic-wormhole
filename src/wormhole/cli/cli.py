@@ -177,7 +177,7 @@ def send(cfg, what, text, code, zeromode):
     cfg.zeromode = zeromode
     cfg.code = code
 
-    react(_dispatch_command, (cfg, lambda: cmd_send.send(cfg)))
+    return react(_dispatch_command, (cfg, lambda: cmd_send.send(cfg)))
 
 
 # wormhole receive (or "wormhole rx")
@@ -227,5 +227,4 @@ def receive(cfg, code, zeromode, output_file, accept_file, only_text):
     else:
         cfg.code = None
 
-    react(_dispatch_command, (cfg, lambda: cmd_receive.receive(cfg)))
-    return
+    return react(_dispatch_command, (cfg, lambda: cmd_receive.receive(cfg)))
