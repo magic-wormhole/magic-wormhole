@@ -178,6 +178,7 @@ def send(cfg, what, text, code, zeromode):
     cfg.zeromode = zeromode
     cfg.code = code
 
+    # note: react() does not return
     return react(_dispatch_command, (cfg, lambda: cmd_send.send(cfg)))
 
 
@@ -228,4 +229,5 @@ def receive(cfg, code, zeromode, output_file, accept_file, only_text):
     else:
         cfg.code = None
 
+    # note: react() does not return
     return react(_dispatch_command, (cfg, lambda: cmd_receive.receive(cfg)))
