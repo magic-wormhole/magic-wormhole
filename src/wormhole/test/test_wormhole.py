@@ -7,7 +7,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, gatherResults, inlineCallbacks
 from .common import ServerBase
 from .. import wormhole
-from ..errors import (WrongPasswordError, WelcomeError, UsageError,
+from ..errors import (WrongPasswordError, WelcomeError, InternalError,
                       KeyFormatError)
 from spake2 import SPAKE2_Symmetric
 from ..timing import DebugTiming
@@ -876,20 +876,20 @@ class Errors(ServerBase, unittest.TestCase):
     def test_codes_1(self):
         w = wormhole.wormhole(APPID, self.relayurl, reactor)
         # definitely too early
-        self.assertRaises(UsageError, w.derive_key, "purpose", 12)
+        self.assertRaises(InternalError, w.derive_key, "purpose", 12)
 
         w.set_code("123-purple-elephant")
         # code can only be set once
-        self.assertRaises(UsageError, w.set_code, "123-nope")
-        yield self.assertFailure(w.get_code(), UsageError)
-        yield self.assertFailure(w.input_code(), UsageError)
+        self.assertRaises(InternalError, w.set_code, "123-nope")
+        yield self.assertFailure(w.get_code(), InternalError)
+        yield self.assertFailure(w.input_code(), InternalError)
         yield w.close()
 
     @inlineCallbacks
     def test_codes_2(self):
         w = wormhole.wormhole(APPID, self.relayurl, reactor)
         yield w.get_code()
-        self.assertRaises(UsageError, w.set_code, "123-nope")
-        yield self.assertFailure(w.get_code(), UsageError)
-        yield self.assertFailure(w.input_code(), UsageError)
+        self.assertRaises(InternalError, w.set_code, "123-nope")
+        yield self.assertFailure(w.get_code(), InternalError)
+        yield self.assertFailure(w.input_code(), InternalError)
         yield w.close()

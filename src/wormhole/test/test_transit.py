@@ -6,8 +6,8 @@ from twisted.internet import defer, task, endpoints, protocol, address, error
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.python import log, failure
 from twisted.test import proto_helpers
+from ..errors import InternalError
 from .. import transit
-from ..errors import UsageError
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 
@@ -147,7 +147,7 @@ class Basic(unittest.TestCase):
                                             "hostname": "host",
                                             "port": 1234}],
                                   }])
-        self.assertRaises(UsageError, transit.Common, 123)
+        self.assertRaises(InternalError, transit.Common, 123)
 
     @inlineCallbacks
     def test_no_relay_hints(self):
