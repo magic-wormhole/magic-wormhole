@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import functools
+import click
 
 class ServerError(Exception):
     def __init__(self, message, relay):
@@ -47,7 +48,11 @@ class KeyFormatError(Exception):
 class ReflectionAttack(Exception):
     """An attacker (or bug) reflected our outgoing message back to us."""
 
-class UsageError(Exception):
+# Click needs to receive click.UsageError instances to "do the right
+# thing", which is print the error and exit -- perhaps it would be
+# better just to re-export click.UsageError here? Or use
+# click.UsageError throughout the codebase?
+class UsageError(click.UsageError, Exception):
     """The programmer did something wrong."""
 
 class WormholeClosedError(UsageError):
