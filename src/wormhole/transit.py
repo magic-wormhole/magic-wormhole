@@ -814,9 +814,8 @@ class Common:
             contenders.append(d)
 
         if not contenders:
-            raise RuntimeError("No contenders for connection")
-#        else:
-#            print("contend", contenders)
+            raise TransitError("No contenders for connection")
+
         winner = there_can_be_only_one(contenders)
         return self._not_forever(2*TIMEOUT, winner)
 
