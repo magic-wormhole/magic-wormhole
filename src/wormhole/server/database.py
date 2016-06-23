@@ -64,3 +64,12 @@ def get_db(dbfile, target_version=TARGET_VERSION, stderr=sys.stderr):
         raise DBError("Unable to handle db version %s" % version)
 
     return db
+
+def dump_db(db):
+    # to let _iterdump work, we need to restore the original row factory
+    orig = db.row_factory
+    try:
+        db.row_factory = sqlite3.Row
+        return "".join(db.iterdump())
+    finally:
+        db.row_factory = orig
