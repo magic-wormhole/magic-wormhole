@@ -219,84 +219,96 @@ class AppNamespace:
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
-    def claim_nameplate(self, nameplate_id, side, when, _test_mailbox_id=None):
+    def claim_nameplate(self, name, side, when, _test_mailbox_id=None):
         # when we're done:
         # * there will be one row for the nameplate
-        #  * side1 or side2 will be populated
-        #  * started or second will be populated
-        #  * a mailbox id will be created, but not a mailbox row
-        #    (ids are randomly unique, so we can defer creation until 'open')
-        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        #  * there will be one 'side' attached to it, with claimed=True
+        # * a mailbox id will be created, but not a mailbox row
+        #   (ids are randomly unique, so we can defer creation until 'open')
+        assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
                          " WHERE `app_id`=? AND `name`=?",
-                         (self._app_id, nameplate_id)).fetchone()
-        if row:
-            mailbox_id = row["mailbox_id"]
-            try:
-                sr = add_side(row, side)
-            except CrowdedError:
-                db.execute("UPDATE `nameplates` SET `crowded`=?"
-                           " WHERE `app_id`=? AND `name`=?",
-                           (True, self._app_id, nameplate_id))
-                db.commit()
-                raise
-            if sr.changed:
-                db.execute("UPDATE `nameplates` SET"
-                           " `side1`=?, `side2`=?, `updated`=?, `second`=?"
-                           " WHERE `app_id`=? AND `name`=?",
-                           (sr.side1, sr.side2, when, when,
-                            self._app_id, nameplate_id))
-        else:
+                         (self._app_id, name)).fetchone()
+        if not row:
             if self._log_requests:
                 log.msg("creating nameplate#%s for app_id %s" %
-                        (nameplate_id, self._app_id))
+                        (name, self._app_id))
             if _test_mailbox_id is not None: # for unit tests
                 mailbox_id = _test_mailbox_id
             else:
                 mailbox_id = generate_mailbox_id()
-            db.execute("INSERT INTO `nameplates`"
-                       " (`app_id`, `name`, `mailbox_id`, `side1`, `crowded`,"
-                       "  `updated`, `started`)"
-                       " VALUES(?,?,?,?,?, ?,?)",
-                       (self._app_id, nameplate_id, mailbox_id, side, False,
-                        when, when))
+            sql = ("INSERT INTO `nameplates`"
+                   " (`app_id`, `name`, `mailbox_id`, `updated`)"
+                   " VALUES(?,?,?,?)")
+            npid = db.execute(sql,
+                              (self._app_id, name, mailbox_id, when)
+                              ).lastrowid
+        else:
+            npid = row["id"]
+            mailbox_id = row["mailbox_id"]
+
+        row = db.execute("SELECT * FROM `nameplate_sides`"
+                         " WHERE `nameplates_id`=? AND `side`=?",
+                         (npid, side)).fetchone()
+        if not row:
+            db.execute("INSERT INTO `nameplate_sides`"
+                       " (`nameplates_id`, `claimed`, `side`, `added`)"
+                       " VALUES(?,?,?,?)",
+                       (npid, True, side, when))
+        db.execute("UPDATE `nameplates` SET `updated`=? WHERE `id`=?",
+                   (when, npid))
         db.commit()
+        rows = db.execute("SELECT * FROM `nameplate_sides`"
+                          " WHERE `nameplates_id`=?", (npid,)).fetchall()
+        if len(rows) > 2:
+            raise CrowdedError("too many sides have claimed this nameplate")
         return mailbox_id
 
-    def release_nameplate(self, nameplate_id, side, when):
+    def release_nameplate(self, name, side, when):
         # when we're done:
-        # * in the nameplate row, side1 or side2 will be removed
-        # * if the nameplate is now unused:
+        # * the 'claimed' flag will be cleared on the nameplate_sides row
+        # * if the nameplate is now unused (no claimed sides):
         #  * mailbox.nameplate_closed will be populated
         #  * the nameplate row will be removed
-        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        #  * the nameplate sides will be removed
+        assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
-        row = db.execute("SELECT * FROM `nameplates`"
-                         " WHERE `app_id`=? AND `name`=?",
-                         (self._app_id, nameplate_id)).fetchone()
+        np_row = db.execute("SELECT * FROM `nameplates`"
+                            " WHERE `app_id`=? AND `name`=?",
+                            (self._app_id, name)).fetchone()
+        if not np_row:
+            return
+        npid = np_row["id"]
+        row = db.execute("SELECT * FROM `nameplate_sides`"
+                         " WHERE `nameplates_id`=? AND `side`=?",
+                         (npid, side)).fetchone()
         if not row:
             return
-        sr = remove_side(row, side)
-        if sr.empty:
-            db.execute("DELETE FROM `nameplates`"
-                       " WHERE `app_id`=? AND `name`=?",
-                       (self._app_id, nameplate_id))
-            self._summarize_nameplate_and_store(row, when, pruned=False)
-            db.commit()
-        elif sr.changed:
-            db.execute("UPDATE `nameplates`"
-                       " SET `side1`=?, `side2`=?, `updated`=?"
-                       " WHERE `app_id`=? AND `name`=?",
-                       (sr.side1, sr.side2, when,
-                        self._app_id, nameplate_id))
-            db.commit()
+        db.execute("UPDATE `nameplate_sides` SET `claimed`=?"
+                   " WHERE `nameplates_id`=? AND `side`=?",
+                   (False, npid, side))
+        db.commit()
 
-    def _summarize_nameplate_and_store(self, row, delete_time, pruned):
+        # now, are there any remaining claims?
+        side_rows = db.execute("SELECT * FROM `nameplate_sides`"
+                               " WHERE `nameplates_id`=?",
+                               (npid,)).fetchall()
+        claims = [1 for sr in side_rows if sr["claimed"]]
+        if claims:
+            return
+        # delete and summarize
+        db.execute("DELETE FROM `nameplate_sides` WHERE `nameplates_id`=?",
+                   (npid,))
+        db.execute("DELETE FROM `nameplates` WHERE `id`=?", (npid,))
+        self._summarize_nameplate_and_store(side_rows, when, pruned=False)
+        db.commit()
+
+    def _summarize_nameplate_and_store(self, side_rows, delete_time, pruned):
         # requires caller to db.commit()
-        u = self._summarize_nameplate_usage(row, delete_time, pruned)
+        u = self._summarize_nameplate_usage(side_rows, delete_time, pruned)
         self._db.execute("INSERT INTO `nameplate_usage`"
                          " (`app_id`,"
                          " `started`, `total_time`, `waiting_time`, `result`)"
@@ -304,20 +316,21 @@ class AppNamespace:
                          (self._app_id,
                           u.started, u.total_time, u.waiting_time, u.result))
 
-    def _summarize_nameplate_usage(self, row, delete_time, pruned):
-        started = row["started"]
+    def _summarize_nameplate_usage(self, side_rows, delete_time, pruned):
+        times = sorted([row["added"] for row in side_rows])
+        started = times[0]
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
         waiting_time = None
-        if row["second"]:
-            waiting_time = row["second"] - row["started"]
-        total_time = delete_time - row["started"]
+        if len(times) > 1:
+            waiting_time = times[1] - times[0]
+        total_time = delete_time - times[0]
         result = "lonely"
-        if row["second"]:
+        if len(times) == 2:
             result = "happy"
         if pruned:
             result = "pruney"
-        if row["crowded"]:
+        if len(times) > 2:
             result = "crowded"
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
@@ -470,13 +483,11 @@ class AppNamespace:
         #     if it is old:
         #       if the nameplate is new:
         #         classify mailbox as new
-        all_nameplates = {}
-        all_nameplate_rows = {}
+        old_nameplate_ids = []
         for row in db.execute("SELECT * FROM `nameplates`"
                               " WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
-            nameplate_id = row["name"]
-            all_nameplate_rows[nameplate_id] = row
+            npid = row["id"]
             if row["updated"] > old:
                 which = NEW
             else:
@@ -488,21 +499,23 @@ class AppNamespace:
                 else:
                     if which == NEW:
                         all_mailboxes[mailbox_id] = NEW
-            all_nameplates[nameplate_id] = which
-        #log.msg(" 6: all_nameplates", all_nameplates, all_nameplate_rows)
+            if which == OLD:
+                old_nameplate_ids.append(npid)
+        #log.msg(" 6: old_nameplate_ids", old_nameplate_ids)
 
         # delete all old nameplates
         #   invariant check: if there is a linked mailbox, it is old
 
-        for nameplate_id, which in all_nameplates.items():
-            if which == OLD:
-                log.msg("  deleting nameplate", nameplate_id)
-                row = all_nameplate_rows[nameplate_id]
-                self._summarize_nameplate_and_store(row, now, pruned=True)
-                db.execute("DELETE FROM `nameplates`"
-                           " WHERE `app_id`=? AND `name`=?",
-                           (self._app_id, nameplate_id))
-                modified = True
+        for npid in old_nameplate_ids:
+            log.msg("  deleting nameplate", npid)
+            side_rows = db.execute("SELECT * FROM `nameplate_sides`"
+                                   " WHERE `nameplates_id`=?",
+                                   (npid,)).fetchall()
+            db.execute("DELETE FROM `nameplate_sides` WHERE `nameplates_id`=?",
+                       (npid,))
+            db.execute("DELETE FROM `nameplates` WHERE `id`=?", (npid,))
+            self._summarize_nameplate_and_store(side_rows, now, pruned=True)
+            modified = True
 
         # delete all messages for old mailboxes
         # delete all old mailboxes

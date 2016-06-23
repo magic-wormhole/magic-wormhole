@@ -13,22 +13,26 @@ CREATE TABLE `version`
 -- nameplates, but the protocol and server allow can use arbitrary strings.
 CREATE TABLE `nameplates`
 (
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `app_id` VARCHAR,
  `name` VARCHAR,
  `mailbox_id` VARCHAR, -- really a foreign key
- `side1` VARCHAR, -- side name, or NULL
- `side2` VARCHAR, -- side name, or NULL
  `request_id` VARCHAR, -- from 'allocate' message, for future deduplication
- `crowded` BOOLEAN, -- at some point, three or more sides were involved
- `updated` INTEGER, -- time of last activity, used for pruning
- -- timing data
- `started` INTEGER, -- time when nameplace was opened
- `second` INTEGER -- time when second side opened
+ `updated` INTEGER -- time of last activity, used for pruning
 );
 CREATE INDEX `nameplates_idx` ON `nameplates` (`app_id`, `name`);
 CREATE INDEX `nameplates_updated_idx` ON `nameplates` (`app_id`, `updated`);
 CREATE INDEX `nameplates_mailbox_idx` ON `nameplates` (`app_id`, `mailbox_id`);
 CREATE INDEX `nameplates_request_idx` ON `nameplates` (`app_id`, `request_id`);
+
+CREATE TABLE `nameplate_sides`
+(
+ `nameplates_id` REFERENCES `nameplates`(`id`),
+ `claimed` BOOLEAN, -- True after claim(), False after release()
+ `side` VARCHAR,
+ `added` INTEGER -- time when this side first claimed the nameplate
+);
+
 
 -- Clients exchange messages through a "mailbox", which has a long (randomly
 -- unique) identifier and a queue of messages.

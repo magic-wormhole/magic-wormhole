@@ -48,90 +48,106 @@ class Server(ServerBase, unittest.TestCase):
         biggest = max(nids)
         self.assert_(1000 <= biggest < 1000000, biggest)
 
-    def _nameplate(self, app, nameplate_id):
-        return app._db.execute("SELECT * FROM `nameplates`"
-                               " WHERE `app_id`='appid' AND `name`=?",
-                               (nameplate_id,)).fetchone()
+    def _nameplate(self, app, name):
+        np_row = app._db.execute("SELECT * FROM `nameplates`"
+                                 " WHERE `app_id`='appid' AND `name`=?",
+                                 (name,)).fetchone()
+        if not np_row:
+            return None, None
+        npid = np_row["id"]
+        side_rows = app._db.execute("SELECT * FROM `nameplate_sides`"
+                                    " WHERE `nameplates_id`=?",
+                                    (npid,)).fetchall()
+        return np_row, side_rows
 
     def test_nameplate(self):
         app = self._rendezvous.get_app("appid")
-        nameplate_id = app.allocate_nameplate("side1", 0)
-        self.assertEqual(type(nameplate_id), type(""))
-        nid = int(nameplate_id)
+        name = app.allocate_nameplate("side1", 0)
+        self.assertEqual(type(name), type(""))
+        nid = int(name)
         self.assert_(0 < nid < 10, nid)
-        self.assertEqual(app.get_nameplate_ids(), set([nameplate_id]))
+        self.assertEqual(app.get_nameplate_ids(), set([name]))
         # allocate also does a claim
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["crowded"], False)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], None)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["side"], "side1")
+        self.assertEqual(side_rows[0]["added"], 0)
 
-        mailbox_id = app.claim_nameplate(nameplate_id, "side1", 1)
-        self.assertEqual(type(mailbox_id), type(""))
         # duplicate claims by the same side are combined
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], None)
+        mailbox_id = app.claim_nameplate(name, "side1", 1)
+        self.assertEqual(type(mailbox_id), type(""))
+        self.assertEqual(mailbox_id, np_row["mailbox_id"])
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["added"], 0)
+        self.assertEqual(mailbox_id, np_row["mailbox_id"])
 
-        mailbox_id2 = app.claim_nameplate(nameplate_id, "side1", 2)
+        # and they don't updated the 'added' time
+        mailbox_id2 = app.claim_nameplate(name, "side1", 2)
         self.assertEqual(mailbox_id, mailbox_id2)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], None)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["added"], 0)
 
         # claim by the second side is new
-        mailbox_id3 = app.claim_nameplate(nameplate_id, "side2", 3)
+        mailbox_id3 = app.claim_nameplate(name, "side2", 3)
         self.assertEqual(mailbox_id, mailbox_id3)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
-        self.assertEqual(row["crowded"], False)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 3)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 2)
+        self.assertEqual(sorted([row["side"] for row in side_rows]),
+                         sorted(["side1", "side2"]))
+        self.assertIn(("side2", 3),
+                      [(row["side"], row["added"]) for row in side_rows])
 
-        # a third claim marks the nameplate as "crowded", but leaves the two
-        # existing claims alone
+        # a third claim marks the nameplate as "crowded", and adds a third
+        # claim (which must be released later), but leaves the two existing
+        # claims alone
         self.assertRaises(rendezvous.CrowdedError,
-                          app.claim_nameplate, nameplate_id, "side3", 0)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
-        self.assertEqual(row["crowded"], True)
+                          app.claim_nameplate, name, "side3", 4)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 3)
 
         # releasing a non-existent nameplate is ignored
-        app.release_nameplate(nameplate_id+"not", "side4", 0)
+        app.release_nameplate(name+"not", "side4", 0)
 
         # releasing a side that never claimed the nameplate is ignored
-        app.release_nameplate(nameplate_id, "side4", 0)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
+        app.release_nameplate(name, "side4", 0)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 3)
 
         # releasing one side leaves the second claim
-        app.release_nameplate(nameplate_id, "side1", 5)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side2")
-        self.assertEqual(row["side2"], None)
+        app.release_nameplate(name, "side1", 5)
+        np_row, side_rows = self._nameplate(app, name)
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertIn(("side1", False), claims)
+        self.assertIn(("side2", True), claims)
+        self.assertIn(("side3", True), claims)
 
         # releasing one side multiple times is ignored
-        app.release_nameplate(nameplate_id, "side1", 5)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row["side1"], "side2")
-        self.assertEqual(row["side2"], None)
+        app.release_nameplate(name, "side1", 5)
+        np_row, side_rows = self._nameplate(app, name)
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertIn(("side1", False), claims)
+        self.assertIn(("side2", True), claims)
+        self.assertIn(("side3", True), claims)
 
-        # releasing the second side frees the nameplate, and adds usage
-        app.release_nameplate(nameplate_id, "side2", 6)
-        row = self._nameplate(app, nameplate_id)
-        self.assertEqual(row, None)
+        # release the second side
+        app.release_nameplate(name, "side2", 6)
+        np_row, side_rows = self._nameplate(app, name)
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertIn(("side1", False), claims)
+        self.assertIn(("side2", False), claims)
+        self.assertIn(("side3", True), claims)
+
+        # releasing the third side frees the nameplate, and adds usage
+        app.release_nameplate(name, "side3", 7)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(np_row, None)
         usage = app._db.execute("SELECT * FROM `nameplate_usage`").fetchone()
         self.assertEqual(usage["app_id"], "appid")
         self.assertEqual(usage["started"], 0)
         self.assertEqual(usage["waiting_time"], 3)
-        self.assertEqual(usage["total_time"], 6)
+        self.assertEqual(usage["total_time"], 7)
         self.assertEqual(usage["result"], "crowded")
 
 
@@ -695,6 +711,18 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
             nids.add(n["id"])
         self.assertEqual(nids, set([nameplate_id1, "np2"]))
 
+    def _nameplate(self, app, name):
+        np_row = app._db.execute("SELECT * FROM `nameplates`"
+                                 " WHERE `app_id`='appid' AND `name`=?",
+                                 (name,)).fetchone()
+        if not np_row:
+            return None, None
+        npid = np_row["id"]
+        side_rows = app._db.execute("SELECT * FROM `nameplate_sides`"
+                                    " WHERE `nameplates_id`=?",
+                                    (npid,)).fetchall()
+        return np_row, side_rows
+
     @inlineCallbacks
     def test_allocate(self):
         c1 = yield self.make_client()
@@ -710,11 +738,11 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1.send("allocate")
         m = yield c1.next_non_ack()
         self.assertEqual(m["type"], "allocated")
-        nameplate_id = m["nameplate"]
+        name = m["nameplate"]
 
         nids = app.get_nameplate_ids()
         self.assertEqual(len(nids), 1)
-        self.assertEqual(nameplate_id, list(nids)[0])
+        self.assertEqual(name, list(nids)[0])
 
         c1.send("allocate")
         err = yield c1.next_non_ack()
@@ -722,13 +750,11 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(err["error"],
                          "you already allocated one, don't be greedy")
 
-        c1.send("claim", nameplate=nameplate_id) # allocate+claim is ok
+        c1.send("claim", nameplate=name) # allocate+claim is ok
         yield c1.sync()
-        row = app._db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`='appid' AND `name`=?",
-                              (nameplate_id,)).fetchone()
-        self.assertEqual(row["side1"], "side")
-        self.assertEqual(row["side2"], None)
+        np_row, side_rows = self._nameplate(app, name)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["side"], "side")
 
     @inlineCallbacks
     def test_claim(self):
@@ -751,6 +777,9 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         nids = app.get_nameplate_ids()
         self.assertEqual(len(nids), 1)
         self.assertEqual("np1", list(nids)[0])
+        np_row, side_rows = self._nameplate(app, "np1")
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["side"], "side")
 
         # claiming a nameplate will assign a random mailbox id, but won't
         # create the mailbox itself
@@ -796,10 +825,10 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         m = yield c1.next_non_ack()
         self.assertEqual(m["type"], "released")
 
-        row = app._db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`='appid' AND `name`='np1'").fetchone()
-        self.assertEqual(row["side1"], "side2")
-        self.assertEqual(row["side2"], None)
+        np_row, side_rows = self._nameplate(app, "np1")
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertIn(("side", False), claims)
+        self.assertIn(("side2", True), claims)
 
         c1.send("release") # no longer claimed
         err = yield c1.next_non_ack()
@@ -941,19 +970,20 @@ class Summary(unittest.TestCase):
     def test_nameplate(self):
         a = rendezvous.AppNamespace(None, None, False, None)
         # starts at time 1, maybe gets second open at time 3, closes at 5
-        base_row = {"started": 1, "second": None, "crowded": False}
-        def summ(num_sides, pruned=False, **kwargs):
-            row = base_row.copy()
-            row.update(kwargs)
-            return a._summarize_nameplate_usage(row, 5, pruned)
+        def s(rows, pruned=False):
+            return a._summarize_nameplate_usage(rows, 5, pruned)
 
-        self.assertEqual(summ(1), Usage(1, None, 4, "lonely"))
-        self.assertEqual(summ(1, crowded=True), Usage(1, None, 4, "crowded"))
+        rows = [dict(added=1)]
+        self.assertEqual(s(rows), Usage(1, None, 4, "lonely"))
+        rows = [dict(added=1), dict(added=3)]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "happy"))
 
-        self.assertEqual(summ(2, second=3), Usage(1, 2, 4, "happy"))
+        rows = [dict(added=1), dict(added=3)]
+        self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "pruney"))
 
-        self.assertEqual(summ(2, second=3, pruned=True),
-                         Usage(1, 2, 4, "pruney"))
+        rows = [dict(added=1), dict(added=3), dict(added=4)]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "crowded"))
+
 
     def test_blur(self):
         db = get_db(":memory:")
