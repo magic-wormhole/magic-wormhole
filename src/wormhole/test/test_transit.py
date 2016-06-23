@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
 import io
+import gc
 from binascii import hexlify, unhexlify
 from twisted.trial import unittest
 from twisted.internet import defer, task, endpoints, protocol, address, error
@@ -430,14 +431,18 @@ class InboundConnectionFactory(unittest.TestCase):
         # get logged to the Twisted logs (as an Unhandled Error in Deferred)
         # so we can diagnose the bug
         f.connectionWasMade(p1)
-        p1._d.errback(RandomError("boom"))
+        our_error = RandomError("boom1")
+        p1._d.errback(our_error)
         self.assertEqual(len(results), 0)
 
         log.msg("=== note: the next RandomError is expected ===")
         # Make sure the Deferred has gone out of scope, so the UnhandledError
         # happens quickly. We must manually break the gc cycle.
         del p1._d
-        self.flushLoggedErrors(RandomError)
+        gc.collect()  # make PyPy happy
+        errors = self.flushLoggedErrors(RandomError)
+        self.assertEqual(1, len(errors))
+        self.assertEqual(our_error, errors[0].value)
         log.msg("=== note: the preceding RandomError was expected ===")
 
     def test_cancel(self):
@@ -615,7 +620,7 @@ class Connection(unittest.TestCase):
         results = []
         d.addBoth(results.append)
         self.assertEqual(results, [])
-        c.state = RandomError("boom")
+        c.state = RandomError("boom2")
         self.assertRaises(RandomError, c.dataReceived, b"surprise!")
         self.assertEqual(t._connected, False)
         self.assertEqual(c.state, "hung up")
