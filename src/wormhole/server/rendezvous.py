@@ -191,9 +191,9 @@ class AppNamespace:
     def get_nameplate_ids(self):
         db = self._db
         # TODO: filter this to numeric ids?
-        c = db.execute("SELECT DISTINCT `id` FROM `nameplates`"
+        c = db.execute("SELECT DISTINCT `name` FROM `nameplates`"
                        " WHERE `app_id`=?", (self._app_id,))
-        return set([row["id"] for row in c.fetchall()])
+        return set([row["name"] for row in c.fetchall()])
 
     def _find_available_nameplate_id(self):
         claimed = self.get_nameplate_ids()
@@ -230,7 +230,7 @@ class AppNamespace:
         assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
-                         " WHERE `app_id`=? AND `id`=?",
+                         " WHERE `app_id`=? AND `name`=?",
                          (self._app_id, nameplate_id)).fetchone()
         if row:
             mailbox_id = row["mailbox_id"]
@@ -238,14 +238,14 @@ class AppNamespace:
                 sr = add_side(row, side)
             except CrowdedError:
                 db.execute("UPDATE `nameplates` SET `crowded`=?"
-                           " WHERE `app_id`=? AND `id`=?",
+                           " WHERE `app_id`=? AND `name`=?",
                            (True, self._app_id, nameplate_id))
                 db.commit()
                 raise
             if sr.changed:
                 db.execute("UPDATE `nameplates` SET"
                            " `side1`=?, `side2`=?, `updated`=?, `second`=?"
-                           " WHERE `app_id`=? AND `id`=?",
+                           " WHERE `app_id`=? AND `name`=?",
                            (sr.side1, sr.side2, when, when,
                             self._app_id, nameplate_id))
         else:
@@ -257,7 +257,7 @@ class AppNamespace:
             else:
                 mailbox_id = generate_mailbox_id()
             db.execute("INSERT INTO `nameplates`"
-                       " (`app_id`, `id`, `mailbox_id`, `side1`, `crowded`,"
+                       " (`app_id`, `name`, `mailbox_id`, `side1`, `crowded`,"
                        "  `updated`, `started`)"
                        " VALUES(?,?,?,?,?, ?,?)",
                        (self._app_id, nameplate_id, mailbox_id, side, False,
@@ -275,21 +275,21 @@ class AppNamespace:
         assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
-                         " WHERE `app_id`=? AND `id`=?",
+                         " WHERE `app_id`=? AND `name`=?",
                          (self._app_id, nameplate_id)).fetchone()
         if not row:
             return
         sr = remove_side(row, side)
         if sr.empty:
             db.execute("DELETE FROM `nameplates`"
-                       " WHERE `app_id`=? AND `id`=?",
+                       " WHERE `app_id`=? AND `name`=?",
                        (self._app_id, nameplate_id))
             self._summarize_nameplate_and_store(row, when, pruned=False)
             db.commit()
         elif sr.changed:
             db.execute("UPDATE `nameplates`"
                        " SET `side1`=?, `side2`=?, `updated`=?"
-                       " WHERE `app_id`=? AND `id`=?",
+                       " WHERE `app_id`=? AND `name`=?",
                        (sr.side1, sr.side2, when,
                         self._app_id, nameplate_id))
             db.commit()
@@ -475,7 +475,7 @@ class AppNamespace:
         for row in db.execute("SELECT * FROM `nameplates`"
                               " WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
-            nameplate_id = row["id"]
+            nameplate_id = row["name"]
             all_nameplate_rows[nameplate_id] = row
             if row["updated"] > old:
                 which = NEW
@@ -500,7 +500,7 @@ class AppNamespace:
                 row = all_nameplate_rows[nameplate_id]
                 self._summarize_nameplate_and_store(row, now, pruned=True)
                 db.execute("DELETE FROM `nameplates`"
-                           " WHERE `app_id`=? AND `id`=?",
+                           " WHERE `app_id`=? AND `name`=?",
                            (self._app_id, nameplate_id))
                 modified = True
 

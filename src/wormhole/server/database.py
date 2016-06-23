@@ -16,7 +16,7 @@ def get_upgrader(new_version):
                                    "db-schemas/upgrade-to-v%d.sql" % new_version)
     return schema_bytes.decode("utf-8")
 
-TARGET_VERSION = 2
+TARGET_VERSION = 3
 
 def dict_factory(cursor, row):
     d = {}

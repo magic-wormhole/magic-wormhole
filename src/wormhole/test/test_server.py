@@ -50,7 +50,7 @@ class Server(ServerBase, unittest.TestCase):
 
     def _nameplate(self, app, nameplate_id):
         return app._db.execute("SELECT * FROM `nameplates`"
-                               " WHERE `app_id`='appid' AND `id`=?",
+                               " WHERE `app_id`='appid' AND `name`=?",
                                (nameplate_id,)).fetchone()
 
     def test_nameplate(self):
@@ -355,7 +355,7 @@ class Prune(unittest.TestCase):
 
         rv.prune(now=123, old=50)
 
-        nameplates = set([row["id"] for row in
+        nameplates = set([row["name"] for row in
                           db.execute("SELECT * FROM `nameplates`").fetchall()])
         self.assertEqual(new_nameplates, nameplates)
         mailboxes = set([row["id"] for row in
@@ -439,7 +439,7 @@ class Prune(unittest.TestCase):
 
         rv.prune(now=123, old=50)
 
-        nameplates = set([row["id"] for row in
+        nameplates = set([row["name"] for row in
                           db.execute("SELECT * FROM `nameplates`").fetchall()])
         self.assertEqual(nameplate_survives, bool(nameplates),
                          ("nameplate", nameplate_survives, nameplates, desc))
@@ -725,7 +725,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1.send("claim", nameplate=nameplate_id) # allocate+claim is ok
         yield c1.sync()
         row = app._db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`='appid' AND `id`=?",
+                              " WHERE `app_id`='appid' AND `name`=?",
                               (nameplate_id,)).fetchone()
         self.assertEqual(row["side1"], "side")
         self.assertEqual(row["side2"], None)
@@ -797,7 +797,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(m["type"], "released")
 
         row = app._db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`='appid' AND `id`='np1'").fetchone()
+                              " WHERE `app_id`='appid' AND `name`='np1'").fetchone()
         self.assertEqual(row["side1"], "side2")
         self.assertEqual(row["side2"], None)
 
