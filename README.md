@@ -28,6 +28,12 @@ libffi-dev build-essential`. On Fedora it's `libffi-devel` and
 `xcode-select --install` to get GCC. Note: on Windows, only python2 is
 currently supported.
 
+If you get errors like `fatal error: sodium.h: No such file or directory` on
+Linux, either use `SODIUM_INSTALL=bundled pip install magic-wormhole`, or try
+installing the `libsodium-dev` / `libsodium-devel` package. These work around
+a bug in pynacl which gets confused when the libsodium runtime is installed
+(e.g. `libsodium13`) but not the development package.
+
 Developers can clone the source tree and run `tox` to run the unit tests on
 all supported (and installed) versions of python: 2.7, 3.3, 3.4, and 3.5.
 
