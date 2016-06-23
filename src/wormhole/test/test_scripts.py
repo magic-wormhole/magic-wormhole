@@ -171,11 +171,21 @@ class ScriptsBase:
         # So let's report just one error in this case (from test_version),
         # and skip the other tests that we know will fail.
 
+        # Setting LANG/LC_ALL to a unicode-capable locale is necessary to
+        # convince Click to not complain about a forced-ascii locale. My
+        # apologies to folks who want to run tests on a machine that doesn't
+        # have the en_US.UTF-8 locale installed.
         wormhole = self.find_executable()
-        d = getProcessOutputAndValue(wormhole, ["--version"])
+        d = getProcessOutputAndValue(wormhole, ["--version"],
+                                     env=dict(LC_ALL="en_US.UTF-8",
+                                              LANG="en_US.UTF-8"))
         def _check(res):
             out, err, rc = res
             if rc != 0:
+                log.msg("wormhole not runnable in this tree:")
+                log.msg("out", out)
+                log.msg("err", err)
+                log.msg("rc", rc)
                 raise unittest.SkipTest("wormhole is not runnable in this tree")
         d.addCallback(_check)
         return d
@@ -299,6 +309,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_d = getProcessOutputAndValue(
                 wormhole_bin, send_args,
                 path=send_dir,
+                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
             )
             recv_args = [
                 '--hide-progress',
@@ -314,6 +325,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = getProcessOutputAndValue(
                 wormhole_bin, recv_args,
                 path=receive_dir,
+                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
             )
 
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],
