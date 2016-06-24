@@ -50,9 +50,12 @@ class Mailbox:
                        " (`mailbox_id`, `opened`, `side`, `added`)"
                        " VALUES(?,?,?,?)",
                        (self._mailbox_id, True, side, when))
-        db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
-                   (when, self._mailbox_id))
+        self._touch(when)
         db.commit() # XXX: reconcile the need for this with the comment above
+
+    def _touch(self, when):
+        self._db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
+                         (when, self._mailbox_id))
 
     def get_messages(self):
         messages = []
@@ -89,8 +92,7 @@ class Mailbox:
                          " VALUES (?,?,?,?,?, ?,?)",
                          (self._app_id, self._mailbox_id, sm.side,
                           sm.phase, sm.body, sm.server_rx, sm.msg_id))
-        self._db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
-                         (sm.server_rx, self._mailbox_id))
+        self._touch(sm.server_rx)
         self._db.commit()
 
     def add_message(self, sm):
