@@ -16,7 +16,7 @@ CREATE TABLE `nameplates`
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `app_id` VARCHAR,
  `name` VARCHAR,
- `mailbox_id` VARCHAR, -- really a foreign key
+ `mailbox_id` VARCHAR REFERENCES `mailboxes`(`id`),
  `request_id` VARCHAR, -- from 'allocate' message, for future deduplication
  `updated` INTEGER -- time of last activity, used for pruning
 );

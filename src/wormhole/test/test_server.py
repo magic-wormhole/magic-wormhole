@@ -320,7 +320,7 @@ class Prune(unittest.TestCase):
         self.assertFalse(mb.is_active())
         self.assertFalse(app.is_active())
 
-    def test_basic(self):
+    def test_nameplates(self):
         db = get_db(":memory:")
         rv = rendezvous.Rendezvous(db, None, 3600)
 
@@ -328,14 +328,11 @@ class Prune(unittest.TestCase):
         #OLD = "old"; NEW = "new"
         #when = {OLD: 1, NEW: 60}
         new_nameplates = set()
-        new_mailboxes = set()
-        new_messages = set()
 
         APPID = "appid"
         app = rv.get_app(APPID)
 
-        # Exercise the first-vs-second newness tests. These nameplates have
-        # no mailbox.
+        # Exercise the first-vs-second newness tests
         app.claim_nameplate("np-1", "side1", 1)
         app.claim_nameplate("np-2", "side1", 1)
         app.claim_nameplate("np-2", "side2", 2)
@@ -348,7 +345,28 @@ class Prune(unittest.TestCase):
         app.claim_nameplate("np-5", "side2", 61)
         new_nameplates.add("np-5")
 
-        # same for mailboxes
+        rv.prune(now=123, old=50)
+
+        nameplates = set([row["name"] for row in
+                          db.execute("SELECT * FROM `nameplates`").fetchall()])
+        self.assertEqual(new_nameplates, nameplates)
+        mailboxes = set([row["id"] for row in
+                         db.execute("SELECT * FROM `mailboxes`").fetchall()])
+        self.assertEqual(len(new_nameplates), len(mailboxes))
+
+    def test_mailboxes(self):
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, 3600)
+
+        # timestamps <=50 are "old", >=51 are "new"
+        #OLD = "old"; NEW = "new"
+        #when = {OLD: 1, NEW: 60}
+        new_mailboxes = set()
+
+        APPID = "appid"
+        app = rv.get_app(APPID)
+
+        # Exercise the first-vs-second newness tests
         app.open_mailbox("mb-11", "side1", 1)
         app.open_mailbox("mb-12", "side1", 1)
         app.open_mailbox("mb-12", "side2", 2)
@@ -363,24 +381,15 @@ class Prune(unittest.TestCase):
 
         rv.prune(now=123, old=50)
 
-        nameplates = set([row["name"] for row in
-                          db.execute("SELECT * FROM `nameplates`").fetchall()])
-        self.assertEqual(new_nameplates, nameplates)
         mailboxes = set([row["id"] for row in
                          db.execute("SELECT * FROM `mailboxes`").fetchall()])
         self.assertEqual(new_mailboxes, mailboxes)
-        messages = set([row["msg_id"] for row in
-                          db.execute("SELECT * FROM `messages`").fetchall()])
-        self.assertEqual(new_messages, messages)
 
     def test_lots(self):
         OLD = "old"; NEW = "new"
         for nameplate in [None, OLD, NEW]:
             for mailbox in [OLD, NEW]:
-                listeners = [False]
-                if mailbox is not None:
-                    listeners = [False, True]
-                for has_listeners in listeners:
+                for has_listeners in [False, True]:
                     self.one(nameplate, mailbox, has_listeners)
 
     def test_one(self):
@@ -405,8 +414,7 @@ class Prune(unittest.TestCase):
 
         mbid = "mbid"
         if nameplate is not None:
-            app.claim_nameplate("npid", "side1", when[nameplate],
-                                _test_mailbox_id=mbid)
+            mbid = app.claim_nameplate("npid", "side1", when[nameplate])
         mb = app.open_mailbox(mbid, "side1", when[mailbox])
 
         # the pruning algorithm doesn't care about the age of messages,
@@ -752,11 +760,11 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(len(side_rows), 1)
         self.assertEqual(side_rows[0]["side"], "side")
 
-        # claiming a nameplate will assign a random mailbox id, but won't
-        # create the mailbox itself
+        # claiming a nameplate assigns a random mailbox id and creates the
+        # mailbox row
         mailboxes = app._db.execute("SELECT * FROM `mailboxes`"
                                     " WHERE `app_id`='appid'").fetchall()
-        self.assertEqual(len(mailboxes), 0)
+        self.assertEqual(len(mailboxes), 1)
 
     @inlineCallbacks
     def test_claim_crowded(self):
@@ -987,6 +995,8 @@ class Summary(unittest.TestCase):
         row = db.execute("SELECT * FROM `nameplate_usage`").fetchone()
         self.assertEqual(row["started"], 10)
 
+        db.execute("DELETE FROM `mailbox_usage`")
+        db.commit()
         app = rv.get_app(APPID)
         app.open_mailbox("mbid", "side1", 20) # start time is 20
         rv.prune(now=123, old=50)

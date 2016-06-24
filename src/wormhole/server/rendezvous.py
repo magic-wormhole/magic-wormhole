@@ -54,12 +54,6 @@ class Mailbox:
                    (when, self._mailbox_id))
         db.commit() # XXX: reconcile the need for this with the comment above
 
-        rows = db.execute("SELECT * FROM `mailbox_sides`"
-                          " WHERE `mailbox_id`=?",
-                          (self._mailbox_id,)).fetchall()
-        if len(rows) > 2:
-            raise CrowdedError("too many sides have opened this mailbox")
-
     def get_messages(self):
         messages = []
         db = self._db
@@ -200,12 +194,12 @@ class AppNamespace:
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
-    def claim_nameplate(self, name, side, when, _test_mailbox_id=None):
+    def claim_nameplate(self, name, side, when):
         # when we're done:
         # * there will be one row for the nameplate
         #  * there will be one 'side' attached to it, with claimed=True
-        # * a mailbox id will be created, but not a mailbox row
-        #   (ids are randomly unique, so we can defer creation until 'open')
+        # * a mailbox id and mailbox row will be created
+        #  * a mailbox 'side' will be attached, with opened=True
         assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
@@ -216,15 +210,12 @@ class AppNamespace:
             if self._log_requests:
                 log.msg("creating nameplate#%s for app_id %s" %
                         (name, self._app_id))
-            if _test_mailbox_id is not None: # for unit tests
-                mailbox_id = _test_mailbox_id
-            else:
-                mailbox_id = generate_mailbox_id()
+            mailbox_id = generate_mailbox_id()
+            self._add_mailbox(mailbox_id, side, when) # ensure row exists
             sql = ("INSERT INTO `nameplates`"
                    " (`app_id`, `name`, `mailbox_id`, `updated`)"
                    " VALUES(?,?,?,?)")
-            npid = db.execute(sql,
-                              (self._app_id, name, mailbox_id, when)
+            npid = db.execute(sql, (self._app_id, name, mailbox_id, when)
                               ).lastrowid
         else:
             npid = row["id"]
@@ -242,9 +233,12 @@ class AppNamespace:
                    (when, npid))
         db.commit()
 
+        self.open_mailbox(mailbox_id, side, when) # may raise CrowdedError
         rows = db.execute("SELECT * FROM `nameplate_sides`"
                           " WHERE `nameplates_id`=?", (npid,)).fetchall()
         if len(rows) > 2:
+            # this line will probably never get hit: any crowding is noticed
+            # on mailbox_sides first, inside open_mailbox()
             raise CrowdedError("too many sides have claimed this nameplate")
         return mailbox_id
 
@@ -317,24 +311,41 @@ class AppNamespace:
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
-    def open_mailbox(self, mailbox_id, side, when):
+    def _add_mailbox(self, mailbox_id, side, when):
         assert isinstance(mailbox_id, type("")), type(mailbox_id)
         db = self._db
-        if not mailbox_id in self._mailboxes:
+        row = db.execute("SELECT * FROM `mailboxes`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, mailbox_id)).fetchone()
+        if not row:
+            self._db.execute("INSERT INTO `mailboxes`"
+                             " (`app_id`, `id`, `updated`)"
+                             " VALUES(?,?,?)",
+                             (self._app_id, mailbox_id, when))
+            # we don't need a commit here, because mailbox.open() only
+            # does SELECT FROM `mailbox_sides`, not from `mailboxes`
+
+    def open_mailbox(self, mailbox_id, side, when):
+        assert isinstance(mailbox_id, type("")), type(mailbox_id)
+        self._add_mailbox(mailbox_id, side, when) # ensure row exists
+        db = self._db
+        if not mailbox_id in self._mailboxes: # ensure Mailbox object exists
             if self._log_requests:
                 log.msg("spawning #%s for app_id %s" % (mailbox_id,
                                                         self._app_id))
-            db.execute("INSERT INTO `mailboxes`"
-                       " (`app_id`, `id`, `updated`)"
-                       " VALUES(?,?,?)",
-                       (self._app_id, mailbox_id, when))
-            # we don't need a commit here, because mailbox.open() only
-            # does SELECT FROM `mailbox_sides`, not from `mailboxes`
             self._mailboxes[mailbox_id] = Mailbox(self, self._db,
                                                   self._app_id, mailbox_id)
         mailbox = self._mailboxes[mailbox_id]
+
+        # delegate to mailbox.open() to add a row to mailbox_sides, and
+        # update the mailbox.updated timestamp
         mailbox.open(side, when)
         db.commit()
+        rows = db.execute("SELECT * FROM `mailbox_sides`"
+                          " WHERE `mailbox_id`=?",
+                          (mailbox_id,)).fetchall()
+        if len(rows) > 2:
+            raise CrowdedError("too many sides have opened this mailbox")
         return mailbox
 
     def free_mailbox(self, mailbox_id):
