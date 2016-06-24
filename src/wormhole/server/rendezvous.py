@@ -16,32 +16,8 @@ EXPIRATION_CHECK_PERIOD = 1*HOUR
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
 
-
-SideResult = namedtuple("SideResult", ["changed", "empty", "side1", "side2"])
-Unchanged = SideResult(changed=False, empty=False, side1=None, side2=None)
 class CrowdedError(Exception):
     pass
-
-def add_side(row, new_side):
-    old_sides = [s for s in [row["side1"], row["side2"]] if s]
-    assert old_sides
-    if new_side in old_sides:
-        return Unchanged
-    if len(old_sides) == 2:
-        raise CrowdedError("too many sides for this thing")
-    return SideResult(changed=True, empty=False,
-                      side1=old_sides[0], side2=new_side)
-
-def remove_side(row, side):
-    old_sides = [s for s in [row["side1"], row["side2"]] if s]
-    if side not in old_sides:
-        return Unchanged
-    remaining_sides = old_sides[:]
-    remaining_sides.remove(side)
-    if remaining_sides:
-        return SideResult(changed=True, empty=False, side1=remaining_sides[0],
-                          side2=None)
-    return SideResult(changed=True, empty=True, side1=None, side2=None)
 
 Usage = namedtuple("Usage", ["started", "waiting_time", "total_time", "result"])
 TransitUsage = namedtuple("TransitUsage",
@@ -65,23 +41,24 @@ class Mailbox:
         # requires caller to db.commit()
         assert isinstance(side, type("")), type(side)
         db = self._db
-        row = db.execute("SELECT * FROM `mailboxes`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, self._mailbox_id)).fetchone()
-        try:
-            sr = add_side(row, side)
-        except CrowdedError:
-            db.execute("UPDATE `mailboxes` SET `crowded`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (True, self._app_id, self._mailbox_id))
-            db.commit()
-            raise
-        if sr.changed:
-            db.execute("UPDATE `mailboxes` SET"
-                       " `side1`=?, `side2`=?, `second`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (sr.side1, sr.side2, when,
-                        self._app_id, self._mailbox_id))
+
+        already = db.execute("SELECT * FROM `mailbox_sides`"
+                             " WHERE `mailbox_id`=? AND `side`=?",
+                             (self._mailbox_id, side)).fetchone()
+        if not already:
+            db.execute("INSERT INTO `mailbox_sides`"
+                       " (`mailbox_id`, `opened`, `side`, `added`)"
+                       " VALUES(?,?,?,?)",
+                       (self._mailbox_id, True, side, when))
+        db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
+                   (when, self._mailbox_id))
+        db.commit() # XXX: reconcile the need for this with the comment above
+
+        rows = db.execute("SELECT * FROM `mailbox_sides`"
+                          " WHERE `mailbox_id`=?",
+                          (self._mailbox_id,)).fetchall()
+        if len(rows) > 2:
+            raise CrowdedError("too many sides have opened this mailbox")
 
     def get_messages(self):
         messages = []
@@ -118,6 +95,8 @@ class Mailbox:
                          " VALUES (?,?,?,?,?, ?,?)",
                          (self._app_id, self._mailbox_id, sm.side,
                           sm.phase, sm.body, sm.server_rx, sm.msg_id))
+        self._db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
+                         (sm.server_rx, self._mailbox_id))
         self._db.commit()
 
     def add_message(self, sm):
@@ -133,34 +112,36 @@ class Mailbox:
                          (self._app_id, self._mailbox_id)).fetchone()
         if not row:
             return
-        sr = remove_side(row, side)
-        if sr.empty:
-            self._app._summarize_mailbox_and_store(self._mailbox_id, row,
-                                                   mood, when, pruned=False)
-            self._delete()
-            db.commit()
-        elif sr.changed:
-            db.execute("UPDATE `mailboxes`"
-                       " SET `side1`=?, `side2`=?, `first_mood`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (sr.side1, sr.side2, mood,
-                        self._app_id, self._mailbox_id))
-            db.commit()
 
-    def _delete(self):
-        # requires caller to db.commit()
-        self._db.execute("DELETE FROM `mailboxes`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, self._mailbox_id))
-        self._db.execute("DELETE FROM `messages`"
-                         " WHERE `app_id`=? AND `mailbox_id`=?",
-                         (self._app_id, self._mailbox_id))
+        row = db.execute("SELECT * FROM `mailbox_sides`"
+                         " WHERE `mailbox_id`=? AND `side`=?",
+                         (self._mailbox_id, side)).fetchone()
+        if not row:
+            return
+        db.execute("UPDATE `mailbox_sides` SET `opened`=?, `mood`=?"
+                   " WHERE `mailbox_id`=? AND `side`=?",
+                   (False, mood, self._mailbox_id, side))
+        db.commit()
 
+        # are any sides still open?
+        side_rows = db.execute("SELECT * FROM `mailbox_sides`"
+                               " WHERE `mailbox_id`=?",
+                               (self._mailbox_id,)).fetchall()
+        if any([sr["opened"] for sr in side_rows]):
+            return
+
+        # nope. delete and summarize
+        db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
+                   (self._mailbox_id,))
+        db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
+                   (self._mailbox_id,))
+        db.execute("DELETE FROM `mailboxes` WHERE `id`=?", (self._mailbox_id,))
+        self._app._summarize_mailbox_and_store(side_rows, when, pruned=False)
+        db.commit()
         # Shut down any listeners, just in case they're still lingering
         # around.
         for (send_f, stop_f) in self._listeners.values():
             stop_f()
-
         self._app.free_mailbox(self._mailbox_id)
 
     def is_active(self):
@@ -260,6 +241,7 @@ class AppNamespace:
         db.execute("UPDATE `nameplates` SET `updated`=? WHERE `id`=?",
                    (when, npid))
         db.commit()
+
         rows = db.execute("SELECT * FROM `nameplate_sides`"
                           " WHERE `nameplates_id`=?", (npid,)).fetchall()
         if len(rows) > 2:
@@ -343,11 +325,11 @@ class AppNamespace:
                 log.msg("spawning #%s for app_id %s" % (mailbox_id,
                                                         self._app_id))
             db.execute("INSERT INTO `mailboxes`"
-                       " (`app_id`, `id`, `side1`, `crowded`, `started`)"
-                       " VALUES(?,?,?,?,?)",
-                       (self._app_id, mailbox_id, side, False, when))
-            db.commit() # XXX
-            # mailbox.open() does a SELECT to find the old sides
+                       " (`app_id`, `id`, `updated`)"
+                       " VALUES(?,?,?)",
+                       (self._app_id, mailbox_id, when))
+            # we don't need a commit here, because mailbox.open() only
+            # does SELECT FROM `mailbox_sides`, not from `mailboxes`
             self._mailboxes[mailbox_id] = Mailbox(self, self._db,
                                                   self._app_id, mailbox_id)
         mailbox = self._mailboxes[mailbox_id]
@@ -365,15 +347,9 @@ class AppNamespace:
         #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
         #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
-    def _summarize_mailbox_and_store(self, mailbox_id, row,
-                                     second_mood, delete_time, pruned):
+    def _summarize_mailbox_and_store(self, side_rows, delete_time, pruned):
         db = self._db
-        rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
-                          " WHERE `app_id`=? AND `mailbox_id`=?",
-                          (self._app_id, mailbox_id)).fetchall()
-        num_sides = len(rows)
-        u = self._summarize_mailbox(row, num_sides, second_mood, delete_time,
-                                    pruned)
+        u = self._summarize_mailbox(side_rows, delete_time, pruned)
         db.execute("INSERT INTO `mailbox_usage`"
                    " (`app_id`,"
                    "  `started`, `total_time`, `waiting_time`, `result`)"
@@ -381,16 +357,17 @@ class AppNamespace:
                    (self._app_id,
                     u.started, u.total_time, u.waiting_time, u.result))
 
-    def _summarize_mailbox(self, row, num_sides, second_mood, delete_time,
-                           pruned):
-        started = row["started"]
+    def _summarize_mailbox(self, side_rows, delete_time, pruned):
+        times = sorted([row["added"] for row in side_rows])
+        started = times[0]
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
         waiting_time = None
-        if row["second"]:
-            waiting_time = row["second"] - row["started"]
-        total_time = delete_time - row["started"]
+        if len(times) > 1:
+            waiting_time = times[1] - times[0]
+        total_time = delete_time - times[0]
 
+        num_sides = len(times)
         if num_sides == 0:
             result = "quiet"
         elif num_sides == 1:
@@ -398,7 +375,8 @@ class AppNamespace:
         else:
             result = "happy"
 
-        moods = set([row["first_mood"], second_mood])
+        # "mood" is only recorded at close()
+        moods = [row["mood"] for row in side_rows if row.get("mood")]
         if "lonely" in moods:
             result = "lonely"
         if "errory" in moods:
@@ -407,7 +385,7 @@ class AppNamespace:
             result = "scary"
         if pruned:
             result = "pruney"
-        if row["crowded"]:
+        if num_sides > 2:
             result = "crowded"
 
         return Usage(started=started, waiting_time=waiting_time,
@@ -425,47 +403,15 @@ class AppNamespace:
         # for all `mailboxes`: classify as new or old
         OLD = 0; NEW = 1
         all_mailboxes = {}
-        all_mailbox_rows = {}
-        for row in db.execute("SELECT * FROM `mailboxes`"
-                              " WHERE `app_id`=?",
+        for row in db.execute("SELECT * FROM `mailboxes` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             mailbox_id = row["id"]
-            all_mailbox_rows[mailbox_id] = row
-            if row["started"] > old:
-                which = NEW
-            elif row["second"] and row["second"] > old:
+            if row["updated"] > old:
                 which = NEW
             else:
                 which = OLD
             all_mailboxes[mailbox_id] = which
-        #log.msg(" 2: all_mailboxes", all_mailboxes, all_mailbox_rows)
-
-        # for all mailbox ids used by `messages`:
-        #   if there is no matching mailbox: delete the messages
-        #   if there is at least one new message (select when>old limit 1):
-        #     classify the mailbox as new
-        for row in db.execute("SELECT DISTINCT(`mailbox_id`)"
-                              " FROM `messages`"
-                              " WHERE `app_id`=?",
-                              (self._app_id,)).fetchall():
-            mailbox_id = row["mailbox_id"]
-            if mailbox_id not in all_mailboxes:
-                log.msg("  deleting orphan messages", mailbox_id)
-                db.execute("DELETE FROM `messages`"
-                           " WHERE `app_id`=? AND `mailbox_id`=?",
-                           (self._app_id, mailbox_id))
-                modified = True
-            else:
-                new_msgs = db.execute("SELECT * FROM `messages`"
-                                      " WHERE `app_id`=? AND `mailbox_id`=?"
-                                      "  AND `server_rx` > ?"
-                                      " LIMIT 1",
-                                      (self._app_id, mailbox_id, old)
-                                      ).fetchall()
-                if new_msgs:
-                    #log.msg(" 3-: saved by new messages", new_msgs)
-                    all_mailboxes[mailbox_id] = NEW
-        #log.msg(" 4: all_mailboxes", all_mailboxes)
+        #log.msg(" 2: all_mailboxes", all_mailboxes)
 
         # for all mailbox objects with active listeners:
         #   classify the mailbox as new
@@ -484,8 +430,7 @@ class AppNamespace:
         #       if the nameplate is new:
         #         classify mailbox as new
         old_nameplate_ids = []
-        for row in db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`=?",
+        for row in db.execute("SELECT * FROM `nameplates` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             npid = row["id"]
             if row["updated"] > old:
@@ -523,15 +468,16 @@ class AppNamespace:
         for mailbox_id, which in all_mailboxes.items():
             if which == OLD:
                 log.msg("  deleting mailbox", mailbox_id)
-                self._summarize_mailbox_and_store(mailbox_id,
-                                                  all_mailbox_rows[mailbox_id],
-                                                  "pruney", now, pruned=True)
-                db.execute("DELETE FROM `messages`"
-                           " WHERE `app_id`=? AND `mailbox_id`=?",
-                           (self._app_id, mailbox_id))
-                db.execute("DELETE FROM `mailboxes`"
-                           " WHERE `app_id`=? AND `id`=?",
-                           (self._app_id, mailbox_id))
+                side_rows = db.execute("SELECT * FROM `mailbox_sides`"
+                                       " WHERE `mailbox_id`=?",
+                                       (mailbox_id,)).fetchall()
+                db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
+                           (mailbox_id,))
+                db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
+                           (mailbox_id,))
+                db.execute("DELETE FROM `mailboxes` WHERE `id`=?",
+                           (mailbox_id,))
+                self._summarize_mailbox_and_store(side_rows, now, pruned=True)
                 modified = True
 
         if modified:

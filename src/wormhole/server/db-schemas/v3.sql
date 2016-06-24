@@ -36,19 +36,23 @@ CREATE TABLE `nameplate_sides`
 
 -- Clients exchange messages through a "mailbox", which has a long (randomly
 -- unique) identifier and a queue of messages.
+-- `id` is randomly-generated and unique across all apps.
 CREATE TABLE `mailboxes`
 (
  `app_id` VARCHAR,
- `id` VARCHAR,
- `side1` VARCHAR, -- side name, or NULL
- `side2` VARCHAR, -- side name, or NULL
- `crowded` BOOLEAN, -- at some point, three or more sides were involved
- `first_mood` VARCHAR,
- -- timing data for the mailbox itself
- `started` INTEGER, -- time when opened
- `second` INTEGER -- time when second side opened
+ `id` VARCHAR PRIMARY KEY,
+ `updated` INTEGER -- time of last activity, used for pruning
 );
 CREATE INDEX `mailboxes_idx` ON `mailboxes` (`app_id`, `id`);
+
+CREATE TABLE `mailbox_sides`
+(
+ `mailbox_id` REFERENCES `mailboxes`(`id`),
+ `opened` BOOLEAN, -- True after open(), False after close()
+ `side` VARCHAR,
+ `added` INTEGER, -- time when this side first claimed the nameplate
+ `mood` VARCHAR
+);
 
 CREATE TABLE `messages`
 (

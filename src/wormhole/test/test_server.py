@@ -12,7 +12,7 @@ from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
 from ..server import rendezvous, transit_server
-from ..server.rendezvous import Usage, SidedMessage, Mailbox
+from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
 
 class Server(ServerBase, unittest.TestCase):
@@ -152,77 +152,69 @@ class Server(ServerBase, unittest.TestCase):
 
 
     def _mailbox(self, app, mailbox_id):
-        return app._db.execute("SELECT * FROM `mailboxes`"
-                               " WHERE `app_id`='appid' AND `id`=?",
-                               (mailbox_id,)).fetchone()
+        mb_row = app._db.execute("SELECT * FROM `mailboxes`"
+                                 " WHERE `app_id`='appid' AND `id`=?",
+                                 (mailbox_id,)).fetchone()
+        if not mb_row:
+            return None, None
+        side_rows = app._db.execute("SELECT * FROM `mailbox_sides`"
+                                    " WHERE `mailbox_id`=?",
+                                    (mailbox_id,)).fetchall()
+        return mb_row, side_rows
 
     def test_mailbox(self):
         app = self._rendezvous.get_app("appid")
         mailbox_id = "mid"
         m1 = app.open_mailbox(mailbox_id, "side1", 0)
 
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["crowded"], False)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], None)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["side"], "side1")
+        self.assertEqual(side_rows[0]["added"], 0)
 
         # opening the same mailbox twice, by the same side, gets the same
-        # object
+        # object, and does not update the "added" timestamp
         self.assertIdentical(m1, app.open_mailbox(mailbox_id, "side1", 1))
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["crowded"], False)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], None)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(len(side_rows), 1)
+        self.assertEqual(side_rows[0]["side"], "side1")
+        self.assertEqual(side_rows[0]["added"], 0)
 
         # opening a second side gets the same object, and adds a new claim
         self.assertIdentical(m1, app.open_mailbox(mailbox_id, "side2", 2))
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
-        self.assertEqual(row["crowded"], False)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 2)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(len(side_rows), 2)
+        adds = [(row["side"], row["added"]) for row in side_rows]
+        self.assertIn(("side1", 0), adds)
+        self.assertIn(("side2", 2), adds)
 
         # a third open marks it as crowded
         self.assertRaises(rendezvous.CrowdedError,
                           app.open_mailbox, mailbox_id, "side3", 3)
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
-        self.assertEqual(row["crowded"], True)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 2)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(len(side_rows), 3)
+        m1.close("side3", "company", 4)
 
         # closing a side that never claimed the mailbox is ignored
         m1.close("side4", "mood", 4)
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side1")
-        self.assertEqual(row["side2"], "side2")
-        self.assertEqual(row["crowded"], True)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 2)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(len(side_rows), 3)
 
         # closing one side leaves the second claim
         m1.close("side1", "mood", 5)
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side2")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["crowded"], True)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 2)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        sides = [(row["side"], row["opened"], row["mood"]) for row in side_rows]
+        self.assertIn(("side1", False, "mood"), sides)
+        self.assertIn(("side2", True, None), sides)
+        self.assertIn(("side3", False, "company"), sides)
 
-        # closing one side multiple is ignored
+        # closing one side multiple times is ignored
         m1.close("side1", "mood", 6)
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row["side1"], "side2")
-        self.assertEqual(row["side2"], None)
-        self.assertEqual(row["crowded"], True)
-        self.assertEqual(row["started"], 0)
-        self.assertEqual(row["second"], 2)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        sides = [(row["side"], row["opened"], row["mood"]) for row in side_rows]
+        self.assertIn(("side1", False, "mood"), sides)
+        self.assertIn(("side2", True, None), sides)
+        self.assertIn(("side3", False, "company"), sides)
 
         l1 = []; stop1 = []; stop1_f = lambda: stop1.append(True)
         m1.add_listener("handle1", l1.append, stop1_f)
@@ -231,8 +223,8 @@ class Server(ServerBase, unittest.TestCase):
         m1.close("side2", "mood", 7)
         self.assertEqual(stop1, [True])
 
-        row = self._mailbox(app, mailbox_id)
-        self.assertEqual(row, None)
+        mb_row, side_rows = self._mailbox(app, mailbox_id)
+        self.assertEqual(mb_row, None)
         usage = app._db.execute("SELECT * FROM `mailbox_usage`").fetchone()
         self.assertEqual(usage["app_id"], "appid")
         self.assertEqual(usage["started"], 0)
@@ -384,22 +376,20 @@ class Prune(unittest.TestCase):
     def test_lots(self):
         OLD = "old"; NEW = "new"
         for nameplate in [None, OLD, NEW]:
-            for mailbox in [None, OLD, NEW]:
+            for mailbox in [OLD, NEW]:
                 listeners = [False]
                 if mailbox is not None:
                     listeners = [False, True]
                 for has_listeners in listeners:
-                    for messages in [None, OLD, NEW]:
-                        self.one(nameplate, mailbox, has_listeners, messages)
+                    self.one(nameplate, mailbox, has_listeners)
 
-    # def test_one(self):
-    #    # to debug specific problems found by test_lots
-    #    self.one(None, "old", False, 'new')
+    def test_one(self):
+       # to debug specific problems found by test_lots
+       self.one(None, "new", False)
 
-    def one(self, nameplate, mailbox, has_listeners, messages):
-        desc = ("nameplate=%s, mailbox=%s, has_listeners=%s,"
-                " messages=%s" %
-                (nameplate, mailbox, has_listeners, messages))
+    def one(self, nameplate, mailbox, has_listeners):
+        desc = ("nameplate=%s, mailbox=%s, has_listeners=%s" %
+                (nameplate, mailbox, has_listeners))
         log.msg(desc)
 
         db = get_db(":memory:")
@@ -412,46 +402,27 @@ class Prune(unittest.TestCase):
         when = {OLD: 1, NEW: 60}
         nameplate_survives = False
         mailbox_survives = False
-        messages_survive = False
 
         mbid = "mbid"
         if nameplate is not None:
             app.claim_nameplate("npid", "side1", when[nameplate],
                                 _test_mailbox_id=mbid)
-        if mailbox is not None:
-            mb = app.open_mailbox(mbid, "side1", when[mailbox])
-        else:
-            # We might want a Mailbox, because that's the easiest way to add
-            # a "messages" row, but we can't use app.open_mailbox() because
-            # that modifies both the "mailboxes" table and app._mailboxes,
-            # and sometimes we're testing what happens when there are
-            # messages but not a mailbox
-            mb = Mailbox(app, db, APPID, mbid)
-            # we need app._mailboxes to know about this, because that's
-            # where it looks to find listeners
-            app._mailboxes[mbid] = mb
+        mb = app.open_mailbox(mbid, "side1", when[mailbox])
 
-        if messages is not None:
-            sm = SidedMessage("side1", "phase", "body", when[messages],
-                              "msgid")
-            mb.add_message(sm)
+        # the pruning algorithm doesn't care about the age of messages,
+        # because mailbox.updated is always updated each time we add a
+        # message
+        sm = SidedMessage("side1", "phase", "body", when[mailbox], "msgid")
+        mb.add_message(sm)
 
         if has_listeners:
             mb.add_listener("handle", None, None)
 
-        if mailbox is None and messages is not None:
-            # orphaned messages, even new ones, can't keep a nameplate alive
-            messages = None
-            messages_survive = False
-
-        if (nameplate == NEW or mailbox == NEW
-            or has_listeners or messages == NEW):
+        if (nameplate == NEW or mailbox == NEW or has_listeners):
             if nameplate is not None:
                 nameplate_survives = True
-            if mailbox is not None:
-                mailbox_survives = True
-            if messages is not None:
-                messages_survive = True
+            mailbox_survives = True
+        messages_survive = mailbox_survives
 
         rv.prune(now=123, old=50)
 
@@ -931,41 +902,45 @@ class Summary(unittest.TestCase):
     def test_mailbox(self):
         app = rendezvous.AppNamespace(None, None, False, None)
         # starts at time 1, maybe gets second open at time 3, closes at 5
-        base_row = {"started": 1, "second": None,
-                    "first_mood": None, "crowded": False}
-        def summ(num_sides, second_mood=None, pruned=False, **kwargs):
-            row = base_row.copy()
-            row.update(kwargs)
-            return app._summarize_mailbox(row, num_sides, second_mood, 5,
-                                          pruned)
+        def s(rows, pruned=False):
+            return app._summarize_mailbox(rows, 5, pruned)
 
-        self.assertEqual(summ(1), Usage(1, None, 4, "lonely"))
-        self.assertEqual(summ(1, "lonely"), Usage(1, None, 4, "lonely"))
-        self.assertEqual(summ(1, "errory"), Usage(1, None, 4, "errory"))
-        self.assertEqual(summ(1, crowded=True), Usage(1, None, 4, "crowded"))
+        rows = [dict(added=1)]
+        self.assertEqual(s(rows), Usage(1, None, 4, "lonely"))
+        rows = [dict(added=1, mood="lonely")]
+        self.assertEqual(s(rows), Usage(1, None, 4, "lonely"))
+        rows = [dict(added=1, mood="errory")]
+        self.assertEqual(s(rows), Usage(1, None, 4, "errory"))
+        rows = [dict(added=1, mood=None)]
+        self.assertEqual(s(rows, pruned=True), Usage(1, None, 4, "pruney"))
+        rows = [dict(added=1, mood="happy")]
+        self.assertEqual(s(rows, pruned=True), Usage(1, None, 4, "pruney"))
 
-        self.assertEqual(summ(2, first_mood="happy",
-                              second=3, second_mood="happy"),
-                         Usage(1, 2, 4, "happy"))
+        rows = [dict(added=1, mood="happy"), dict(added=3, mood="happy")]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "happy"))
 
-        self.assertEqual(summ(2, first_mood="errory",
-                              second=3, second_mood="happy"),
-                         Usage(1, 2, 4, "errory"))
+        rows = [dict(added=1, mood="errory"), dict(added=3, mood="happy")]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "errory"))
 
-        self.assertEqual(summ(2, first_mood="happy",
-                              second=3, second_mood="errory"),
-                         Usage(1, 2, 4, "errory"))
+        rows = [dict(added=1, mood="happy"), dict(added=3, mood="errory")]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "errory"))
 
-        self.assertEqual(summ(2, first_mood="scary",
-                              second=3, second_mood="happy"),
-                         Usage(1, 2, 4, "scary"))
+        rows = [dict(added=1, mood="scary"), dict(added=3, mood="happy")]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "scary"))
 
-        self.assertEqual(summ(2, first_mood="scary",
-                              second=3, second_mood="errory"),
-                         Usage(1, 2, 4, "scary"))
+        rows = [dict(added=1, mood="scary"), dict(added=3, mood="errory")]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "scary"))
 
-        self.assertEqual(summ(2, first_mood="happy", second=3, pruned=True),
-                         Usage(1, 2, 4, "pruney"))
+        rows = [dict(added=1, mood="happy"), dict(added=3, mood=None)]
+        self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "pruney"))
+        rows = [dict(added=1, mood="happy"), dict(added=3, mood="happy")]
+        self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "pruney"))
+
+        rows = [dict(added=1), dict(added=3), dict(added=4)]
+        self.assertEqual(s(rows), Usage(1, 2, 4, "crowded"))
+
+        rows = [dict(added=1), dict(added=3), dict(added=4)]
+        self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "crowded"))
 
     def test_nameplate(self):
         a = rendezvous.AppNamespace(None, None, False, None)
