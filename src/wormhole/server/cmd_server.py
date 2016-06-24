@@ -1,6 +1,5 @@
 from __future__ import print_function, unicode_literals
 import os, time
-import click
 from twisted.python import usage
 from twisted.scripts import twistd
 
@@ -39,9 +38,9 @@ def kill_server():
     try:
         f = open("twistd.pid", "r")
     except EnvironmentError:
-        raise click.UsageError(
-            "Unable to find 'twistd.pid' -- is this really a server directory?"
-        )
+        print("Unable to find twistd.pid: is this really a server directory?")
+        print("oh well, ignoring 'stop'")
+        return
     pid = int(f.read().strip())
     f.close()
     os.kill(pid, 15)
