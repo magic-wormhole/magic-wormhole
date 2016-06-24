@@ -295,6 +295,27 @@ class Server(ServerBase, unittest.TestCase):
 
 class Prune(unittest.TestCase):
 
+    def _get_mailbox_updated(self, app, mbox_id):
+        row = app._db.execute("SELECT * FROM `mailboxes` WHERE"
+                              " `app_id`=? AND `id`=?",
+                              (app._app_id, mbox_id)).fetchone()
+        return row["updated"]
+
+    def test_update(self):
+        db = get_db(":memory:")
+        rv = rendezvous.Rendezvous(db, None, None)
+        app = rv.get_app("appid")
+        mbox_id = "mbox1"
+        app.open_mailbox(mbox_id, "side1", 1)
+        self.assertEqual(self._get_mailbox_updated(app, mbox_id), 1)
+
+        mb = app.open_mailbox(mbox_id, "side2", 2)
+        self.assertEqual(self._get_mailbox_updated(app, mbox_id), 2)
+
+        sm = SidedMessage("side1", "phase", "body", 3, "msgid")
+        mb.add_message(sm)
+        self.assertEqual(self._get_mailbox_updated(app, mbox_id), 3)
+
     def test_apps(self):
         rv = rendezvous.Rendezvous(get_db(":memory:"), None, None)
         app = rv.get_app("appid")
