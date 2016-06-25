@@ -82,6 +82,11 @@ class RelayServer(service.MultiService):
             transit_service.setServiceParent(self)
 
         self._stats_file = stats_file
+        if self._stats_file and os.path.exists(self._stats_file):
+            os.unlink(self._stats_file)
+            # this will be regenerated immediately, but if something goes
+            # wrong in dump_stats(), it's better to have a missing file than
+            # a stale one
         t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.timer)
         t.setServiceParent(self)
 
