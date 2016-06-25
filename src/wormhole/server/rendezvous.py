@@ -68,12 +68,11 @@ class Mailbox:
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
-        # TODO: update 'updated'
         self._listeners[handle] = (send_f, stop_f)
         return self.get_messages()
 
     def remove_listener(self, handle):
-        self._listeners.pop(handle)
+        self._listeners.pop(handle, None)
 
     def has_listeners(self):
         return bool(self._listeners)
@@ -135,12 +134,14 @@ class Mailbox:
         # around.
         for (send_f, stop_f) in self._listeners.values():
             stop_f()
+        self._listeners = {}
         self._app.free_mailbox(self._mailbox_id)
 
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
         for (send_f, stop_f) in self._listeners.values():
             stop_f()
+        self._listeners = {}
 
 class AppNamespace:
     def __init__(self, db, blur_usage, log_requests, app_id):
@@ -410,6 +411,7 @@ class AppNamespace:
 
         for mailbox in self._mailboxes.values():
             if mailbox.has_listeners():
+                log.msg("touch %s because listeners" % mailbox._mailbox_id)
                 mailbox._touch(now)
         db.commit() # make sure the updates are visible below
 
@@ -418,11 +420,13 @@ class AppNamespace:
         for row in db.execute("SELECT * FROM `mailboxes` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             mailbox_id = row["id"]
+            log.msg("  1: age=%s, old=%s, %s" %
+                    (now - row["updated"], now - old, mailbox_id))
             if row["updated"] > old:
                 new_mailboxes.add(mailbox_id)
             else:
                 old_mailboxes.add(mailbox_id)
-        #log.msg(" 2: mailboxes:", new_mailboxes, old_mailboxes)
+        log.msg(" 2: mailboxes:", new_mailboxes, old_mailboxes)
 
         old_nameplates = set()
         for row in db.execute("SELECT * FROM `nameplates` WHERE `app_id`=?",
@@ -431,7 +435,7 @@ class AppNamespace:
             mailbox_id = row["mailbox_id"]
             if mailbox_id in old_mailboxes:
                 old_nameplates.add(npid)
-        #log.msg(" 3: old_nameplates", old_nameplates)
+        log.msg(" 3: old_nameplates", old_nameplates)
 
         for npid in old_nameplates:
             log.msg("  deleting nameplate", npid)

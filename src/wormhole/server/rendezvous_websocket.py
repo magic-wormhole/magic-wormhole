@@ -88,6 +88,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._app = None
         self._side = None
         self._did_allocate = False # only one allocate() per websocket
+        self._listening = False
         self._nameplate_id = None
         self._mailbox = None
 
@@ -203,6 +204,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                       body=sm.body, server_rx=sm.server_rx, id=sm.msg_id)
         def _stop():
             pass
+        self._listening = True
         for old_sm in self._mailbox.add_listener(self, _send, _stop):
             _send(old_sm)
 
@@ -233,7 +235,8 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self.sendMessage(payload, False)
 
     def onClose(self, wasClean, code, reason):
-        pass
+        if self._mailbox and self._listening:
+            self._mailbox.remove_listener(self)
 
 
 class WebSocketRendezvousFactory(websocket.WebSocketServerFactory):

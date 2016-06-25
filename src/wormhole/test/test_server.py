@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import json, itertools
+import json, itertools, time
 from binascii import hexlify
 import mock
 from twisted.trial import unittest
@@ -484,6 +484,14 @@ class WSClient(websocket.WebSocketClientProtocol):
             return
         self.events.append(event)
 
+    def close(self):
+        self.d = defer.Deferred()
+        self.transport.loseConnection()
+        return self.d
+    def onClose(self, wasClean, code, reason):
+        if self.d:
+            self.d.callback((wasClean, code, reason))
+
     def next_event(self):
         assert not self.d
         if self.events:
@@ -840,6 +848,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         m = yield c1.next_non_ack()
         self.assertEqual(m["type"], "message")
         self.assertEqual(m["body"], "body")
+        self.assertTrue(mb1.has_listeners())
 
         mb1.add_message(SidedMessage(side="side2", phase="phase2",
                                      body="body2", server_rx=0,
@@ -893,6 +902,7 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         c1 = yield self.make_client()
         yield c1.next_non_ack()
         c1.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
 
         c1.send("close", mood="mood") # must open first
         err = yield c1.next_non_ack()
@@ -900,14 +910,40 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
         self.assertEqual(err["error"], "must open mailbox before closing")
 
         c1.send("open", mailbox="mb1")
+        yield c1.sync()
+        mb1 = app._mailboxes["mb1"]
+        self.assertTrue(mb1.has_listeners())
+
         c1.send("close", mood="mood")
         m = yield c1.next_non_ack()
         self.assertEqual(m["type"], "closed")
+        self.assertFalse(mb1.has_listeners())
 
         c1.send("close", mood="mood") # already closed
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
         self.assertEqual(err["error"], "must open mailbox before closing")
+
+    @inlineCallbacks
+    def test_disconnect(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+
+        c1.send("open", mailbox="mb1")
+        yield c1.sync()
+        mb1 = app._mailboxes["mb1"]
+        self.assertTrue(mb1.has_listeners())
+
+        yield c1.close()
+        # wait for the server to notice the socket has closed
+        started = time.time()
+        while mb1.has_listeners() and (time.time()-started < 5.0):
+            d = defer.Deferred()
+            reactor.callLater(0.01, d.callback, None)
+            yield d
+        self.assertFalse(mb1.has_listeners())
 
 
 class Summary(unittest.TestCase):
