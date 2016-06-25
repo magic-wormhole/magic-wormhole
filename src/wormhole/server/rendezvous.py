@@ -68,11 +68,15 @@ class Mailbox:
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
+        #log.msg("add_listener", self._mailbox_id, handle)
         self._listeners[handle] = (send_f, stop_f)
+        #log.msg(" added", len(self._listeners))
         return self.get_messages()
 
     def remove_listener(self, handle):
+        #log.msg("remove_listener", self._mailbox_id, handle)
         self._listeners.pop(handle, None)
+        #log.msg(" removed", len(self._listeners))
 
     def has_listeners(self):
         return bool(self._listeners)

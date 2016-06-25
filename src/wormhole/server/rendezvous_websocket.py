@@ -224,6 +224,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_close(self, msg, server_rx):
         if not self._mailbox:
             raise Error("must open mailbox before closing")
+        if self._listening:
+            self._mailbox.remove_listener(self)
+            self._listening = False
         self._mailbox.close(self._side, msg.get("mood"), server_rx)
         self._mailbox = None
         self.send("closed")
@@ -235,6 +238,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self.sendMessage(payload, False)
 
     def onClose(self, wasClean, code, reason):
+        #log.msg("onClose", self, self._mailbox, self._listening)
         if self._mailbox and self._listening:
             self._mailbox.remove_listener(self)
 
