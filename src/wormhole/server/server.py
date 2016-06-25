@@ -28,7 +28,7 @@ class PrivacyEnhancedSite(server.Site):
 class RelayServer(service.MultiService):
     def __init__(self, rendezvous_web_port, transit_port,
                  advertise_version, db_url=":memory:", blur_usage=None,
-                 signal_error=None):
+                 signal_error=None, stats_file=None):
         service.MultiService.__init__(self)
         self._blur_usage = blur_usage
 
@@ -52,7 +52,7 @@ class RelayServer(service.MultiService):
         if signal_error:
             welcome["error"] = signal_error
 
-        rendezvous = Rendezvous(db, welcome, blur_usage)
+        rendezvous = Rendezvous(db, welcome, blur_usage, stats_file)
         rendezvous.setServiceParent(self) # for the pruning timer
 
         root = Root()

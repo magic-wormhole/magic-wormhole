@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, time, random, base64
+import os, time, random, base64, json
 from collections import namedtuple
 from twisted.python import log
 from twisted.application import service, internet
@@ -478,15 +478,16 @@ class AppNamespace:
             channel._shutdown()
 
 class Rendezvous(service.MultiService):
-    def __init__(self, db, welcome, blur_usage):
+    def __init__(self, db, welcome, blur_usage, stats_file=None):
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
+        self._stats_file = stats_file
         log_requests = blur_usage is None
         self._log_requests = log_requests
         self._apps = {}
-        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune_all_apps)
+        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.timer)
         t.setServiceParent(self)
 
     def get_welcome(self):
@@ -517,6 +518,10 @@ class Rendezvous(service.MultiService):
             apps.add(row["app_id"])
         return apps
 
+    def timer(self):
+        self.prune_all_apps()
+        self.dump_stats(now=time.time(), validity=EXPIRATION_CHECK_PERIOD+60)
+
     def prune_all_apps(self, now=None, old=None):
         # As with AppNamespace.prune_old_mailboxes, we log for now.
         log.msg("beginning app prune")
@@ -527,6 +532,20 @@ class Rendezvous(service.MultiService):
             app = self.get_app(app_id)
             app.prune(now, old)
         log.msg("app prune ends, %d apps" % len(self._apps))
+
+    def dump_stats(self, now, validity):
+        if not self._stats_file:
+            return
+        tmpfn = self._stats_file + ".tmp"
+
+        data = {}
+        data["created"] = now
+        data["valid_until"] = now + validity
+
+        with open(tmpfn, "wb") as f:
+            json.dump(data, f, indent=1)
+            f.write("\n")
+        os.rename(tmpfn, self._stats_file)
 
     def stopService(self):
         # This forcibly boots any clients that are still connected, which

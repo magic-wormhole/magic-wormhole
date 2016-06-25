@@ -48,8 +48,13 @@ def server(ctx):
     "--signal-error", is_flag=True,
     help="force all clients to fail with a message",
 )
+@click.option(
+    "--stats-file", default=None, type=type(u""), metavar="stats.json",
+    help="periodically write stats to a file for monitoring tools like Munin",
+)
 @click.pass_obj
-def start(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, rendezvous):
+def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
+          transit, rendezvous, stats_file):
     """
     Start a relay server
     """
@@ -60,6 +65,7 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, 
     cfg.transit = str(transit)
     cfg.rendezvous = str(rendezvous)
     cfg.signal_error = signal_error
+    cfg.stats_file = stats_file
 
     start_server(cfg)
 
@@ -92,8 +98,13 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, 
     "--signal-error", is_flag=True,
     help="force all clients to fail with a message",
 )
+@click.option(
+    "--stats-file", default=None, type=type(u""), metavar="stats.json",
+    help="periodically write stats to a file for monitoring tools like Munin",
+)
 @click.pass_obj
-def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit, rendezvous):
+def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version,
+            transit, rendezvous, stats_file):
     """
     Re-start a relay server
     """
@@ -104,6 +115,7 @@ def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version, transit
     cfg.transit = str(transit)
     cfg.rendezvous = str(rendezvous)
     cfg.signal_error = signal_error
+    cfg.stats_file = stats_file
 
     restart_server(cfg)
 
