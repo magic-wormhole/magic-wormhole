@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, random, base64
+import os, random, base64, collections
 from collections import namedtuple
 from twisted.python import log
 from twisted.application import service
@@ -148,6 +148,8 @@ class AppNamespace:
         self._log_requests = log_requests
         self._app_id = app_id
         self._mailboxes = {}
+        self._nameplate_counts = collections.defaultdict(int)
+        self._mailbox_counts = collections.defaultdict(int)
 
     def get_nameplate_ids(self):
         db = self._db
@@ -275,6 +277,7 @@ class AppNamespace:
                          " VALUES (?, ?,?,?,?)",
                          (self._app_id,
                           u.started, u.total_time, u.waiting_time, u.result))
+        self._nameplate_counts[u.result] += 1
 
     def _summarize_nameplate_usage(self, side_rows, delete_time, pruned):
         times = sorted([row["added"] for row in side_rows])
@@ -351,6 +354,7 @@ class AppNamespace:
                    " VALUES (?, ?,?,?,?)",
                    (self._app_id,
                     u.started, u.total_time, u.waiting_time, u.result))
+        self._mailbox_counts[u.result] += 1
 
     def _summarize_mailbox(self, side_rows, delete_time, pruned):
         times = sorted([row["added"] for row in side_rows])
@@ -467,6 +471,9 @@ class AppNamespace:
             db.commit()
         log.msg("  prune complete, modified:", modified)
 
+    def get_counts(self):
+        return (self._nameplate_counts, self._mailbox_counts)
+
     def _shutdown(self):
         for channel in self._mailboxes.values():
             channel._shutdown()
@@ -536,6 +543,25 @@ class Rendezvous(service.MultiService):
         # TODO: mailboxes with two sides (somewhat fleeting, in-transit)
         # TODO: mailboxes with three or more sides (unlikely)
         c["total_messages"] = q("SELECT COUNT() FROM `messages`")
+
+        # usage since last reboot
+        nameplate_counts = collections.defaultdict(int)
+        mailbox_counts = collections.defaultdict(int)
+        for app in self._apps.values():
+            nc, mc = app.get_counts()
+            for result, count in nc.items():
+                nameplate_counts[result] += count
+            for result, count in mc.items():
+                mailbox_counts[result] += count
+        urb = stats["usage_since_reboot"] = {}
+        urb["nameplates"] = {}
+        for result, count in nameplate_counts.items():
+            urb["nameplates"][result] = count
+        urb["total_nameplates"] = sum(nameplate_counts.values())
+        urb["mailboxes"] = {}
+        for result, count in mailbox_counts.items():
+            urb["mailboxes"][result] = count
+        urb["total_mailboxes"] = sum(mailbox_counts.values())
 
         # historical usage (all-time)
         u = stats["usage"] = {}
