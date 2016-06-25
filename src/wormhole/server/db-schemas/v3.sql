@@ -17,11 +17,9 @@ CREATE TABLE `nameplates`
  `app_id` VARCHAR,
  `name` VARCHAR,
  `mailbox_id` VARCHAR REFERENCES `mailboxes`(`id`),
- `request_id` VARCHAR, -- from 'allocate' message, for future deduplication
- `updated` INTEGER -- time of last activity, used for pruning
+ `request_id` VARCHAR -- from 'allocate' message, for future deduplication
 );
 CREATE INDEX `nameplates_idx` ON `nameplates` (`app_id`, `name`);
-CREATE INDEX `nameplates_updated_idx` ON `nameplates` (`app_id`, `updated`);
 CREATE INDEX `nameplates_mailbox_idx` ON `nameplates` (`app_id`, `mailbox_id`);
 CREATE INDEX `nameplates_request_idx` ON `nameplates` (`app_id`, `request_id`);
 

@@ -6,12 +6,9 @@ from twisted.application import service, internet
 
 SECONDS = 1.0
 MINUTE = 60*SECONDS
-HOUR = 60*MINUTE
-DAY = 24*HOUR
-MB = 1000*1000
 
-CHANNEL_EXPIRATION_TIME = 2*HOUR
-EXPIRATION_CHECK_PERIOD = 1*HOUR
+CHANNEL_EXPIRATION_TIME = 11*MINUTE
+EXPIRATION_CHECK_PERIOD = 10*MINUTE
 
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
@@ -203,9 +200,9 @@ class AppNamespace:
             mailbox_id = generate_mailbox_id()
             self._add_mailbox(mailbox_id, side, when) # ensure row exists
             sql = ("INSERT INTO `nameplates`"
-                   " (`app_id`, `name`, `mailbox_id`, `updated`)"
-                   " VALUES(?,?,?,?)")
-            npid = db.execute(sql, (self._app_id, name, mailbox_id, when)
+                   " (`app_id`, `name`, `mailbox_id`)"
+                   " VALUES(?,?,?)")
+            npid = db.execute(sql, (self._app_id, name, mailbox_id)
                               ).lastrowid
         else:
             npid = row["id"]
@@ -219,8 +216,6 @@ class AppNamespace:
                        " (`nameplates_id`, `claimed`, `side`, `added`)"
                        " VALUES(?,?,?,?)",
                        (npid, True, side, when))
-        db.execute("UPDATE `nameplates` SET `updated`=? WHERE `id`=?",
-                   (when, npid))
         db.commit()
 
         self.open_mailbox(mailbox_id, side, when) # may raise CrowdedError
@@ -398,10 +393,11 @@ class AppNamespace:
         # allowed to disconnect for up to 9 minutes without losing the
         # channel (nameplate, mailbox, and messages).
 
-        # Each time a client does something, the "updated" field is updated.
-        # If a client is subscribed to the mailbox when pruning check runs,
-        # the "updated" field is updated. After that check, if the "updated"
-        # field is "old", the channel is deleted.
+        # Each time a client does something, the mailbox.updated field is
+        # updated with the current timestamp. If a client is subscribed to
+        # the mailbox when pruning check runs, the "updated" field is also
+        # updated. After that check, if the "updated" field is "old", the
+        # channel is deleted.
 
         # For now, pruning is logged even if log_requests is False, to debug
         # the pruning process, and since pruning is triggered by a timer
@@ -411,58 +407,33 @@ class AppNamespace:
         log.msg(" prune begins (%s)" % self._app_id)
         db = self._db
         modified = False
-        # for all `mailboxes`: classify as new or old
-        OLD = 0; NEW = 1
-        all_mailboxes = {}
+
+        for mailbox in self._mailboxes.values():
+            if mailbox.has_listeners():
+                mailbox._touch(now)
+        db.commit() # make sure the updates are visible below
+
+        new_mailboxes = set()
+        old_mailboxes = set()
         for row in db.execute("SELECT * FROM `mailboxes` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             mailbox_id = row["id"]
             if row["updated"] > old:
-                which = NEW
+                new_mailboxes.add(mailbox_id)
             else:
-                which = OLD
-            all_mailboxes[mailbox_id] = which
-        #log.msg(" 2: all_mailboxes", all_mailboxes)
+                old_mailboxes.add(mailbox_id)
+        #log.msg(" 2: mailboxes:", new_mailboxes, old_mailboxes)
 
-        # for all mailbox objects with active listeners:
-        #   classify the mailbox as new
-        for mailbox_id in self._mailboxes:
-            #log.msg(" -5: checking", mailbox_id, self._mailboxes[mailbox_id])
-            if self._mailboxes[mailbox_id].has_listeners():
-                all_mailboxes[mailbox_id] = NEW
-        #log.msg(" 5: all_mailboxes", all_mailboxes)
-
-        # for all `nameplates`:
-        #   classify as new or old
-        #   if the linked mailbox exists:
-        #     if it is new:
-        #       classify nameplate as new
-        #     if it is old:
-        #       if the nameplate is new:
-        #         classify mailbox as new
-        old_nameplate_ids = []
+        old_nameplates = set()
         for row in db.execute("SELECT * FROM `nameplates` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             npid = row["id"]
-            if row["updated"] > old:
-                which = NEW
-            else:
-                which = OLD
             mailbox_id = row["mailbox_id"]
-            if mailbox_id in all_mailboxes:
-                if all_mailboxes[mailbox_id] == NEW:
-                    which = NEW
-                else:
-                    if which == NEW:
-                        all_mailboxes[mailbox_id] = NEW
-            if which == OLD:
-                old_nameplate_ids.append(npid)
-        #log.msg(" 6: old_nameplate_ids", old_nameplate_ids)
+            if mailbox_id in old_mailboxes:
+                old_nameplates.add(npid)
+        #log.msg(" 3: old_nameplates", old_nameplates)
 
-        # delete all old nameplates
-        #   invariant check: if there is a linked mailbox, it is old
-
-        for npid in old_nameplate_ids:
+        for npid in old_nameplates:
             log.msg("  deleting nameplate", npid)
             side_rows = db.execute("SELECT * FROM `nameplate_sides`"
                                    " WHERE `nameplates_id`=?",
@@ -476,20 +447,19 @@ class AppNamespace:
         # delete all messages for old mailboxes
         # delete all old mailboxes
 
-        for mailbox_id, which in all_mailboxes.items():
-            if which == OLD:
-                log.msg("  deleting mailbox", mailbox_id)
-                side_rows = db.execute("SELECT * FROM `mailbox_sides`"
-                                       " WHERE `mailbox_id`=?",
-                                       (mailbox_id,)).fetchall()
-                db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
-                           (mailbox_id,))
-                db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
-                           (mailbox_id,))
-                db.execute("DELETE FROM `mailboxes` WHERE `id`=?",
-                           (mailbox_id,))
-                self._summarize_mailbox_and_store(side_rows, now, pruned=True)
-                modified = True
+        for mailbox_id in old_mailboxes:
+            log.msg("  deleting mailbox", mailbox_id)
+            side_rows = db.execute("SELECT * FROM `mailbox_sides`"
+                                   " WHERE `mailbox_id`=?",
+                                   (mailbox_id,)).fetchall()
+            db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
+                       (mailbox_id,))
+            db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
+                       (mailbox_id,))
+            db.execute("DELETE FROM `mailboxes` WHERE `id`=?",
+                       (mailbox_id,))
+            self._summarize_mailbox_and_store(side_rows, now, pruned=True)
+            modified = True
 
         if modified:
             db.commit()

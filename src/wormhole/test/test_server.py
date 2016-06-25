@@ -391,7 +391,7 @@ class Prune(unittest.TestCase):
 
     def test_lots(self):
         OLD = "old"; NEW = "new"
-        for nameplate in [None, OLD, NEW]:
+        for nameplate in [False, True]:
             for mailbox in [OLD, NEW]:
                 for has_listeners in [False, True]:
                     self.one(nameplate, mailbox, has_listeners)
@@ -417,8 +417,8 @@ class Prune(unittest.TestCase):
         mailbox_survives = False
 
         mbid = "mbid"
-        if nameplate is not None:
-            mbid = app.claim_nameplate("npid", "side1", when[nameplate])
+        if nameplate:
+            mbid = app.claim_nameplate("npid", "side1", when[mailbox])
         mb = app.open_mailbox(mbid, "side1", when[mailbox])
 
         # the pruning algorithm doesn't care about the age of messages,
@@ -430,8 +430,8 @@ class Prune(unittest.TestCase):
         if has_listeners:
             mb.add_listener("handle", None, None)
 
-        if (nameplate == NEW or mailbox == NEW or has_listeners):
-            if nameplate is not None:
+        if (mailbox == NEW or has_listeners):
+            if nameplate:
                 nameplate_survives = True
             mailbox_survives = True
         messages_survive = mailbox_survives
