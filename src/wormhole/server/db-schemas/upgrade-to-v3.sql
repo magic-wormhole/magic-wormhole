@@ -34,7 +34,8 @@ CREATE TABLE `mailboxes`
 (
  `app_id` VARCHAR,
  `id` VARCHAR PRIMARY KEY,
- `updated` INTEGER -- time of last activity, used for pruning
+ `updated` INTEGER, -- time of last activity, used for pruning
+ `for_nameplate` BOOLEAN -- allocated for a nameplate, not standalone
 );
 CREATE INDEX `mailboxes_idx` ON `mailboxes` (`app_id`, `id`);
 
@@ -43,7 +44,7 @@ CREATE TABLE `mailbox_sides`
  `mailbox_id` REFERENCES `mailboxes`(`id`),
  `opened` BOOLEAN, -- True after open(), False after close()
  `side` VARCHAR,
- `added` INTEGER, -- time when this side first claimed the nameplate
+ `added` INTEGER, -- time when this side first opened the mailbox
  `mood` VARCHAR
 );
 
@@ -59,6 +60,8 @@ CREATE TABLE `messages`
 );
 CREATE INDEX `messages_idx` ON `messages` (`app_id`, `mailbox_id`);
 
+CREATE INDEX `mailbox_usage_result_idx` ON `mailbox_usage` (`result`);
+CREATE INDEX `transit_usage_result_idx` ON `transit_usage` (`result`);
 
 DELETE FROM `version`;
 INSERT INTO `version` (`version`) VALUES (3);

@@ -39,7 +39,8 @@ CREATE TABLE `mailboxes`
 (
  `app_id` VARCHAR,
  `id` VARCHAR PRIMARY KEY,
- `updated` INTEGER -- time of last activity, used for pruning
+ `updated` INTEGER, -- time of last activity, used for pruning
+ `for_nameplate` BOOLEAN -- allocated for a nameplate, not standalone
 );
 CREATE INDEX `mailboxes_idx` ON `mailboxes` (`app_id`, `id`);
 
@@ -48,7 +49,7 @@ CREATE TABLE `mailbox_sides`
  `mailbox_id` REFERENCES `mailboxes`(`id`),
  `opened` BOOLEAN, -- True after open(), False after close()
  `side` VARCHAR,
- `added` INTEGER, -- time when this side first claimed the nameplate
+ `added` INTEGER, -- time when this side first opened the mailbox
  `mood` VARCHAR
 );
 
@@ -95,6 +96,7 @@ CREATE TABLE `mailbox_usage`
  --  "crowded": three or more sides were involved
 );
 CREATE INDEX `mailbox_usage_idx` ON `mailbox_usage` (`app_id`, `started`);
+CREATE INDEX `mailbox_usage_result_idx` ON `mailbox_usage` (`result`);
 
 CREATE TABLE `transit_usage`
 (
@@ -109,3 +111,4 @@ CREATE TABLE `transit_usage`
  --  "happy": both sides gave correct handshake
 );
 CREATE INDEX `transit_usage_idx` ON `transit_usage` (`started`);
+CREATE INDEX `transit_usage_result_idx` ON `transit_usage` (`result`);
