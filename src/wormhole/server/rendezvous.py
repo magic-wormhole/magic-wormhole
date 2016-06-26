@@ -536,7 +536,7 @@ class Rendezvous(service.MultiService):
         stats = {}
 
         # current status: expected to be zero most of the time
-        c = stats["current"] = {}
+        c = stats["active"] = {}
         c["apps"] = len(self.get_all_apps())
         def q(query, values=()):
             row = self._db.execute(query, values).fetchone()
@@ -560,7 +560,7 @@ class Rendezvous(service.MultiService):
                 nameplate_counts[result] += count
             for result, count in mc.items():
                 mailbox_counts[result] += count
-        urb = stats["usage_since_reboot"] = {}
+        urb = stats["since_reboot"] = {}
         urb["nameplates"] = {}
         for result, count in nameplate_counts.items():
             urb["nameplates"][result] = count
@@ -571,10 +571,9 @@ class Rendezvous(service.MultiService):
         urb["total_mailboxes"] = sum(mailbox_counts.values())
 
         # historical usage (all-time)
-        u = stats["usage"] = {}
+        u = stats["all_time"] = {}
         un = u["nameplates"] = {}
         # TODO: there's probably a single SQL query for all this
-        un["total"] = q("SELECT COUNT() FROM `nameplate_usage`")
         un["happy"] = q("SELECT COUNT() FROM `nameplate_usage`"
                         " WHERE `result`='happy'")
         un["lonely"] = q("SELECT COUNT() FROM `nameplate_usage`"
@@ -583,8 +582,8 @@ class Rendezvous(service.MultiService):
                          " WHERE `result`='pruney'")
         un["crowded"] = q("SELECT COUNT() FROM `nameplate_usage`"
                           " WHERE `result`='crowded'")
+        u["total_nameplates"] = q("SELECT COUNT() FROM `nameplate_usage`")
         um = u["mailboxes"] = {}
-        um["total"] = q("SELECT COUNT() FROM `mailbox_usage`")
         um["happy"] = q("SELECT COUNT() FROM `mailbox_usage`"
                         " WHERE `result`='happy'")
         um["scary"] = q("SELECT COUNT() FROM `mailbox_usage`"
@@ -599,8 +598,9 @@ class Rendezvous(service.MultiService):
                          " WHERE `result`='pruney'")
         um["crowded"] = q("SELECT COUNT() FROM `mailbox_usage`"
                           " WHERE `result`='crowded'")
-        um["standalone"] = q("SELECT COUNT() FROM `mailbox_usage`"
-                             " WHERE `for_nameplate`=0")
+        u["total_mailboxes"] = q("SELECT COUNT() FROM `mailbox_usage`")
+        u["standalone_mailboxes"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                                      " WHERE `for_nameplate`=0")
 
         # recent timings (last 100 operations)
         # TODO: median/etc of nameplate.total_time
