@@ -95,6 +95,7 @@ class RelayServer(service.MultiService):
         self._root = root
         self._rendezvous_web_service = rendezvous_web_service
         self._rendezvous_websocket = wsrf
+        self._transit = None
         if transit_port:
             self._transit = transit
             self._transit_service = transit_service
@@ -125,6 +126,7 @@ class RelayServer(service.MultiService):
         data["valid_until"] = now + validity
 
         data["rendezvous"] = self._rendezvous.get_stats()
+        data["transit"] = self._transit.get_stats()
 
         with open(tmpfn, "wb") as f:
             json.dump(data, f, indent=1)

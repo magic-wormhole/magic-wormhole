@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import re, time
+import re, time, collections
 from twisted.python import log
 from twisted.internet import protocol
 from twisted.application import service
@@ -166,6 +166,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
         self._blur_usage = blur_usage
         self._pending_requests = {} # token -> TransitConnection
         self._active_connections = set() # TransitConnection
+        self._counts = collections.defaultdict(int)
 
     def connection_got_token(self, token, p):
         if token in self._pending_requests:
@@ -193,6 +194,8 @@ class Transit(protocol.ServerFactory, service.MultiService):
                          (started, total_time, waiting_time,
                           total_bytes, result))
         self._db.commit()
+        self._counts[result] += 1
+        self._counts["bytes"] += total_bytes
 
     def transitFinished(self, p, token, description):
         for token,tc in self._pending_requests.items():
@@ -205,3 +208,32 @@ class Transit(protocol.ServerFactory, service.MultiService):
     def transitFailed(self, p):
         log.msg("transitFailed %r" % p)
         pass
+
+    def get_stats(self):
+        stats = {}
+        def q(query, values=()):
+            row = self._db.execute(query, values).fetchone()
+            return list(row.values())[0]
+
+        # current status: expected to be zero most of the time
+        c = stats["active"] = {}
+        c["connected"] = len(self._active_connections) / 2
+        c["waiting"] = len(self._pending_requests)
+
+        # usage since last reboot
+        rb = stats["since_reboot"] = {}
+        for result, count in self._counts.items():
+            rb[result] = count
+
+        # historical usage (all-time)
+        u = stats["all_time"] = {}
+        u["total"] = q("SELECT COUNT() FROM `transit_usage`")
+        u["happy"] = q("SELECT COUNT() FROM `transit_usage`"
+                       " WHERE `result`='happy'")
+        u["lonely"] = q("SELECT COUNT() FROM `transit_usage`"
+                        " WHERE `result`='lonely'")
+        u["errory"] = q("SELECT COUNT() FROM `transit_usage`"
+                        " WHERE `result`='errory'")
+        u["bytes"] = q("SELECT SUM(`total_bytes`) FROM `transit_usage`") or 0
+
+        return stats
