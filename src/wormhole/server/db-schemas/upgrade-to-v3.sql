@@ -60,6 +60,7 @@ CREATE TABLE `messages`
 );
 CREATE INDEX `messages_idx` ON `messages` (`app_id`, `mailbox_id`);
 
+ALTER TABLE `mailbox_usage` ADD COLUMN `for_nameplate` BOOLEAN;
 CREATE INDEX `mailbox_usage_result_idx` ON `mailbox_usage` (`result`);
 CREATE INDEX `transit_usage_result_idx` ON `transit_usage` (`result`);
 

@@ -83,6 +83,7 @@ CREATE INDEX `nameplate_usage_idx` ON `nameplate_usage` (`app_id`, `started`);
 CREATE TABLE `mailbox_usage`
 (
  `app_id` VARCHAR,
+ `for_nameplate` BOOLEAN, -- allocated for a nameplate, not standalone
  `started` INTEGER, -- seconds since epoch, rounded to "blur time"
  `total_time` INTEGER, -- seconds from open to last close
  `waiting_time` INTEGER, -- seconds from start to 2nd side appearing, or None
