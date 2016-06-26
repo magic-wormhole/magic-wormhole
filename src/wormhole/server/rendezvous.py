@@ -102,6 +102,7 @@ class Mailbox:
                          (self._app_id, self._mailbox_id)).fetchone()
         if not row:
             return
+        for_nameplate = row["for_nameplate"]
 
         row = db.execute("SELECT * FROM `mailbox_sides`"
                          " WHERE `mailbox_id`=? AND `side`=?",
@@ -126,7 +127,8 @@ class Mailbox:
         db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
                    (self._mailbox_id,))
         db.execute("DELETE FROM `mailboxes` WHERE `id`=?", (self._mailbox_id,))
-        self._app._summarize_mailbox_and_store(side_rows, when, pruned=False)
+        self._app._summarize_mailbox_and_store(for_nameplate, side_rows,
+                                               when, pruned=False)
         db.commit()
         # Shut down any listeners, just in case they're still lingering
         # around.
@@ -199,7 +201,7 @@ class AppNamespace:
                 log.msg("creating nameplate#%s for app_id %s" %
                         (name, self._app_id))
             mailbox_id = generate_mailbox_id()
-            self._add_mailbox(mailbox_id, side, when) # ensure row exists
+            self._add_mailbox(mailbox_id, True, side, when) # ensure row exists
             sql = ("INSERT INTO `nameplates`"
                    " (`app_id`, `name`, `mailbox_id`)"
                    " VALUES(?,?,?)")
@@ -298,7 +300,7 @@ class AppNamespace:
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
-    def _add_mailbox(self, mailbox_id, side, when):
+    def _add_mailbox(self, mailbox_id, for_nameplate, side, when):
         assert isinstance(mailbox_id, type("")), type(mailbox_id)
         db = self._db
         row = db.execute("SELECT * FROM `mailboxes`"
@@ -306,15 +308,15 @@ class AppNamespace:
                          (self._app_id, mailbox_id)).fetchone()
         if not row:
             self._db.execute("INSERT INTO `mailboxes`"
-                             " (`app_id`, `id`, `updated`)"
-                             " VALUES(?,?,?)",
-                             (self._app_id, mailbox_id, when))
+                             " (`app_id`, `id`, `for_nameplate`, `updated`)"
+                             " VALUES(?,?,?,?)",
+                             (self._app_id, mailbox_id, for_nameplate, when))
             # we don't need a commit here, because mailbox.open() only
             # does SELECT FROM `mailbox_sides`, not from `mailboxes`
 
     def open_mailbox(self, mailbox_id, side, when):
         assert isinstance(mailbox_id, type("")), type(mailbox_id)
-        self._add_mailbox(mailbox_id, side, when) # ensure row exists
+        self._add_mailbox(mailbox_id, False, side, when) # ensure row exists
         db = self._db
         if not mailbox_id in self._mailboxes: # ensure Mailbox object exists
             if self._log_requests:
@@ -345,14 +347,15 @@ class AppNamespace:
         #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
         #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
-    def _summarize_mailbox_and_store(self, side_rows, delete_time, pruned):
+    def _summarize_mailbox_and_store(self, for_nameplate, side_rows,
+                                     delete_time, pruned):
         db = self._db
         u = self._summarize_mailbox(side_rows, delete_time, pruned)
         db.execute("INSERT INTO `mailbox_usage`"
-                   " (`app_id`,"
+                   " (`app_id`, `for_nameplate`,"
                    "  `started`, `total_time`, `waiting_time`, `result`)"
-                   " VALUES (?, ?,?,?,?)",
-                   (self._app_id,
+                   " VALUES (?,?, ?,?,?,?)",
+                   (self._app_id, for_nameplate,
                     u.started, u.total_time, u.waiting_time, u.result))
         self._mailbox_counts[u.result] += 1
 
@@ -455,6 +458,9 @@ class AppNamespace:
 
         for mailbox_id in old_mailboxes:
             log.msg("  deleting mailbox", mailbox_id)
+            row = db.execute("SELECT * FROM `mailboxes`"
+                             " WHERE `id`=?", (mailbox_id,)).fetchone()
+            for_nameplate = row["for_nameplate"]
             side_rows = db.execute("SELECT * FROM `mailbox_sides`"
                                    " WHERE `mailbox_id`=?",
                                    (mailbox_id,)).fetchall()
@@ -464,7 +470,8 @@ class AppNamespace:
                        (mailbox_id,))
             db.execute("DELETE FROM `mailboxes` WHERE `id`=?",
                        (mailbox_id,))
-            self._summarize_mailbox_and_store(side_rows, now, pruned=True)
+            self._summarize_mailbox_and_store(for_nameplate, side_rows,
+                                              now, pruned=True)
             modified = True
 
         if modified:
@@ -592,6 +599,8 @@ class Rendezvous(service.MultiService):
                          " WHERE `result`='pruney'")
         um["crowded"] = q("SELECT COUNT() FROM `mailbox_usage`"
                           " WHERE `result`='crowded'")
+        um["standalone"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                             " WHERE `for_nameplate`=0")
 
         # recent timings (last 100 operations)
         # TODO: median/etc of nameplate.total_time
