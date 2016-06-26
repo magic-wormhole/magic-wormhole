@@ -535,7 +535,7 @@ class Rendezvous(service.MultiService):
     def get_stats(self):
         stats = {}
 
-        # current status
+        # current status: expected to be zero most of the time
         c = stats["current"] = {}
         c["apps"] = len(self.get_all_apps())
         def q(query, values=()):
