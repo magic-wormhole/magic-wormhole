@@ -48,10 +48,9 @@ class Sender:
         w = wormhole(APPID, self._args.relay_url,
                      self._reactor, self._tor_manager,
                      timing=self._timing)
-        try:
-            yield self._go(w)
-        finally:
-            w.close()
+        d = self._go(w)
+        d.addBoth(w.close) # must wait for ack from close()
+        yield d
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
