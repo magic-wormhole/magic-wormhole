@@ -125,8 +125,10 @@ class RelayServer(service.MultiService):
         data["created"] = now
         data["valid_until"] = now + validity
 
+        start = time.time()
         data["rendezvous"] = self._rendezvous.get_stats()
         data["transit"] = self._transit.get_stats()
+        log.msg("get_stats took:", time.time() - start)
 
         with open(tmpfn, "wb") as f:
             json.dump(data, f, indent=1)
