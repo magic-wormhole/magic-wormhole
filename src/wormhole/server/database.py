@@ -1,7 +1,8 @@
 from __future__ import unicode_literals
-import os, sys
+import os
 import sqlite3
 from pkg_resources import resource_string
+from twisted.python import log
 
 class DBError(Exception):
     pass
@@ -24,7 +25,7 @@ def dict_factory(cursor, row):
         d[col[0]] = row[idx]
     return d
 
-def get_db(dbfile, target_version=TARGET_VERSION, stderr=sys.stderr):
+def get_db(dbfile, target_version=TARGET_VERSION):
     """Open or create the given db file. The parent directory must exist.
     Returns the db connection object, or raises DBError.
     """
@@ -41,6 +42,7 @@ def get_db(dbfile, target_version=TARGET_VERSION, stderr=sys.stderr):
         raise DBError("failed foreign key check: %s" % (problems,))
 
     if must_create:
+        log.msg("populating new database with schema v%s" % target_version)
         schema = get_schema(target_version)
         db.executescript(schema)
         db.execute("INSERT INTO version (version) VALUES (?)",
@@ -55,11 +57,14 @@ def get_db(dbfile, target_version=TARGET_VERSION, stderr=sys.stderr):
         raise DBError("db file is unusable: %s" % e)
 
     while version < target_version:
+        log.msg(" need to upgrade from %s to %s" % (version, target_version))
         try:
             upgrader = get_upgrader(version+1)
         except ValueError: # ResourceError??
+            log.msg(" unable to upgrade %s to %s" % (version, version+1))
             raise DBError("Unable to upgrade %s to version %s, left at %s"
                           % (dbfile, version+1, version))
+        log.msg(" executing upgrader v%s->v%s" % (version, version+1))
         db.executescript(upgrader)
         db.commit()
         version = version+1
