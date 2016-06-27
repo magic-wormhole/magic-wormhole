@@ -7,7 +7,7 @@ Use the following in /etc/munin/plugin-conf.d/wormhole :
 env.serverdir /path/to/your/wormhole/server
 """
 
-import os, sys, sqlite3
+import os, sys, time, json
 
 def count_events():
     serverdir = os.environ["serverdir"]
@@ -65,18 +65,23 @@ def count_events():
 
 CONFIG = """\
 graph_title Magic-Wormhole Transit Usage
-graph_vlabel Bytes per Hour
+graph_vlabel Bytes Since Reboot
 graph_category network
 bytes.label Transit Bytes
 bytes.draw LINE1
-bytes.type DERIVE
-bytes.min 0
-bytes.cdef bytes,3600,*
+bytes.type GAUGE
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
     print CONFIG.rstrip()
     sys.exit(0)
 
-c = count_events()
-print "bytes.value", c["transit bytes"]
+serverdir = os.environ["serverdir"]
+fn = os.path.join(serverdir, "stats.json")
+with open(fn) as f:
+    data = json.load(f)
+if time.time() > data["valid_until"]:
+    sys.exit(1) # expired
+
+t = data["transit"]["since_reboot"]
+print "bytes.value", t["bytes"]

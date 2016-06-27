@@ -50,4 +50,3 @@ class DB(unittest.TestCase):
             with open("new.sql","w") as f: f.write(latest_text)
             # check with "diff -u _trial_temp/up.sql _trial_temp/new.sql"
             self.assertEqual(dbA_text, latest_text)
-    test_upgrade.skip = "disabled until at least one upgrader is written"

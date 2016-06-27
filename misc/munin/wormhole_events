@@ -7,88 +7,48 @@ Use the following in /etc/munin/plugin-conf.d/wormhole :
 env.serverdir /path/to/your/wormhole/server
 """
 
-import os, sys, sqlite3
-
-def count_events():
-    serverdir = os.environ["serverdir"]
-    dbfile = os.path.join(serverdir, "relay.sqlite")
-    if not os.path.exists(dbfile):
-        print "cannot find relay.sqlite, please set env.serverdir"
-        sys.exit(1)
-    db = sqlite3.connect(dbfile)
-
-    c_list = []
-    c_dict = {}
-    def add(key, value):
-        c_list.append((key, value))
-        c_dict[key] = value
-    def q(query, values=()):
-        return db.execute(query, values).fetchone()[0]
-
-    add("apps", q("SELECT COUNT(DISTINCT(`app_id`)) FROM `nameplate_usage`"))
-
-    add("total nameplates", q("SELECT COUNT() FROM `nameplate_usage`"))
-    add("happy nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
-                              " WHERE `result`='happy'"))
-    add("lonely nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
-                               " WHERE `result`='lonely'"))
-    add("pruney nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
-                               " WHERE `result`='pruney'"))
-    add("crowded nameplates", q("SELECT COUNT() FROM `nameplate_usage`"
-                                " WHERE `result`='crowded'"))
-
-    add("total mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"))
-    add("happy mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                             " WHERE `result`='happy'"))
-    add("scary mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                             " WHERE `result`='scary'"))
-    add("lonely mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                              " WHERE `result`='lonely'"))
-    add("errory mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                              " WHERE `result`='errory'"))
-    add("pruney mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                              " WHERE `result`='pruney'"))
-    add("crowded mailboxes", q("SELECT COUNT() FROM `mailbox_usage`"
-                               " WHERE `result`='crowded'"))
-
-    add("total transit", q("SELECT COUNT() FROM `transit_usage`"))
-    add("happy transit", q("SELECT COUNT() FROM `transit_usage`"
-                           " WHERE `result`='happy'"))
-    add("lonely transit", q("SELECT COUNT() FROM `transit_usage`"
-                            " WHERE `result`='lonely'"))
-    add("errory transit", q("SELECT COUNT() FROM `transit_usage`"
-                            " WHERE `result`='errory'"))
-
-    add("transit bytes", q("SELECT SUM(`total_bytes`) FROM `transit_usage`"))
-
-    return c_dict
+import os, sys, time, json
 
 CONFIG = """\
-graph_title Magic-Wormhole Server Events
-graph_vlabel Events per Hour
+graph_title Magic-Wormhole Mailbox Events
+graph_vlabel Events Since Reboot
 graph_category network
-nameplates.label Nameplates
-nameplates.draw LINE
-nameplates.type DERIVE
-nameplates.min 0
-nameplates.cdef nameplates,3600,*
-mailboxes.label Mailboxes
-mailboxes.draw LINE
-mailboxes.type DERIVE
-mailboxes.min 0
-mailboxes.cdef mailboxes,3600,*
-transit.label Transit
-transit.draw LINE
-transit.type DERIVE
-transit.min 0
-transit.cdef transit,3600,*
+total.label Total
+total.draw LINE1
+total.type GAUGE
+happy.label Happy
+happy.draw LINE2
+happy.type GAUGE
+pruney.label Pruney
+pruney.draw LINE1
+pruney.type GAUGE
+incomplete.label Incomplete (pruned/lonely)
+incomplete.draw LINE2
+incomplete.type GAUGE
+scary.label Scary
+scary.draw LINE1
+scary.type GAUGE
+errory.label Errory
+errory.draw LINE1
+errory.type GAUGE
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
     print CONFIG.rstrip()
     sys.exit(0)
 
-c = count_events()
-print "nameplates.value", c["total nameplates"]
-print "mailboxes.value", c["total mailboxes"]
-print "transit.value", c["total transit"]
+serverdir = os.environ["serverdir"]
+fn = os.path.join(serverdir, "stats.json")
+with open(fn) as f:
+    data = json.load(f)
+if time.time() > data["valid_until"]:
+    sys.exit(1) # expired
+
+r = data["rendezvous"]["since_reboot"]
+print "total.value", r["mailboxes_total"]
+print "happy.value", r["mailbox_moods"].get("happy", 0)
+print "pruney.value", r["mailbox_moods"].get("pruney", 0)
+print "incomplete.value", (r["mailbox_moods"].get("pruney", 0)
+                           + r["mailbox_moods"].get("lonely", 0))
+print "scary.value", r["mailbox_moods"].get("scary", 0)
+print "errory.value", r["mailbox_moods"].get("errory", 0)

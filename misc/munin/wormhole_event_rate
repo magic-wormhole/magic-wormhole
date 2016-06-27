@@ -1,0 +1,50 @@
+#! /usr/bin/env python
+
+"""
+Use the following in /etc/munin/plugin-conf.d/wormhole :
+
+[wormhole_*]
+env.serverdir /path/to/your/wormhole/server
+"""
+
+import os, sys, time, json
+
+CONFIG = """\
+graph_title Magic-Wormhole Server Events
+graph_vlabel Events per Hour
+graph_category network
+happy.label Happy
+happy.draw LINE
+happy.type DERIVE
+happy.min 0
+happy.max 60
+happy.cdef happy,3600,*
+incomplete.label Incomplete
+incomplete.draw LINE
+incomplete.type DERIVE
+incomplete.min 0
+incomplete.max 60
+incomplete.cdef happy,3600,*
+scary.label Scary
+scary.draw LINE
+scary.type DERIVE
+scary.min 0
+scary.max 60
+scary.cdef happy,3600,*
+"""
+
+if len(sys.argv) > 1 and sys.argv[1] == "config":
+    print CONFIG.rstrip()
+    sys.exit(0)
+
+serverdir = os.environ["serverdir"]
+fn = os.path.join(serverdir, "stats.json")
+with open(fn) as f:
+    data = json.load(f)
+if time.time() > data["valid_until"]:
+    sys.exit(1) # expired
+
+atm = data["rendezvous"]["all_time"]["mailbox_moods"]
+print "happy.value", atm.get("happy", 0)
+print "incomplete.value", (atm.get("pruney", 0) + atm.get("lonely", 0))
+print "scary.value", atm.get("scary", 0)

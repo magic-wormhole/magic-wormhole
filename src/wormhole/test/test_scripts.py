@@ -427,6 +427,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.failUnlessEqual(modes[i],
                                      stat.S_IMODE(os.stat(fn).st_mode))
 
+        # check server stats
+        self._rendezvous.get_stats()
+
     def test_text(self):
         return self._do_test()
     def test_text_subprocess(self):

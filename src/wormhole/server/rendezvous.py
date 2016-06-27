@@ -1,47 +1,14 @@
 from __future__ import print_function, unicode_literals
-import os, time, random, base64
+import os, random, base64, collections
 from collections import namedtuple
 from twisted.python import log
-from twisted.application import service, internet
-
-SECONDS = 1.0
-MINUTE = 60*SECONDS
-HOUR = 60*MINUTE
-DAY = 24*HOUR
-MB = 1000*1000
-
-CHANNEL_EXPIRATION_TIME = 2*HOUR
-EXPIRATION_CHECK_PERIOD = 1*HOUR
+from twisted.application import service
 
 def generate_mailbox_id():
     return base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
 
-
-SideResult = namedtuple("SideResult", ["changed", "empty", "side1", "side2"])
-Unchanged = SideResult(changed=False, empty=False, side1=None, side2=None)
 class CrowdedError(Exception):
     pass
-
-def add_side(row, new_side):
-    old_sides = [s for s in [row["side1"], row["side2"]] if s]
-    assert old_sides
-    if new_side in old_sides:
-        return Unchanged
-    if len(old_sides) == 2:
-        raise CrowdedError("too many sides for this thing")
-    return SideResult(changed=True, empty=False,
-                      side1=old_sides[0], side2=new_side)
-
-def remove_side(row, side):
-    old_sides = [s for s in [row["side1"], row["side2"]] if s]
-    if side not in old_sides:
-        return Unchanged
-    remaining_sides = old_sides[:]
-    remaining_sides.remove(side)
-    if remaining_sides:
-        return SideResult(changed=True, empty=False, side1=remaining_sides[0],
-                          side2=None)
-    return SideResult(changed=True, empty=True, side1=None, side2=None)
 
 Usage = namedtuple("Usage", ["started", "waiting_time", "total_time", "result"])
 TransitUsage = namedtuple("TransitUsage",
@@ -65,23 +32,21 @@ class Mailbox:
         # requires caller to db.commit()
         assert isinstance(side, type("")), type(side)
         db = self._db
-        row = db.execute("SELECT * FROM `mailboxes`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, self._mailbox_id)).fetchone()
-        try:
-            sr = add_side(row, side)
-        except CrowdedError:
-            db.execute("UPDATE `mailboxes` SET `crowded`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (True, self._app_id, self._mailbox_id))
-            db.commit()
-            raise
-        if sr.changed:
-            db.execute("UPDATE `mailboxes` SET"
-                       " `side1`=?, `side2`=?, `second`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (sr.side1, sr.side2, when,
-                        self._app_id, self._mailbox_id))
+
+        already = db.execute("SELECT * FROM `mailbox_sides`"
+                             " WHERE `mailbox_id`=? AND `side`=?",
+                             (self._mailbox_id, side)).fetchone()
+        if not already:
+            db.execute("INSERT INTO `mailbox_sides`"
+                       " (`mailbox_id`, `opened`, `side`, `added`)"
+                       " VALUES(?,?,?,?)",
+                       (self._mailbox_id, True, side, when))
+        self._touch(when)
+        db.commit() # XXX: reconcile the need for this with the comment above
+
+    def _touch(self, when):
+        self._db.execute("UPDATE `mailboxes` SET `updated`=? WHERE `id`=?",
+                         (when, self._mailbox_id))
 
     def get_messages(self):
         messages = []
@@ -97,12 +62,15 @@ class Mailbox:
         return messages
 
     def add_listener(self, handle, send_f, stop_f):
-        # TODO: update 'updated'
+        #log.msg("add_listener", self._mailbox_id, handle)
         self._listeners[handle] = (send_f, stop_f)
+        #log.msg(" added", len(self._listeners))
         return self.get_messages()
 
     def remove_listener(self, handle):
-        self._listeners.pop(handle)
+        #log.msg("remove_listener", self._mailbox_id, handle)
+        self._listeners.pop(handle, None)
+        #log.msg(" removed", len(self._listeners))
 
     def has_listeners(self):
         return bool(self._listeners)
@@ -118,6 +86,7 @@ class Mailbox:
                          " VALUES (?,?,?,?,?, ?,?)",
                          (self._app_id, self._mailbox_id, sm.side,
                           sm.phase, sm.body, sm.server_rx, sm.msg_id))
+        self._touch(sm.server_rx)
         self._db.commit()
 
     def add_message(self, sm):
@@ -133,43 +102,46 @@ class Mailbox:
                          (self._app_id, self._mailbox_id)).fetchone()
         if not row:
             return
-        sr = remove_side(row, side)
-        if sr.empty:
-            self._app._summarize_mailbox_and_store(self._mailbox_id, row,
-                                                   mood, when, pruned=False)
-            self._delete()
-            db.commit()
-        elif sr.changed:
-            db.execute("UPDATE `mailboxes`"
-                       " SET `side1`=?, `side2`=?, `first_mood`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (sr.side1, sr.side2, mood,
-                        self._app_id, self._mailbox_id))
-            db.commit()
+        for_nameplate = row["for_nameplate"]
 
-    def _delete(self):
-        # requires caller to db.commit()
-        self._db.execute("DELETE FROM `mailboxes`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, self._mailbox_id))
-        self._db.execute("DELETE FROM `messages`"
-                         " WHERE `app_id`=? AND `mailbox_id`=?",
-                         (self._app_id, self._mailbox_id))
+        row = db.execute("SELECT * FROM `mailbox_sides`"
+                         " WHERE `mailbox_id`=? AND `side`=?",
+                         (self._mailbox_id, side)).fetchone()
+        if not row:
+            return
+        db.execute("UPDATE `mailbox_sides` SET `opened`=?, `mood`=?"
+                   " WHERE `mailbox_id`=? AND `side`=?",
+                   (False, mood, self._mailbox_id, side))
+        db.commit()
 
+        # are any sides still open?
+        side_rows = db.execute("SELECT * FROM `mailbox_sides`"
+                               " WHERE `mailbox_id`=?",
+                               (self._mailbox_id,)).fetchall()
+        if any([sr["opened"] for sr in side_rows]):
+            return
+
+        # nope. delete and summarize
+        db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
+                   (self._mailbox_id,))
+        db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
+                   (self._mailbox_id,))
+        db.execute("DELETE FROM `mailboxes` WHERE `id`=?", (self._mailbox_id,))
+        self._app._summarize_mailbox_and_store(for_nameplate, side_rows,
+                                               when, pruned=False)
+        db.commit()
         # Shut down any listeners, just in case they're still lingering
         # around.
         for (send_f, stop_f) in self._listeners.values():
             stop_f()
-
+        self._listeners = {}
         self._app.free_mailbox(self._mailbox_id)
-
-    def is_active(self):
-        return bool(self._listeners)
 
     def _shutdown(self):
         # used at test shutdown to accelerate client disconnects
         for (send_f, stop_f) in self._listeners.values():
             stop_f()
+        self._listeners = {}
 
 class AppNamespace:
     def __init__(self, db, blur_usage, log_requests, app_id):
@@ -178,22 +150,15 @@ class AppNamespace:
         self._log_requests = log_requests
         self._app_id = app_id
         self._mailboxes = {}
-
-    def is_active(self):
-        # An idle AppNamespace does not need to be kept in memory: it can be
-        # reconstructed from the DB if needed. And active one must be kept
-        # alive.
-        for mb in self._mailboxes.values():
-            if mb.is_active():
-                return True
-        return False
+        self._nameplate_counts = collections.defaultdict(int)
+        self._mailbox_counts = collections.defaultdict(int)
 
     def get_nameplate_ids(self):
         db = self._db
         # TODO: filter this to numeric ids?
-        c = db.execute("SELECT DISTINCT `id` FROM `nameplates`"
+        c = db.execute("SELECT DISTINCT `name` FROM `nameplates`"
                        " WHERE `app_id`=?", (self._app_id,))
-        return set([row["id"] for row in c.fetchall()])
+        return set([row["name"] for row in c.fetchall()])
 
     def _find_available_nameplate_id(self):
         claimed = self.get_nameplate_ids()
@@ -219,127 +184,157 @@ class AppNamespace:
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
-    def claim_nameplate(self, nameplate_id, side, when, _test_mailbox_id=None):
+    def claim_nameplate(self, name, side, when):
         # when we're done:
         # * there will be one row for the nameplate
-        #  * side1 or side2 will be populated
-        #  * started or second will be populated
-        #  * a mailbox id will be created, but not a mailbox row
-        #    (ids are randomly unique, so we can defer creation until 'open')
-        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        #  * there will be one 'side' attached to it, with claimed=True
+        # * a mailbox id and mailbox row will be created
+        #  * a mailbox 'side' will be attached, with opened=True
+        assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
         row = db.execute("SELECT * FROM `nameplates`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, nameplate_id)).fetchone()
-        if row:
-            mailbox_id = row["mailbox_id"]
-            try:
-                sr = add_side(row, side)
-            except CrowdedError:
-                db.execute("UPDATE `nameplates` SET `crowded`=?"
-                           " WHERE `app_id`=? AND `id`=?",
-                           (True, self._app_id, nameplate_id))
-                db.commit()
-                raise
-            if sr.changed:
-                db.execute("UPDATE `nameplates` SET"
-                           " `side1`=?, `side2`=?, `updated`=?, `second`=?"
-                           " WHERE `app_id`=? AND `id`=?",
-                           (sr.side1, sr.side2, when, when,
-                            self._app_id, nameplate_id))
-        else:
+                         " WHERE `app_id`=? AND `name`=?",
+                         (self._app_id, name)).fetchone()
+        if not row:
             if self._log_requests:
                 log.msg("creating nameplate#%s for app_id %s" %
-                        (nameplate_id, self._app_id))
-            if _test_mailbox_id is not None: # for unit tests
-                mailbox_id = _test_mailbox_id
-            else:
-                mailbox_id = generate_mailbox_id()
-            db.execute("INSERT INTO `nameplates`"
-                       " (`app_id`, `id`, `mailbox_id`, `side1`, `crowded`,"
-                       "  `updated`, `started`)"
-                       " VALUES(?,?,?,?,?, ?,?)",
-                       (self._app_id, nameplate_id, mailbox_id, side, False,
-                        when, when))
+                        (name, self._app_id))
+            mailbox_id = generate_mailbox_id()
+            self._add_mailbox(mailbox_id, True, side, when) # ensure row exists
+            sql = ("INSERT INTO `nameplates`"
+                   " (`app_id`, `name`, `mailbox_id`)"
+                   " VALUES(?,?,?)")
+            npid = db.execute(sql, (self._app_id, name, mailbox_id)
+                              ).lastrowid
+        else:
+            npid = row["id"]
+            mailbox_id = row["mailbox_id"]
+
+        row = db.execute("SELECT * FROM `nameplate_sides`"
+                         " WHERE `nameplates_id`=? AND `side`=?",
+                         (npid, side)).fetchone()
+        if not row:
+            db.execute("INSERT INTO `nameplate_sides`"
+                       " (`nameplates_id`, `claimed`, `side`, `added`)"
+                       " VALUES(?,?,?,?)",
+                       (npid, True, side, when))
         db.commit()
+
+        self.open_mailbox(mailbox_id, side, when) # may raise CrowdedError
+        rows = db.execute("SELECT * FROM `nameplate_sides`"
+                          " WHERE `nameplates_id`=?", (npid,)).fetchall()
+        if len(rows) > 2:
+            # this line will probably never get hit: any crowding is noticed
+            # on mailbox_sides first, inside open_mailbox()
+            raise CrowdedError("too many sides have claimed this nameplate")
         return mailbox_id
 
-    def release_nameplate(self, nameplate_id, side, when):
+    def release_nameplate(self, name, side, when):
         # when we're done:
-        # * in the nameplate row, side1 or side2 will be removed
-        # * if the nameplate is now unused:
+        # * the 'claimed' flag will be cleared on the nameplate_sides row
+        # * if the nameplate is now unused (no claimed sides):
         #  * mailbox.nameplate_closed will be populated
         #  * the nameplate row will be removed
-        assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        #  * the nameplate sides will be removed
+        assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
-        row = db.execute("SELECT * FROM `nameplates`"
-                         " WHERE `app_id`=? AND `id`=?",
-                         (self._app_id, nameplate_id)).fetchone()
+        np_row = db.execute("SELECT * FROM `nameplates`"
+                            " WHERE `app_id`=? AND `name`=?",
+                            (self._app_id, name)).fetchone()
+        if not np_row:
+            return
+        npid = np_row["id"]
+        row = db.execute("SELECT * FROM `nameplate_sides`"
+                         " WHERE `nameplates_id`=? AND `side`=?",
+                         (npid, side)).fetchone()
         if not row:
             return
-        sr = remove_side(row, side)
-        if sr.empty:
-            db.execute("DELETE FROM `nameplates`"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (self._app_id, nameplate_id))
-            self._summarize_nameplate_and_store(row, when, pruned=False)
-            db.commit()
-        elif sr.changed:
-            db.execute("UPDATE `nameplates`"
-                       " SET `side1`=?, `side2`=?, `updated`=?"
-                       " WHERE `app_id`=? AND `id`=?",
-                       (sr.side1, sr.side2, when,
-                        self._app_id, nameplate_id))
-            db.commit()
+        db.execute("UPDATE `nameplate_sides` SET `claimed`=?"
+                   " WHERE `nameplates_id`=? AND `side`=?",
+                   (False, npid, side))
+        db.commit()
 
-    def _summarize_nameplate_and_store(self, row, delete_time, pruned):
+        # now, are there any remaining claims?
+        side_rows = db.execute("SELECT * FROM `nameplate_sides`"
+                               " WHERE `nameplates_id`=?",
+                               (npid,)).fetchall()
+        claims = [1 for sr in side_rows if sr["claimed"]]
+        if claims:
+            return
+        # delete and summarize
+        db.execute("DELETE FROM `nameplate_sides` WHERE `nameplates_id`=?",
+                   (npid,))
+        db.execute("DELETE FROM `nameplates` WHERE `id`=?", (npid,))
+        self._summarize_nameplate_and_store(side_rows, when, pruned=False)
+        db.commit()
+
+    def _summarize_nameplate_and_store(self, side_rows, delete_time, pruned):
         # requires caller to db.commit()
-        u = self._summarize_nameplate_usage(row, delete_time, pruned)
+        u = self._summarize_nameplate_usage(side_rows, delete_time, pruned)
         self._db.execute("INSERT INTO `nameplate_usage`"
                          " (`app_id`,"
                          " `started`, `total_time`, `waiting_time`, `result`)"
                          " VALUES (?, ?,?,?,?)",
                          (self._app_id,
                           u.started, u.total_time, u.waiting_time, u.result))
+        self._nameplate_counts[u.result] += 1
 
-    def _summarize_nameplate_usage(self, row, delete_time, pruned):
-        started = row["started"]
+    def _summarize_nameplate_usage(self, side_rows, delete_time, pruned):
+        times = sorted([row["added"] for row in side_rows])
+        started = times[0]
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
         waiting_time = None
-        if row["second"]:
-            waiting_time = row["second"] - row["started"]
-        total_time = delete_time - row["started"]
+        if len(times) > 1:
+            waiting_time = times[1] - times[0]
+        total_time = delete_time - times[0]
         result = "lonely"
-        if row["second"]:
+        if len(times) == 2:
             result = "happy"
         if pruned:
             result = "pruney"
-        if row["crowded"]:
+        if len(times) > 2:
             result = "crowded"
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
-    def open_mailbox(self, mailbox_id, side, when):
+    def _add_mailbox(self, mailbox_id, for_nameplate, side, when):
         assert isinstance(mailbox_id, type("")), type(mailbox_id)
         db = self._db
-        if not mailbox_id in self._mailboxes:
+        row = db.execute("SELECT * FROM `mailboxes`"
+                         " WHERE `app_id`=? AND `id`=?",
+                         (self._app_id, mailbox_id)).fetchone()
+        if not row:
+            self._db.execute("INSERT INTO `mailboxes`"
+                             " (`app_id`, `id`, `for_nameplate`, `updated`)"
+                             " VALUES(?,?,?,?)",
+                             (self._app_id, mailbox_id, for_nameplate, when))
+            # we don't need a commit here, because mailbox.open() only
+            # does SELECT FROM `mailbox_sides`, not from `mailboxes`
+
+    def open_mailbox(self, mailbox_id, side, when):
+        assert isinstance(mailbox_id, type("")), type(mailbox_id)
+        self._add_mailbox(mailbox_id, False, side, when) # ensure row exists
+        db = self._db
+        if not mailbox_id in self._mailboxes: # ensure Mailbox object exists
             if self._log_requests:
                 log.msg("spawning #%s for app_id %s" % (mailbox_id,
                                                         self._app_id))
-            db.execute("INSERT INTO `mailboxes`"
-                       " (`app_id`, `id`, `side1`, `crowded`, `started`)"
-                       " VALUES(?,?,?,?,?)",
-                       (self._app_id, mailbox_id, side, False, when))
-            db.commit() # XXX
-            # mailbox.open() does a SELECT to find the old sides
             self._mailboxes[mailbox_id] = Mailbox(self, self._db,
                                                   self._app_id, mailbox_id)
         mailbox = self._mailboxes[mailbox_id]
+
+        # delegate to mailbox.open() to add a row to mailbox_sides, and
+        # update the mailbox.updated timestamp
         mailbox.open(side, when)
         db.commit()
+        rows = db.execute("SELECT * FROM `mailbox_sides`"
+                          " WHERE `mailbox_id`=?",
+                          (mailbox_id,)).fetchall()
+        if len(rows) > 2:
+            raise CrowdedError("too many sides have opened this mailbox")
         return mailbox
 
     def free_mailbox(self, mailbox_id):
@@ -352,32 +347,29 @@ class AppNamespace:
         #    log.msg("freed+killed #%s, now have %d DB mailboxes, %d live" %
         #            (mailbox_id, len(self.get_claimed()), len(self._mailboxes)))
 
-    def _summarize_mailbox_and_store(self, mailbox_id, row,
-                                     second_mood, delete_time, pruned):
+    def _summarize_mailbox_and_store(self, for_nameplate, side_rows,
+                                     delete_time, pruned):
         db = self._db
-        rows = db.execute("SELECT DISTINCT(`side`) FROM `messages`"
-                          " WHERE `app_id`=? AND `mailbox_id`=?",
-                          (self._app_id, mailbox_id)).fetchall()
-        num_sides = len(rows)
-        u = self._summarize_mailbox(row, num_sides, second_mood, delete_time,
-                                    pruned)
+        u = self._summarize_mailbox(side_rows, delete_time, pruned)
         db.execute("INSERT INTO `mailbox_usage`"
-                   " (`app_id`,"
+                   " (`app_id`, `for_nameplate`,"
                    "  `started`, `total_time`, `waiting_time`, `result`)"
-                   " VALUES (?, ?,?,?,?)",
-                   (self._app_id,
+                   " VALUES (?,?, ?,?,?,?)",
+                   (self._app_id, for_nameplate,
                     u.started, u.total_time, u.waiting_time, u.result))
+        self._mailbox_counts[u.result] += 1
 
-    def _summarize_mailbox(self, row, num_sides, second_mood, delete_time,
-                           pruned):
-        started = row["started"]
+    def _summarize_mailbox(self, side_rows, delete_time, pruned):
+        times = sorted([row["added"] for row in side_rows])
+        started = times[0]
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
         waiting_time = None
-        if row["second"]:
-            waiting_time = row["second"] - row["started"]
-        total_time = delete_time - row["started"]
+        if len(times) > 1:
+            waiting_time = times[1] - times[0]
+        total_time = delete_time - times[0]
 
+        num_sides = len(times)
         if num_sides == 0:
             result = "quiet"
         elif num_sides == 1:
@@ -385,7 +377,8 @@ class AppNamespace:
         else:
             result = "happy"
 
-        moods = set([row["first_mood"], second_mood])
+        # "mood" is only recorded at close()
+        moods = [row["mood"] for row in side_rows if row.get("mood")]
         if "lonely" in moods:
             result = "lonely"
         if "errory" in moods:
@@ -394,13 +387,24 @@ class AppNamespace:
             result = "scary"
         if pruned:
             result = "pruney"
-        if row["crowded"]:
+        if num_sides > 2:
             result = "crowded"
 
         return Usage(started=started, waiting_time=waiting_time,
                      total_time=total_time, result=result)
 
     def prune(self, now, old):
+        # The pruning check runs every 10 minutes, and "old" is defined to be
+        # 11 minutes ago (unit tests can use different values). The client is
+        # allowed to disconnect for up to 9 minutes without losing the
+        # channel (nameplate, mailbox, and messages).
+
+        # Each time a client does something, the mailbox.updated field is
+        # updated with the current timestamp. If a client is subscribed to
+        # the mailbox when pruning check runs, the "updated" field is also
+        # updated. After that check, if the "updated" field is "old", the
+        # channel is deleted.
+
         # For now, pruning is logged even if log_requests is False, to debug
         # the pruning process, and since pruning is triggered by a timer
         # instead of by user action. It does reveal which mailboxes were
@@ -409,121 +413,73 @@ class AppNamespace:
         log.msg(" prune begins (%s)" % self._app_id)
         db = self._db
         modified = False
-        # for all `mailboxes`: classify as new or old
-        OLD = 0; NEW = 1
-        all_mailboxes = {}
-        all_mailbox_rows = {}
-        for row in db.execute("SELECT * FROM `mailboxes`"
-                              " WHERE `app_id`=?",
+
+        for mailbox in self._mailboxes.values():
+            if mailbox.has_listeners():
+                log.msg("touch %s because listeners" % mailbox._mailbox_id)
+                mailbox._touch(now)
+        db.commit() # make sure the updates are visible below
+
+        new_mailboxes = set()
+        old_mailboxes = set()
+        for row in db.execute("SELECT * FROM `mailboxes` WHERE `app_id`=?",
                               (self._app_id,)).fetchall():
             mailbox_id = row["id"]
-            all_mailbox_rows[mailbox_id] = row
-            if row["started"] > old:
-                which = NEW
-            elif row["second"] and row["second"] > old:
-                which = NEW
-            else:
-                which = OLD
-            all_mailboxes[mailbox_id] = which
-        #log.msg(" 2: all_mailboxes", all_mailboxes, all_mailbox_rows)
-
-        # for all mailbox ids used by `messages`:
-        #   if there is no matching mailbox: delete the messages
-        #   if there is at least one new message (select when>old limit 1):
-        #     classify the mailbox as new
-        for row in db.execute("SELECT DISTINCT(`mailbox_id`)"
-                              " FROM `messages`"
-                              " WHERE `app_id`=?",
-                              (self._app_id,)).fetchall():
-            mailbox_id = row["mailbox_id"]
-            if mailbox_id not in all_mailboxes:
-                log.msg("  deleting orphan messages", mailbox_id)
-                db.execute("DELETE FROM `messages`"
-                           " WHERE `app_id`=? AND `mailbox_id`=?",
-                           (self._app_id, mailbox_id))
-                modified = True
-            else:
-                new_msgs = db.execute("SELECT * FROM `messages`"
-                                      " WHERE `app_id`=? AND `mailbox_id`=?"
-                                      "  AND `server_rx` > ?"
-                                      " LIMIT 1",
-                                      (self._app_id, mailbox_id, old)
-                                      ).fetchall()
-                if new_msgs:
-                    #log.msg(" 3-: saved by new messages", new_msgs)
-                    all_mailboxes[mailbox_id] = NEW
-        #log.msg(" 4: all_mailboxes", all_mailboxes)
-
-        # for all mailbox objects with active listeners:
-        #   classify the mailbox as new
-        for mailbox_id in self._mailboxes:
-            #log.msg(" -5: checking", mailbox_id, self._mailboxes[mailbox_id])
-            if self._mailboxes[mailbox_id].has_listeners():
-                all_mailboxes[mailbox_id] = NEW
-        #log.msg(" 5: all_mailboxes", all_mailboxes)
-
-        # for all `nameplates`:
-        #   classify as new or old
-        #   if the linked mailbox exists:
-        #     if it is new:
-        #       classify nameplate as new
-        #     if it is old:
-        #       if the nameplate is new:
-        #         classify mailbox as new
-        all_nameplates = {}
-        all_nameplate_rows = {}
-        for row in db.execute("SELECT * FROM `nameplates`"
-                              " WHERE `app_id`=?",
-                              (self._app_id,)).fetchall():
-            nameplate_id = row["id"]
-            all_nameplate_rows[nameplate_id] = row
+            log.msg("  1: age=%s, old=%s, %s" %
+                    (now - row["updated"], now - old, mailbox_id))
             if row["updated"] > old:
-                which = NEW
+                new_mailboxes.add(mailbox_id)
             else:
-                which = OLD
+                old_mailboxes.add(mailbox_id)
+        log.msg(" 2: mailboxes:", new_mailboxes, old_mailboxes)
+
+        old_nameplates = set()
+        for row in db.execute("SELECT * FROM `nameplates` WHERE `app_id`=?",
+                              (self._app_id,)).fetchall():
+            npid = row["id"]
             mailbox_id = row["mailbox_id"]
-            if mailbox_id in all_mailboxes:
-                if all_mailboxes[mailbox_id] == NEW:
-                    which = NEW
-                else:
-                    if which == NEW:
-                        all_mailboxes[mailbox_id] = NEW
-            all_nameplates[nameplate_id] = which
-        #log.msg(" 6: all_nameplates", all_nameplates, all_nameplate_rows)
+            if mailbox_id in old_mailboxes:
+                old_nameplates.add(npid)
+        log.msg(" 3: old_nameplates", old_nameplates)
 
-        # delete all old nameplates
-        #   invariant check: if there is a linked mailbox, it is old
-
-        for nameplate_id, which in all_nameplates.items():
-            if which == OLD:
-                log.msg("  deleting nameplate", nameplate_id)
-                row = all_nameplate_rows[nameplate_id]
-                self._summarize_nameplate_and_store(row, now, pruned=True)
-                db.execute("DELETE FROM `nameplates`"
-                           " WHERE `app_id`=? AND `id`=?",
-                           (self._app_id, nameplate_id))
-                modified = True
+        for npid in old_nameplates:
+            log.msg("  deleting nameplate", npid)
+            side_rows = db.execute("SELECT * FROM `nameplate_sides`"
+                                   " WHERE `nameplates_id`=?",
+                                   (npid,)).fetchall()
+            db.execute("DELETE FROM `nameplate_sides` WHERE `nameplates_id`=?",
+                       (npid,))
+            db.execute("DELETE FROM `nameplates` WHERE `id`=?", (npid,))
+            self._summarize_nameplate_and_store(side_rows, now, pruned=True)
+            modified = True
 
         # delete all messages for old mailboxes
         # delete all old mailboxes
 
-        for mailbox_id, which in all_mailboxes.items():
-            if which == OLD:
-                log.msg("  deleting mailbox", mailbox_id)
-                self._summarize_mailbox_and_store(mailbox_id,
-                                                  all_mailbox_rows[mailbox_id],
-                                                  "pruney", now, pruned=True)
-                db.execute("DELETE FROM `messages`"
-                           " WHERE `app_id`=? AND `mailbox_id`=?",
-                           (self._app_id, mailbox_id))
-                db.execute("DELETE FROM `mailboxes`"
-                           " WHERE `app_id`=? AND `id`=?",
-                           (self._app_id, mailbox_id))
-                modified = True
+        for mailbox_id in old_mailboxes:
+            log.msg("  deleting mailbox", mailbox_id)
+            row = db.execute("SELECT * FROM `mailboxes`"
+                             " WHERE `id`=?", (mailbox_id,)).fetchone()
+            for_nameplate = row["for_nameplate"]
+            side_rows = db.execute("SELECT * FROM `mailbox_sides`"
+                                   " WHERE `mailbox_id`=?",
+                                   (mailbox_id,)).fetchall()
+            db.execute("DELETE FROM `messages` WHERE `mailbox_id`=?",
+                       (mailbox_id,))
+            db.execute("DELETE FROM `mailbox_sides` WHERE `mailbox_id`=?",
+                       (mailbox_id,))
+            db.execute("DELETE FROM `mailboxes` WHERE `id`=?",
+                       (mailbox_id,))
+            self._summarize_mailbox_and_store(for_nameplate, side_rows,
+                                              now, pruned=True)
+            modified = True
 
         if modified:
             db.commit()
         log.msg("  prune complete, modified:", modified)
+
+    def get_counts(self):
+        return (self._nameplate_counts, self._mailbox_counts)
 
     def _shutdown(self):
         for channel in self._mailboxes.values():
@@ -538,8 +494,6 @@ class Rendezvous(service.MultiService):
         log_requests = blur_usage is None
         self._log_requests = log_requests
         self._apps = {}
-        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.prune)
-        t.setServiceParent(self)
 
     def get_welcome(self):
         return self._welcome
@@ -569,19 +523,94 @@ class Rendezvous(service.MultiService):
             apps.add(row["app_id"])
         return apps
 
-    def prune(self, now=None, old=None):
+    def prune_all_apps(self, now, old):
         # As with AppNamespace.prune_old_mailboxes, we log for now.
         log.msg("beginning app prune")
-        now = now or time.time()
-        old = old or (now - CHANNEL_EXPIRATION_TIME)
         for app_id in sorted(self.get_all_apps()):
             log.msg(" app prune checking %r" % (app_id,))
             app = self.get_app(app_id)
             app.prune(now, old)
-            if not app.is_active(): # meaning no websockets
-                log.msg(" pruning idle app", app_id)
-                self._apps.pop(app_id)
-        log.msg("app prune ends, %d remaining apps" % len(self._apps))
+        log.msg("app prune ends, %d apps" % len(self._apps))
+
+    def get_stats(self):
+        stats = {}
+
+        # current status: expected to be zero most of the time
+        c = stats["active"] = {}
+        c["apps"] = len(self.get_all_apps())
+        def q(query, values=()):
+            row = self._db.execute(query, values).fetchone()
+            return list(row.values())[0]
+        c["nameplates_total"] = q("SELECT COUNT() FROM `nameplates`")
+        # TODO: nameplates with only one side (most of them)
+        # TODO: nameplates with two sides (very fleeting)
+        # TODO: nameplates with three or more sides (crowded, unlikely)
+        c["mailboxes_total"] = q("SELECT COUNT() FROM `mailboxes`")
+        # TODO: mailboxes with only one side (most of them)
+        # TODO: mailboxes with two sides (somewhat fleeting, in-transit)
+        # TODO: mailboxes with three or more sides (unlikely)
+        c["messages_total"] = q("SELECT COUNT() FROM `messages`")
+
+        # usage since last reboot
+        nameplate_counts = collections.defaultdict(int)
+        mailbox_counts = collections.defaultdict(int)
+        for app in self._apps.values():
+            nc, mc = app.get_counts()
+            for result, count in nc.items():
+                nameplate_counts[result] += count
+            for result, count in mc.items():
+                mailbox_counts[result] += count
+        urb = stats["since_reboot"] = {}
+        urb["nameplate_moods"] = {}
+        for result, count in nameplate_counts.items():
+            urb["nameplate_moods"][result] = count
+        urb["nameplates_total"] = sum(nameplate_counts.values())
+        urb["mailbox_moods"] = {}
+        for result, count in mailbox_counts.items():
+            urb["mailbox_moods"][result] = count
+        urb["mailboxes_total"] = sum(mailbox_counts.values())
+
+        # historical usage (all-time)
+        u = stats["all_time"] = {}
+        un = u["nameplate_moods"] = {}
+        # TODO: there's probably a single SQL query for all this
+        un["happy"] = q("SELECT COUNT() FROM `nameplate_usage`"
+                        " WHERE `result`='happy'")
+        un["lonely"] = q("SELECT COUNT() FROM `nameplate_usage`"
+                         " WHERE `result`='lonely'")
+        un["pruney"] = q("SELECT COUNT() FROM `nameplate_usage`"
+                         " WHERE `result`='pruney'")
+        un["crowded"] = q("SELECT COUNT() FROM `nameplate_usage`"
+                          " WHERE `result`='crowded'")
+        u["nameplates_total"] = q("SELECT COUNT() FROM `nameplate_usage`")
+        um = u["mailbox_moods"] = {}
+        um["happy"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                        " WHERE `result`='happy'")
+        um["scary"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                        " WHERE `result`='scary'")
+        um["lonely"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                         " WHERE `result`='lonely'")
+        um["quiet"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                        " WHERE `result`='quiet'")
+        um["errory"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                         " WHERE `result`='errory'")
+        um["pruney"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                         " WHERE `result`='pruney'")
+        um["crowded"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                          " WHERE `result`='crowded'")
+        u["mailboxes_total"] = q("SELECT COUNT() FROM `mailbox_usage`")
+        u["mailboxes_standalone"] = q("SELECT COUNT() FROM `mailbox_usage`"
+                                      " WHERE `for_nameplate`=0")
+
+        # recent timings (last 100 operations)
+        # TODO: median/etc of nameplate.total_time
+        # TODO: median/etc of mailbox.waiting_time (should be the same)
+        # TODO: median/etc of mailbox.total_time
+
+        # other
+        # TODO: mailboxes without nameplates (needs new DB schema)
+
+        return stats
 
     def stopService(self):
         # This forcibly boots any clients that are still connected, which

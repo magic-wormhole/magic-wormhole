@@ -16,7 +16,7 @@ def get_upgrader(new_version):
                                    "db-schemas/upgrade-to-v%d.sql" % new_version)
     return schema_bytes.decode("utf-8")
 
-TARGET_VERSION = 2
+TARGET_VERSION = 3
 
 def dict_factory(cursor, row):
     d = {}
@@ -35,6 +35,10 @@ def get_db(dbfile, target_version=TARGET_VERSION, stderr=sys.stderr):
     except (EnvironmentError, sqlite3.OperationalError) as e:
         raise DBError("Unable to create/open db file %s: %s" % (dbfile, e))
     db.row_factory = dict_factory
+    db.execute("PRAGMA foreign_keys = ON")
+    problems = db.execute("PRAGMA foreign_key_check").fetchall()
+    if problems:
+        raise DBError("failed foreign key check: %s" % (problems,))
 
     if must_create:
         schema = get_schema(target_version)

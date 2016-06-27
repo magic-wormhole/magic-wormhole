@@ -1,9 +1,10 @@
 # NO unicode_literals or static.Data() will break, because it demands
 # a str on Python 2
 from __future__ import print_function
+import os, time, json
 from twisted.python import log
 from twisted.internet import reactor, endpoints
-from twisted.application import service
+from twisted.application import service, internet
 from twisted.web import server, static, resource
 from autobahn.twisted.resource import WebSocketResource
 from .endpoint_service import ServerEndpointService
@@ -12,6 +13,12 @@ from .database import get_db
 from .rendezvous import Rendezvous
 from .rendezvous_websocket import WebSocketRendezvousFactory
 from .transit_server import Transit
+
+SECONDS = 1.0
+MINUTE = 60*SECONDS
+
+CHANNEL_EXPIRATION_TIME = 11*MINUTE
+EXPIRATION_CHECK_PERIOD = 10*MINUTE
 
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
@@ -28,7 +35,7 @@ class PrivacyEnhancedSite(server.Site):
 class RelayServer(service.MultiService):
     def __init__(self, rendezvous_web_port, transit_port,
                  advertise_version, db_url=":memory:", blur_usage=None,
-                 signal_error=None):
+                 signal_error=None, stats_file=None):
         service.MultiService.__init__(self)
         self._blur_usage = blur_usage
 
@@ -52,11 +59,11 @@ class RelayServer(service.MultiService):
         if signal_error:
             welcome["error"] = signal_error
 
-        rendezvous = Rendezvous(db, welcome, blur_usage)
-        rendezvous.setServiceParent(self) # for the pruning timer
+        self._rendezvous = Rendezvous(db, welcome, blur_usage)
+        self._rendezvous.setServiceParent(self) # for the pruning timer
 
         root = Root()
-        wsrf = WebSocketRendezvousFactory(None, rendezvous)
+        wsrf = WebSocketRendezvousFactory(None, self._rendezvous)
         root.putChild(b"v1", WebSocketResource(wsrf))
 
         site = PrivacyEnhancedSite(root)
@@ -74,12 +81,21 @@ class RelayServer(service.MultiService):
             transit_service = ServerEndpointService(t, transit)
             transit_service.setServiceParent(self)
 
+        self._stats_file = stats_file
+        if self._stats_file and os.path.exists(self._stats_file):
+            os.unlink(self._stats_file)
+            # this will be regenerated immediately, but if something goes
+            # wrong in dump_stats(), it's better to have a missing file than
+            # a stale one
+        t = internet.TimerService(EXPIRATION_CHECK_PERIOD, self.timer)
+        t.setServiceParent(self)
+
         # make some things accessible for tests
         self._db = db
-        self._rendezvous = rendezvous
         self._root = root
         self._rendezvous_web_service = rendezvous_web_service
         self._rendezvous_websocket = wsrf
+        self._transit = None
         if transit_port:
             self._transit = transit
             self._transit_service = transit_service
@@ -93,3 +109,28 @@ class RelayServer(service.MultiService):
             log.msg("not logging HTTP requests")
         else:
             log.msg("not blurring access times")
+
+    def timer(self):
+        now = time.time()
+        old = now - CHANNEL_EXPIRATION_TIME
+        self._rendezvous.prune_all_apps(now, old)
+        self.dump_stats(now, validity=EXPIRATION_CHECK_PERIOD+60)
+
+    def dump_stats(self, now, validity):
+        if not self._stats_file:
+            return
+        tmpfn = self._stats_file + ".tmp"
+
+        data = {}
+        data["created"] = now
+        data["valid_until"] = now + validity
+
+        start = time.time()
+        data["rendezvous"] = self._rendezvous.get_stats()
+        data["transit"] = self._transit.get_stats()
+        log.msg("get_stats took:", time.time() - start)
+
+        with open(tmpfn, "wb") as f:
+            json.dump(data, f, indent=1)
+            f.write("\n")
+        os.rename(tmpfn, self._stats_file)
