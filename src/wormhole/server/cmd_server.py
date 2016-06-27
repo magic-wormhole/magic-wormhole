@@ -15,7 +15,7 @@ class MyPlugin:
                            self.args.advertise_version,
                            "relay.sqlite", self.args.blur_usage,
                            signal_error=self.args.signal_error,
-                           stats_file=self.args.stats_file,
+                           stats_file="stats.json",
                            )
 
 class MyTwistdConfig(twistd.ServerOptions):
