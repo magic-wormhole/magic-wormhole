@@ -167,6 +167,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
         self._pending_requests = {} # token -> TransitConnection
         self._active_connections = set() # TransitConnection
         self._counts = collections.defaultdict(int)
+        self._count_bytes = 0
 
     def connection_got_token(self, token, p):
         if token in self._pending_requests:
@@ -195,7 +196,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
                           total_bytes, result))
         self._db.commit()
         self._counts[result] += 1
-        self._counts["bytes"] += total_bytes
+        self._count_bytes += total_bytes
 
     def transitFinished(self, p, token, description):
         for token,tc in self._pending_requests.items():
@@ -222,18 +223,22 @@ class Transit(protocol.ServerFactory, service.MultiService):
 
         # usage since last reboot
         rb = stats["since_reboot"] = {}
+        rb["bytes"] = self._count_bytes
+        rb["total"] = sum(self._counts.values(), 0)
+        rbm = rb["moods"] = {}
         for result, count in self._counts.items():
-            rb[result] = count
+            rbm[result] = count
 
         # historical usage (all-time)
         u = stats["all_time"] = {}
         u["total"] = q("SELECT COUNT() FROM `transit_usage`")
-        u["happy"] = q("SELECT COUNT() FROM `transit_usage`"
-                       " WHERE `result`='happy'")
-        u["lonely"] = q("SELECT COUNT() FROM `transit_usage`"
-                        " WHERE `result`='lonely'")
-        u["errory"] = q("SELECT COUNT() FROM `transit_usage`"
-                        " WHERE `result`='errory'")
         u["bytes"] = q("SELECT SUM(`total_bytes`) FROM `transit_usage`") or 0
+        um = u["moods"] = {}
+        um["happy"] = q("SELECT COUNT() FROM `transit_usage`"
+                        " WHERE `result`='happy'")
+        um["lonely"] = q("SELECT COUNT() FROM `transit_usage`"
+                         " WHERE `result`='lonely'")
+        um["errory"] = q("SELECT COUNT() FROM `transit_usage`"
+                         " WHERE `result`='errory'")
 
         return stats
