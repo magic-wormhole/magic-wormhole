@@ -91,7 +91,7 @@ class AliasedGroup(click.Group):
     help="(debug) don't open a listening socket for Transit",
 )
 @click.option(
-    "--tor", is_flag=True, default=True,
+    "--tor", is_flag=True, default=False,
     help="use Tor when connecting",
 )
 @click.version_option(
@@ -99,7 +99,7 @@ class AliasedGroup(click.Group):
     version=__version__,
 )
 @click.pass_context
-def wormhole(ctx, tor, no_listen, dump_timing, hide_progress,
+def wormhole(context, tor, no_listen, dump_timing, hide_progress,
              verify, code_length, transit_helper, relay_url):
     """
     Create a Magic Wormhole and communicate through it.
@@ -108,10 +108,9 @@ def wormhole(ctx, tor, no_listen, dump_timing, hide_progress,
     different places at the same time.  Wormholes are secure against
     anyone who doesn't use the same code.
     """
-    ctx.obj = cfg = Config()
-    ctx.tor = tor
-    if no_listen:
-        cfg.listen = False
+    context.obj = cfg = Config()
+    cfg.tor = tor
+    cfg.listen = not no_listen
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.code_length = code_length
@@ -167,7 +166,7 @@ def _dispatch_command(reactor, cfg, command):
     "--text", default=None, metavar="MESSAGE",
     help="text message to send, instead of a file. Use '-' to read from stdin.",
 )
-@click.argument("what", default=u'')
+@click.argument("what", required=False)
 @click.pass_obj
 def send(cfg, what, text, code, zeromode):
     """Send a text message, file, or directory"""
