@@ -11,6 +11,8 @@ python:
   - "3.3"
   - "3.4"
   - "3.5"
+  - "pypy"
+  - "pypy3"
 install:
   - pip install -U pip tox virtualenv
 script:
