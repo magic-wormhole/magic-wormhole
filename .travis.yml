@@ -12,6 +12,8 @@ python:
   - "3.4"
   - "3.5"
 install:
-  - pip install -U pip tox virtualenv
+  - pip install -U pip tox virtualenv codecov
 script:
-  - tox -e py
+  - tox -e coverage
+after_success:
+  - codecov
