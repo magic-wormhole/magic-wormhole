@@ -354,6 +354,7 @@ class _Wormhole:
         self._ws_t = self._timing.add("open websocket")
         p = urlparse(self._ws_url)
         f = WSFactory(self._ws_url)
+        f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         f.wormhole = self
         f.d = defer.Deferred()
         # TODO: if hostname="localhost", I get three factories starting
