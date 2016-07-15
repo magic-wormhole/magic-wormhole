@@ -22,27 +22,13 @@ class Config(object):
     Union of config options that we pass down to (sub) commands.
     """
     def __init__(self):
-        # common options
+        # This only holds attributes which are *not* set by CLI arguments.
+        # Everything else comes from Click decorators, so we can be sure
+        # we're exercising the defaults.
         self.timing = DebugTiming()
-        self.tor = None
-        self.listen = None
-        self.relay_url = u""
-        self.transit_helper = u""
         self.cwd = os.getcwd()
-        # send/receive commands
-        self.code = None
-        self.code_length = 2
-        self.verify = False
-        self.hide_progress = False
-        self.dump_timing = False
         self.stdout = stdout
         self.stderr = stderr
-        self.zeromode = False
-        self.accept_file = None
-        self.output_file = None
-        # send only
-        self.text = None
-        self.what = None
 
 
 ALIASES = {
