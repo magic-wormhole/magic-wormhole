@@ -177,8 +177,13 @@ def send(cfg, what, text, code, zeromode):
     cfg.zeromode = zeromode
     cfg.code = code
 
+    return go(cmd_send.send, cfg)
+
+# this intermediate function can be mocked by tests that need to build a
+# Config object
+def go(f, cfg):
     # note: react() does not return
-    return react(_dispatch_command, (cfg, lambda: cmd_send.send(cfg)))
+    return react(_dispatch_command, (cfg, lambda: f(cfg)))
 
 
 # wormhole receive (or "wormhole rx")
@@ -228,5 +233,4 @@ def receive(cfg, code, zeromode, output_file, accept_file, only_text):
     else:
         cfg.code = None
 
-    # note: react() does not return
-    return react(_dispatch_command, (cfg, lambda: cmd_receive.receive(cfg)))
+    return go(cmd_receive.receive, cfg)

@@ -2,6 +2,9 @@
 from twisted.application import service
 from twisted.internet import defer, task
 from twisted.python import log
+from click.testing import CliRunner
+import mock
+from ..cli import cli
 from ..transit import allocate_tcp_port
 from ..server.server import RelayServer
 from .. import __version__
@@ -68,3 +71,16 @@ class ServerBase:
             return d
         wait_d.addCallback(_later)
         return wait_d
+
+def config(*argv):
+    r = CliRunner()
+    with mock.patch("wormhole.cli.cli.go") as go:
+        res = r.invoke(cli.wormhole, argv, catch_exceptions=False)
+        if res.exit_code != 0:
+            print(res.exit_code)
+            print(res.output)
+            print(res)
+            assert 0
+        cfg = go.call_args[0][1]
+    return cfg
+

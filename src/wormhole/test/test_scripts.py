@@ -6,9 +6,8 @@ from twisted.python import procutils, log
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
-from .common import ServerBase
+from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive
-from ..cli.cli import Config
 from ..errors import TransferError, WrongPasswordError, WelcomeError
 
 
@@ -20,7 +19,7 @@ def build_offer(args):
 class OfferData(unittest.TestCase):
     def setUp(self):
         self._things_to_delete = []
-        self.cfg = cfg = Config()
+        self.cfg = cfg = config("send")
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
@@ -226,8 +225,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False):
         assert mode in ("text", "file", "directory")
-        send_cfg = Config()
-        recv_cfg = Config()
+        send_cfg = config("send")
+        recv_cfg = config("receive")
         message = "blah blah blah ponies"
 
         for cfg in [send_cfg, recv_cfg]:
@@ -449,8 +448,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_file_noclobber(self):
-        send_cfg = Config()
-        recv_cfg = Config()
+        send_cfg = config("send")
+        recv_cfg = config("receive")
 
         for cfg in [send_cfg, recv_cfg]:
             cfg.hide_progress = True
@@ -537,7 +536,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 class NotWelcome(ServerBase, unittest.TestCase):
     def setUp(self):
         self._setup_relay(error="please upgrade XYZ")
-        self.cfg = cfg = Config()
+        self.cfg = cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
         cfg.relay_url = self.relayurl
@@ -567,7 +566,7 @@ class Cleanup(ServerBase, unittest.TestCase):
 
     def setUp(self):
         d = super(Cleanup, self).setUp()
-        self.cfg = cfg = Config()
+        self.cfg = cfg = config("send")
         # common options for all tests in this suite
         cfg.hide_progress = True
         cfg.relay_url = self.relayurl

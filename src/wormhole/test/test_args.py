@@ -1,20 +1,12 @@
-import mock
+import sys
 from twisted.trial import unittest
-from ..cli.cli import wormhole
 from ..cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
-from click.testing import CliRunner
+from .common import config
 #from pprint import pprint
-
-def run(argv):
-    r = CliRunner()
-    with mock.patch("wormhole.cli.cli.react") as react:
-        r.invoke(wormhole, argv)
-        cfg = react.call_args[0][1][0]
-    return cfg
 
 class Send(unittest.TestCase):
     def test_baseline(self):
-        cfg = run(["send", "--text", "hi"])
+        cfg = config("send", "--text", "hi")
         #pprint(cfg.__dict__)
         self.assertEqual(cfg.what, None)
         self.assertEqual(cfg.code, None)
@@ -31,51 +23,51 @@ class Send(unittest.TestCase):
         self.assertEqual(cfg.zeromode, False)
 
     def test_file(self):
-        cfg = run(["send", "fn"])
+        cfg = config("send", "fn")
         #pprint(cfg.__dict__)
         self.assertEqual(cfg.what, u"fn")
         self.assertEqual(cfg.text, None)
 
     def test_text(self):
-        cfg = run(["send", "--text", "hi"])
+        cfg = config("send", "--text", "hi")
         self.assertEqual(cfg.what, None)
         self.assertEqual(cfg.text, u"hi")
 
     def test_nolisten(self):
-        cfg = run(["--no-listen", "send", "fn"])
+        cfg = config("--no-listen", "send", "fn")
         self.assertEqual(cfg.listen, False)
 
     def test_code(self):
-        cfg = run(["send", "--code", "1-abc", "fn"])
+        cfg = config("send", "--code", "1-abc", "fn")
         self.assertEqual(cfg.code, u"1-abc")
 
     def test_code_length(self):
-        cfg = run(["-c", "3", "send", "fn"])
+        cfg = config("-c", "3", "send", "fn")
         self.assertEqual(cfg.code_length, 3)
 
     def test_dump_timing(self):
-        cfg = run(["--dump-timing", "tx.json", "send", "fn"])
+        cfg = config("--dump-timing", "tx.json", "send", "fn")
         self.assertEqual(cfg.dump_timing, "tx.json")
 
     def test_hide_progress(self):
-        cfg = run(["--hide-progress", "send", "fn"])
+        cfg = config("--hide-progress", "send", "fn")
         self.assertEqual(cfg.hide_progress, True)
 
     def test_tor(self):
-        cfg = run(["--tor", "send", "fn"])
+        cfg = config("--tor", "send", "fn")
         self.assertEqual(cfg.tor, True)
 
     def test_verify(self):
-        cfg = run(["--verify", "send", "fn"])
+        cfg = config("--verify", "send", "fn")
         self.assertEqual(cfg.verify, True)
 
     def test_zeromode(self):
-        cfg = run(["send", "-0", "fn"])
+        cfg = config("send", "-0", "fn")
         self.assertEqual(cfg.zeromode, True)
 
 class Receive(unittest.TestCase):
     def test_baseline(self):
-        cfg = run(["receive"])
+        cfg = config("receive")
         #pprint(cfg.__dict__)
         self.assertEqual(cfg.accept_file, False)
         self.assertEqual(cfg.what, None)
@@ -94,45 +86,53 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.zeromode, False)
 
     def test_nolisten(self):
-        cfg = run(["--no-listen", "receive"])
+        cfg = config("--no-listen", "receive")
         self.assertEqual(cfg.listen, False)
 
     def test_code(self):
-        cfg = run(["receive", "1-abc"])
+        cfg = config("receive", "1-abc")
         self.assertEqual(cfg.code, u"1-abc")
 
     def test_code_length(self):
-        cfg = run(["-c", "3", "receive"])
+        cfg = config("-c", "3", "receive")
         self.assertEqual(cfg.code_length, 3)
 
     def test_dump_timing(self):
-        cfg = run(["--dump-timing", "tx.json", "receive"])
+        cfg = config("--dump-timing", "tx.json", "receive")
         self.assertEqual(cfg.dump_timing, "tx.json")
 
     def test_hide_progress(self):
-        cfg = run(["--hide-progress", "receive"])
+        cfg = config("--hide-progress", "receive")
         self.assertEqual(cfg.hide_progress, True)
 
     def test_tor(self):
-        cfg = run(["--tor", "receive"])
+        cfg = config("--tor", "receive")
         self.assertEqual(cfg.tor, True)
 
     def test_verify(self):
-        cfg = run(["--verify", "receive"])
+        cfg = config("--verify", "receive")
         self.assertEqual(cfg.verify, True)
 
     def test_zeromode(self):
-        cfg = run(["receive", "-0"])
+        cfg = config("receive", "-0")
         self.assertEqual(cfg.zeromode, True)
 
     def test_only_text(self):
-        cfg = run(["receive", "-t"])
+        cfg = config("receive", "-t")
         self.assertEqual(cfg.only_text, True)
 
     def test_accept_file(self):
-        cfg = run(["receive", "--accept-file"])
+        cfg = config("receive", "--accept-file")
         self.assertEqual(cfg.accept_file, True)
 
     def test_output_file(self):
-        cfg = run(["receive", "--output-file", "fn"])
+        cfg = config("receive", "--output-file", "fn")
         self.assertEqual(cfg.output_file, u"fn")
+
+class Config(unittest.TestCase):
+    def test_send(self):
+        cfg = config("send")
+        self.assertEqual(cfg.stdout, sys.stdout)
+    def test_receive(self):
+        cfg = config("receive")
+        self.assertEqual(cfg.stdout, sys.stdout)
