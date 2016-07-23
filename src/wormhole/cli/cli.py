@@ -154,14 +154,12 @@ def _dispatch_command(reactor, cfg, command):
 )
 @click.argument("what", required=False)
 @click.pass_obj
-def send(cfg, what, text, code, zeromode):
+def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_send"):
         from . import cmd_send
-    cfg.what = what
-    cfg.text = text
-    cfg.zeromode = zeromode
-    cfg.code = code
 
     return go(cmd_send.send, cfg)
 
@@ -198,16 +196,14 @@ def go(f, cfg):
 #          " program will ask for it, using tab-completion."),
 )
 @click.pass_obj
-def receive(cfg, code, zeromode, output_file, accept_file, only_text):
+def receive(cfg, code, **kwargs):
     """
     Receive a text message, file, or directory (from 'wormhole send')
     """
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_receive"):
         from . import cmd_receive
-    cfg.zeromode = zeromode
-    cfg.output_file = output_file
-    cfg.accept_file = accept_file
-    cfg.only_text = only_text
     if len(code) == 1:
         cfg.code = code[0]
     elif len(code) > 1:
