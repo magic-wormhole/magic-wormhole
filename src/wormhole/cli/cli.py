@@ -30,6 +30,13 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
 
+def _compose(*decorators):
+    def decorate(f):
+        for d in reversed(decorators):
+            f = d(f)
+        return f
+    return decorate
+
 
 ALIASES = {
     "tx": "send",
@@ -41,8 +48,27 @@ class AliasedGroup(click.Group):
         return click.Group.get_command(self, ctx, cmd_name)
 
 
+TopArgs = _compose(
+    click.option("-c", "--code-length", default=2, metavar="NUMWORDS",
+                 help="length of code (in bytes/words)",
+                 ),
+    click.option("-v", "--verify", is_flag=True, default=False,
+                 help="display verification string (and wait for approval)",
+                 ),
+    click.option("--hide-progress", is_flag=True, default=False,
+                 help="supress progress-bar display",
+                 ),
+    click.option("--no-listen", is_flag=True, default=False,
+                 help="(debug) don't open a listening socket for Transit",
+                 ),
+    click.option("--tor", is_flag=True, default=False,
+                 help="use Tor when connecting",
+                 ),
+)
+
 # top-level command ("wormhole ...")
 @click.group(cls=AliasedGroup)
+@TopArgs
 @click.option(
     "--relay-url", default=public_relay.RENDEZVOUS_RELAY,
     metavar="URL",
@@ -54,31 +80,10 @@ class AliasedGroup(click.Group):
     help="transit relay to use",
 )
 @click.option(
-    "-c", "--code-length", default=2,
-    metavar="NUMWORDS",
-    help="length of code (in bytes/words)",
-)
-@click.option(
-    "-v", "--verify", is_flag=True, default=False,
-    help="display (and wait for acceptance of) verification string",
-)
-@click.option(
-    "--hide-progress", is_flag=True, default=False,
-    help="supress progress-bar display",
-)
-@click.option(
     "--dump-timing", type=type(u""), # TODO: hide from --help output
     default=None,
     metavar="FILE.json",
     help="(debug) write timing data to file",
-)
-@click.option(
-    "--no-listen", is_flag=True, default=False,
-    help="(debug) don't open a listening socket for Transit",
-)
-@click.option(
-    "--tor", is_flag=True, default=False,
-    help="use Tor when connecting",
 )
 @click.version_option(
     message="magic-wormhole %(version)s",
@@ -138,12 +143,15 @@ def _dispatch_command(reactor, cfg, command):
         cfg.timing.write(cfg.dump_timing, stderr)
 
 
+CommonArgs = _compose(
+    click.option("-0", "zeromode", default=False, is_flag=True,
+                 help="enable no-code anything-goes mode",
+                 ),
+)
+
 # wormhole send (or "wormhole tx")
 @wormhole.command()
-@click.option(
-    "-0", "zeromode", default=False, is_flag=True,
-    help="enable no-code anything-goes mode",
-)
+@CommonArgs
 @click.option(
     "--code", metavar="CODE",
     help="human-generated code phrase",
@@ -172,10 +180,7 @@ def go(f, cfg):
 
 # wormhole receive (or "wormhole rx")
 @wormhole.command()
-@click.option(
-    "-0", "zeromode", default=False, is_flag=True,
-    help="enable no-code anything-goes mode",
-)
+@CommonArgs
 @click.option(
     "--only-text", "-t", is_flag=True,
     help="refuse file transfers, only accept text transfers",
