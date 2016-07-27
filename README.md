@@ -18,6 +18,35 @@ and do not need to be memorized.
 
 * [Slides from PyCon2016](http://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf)
 
+## Example
+
+Sender:
+
+```
+% wormhole send README.md
+Sending 7924 byte file named 'README.md'
+On the other computer, please run: wormhole receive
+Wormhole code is: 7-crossover-clockwork
+ 
+Sending (<-10.0.1.43:58988)..
+100%|=========================| 7.92K/7.92K [00:00<00:00, 6.02MB/s]
+File sent.. waiting for confirmation
+Confirmation received. Transfer complete.
+```
+
+Receiver:
+
+```
+% wormhole receive
+Enter receive wormhole code: 7-crossover-clockwork
+Receiving file (7924 bytes) into: README.md
+ok? (y/n): y
+Receiving (->tcp:10.0.1.43:58986)..
+100%|===========================| 7.92K/7.92K [00:00<00:00, 120KB/s]
+Received file written to README.md
+```
+
+
 ## Installation
 
 ```$ pip install magic-wormhole```
