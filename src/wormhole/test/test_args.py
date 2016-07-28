@@ -33,7 +33,7 @@ class Send(unittest.TestCase):
         self.assertEqual(cfg.text, u"hi")
 
     def test_nolisten(self):
-        cfg = config("--no-listen", "send", "fn")
+        cfg = config("send", "--no-listen", "fn")
         self.assertEqual(cfg.listen, False)
 
     def test_code(self):
@@ -41,7 +41,7 @@ class Send(unittest.TestCase):
         self.assertEqual(cfg.code, u"1-abc")
 
     def test_code_length(self):
-        cfg = config("-c", "3", "send", "fn")
+        cfg = config("send", "-c", "3", "fn")
         self.assertEqual(cfg.code_length, 3)
 
     def test_dump_timing(self):
@@ -49,15 +49,15 @@ class Send(unittest.TestCase):
         self.assertEqual(cfg.dump_timing, "tx.json")
 
     def test_hide_progress(self):
-        cfg = config("--hide-progress", "send", "fn")
+        cfg = config("send", "--hide-progress", "fn")
         self.assertEqual(cfg.hide_progress, True)
 
     def test_tor(self):
-        cfg = config("--tor", "send", "fn")
+        cfg = config("send", "--tor", "fn")
         self.assertEqual(cfg.tor, True)
 
     def test_verify(self):
-        cfg = config("--verify", "send", "fn")
+        cfg = config("send", "--verify", "fn")
         self.assertEqual(cfg.verify, True)
 
     def test_zeromode(self):
@@ -83,7 +83,7 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.zeromode, False)
 
     def test_nolisten(self):
-        cfg = config("--no-listen", "receive")
+        cfg = config("receive", "--no-listen")
         self.assertEqual(cfg.listen, False)
 
     def test_code(self):
@@ -91,7 +91,7 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.code, u"1-abc")
 
     def test_code_length(self):
-        cfg = config("-c", "3", "receive")
+        cfg = config("receive", "-c", "3")
         self.assertEqual(cfg.code_length, 3)
 
     def test_dump_timing(self):
@@ -99,15 +99,15 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.dump_timing, "tx.json")
 
     def test_hide_progress(self):
-        cfg = config("--hide-progress", "receive")
+        cfg = config("receive", "--hide-progress")
         self.assertEqual(cfg.hide_progress, True)
 
     def test_tor(self):
-        cfg = config("--tor", "receive")
+        cfg = config("receive", "--tor")
         self.assertEqual(cfg.tor, True)
 
     def test_verify(self):
-        cfg = config("--verify", "receive")
+        cfg = config("receive", "--verify")
         self.assertEqual(cfg.verify, True)
 
     def test_zeromode(self):

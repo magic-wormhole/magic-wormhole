@@ -48,27 +48,8 @@ class AliasedGroup(click.Group):
         return click.Group.get_command(self, ctx, cmd_name)
 
 
-TopArgs = _compose(
-    click.option("-c", "--code-length", default=2, metavar="NUMWORDS",
-                 help="length of code (in bytes/words)",
-                 ),
-    click.option("-v", "--verify", is_flag=True, default=False,
-                 help="display verification string (and wait for approval)",
-                 ),
-    click.option("--hide-progress", is_flag=True, default=False,
-                 help="supress progress-bar display",
-                 ),
-    click.option("--no-listen", is_flag=True, default=False,
-                 help="(debug) don't open a listening socket for Transit",
-                 ),
-    click.option("--tor", is_flag=True, default=False,
-                 help="use Tor when connecting",
-                 ),
-)
-
 # top-level command ("wormhole ...")
 @click.group(cls=AliasedGroup)
-@TopArgs
 @click.option(
     "--relay-url", default=public_relay.RENDEZVOUS_RELAY,
     metavar="URL",
@@ -90,8 +71,7 @@ TopArgs = _compose(
     version=__version__,
 )
 @click.pass_context
-def wormhole(context, tor, no_listen, dump_timing, hide_progress,
-             verify, code_length, transit_helper, relay_url):
+def wormhole(context, dump_timing, transit_helper, relay_url):
     """
     Create a Magic Wormhole and communicate through it.
 
@@ -100,13 +80,8 @@ def wormhole(context, tor, no_listen, dump_timing, hide_progress,
     anyone who doesn't use the same code.
     """
     context.obj = cfg = Config()
-    cfg.tor = tor
-    cfg.listen = not no_listen
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
-    cfg.code_length = code_length
-    cfg.verify = verify
-    cfg.hide_progress = hide_progress
     cfg.dump_timing = dump_timing
 
 
@@ -146,6 +121,21 @@ def _dispatch_command(reactor, cfg, command):
 CommonArgs = _compose(
     click.option("-0", "zeromode", default=False, is_flag=True,
                  help="enable no-code anything-goes mode",
+                 ),
+    click.option("-c", "--code-length", default=2, metavar="NUMWORDS",
+                 help="length of code (in bytes/words)",
+                 ),
+    click.option("-v", "--verify", is_flag=True, default=False,
+                 help="display verification string (and wait for approval)",
+                 ),
+    click.option("--hide-progress", is_flag=True, default=False,
+                 help="supress progress-bar display",
+                 ),
+    click.option("--listen/--no-listen", default=True,
+                 help="(debug) don't open a listening socket for Transit",
+                 ),
+    click.option("--tor", is_flag=True, default=False,
+                 help="use Tor when connecting",
                  ),
 )
 

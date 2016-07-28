@@ -149,15 +149,13 @@ provide information about alternatives.
 
 ## CLI tool
 
-* `wormhole send --text TEXT`
-* `wormhole send FILENAME`
-* `wormhole send DIRNAME`
-* `wormhole receive`
+* `wormhole send [args] --text TEXT`
+* `wormhole send [args] FILENAME`
+* `wormhole send [args] DIRNAME`
+* `wormhole receive [args]`
 
-Both commands accept:
+Both commands accept additional arguments to influence their behavior:
 
-* `--relay-url URL` : override the rendezvous server URL
-* `--transit-helper tcp:HOST:PORT`: override the Transit Relay
 * `--code-length WORDS`: use more or fewer than 2 words for the code
 * `--verify` : print (and ask user to compare) extra verification string
 

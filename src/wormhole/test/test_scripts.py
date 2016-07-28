@@ -298,10 +298,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 content_args = [send_cfg.what]
 
             send_args = [
-                    '--hide-progress',
                     '--relay-url', self.relayurl,
                     '--transit-helper', '',
                     'send',
+                    '--hide-progress',
                     '--code', send_cfg.code,
                 ] + content_args
 
@@ -311,10 +311,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
             )
             recv_args = [
-                '--hide-progress',
                 '--relay-url', self.relayurl,
                 '--transit-helper', '',
                 'receive',
+                '--hide-progress',
                 '--accept-file',
                 recv_cfg.code,
             ]
