@@ -11,7 +11,7 @@ import os, sys, time, json
 
 CONFIG = """\
 graph_title Magic-Wormhole Mailbox Events
-graph_vlabel Events Since Reboot
+graph_vlabel Events Since DB Creation
 graph_category network
 happy.label Happy
 happy.draw LINE2
@@ -44,7 +44,7 @@ with open(fn) as f:
 if time.time() > data["valid_until"]:
     sys.exit(1) # expired
 
-r = data["rendezvous"]["since_reboot"]
+r = data["rendezvous"]["all_time"]
 print "happy.value", r["mailbox_moods"].get("happy", 0)
 print "total.value", r["mailboxes_total"]
 print "scary.value", r["mailbox_moods"].get("scary", 0)
