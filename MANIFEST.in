@@ -5,8 +5,9 @@ recursive-include docs *.md *.rst
 include .coveragerc tox.ini
 include misc/windows-build.cmd
 include misc/*.py misc/web/*.html misc/web/*.js misc/web/*.css
-include misc/munin/wormhole_channels
+include misc/munin/wormhole_active
 include misc/munin/wormhole_errors
+include misc/munin/wormhole_event_rate
 include misc/munin/wormhole_events
-include misc/munin/wormhole_messages
+include misc/munin/wormhole_events_alltime
 include misc/munin/wormhole_transit
