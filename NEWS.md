@@ -1,6 +1,43 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.8.1 (27-Jul-2016)
+
+This release contains mostly minor changes.
+
+The most noticeable is that long-lived wormholes should be more reliable now.
+Previously, if you run `wormhole send` but your peer doesn't run their
+`receive` for several hours, a NAT/firewall box on either side could stop
+forwarding traffic for the idle connection (without sending a FIN or RST to
+properly close the socket), causing both sides to hang forever and never
+actually connect. Now both sides send periodic keep-alive messages to prevent
+this.
+
+In addition, by switching to "Click" for argument parsing, we now have short
+command aliases: `wormhole tx` does the same thing as `wormhole send`, and
+`wormhole rx` is an easier-to-spell equivalent of `wormhole receive`.
+
+Other changes:
+
+* CLI: move most arguments to be attached to the subcommand (new: `wormhole
+  send --verify`) rather than on the "wormhole" command (old: `wormhole
+  --verify send`). Four arguments remain on the "wormhole" command:
+  `--relay-url=`, `--transit-helper=`, `--dump-timing=`, and `--version`.
+* docs: add links to PyCon2016 presentation
+* reject wormhole-codes with spaces with a better error message
+* magic-wormhole ought to work on windows now
+* code-input tab-completion should work on stock OS-X python (with libedit)
+* sending a directory should restore file permissions correctly
+* server changes:
+  * expire channels after two hours, not 3 days
+  * prune channels more accurately
+  * improve munin plugins for server monitoring
+
+Many thanks to the folks who contributed to this release, during the PyCon
+sprints and afterwards: higs4281, laharah, Chris Wolfe, meejah, wsanchez,
+Kurt Neufeld, and Francois Marier.
+
+
 ## Release 0.8.0 (28-May-2016)
 
 This release is completely incompatible with the previous 0.7.6 release.
