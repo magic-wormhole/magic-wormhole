@@ -10,8 +10,8 @@ env.serverdir /path/to/your/wormhole/server
 import os, sys, time, json
 
 CONFIG = """\
-graph_title Magic-Wormhole Transit Usage (since reboot)
-graph_vlabel Bytes Since Reboot
+graph_title Magic-Wormhole Transit Usage (all time)
+graph_vlabel Bytes Since DB Creation
 graph_category network
 bytes.label Transit Bytes
 bytes.draw LINE1
@@ -29,5 +29,5 @@ with open(fn) as f:
 if time.time() > data["valid_until"]:
     sys.exit(1) # expired
 
-t = data["transit"]["since_reboot"]
+t = data["transit"]["all_time"]
 print "bytes.value", t["bytes"]

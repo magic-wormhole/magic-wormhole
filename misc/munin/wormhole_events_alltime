@@ -10,7 +10,7 @@ env.serverdir /path/to/your/wormhole/server
 import os, sys, time, json
 
 CONFIG = """\
-graph_title Magic-Wormhole Mailbox Events
+graph_title Magic-Wormhole Mailbox Events (all time)
 graph_vlabel Events Since DB Creation
 graph_category network
 happy.label Happy
