@@ -41,6 +41,8 @@ def _compose(*decorators):
 ALIASES = {
     "tx": "send",
     "rx": "receive",
+    "recieve": "receive",
+    "recv": "receive",
 }
 class AliasedGroup(click.Group):
     def get_command(self, ctx, cmd_name):
