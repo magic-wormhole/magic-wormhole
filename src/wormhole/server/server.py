@@ -131,6 +131,7 @@ class RelayServer(service.MultiService):
         log.msg("get_stats took:", time.time() - start)
 
         with open(tmpfn, "wb") as f:
-            json.dump(data, f, indent=1)
-            f.write("\n")
+            # json.dump(f) has str-vs-unicode issues on py2-vs-py3
+            f.write(json.dumps(data, indent=1).encode("utf-8"))
+            f.write(b"\n")
         os.rename(tmpfn, self._stats_file)

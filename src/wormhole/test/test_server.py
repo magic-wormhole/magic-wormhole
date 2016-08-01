@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import json, itertools, time
+import os, json, itertools, time
 from binascii import hexlify
 import mock
 from twisted.trial import unittest
@@ -11,7 +11,7 @@ from twisted.web import client
 from autobahn.twisted import websocket
 from .. import __version__
 from .common import ServerBase
-from ..server import rendezvous, transit_server
+from ..server import server, rendezvous, transit_server
 from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
 
@@ -1042,6 +1042,29 @@ class Summary(unittest.TestCase):
         rv.prune_all_apps(now=123, old=50)
         row = db.execute("SELECT * FROM `mailbox_usage`").fetchone()
         self.assertEqual(row["started"], 20)
+
+class DumpStats(unittest.TestCase):
+    def test_nostats(self):
+        rs = server.RelayServer(str("tcp:0"), str("tcp:0"), None)
+        # with no ._stats_file, this should do nothing
+        rs.dump_stats(1, 1)
+
+    def test_empty(self):
+        basedir = self.mktemp()
+        os.mkdir(basedir)
+        fn = os.path.join(basedir, "stats.json")
+        rs = server.RelayServer(str("tcp:0"), str("tcp:0"), None,
+                                stats_file=fn)
+        now = 1234
+        validity = 500
+        rs.dump_stats(now, validity)
+        with open(fn, "rb") as f:
+            data_bytes = f.read()
+        data = json.loads(data_bytes.decode("utf-8"))
+        self.assertEqual(data["created"], now)
+        self.assertEqual(data["valid_until"], now+validity)
+        self.assertEqual(data["rendezvous"]["all_time"]["mailboxes_total"], 0)
+        self.assertEqual(data["transit"]["all_time"]["total"], 0)
 
 
 class Accumulator(protocol.Protocol):
