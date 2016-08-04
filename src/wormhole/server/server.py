@@ -7,7 +7,6 @@ from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
 from twisted.web import server, static, resource
 from autobahn.twisted.resource import WebSocketResource
-from .endpoint_service import ServerEndpointService
 from .. import __version__
 from .database import get_db
 from .rendezvous import Rendezvous
@@ -71,14 +70,14 @@ class RelayServer(service.MultiService):
             site.logRequests = False
 
         r = endpoints.serverFromString(reactor, rendezvous_web_port)
-        rendezvous_web_service = ServerEndpointService(r, site)
+        rendezvous_web_service = internet.StreamServerEndpointService(r, site)
         rendezvous_web_service.setServiceParent(self)
 
         if transit_port:
             transit = Transit(db, blur_usage)
             transit.setServiceParent(self) # for the timer
             t = endpoints.serverFromString(reactor, transit_port)
-            transit_service = ServerEndpointService(t, transit)
+            transit_service = internet.StreamServerEndpointService(t, transit)
             transit_service.setServiceParent(self)
 
         self._stats_file = stats_file
