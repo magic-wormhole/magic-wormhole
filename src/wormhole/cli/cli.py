@@ -30,6 +30,7 @@ class Config(object):
         self.cwd = os.getcwd()
         self.stdout = stdout
         self.stderr = stderr
+        self.tor = False  # XXX?
 
 def _compose(*decorators):
     def decorate(f):
@@ -217,3 +218,43 @@ def receive(cfg, code, **kwargs):
         cfg.code = None
 
     return go(cmd_receive.receive, cfg)
+
+
+@wormhole.command(name="ssh-add")
+@click.option(
+    "-c", "--code-length", default=2,
+    metavar="NUMWORDS",
+    help="length of code (in bytes/words)",
+)
+@click.option(
+    "--auth-file", "-f",
+    default=expanduser('~/.ssh/authorized_keys'),
+    type=click.Path(exists=False),
+)
+@click.pass_context
+def ssh_add(ctx, code_length, auth_file):
+    from . import cmd_ssh
+    ctx.obj.code_length = code_length
+    ctx.obj.auth_file = auth_file
+    return go(cmd_ssh.add, ctx.obj)
+
+
+@wormhole.command(name="ssh-send")
+@click.argument(
+    "code", nargs=1, required=True,
+)
+@click.option(
+    "--yes", "-y", is_flag=True,
+    help="Skip confirmation prompt to send key",
+)
+@click.pass_obj
+def ssh_send(cfg, code, yes):
+    from . import cmd_ssh
+    kind, keyid, pubkey = cmd_ssh.find_public_key()
+    print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
+    if yes is not True:
+        click.confirm("Really send public key '{}' ?".format(keyid), abort=True)
+    cfg.public_key = (kind, keyid, pubkey)
+    cfg.code = code
+
+    return go(cmd_ssh.send, cfg)
