@@ -65,7 +65,7 @@ class Sender:
 
         other_cmd = "wormhole receive"
         if args.verify:
-            other_cmd = "wormhole --verify receive"
+            other_cmd = "wormhole receive --verify"
         if args.zeromode:
             assert not args.code
             args.code = u"0-"
