@@ -3,7 +3,6 @@ from __future__ import print_function
 import os
 import time
 start = time.time()
-import traceback
 from textwrap import fill, dedent
 from sys import stdout, stderr
 from . import public_relay
@@ -11,6 +10,7 @@ from .. import __version__
 from ..timing import DebugTiming
 from ..errors import WrongPasswordError, WelcomeError, KeyFormatError
 from twisted.internet.defer import inlineCallbacks, maybeDeferred
+from twisted.python.failure import Failure
 from twisted.internet.task import react
 
 import click
@@ -29,6 +29,7 @@ class Config(object):
         self.cwd = os.getcwd()
         self.stdout = stdout
         self.stderr = stderr
+        self.tor = False  # XXX?
 
 def _compose(*decorators):
     def decorate(f):
@@ -111,7 +112,10 @@ def _dispatch_command(reactor, cfg, command):
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
     except Exception as e:
-        traceback.print_exc()
+        # this prints a proper traceback, whereas
+        # traceback.print_exc() just prints a TB to the "yield"
+        # line above ...
+        Failure().printTraceback(file=stderr)
         print("ERROR:", e, file=stderr)
         raise SystemExit(1)
 
@@ -213,3 +217,67 @@ def receive(cfg, code, **kwargs):
         cfg.code = None
 
     return go(cmd_receive.receive, cfg)
+
+
+@wormhole.group()
+def ssh():
+    """
+    Facilitate sending/receiving SSH public keys
+    """
+    pass
+
+
+@ssh.command(name="invite")
+@click.option(
+    "-c", "--code-length", default=2,
+    metavar="NUMWORDS",
+    help="length of code (in bytes/words)",
+)
+@click.option(
+    "--user", "-u",
+    default=None,
+    metavar="USER",
+    help="Add to USER's ~/.ssh/authorized_keys",
+)
+@click.pass_context
+def ssh_invite(ctx, code_length, user):
+    """
+    Add a public-key to a ~/.ssh/authorized_keys file
+    """
+    from . import cmd_ssh
+    ctx.obj.code_length = code_length
+    ctx.obj.ssh_user = user
+    return go(cmd_ssh.invite, ctx.obj)
+
+
+@ssh.command(name="accept")
+@click.argument(
+    "code", nargs=1, required=True,
+)
+@click.option(
+    "--key-file", "-F",
+    default=None,
+    type=click.Path(exists=True),
+)
+@click.option(
+    "--yes", "-y", is_flag=True,
+    help="Skip confirmation prompt to send key",
+)
+@click.pass_obj
+def ssh_accept(cfg, code, key_file, yes):
+    """
+    Send your SSH public-key
+
+    In response to a 'wormhole ssh invite' this will send public-key
+    you specify (if there's only one in ~/.ssh/* that will be sent).
+    """
+
+    from . import cmd_ssh
+    kind, keyid, pubkey = cmd_ssh.find_public_key(key_file)
+    print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
+    if yes is not True:
+        click.confirm("Really send public key '{}' ?".format(keyid), abort=True)
+    cfg.public_key = (kind, keyid, pubkey)
+    cfg.code = code
+
+    return go(cmd_ssh.accept, cfg)

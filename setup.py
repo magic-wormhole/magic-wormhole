@@ -40,6 +40,7 @@ setup(name="magic-wormhole",
           "dev": [
               "mock",
               "tox",
+              "pyflakes",
           ],
       },
       test_suite="wormhole.test",
