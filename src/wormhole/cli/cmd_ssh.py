@@ -84,7 +84,7 @@ def invite(cfg, reactor=reactor):
     if cfg.ssh_user is None:
         ssh_path = expanduser('~/.ssh/'.format(cfg.ssh_user))
     else:
-        ssh_path = '/home/{}/.ssh/'.format(cfg.ssh_user)
+        ssh_path = expanduser('~{}/.ssh/'.format(cfg.ssh_user))
     auth_key_path = join(ssh_path, 'authorized_keys')
     if not exists(auth_key_path):
         print("Note: '{}' not found; will be created".format(auth_key_path))
