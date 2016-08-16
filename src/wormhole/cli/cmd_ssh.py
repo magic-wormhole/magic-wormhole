@@ -8,6 +8,8 @@ import click
 
 from .. import xfer_util
 
+class PubkeyError(Exception):
+    pass
 
 def find_public_key(hint=None):
     """
@@ -23,11 +25,11 @@ def find_public_key(hint=None):
         hint = expanduser('~/.ssh/')
     else:
         if not exists(hint):
-            raise RuntimeError("Can't find '{}'".format(hint))
+            raise PubkeyError("Can't find '{}'".format(hint))
 
     pubkeys = [f for f in os.listdir(hint) if f.endswith('.pub')]
     if len(pubkeys) == 0:
-        raise RuntimeError("No public keys in '{}'".format(hint))
+        raise PubkeyError("No public keys in '{}'".format(hint))
     elif len(pubkeys) > 1:
         got_key = False
         while not got_key:
