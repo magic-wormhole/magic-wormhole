@@ -225,8 +225,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False):
         assert mode in ("text", "file", "directory", "slow")
-        send_cfg = Config()
-        recv_cfg = Config()
+        send_cfg = config("send")
+        recv_cfg = config("receive")
         message = "blah blah blah ponies"
 
         for cfg in [send_cfg, recv_cfg]:
