@@ -8,8 +8,8 @@ OTHERS = ["config", "config~", "known_hosts", "known_hosts~"]
 class FindPubkey(unittest.TestCase):
     def test_find_one(self):
         files = OTHERS + ["id_rsa.pub", "id_rsa"]
-        pubkey_data = b"ssh-rsa AAAAkeystuff email@host\n"
-        pubkey_file = io.BytesIO(pubkey_data)
+        pubkey_data = u"ssh-rsa AAAAkeystuff email@host\n"
+        pubkey_file = io.StringIO(pubkey_data)
         with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
             with mock.patch("os.listdir", return_value=files) as ld:
                 with mock.patch("wormhole.cli.cmd_ssh.open",
@@ -42,8 +42,8 @@ class FindPubkey(unittest.TestCase):
 
     def test_find_multiple(self):
         files = OTHERS + ["id_rsa.pub", "id_rsa", "id_dsa.pub", "id_dsa"]
-        pubkey_data = b"ssh-rsa AAAAkeystuff email@host\n"
-        pubkey_file = io.BytesIO(pubkey_data)
+        pubkey_data = u"ssh-rsa AAAAkeystuff email@host\n"
+        pubkey_file = io.StringIO(pubkey_data)
         with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
             with mock.patch("os.listdir", return_value=files):
                 responses = iter(["frog", "NaN", "-1", "0"])
