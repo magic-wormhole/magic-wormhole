@@ -34,7 +34,7 @@ def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
     if on_code:
         on_code(code)
     data = yield wh.get()
-    data = json.loads(data)
+    data = json.loads(data.decode("utf-8"))
     offer = data.get('offer', None)
     if not offer:
         raise Exception(
@@ -43,7 +43,7 @@ def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
     msg = None
     if 'message' in offer:
         msg = offer['message']
-        wh.send(json.dumps({"answer": {"message_ack": "ok"}}))
+        wh.send(json.dumps({"answer": {"message_ack": "ok"}}).encode("utf-8"))
 
     else:
         raise Exception(
@@ -87,10 +87,10 @@ def send(reactor, appid, relay_url, data, code, use_tor=None, on_code=None):
             "offer": {
                 "message": data
             }
-        })
+        }).encode("utf-8")
     )
     data = yield wh.get()
-    data = json.loads(data)
+    data = json.loads(data.decode("utf-8"))
     answer = data.get('answer', None)
     yield wh.close()
     if answer:
