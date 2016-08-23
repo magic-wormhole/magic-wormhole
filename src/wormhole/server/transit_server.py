@@ -60,7 +60,7 @@ class TransitConnection(protocol.Protocol):
         self._token_buffer += data
         buf = self._token_buffer
         wanted = len("please relay \n")+32*2
-        if len(buf) < wanted-1 and "\n" in buf:
+        if len(buf) < wanted-1 and b"\n" in buf:
             self.transport.write(b"bad handshake\n")
             log.msg("transit handshake early failure")
             return self.disconnect()

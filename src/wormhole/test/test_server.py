@@ -1160,6 +1160,26 @@ class Transit(ServerBase, unittest.TestCase):
         a1.transport.loseConnection()
 
     @defer.inlineCallbacks
+    def test_binary_handshake(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+
+        binary_bad_handshake = b"\x00\x01\xe0\x0f\n\xff"
+        # the embedded \n makes the server trigger early, before the full
+        # expected handshake length has arrived. A non-wormhole client
+        # writing non-ascii junk to the transit port used to trigger a
+        # UnicodeDecodeError when it tried to coerce the incoming handshake
+        # to unicode, due to the ("\n" in buf) check. This was fixed to use
+        # (b"\n" in buf). This exercises the old failure.
+        a1.transport.write(binary_bad_handshake)
+
+        exp = b"bad handshake\n"
+        yield a1.waitForBytes(len(exp))
+        self.assertEqual(a1.data, exp)
+
+        a1.transport.loseConnection()
+
+    @defer.inlineCallbacks
     def test_impatience(self):
         ep = clientFromString(reactor, self.transit)
         a1 = yield connectProtocol(ep, Accumulator())
