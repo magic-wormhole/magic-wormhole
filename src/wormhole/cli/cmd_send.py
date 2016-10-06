@@ -23,6 +23,22 @@ def send(args, reactor=reactor):
     """
     return Sender(args, reactor).go()
 
+class Verifier:
+    def __init__(self, stdin, stdout):
+        if args.verify:
+            # TODO: don't stall on w.verify() unless they want it
+            verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+            verifier = bytes_to_hexstr(verifier_bytes)
+            while True:
+                ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
+                if ok.lower() == "yes":
+                    break
+                if ok.lower() == "no":
+                    err = "sender rejected verification check, abandoned transfer"
+                    reject_data = dict_to_bytes({"error": err})
+                    w.send(reject_data)
+                    raise TransferError(err)
+
 class Sender:
     def __init__(self, args, reactor):
         self._args = args
@@ -45,9 +61,31 @@ class Sender:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(APPID, self._args.relay_url,
-                     self._reactor, self._tor_manager,
-                     timing=self._timing)
+        other_cmd = "wormhole receive"
+        wormhole_args = {"timing": self._timing}
+
+        if args.zeromode:
+            assert not args.code
+            args.code = u"0-"
+            other_cmd += " -0"
+
+        if args.code:
+            wormhole_args["code"] = args.code
+        else:
+            def display_code(code):
+                print(u"Wormhole code is: %s" % code, file=args.stdout)
+            asker = CodeAsker(stdin, stdout, display_code)
+            wormhole_args["code_asker"] = asker
+        if args.verify:
+            verifier = Verifier(stdin, stdout)
+            wormhole_args["verifier"] = verifier
+            other_cmd += "--verify"
+        print(u"On the other computer, please run: %s" % other_cmd,
+              file=args.stdout)
+
+        w = yield wormhole(APPID, self._args.relay_url, self._reactor,
+                           self._tor_manager, **wormhole_args)
+        # wormhole is now connected
         d = self._go(w)
         d.addBoth(w.close) # must wait for ack from close()
         yield d
@@ -63,16 +101,7 @@ class Sender:
         offer, self._fd_to_send = self._build_offer()
         args = self._args
 
-        other_cmd = "wormhole receive"
-        if args.verify:
-            other_cmd = "wormhole receive --verify"
-        if args.zeromode:
-            assert not args.code
-            args.code = u"0-"
-            other_cmd += " -0"
 
-        print(u"On the other computer, please run: %s" % other_cmd,
-              file=args.stdout)
 
         if args.code:
             w.set_code(args.code)
@@ -83,20 +112,6 @@ class Sender:
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stdout)
         print(u"", file=args.stdout)
-
-        # TODO: don't stall on w.verify() unless they want it
-        verifier_bytes = yield w.verify() # this may raise WrongPasswordError
-        if args.verify:
-            verifier = bytes_to_hexstr(verifier_bytes)
-            while True:
-                ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
-                if ok.lower() == "yes":
-                    break
-                if ok.lower() == "no":
-                    err = "sender rejected verification check, abandoned transfer"
-                    reject_data = dict_to_bytes({"error": err})
-                    w.send(reject_data)
-                    raise TransferError(err)
 
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
