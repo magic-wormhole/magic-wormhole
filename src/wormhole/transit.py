@@ -569,7 +569,7 @@ class _ThereCanBeOnlyOne:
 def there_can_be_only_one(contenders):
     return _ThereCanBeOnlyOne(contenders).run()
 
-class Common:
+class _WideBoreWormhole:
     RELAY_DELAY = 2.0
     TRANSIT_KEY_LENGTH = SecretBox.KEY_SIZE
 
@@ -593,6 +593,12 @@ class Common:
         self._reactor = reactor
         self._timing = timing or DebugTiming()
         self._timing.add("transit")
+
+    def connect(self):
+        # start the process
+
+        # return a Deferred when we're ready
+        return self.connected_d
 
     def _build_listener(self):
         if self._no_listen or self._tor_manager:

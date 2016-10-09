@@ -19,6 +19,7 @@ from .errors import (WrongPasswordError, InternalError, WelcomeError,
 from .timing import DebugTiming
 from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
                    dict_to_bytes, bytes_to_dict)
+from .transit import _WideBoreWormhole
 from hkdf import Hkdf
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -263,6 +264,8 @@ class _Wormhole:
         self._receive_waiters = {} # phase -> Deferred
         self._received_messages = {} # phase -> plaintext
 
+        self._want_to_embiggen = False
+
     # API METHODS for applications to call
 
     # You must use at least one of these entry points, to establish the
@@ -306,6 +309,17 @@ class _Wormhole:
         cannot be called until verify() or get() has fired.
         """
         return self._API_derive_key(purpose, length)
+
+    def embiggen(self, transit_relay, no_listen=False):
+        """Establish a 'wide-bore' wormhole which can accomodate large
+        amounts of data, using a direct connection or a connection through
+        the Relay server (and no longer using the Rendezvous server). Returns
+        a Deferred that fires with the wide-bore wormhole object."""
+        wbw = _WideBoreWormhole(self, transit_relay,
+                                tor_manager=self._tor_manager,
+                                reactor=self._reactor, timing=self._timing,
+                                no_listen=no_listen)
+        return wbw.connect()
 
     def close(self, res=None):
         """Collapse the wormhole, freeing up server resources and flushing
@@ -569,7 +583,7 @@ class _Wormhole:
         self._maybe_check_version()
         self._maybe_send_phase_messages()
 
-    def _send_version_message(self):
+   def _send_version_message(self):
         # this is encrypted like a normal phase message, and includes a
         # dictionary of version flags to let the other Wormhole know what
         # we're capable of (for future expansion)

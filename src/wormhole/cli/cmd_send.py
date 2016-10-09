@@ -5,10 +5,12 @@ from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.threads import deferToThread
 from ..errors import TransferError, WormholeClosedError
 from ..wormhole import wormhole
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from .verify import verify
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -22,12 +24,12 @@ def send(args, reactor):
                      permission not granted, ack not successful.
     * any other error: something unexpected happened
     """
-    w = yield _build_wormhole(args, reactor)
+    (w, offer, fd_to_send) = yield _build_wormhole(args, reactor)
     # wormhole is now connected, close it if anything goes wrong. It'd be
     # nice to use 'with w:' here, but that cleanup would be synchronous,
     # and we need it to yield a Deferred.
     try:
-        retval = yield _do_send(w, args, reactor)
+        retval = yield _do_send(w, offer, fd_to_send, args, reactor)
     finally:
         yield w.close() # must wait for ack from close()
     returnValue(retval)
@@ -75,21 +77,26 @@ def _build_wormhole(args, reactor):
             print(u"Wormhole code is: %s" % code, file=stdout)
         maker = CodeMaker(stdin, stdout, display_code)
         wormhole_args["code_maker"] = maker
-    if args.verify:
-        verifier = Verifier(stdin, stdout)
-        wormhole_args["verifier"] = verifier
-        # the presence of verifier= may cause WrongPasswordError to be raised
-        # earlier than otherwise? it used to be raised in w.verify()
-        other_cmd += "--verify"
     print(u"On the other computer, please run: %s" % other_cmd,
           file=stdout)
     print(u"", file=stdout)
 
     w = yield wormhole(APPID, args.relay_url, reactor,
                        tor_manager=tor_manager, **wormhole_args)
-    returnValue(w)
+    returnValue((w, offer, fd_to_send))
 
-def _do_send(w, args, reactor):
+def _do_send(w, offer, fd_to_send, args, reactor):
+    if args.verify:
+        # the presence of verifier= may cause WrongPasswordError to be raised
+        # earlier than otherwise? it used to be raised in w.verify()
+        verifier_bytes = yield w.verify()
+        _send_data({"verify": True}, w)
+        (res, err) = yield deferToThread(verify, verifier_bytes)
+        if not res:
+            reject_data = dict_to_bytes({"error": err})
+            w.send(reject_data)
+            raise TransferError(err) # causes wormhole() to re-raise
+
     _send_data({"offer": offer}, w)
     # If we're sending text, they'll answer with
     # {answer:{message_ack:ok}}. If we're sending a file and they accept,
@@ -159,23 +166,6 @@ def _do_send(w, args, reactor):
 def _send_data(data, w):
     data_bytes = dict_to_bytes(data)
     w.send(data_bytes)
-
-class Verifier:
-    def __init__(self, w, stdin, stdout):
-        self.w = w
-        self.stdin = stdin
-        self.stdout = stdout
-    def verify(self, verifier_bytes):
-        verifier = bytes_to_hexstr(verifier_bytes)
-        while True:
-            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
-            if ok.lower() == "yes":
-                break
-            if ok.lower() == "no":
-                err = "sender rejected verification check, abandoned transfer"
-                reject_data = dict_to_bytes({"error": err})
-                w.send(reject_data)
-                raise TransferError(err) # causes wormhole() to re-raise
 
 def build_offer():
     # this could be async, but eventually I plan to switch to streaming the

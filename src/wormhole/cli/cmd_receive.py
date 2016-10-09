@@ -8,6 +8,7 @@ from ..wormhole import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from .verify import verify
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -78,24 +79,35 @@ def _build_wormhole(args, reactor):
                        timing=args.timing, **wormhole_args)
     returnValue(w)
 
-def _do_receive(w, args, reactor):
-    if args.verify:
-        # TODO: or if the sender asks us to display the verifier, because
-        # they got --verify themselves
-        verifier = yield w.verify()
-        verifier_hex = bytes_to_hexstr(verifier)
-        self._msg(u"Verifier %s." % verifier_hex)
+# expected messages:
+# -> [{verify:True}] - optional
+# -> {offer:{message:text}} or {offer:{file|directory:{stuff}}}
+# <- {answer:{message_ack|file_ack:ok}}
+# (transit stuff, wormhole.embiggen)
 
+
+def _do_receive(w, args, reactor):
     them_bytes = yield w.read()
     them_d = bytes_to_dict(them_bytes)
+
+    if args.verify or them_d.get("verify", False):
+        verifier_bytes = yield w.verify()
+        (res, err) = yield deferToThread(verify, verifier_bytes)
+        if not res:
+            w.send(dict_to_bytes({"error": err}))
+            raise TransferError(err) # causes wormhole() to re-raise
+        them_bytes = yield w.read()
+        them_d = bytes_to_dict(them_bytes)
+
     if "error" in them_d:
         raise TransferError(them_d["error"])
+
     #print("GOT", them_d)
     offer = them_d[u"offer"]
     if "message" in them_d:
         # we're receiving a text message
         self._msg(them_d["message"])
-        self._send_data({"answer": {"message_ack": "ok"}}, w)
+        w.send(dict_to_bytes({"answer": {"message_ack": "ok"}}))
         returnValue(None)
 
     try:
@@ -129,10 +141,10 @@ def _do_receive(w, args, reactor):
             self._msg(u"Offer details: %r" % (them_d,))
             raise RespondError("unknown offer type")
     except RespondError as r:
-        _send_data({"error": r.response}, w)
+        w.send(dict_to_bytes({"error": r.response}))
         raise TransferError(r.response)
 
-    _send_data({"answer": { "file_ack": "ok" }}, w)
+    w.send(dict_to_bytes({"answer": { "file_ack": "ok" }}))
 
     big_w = yield w.embiggen()
     args.timing.add("transit connected")
