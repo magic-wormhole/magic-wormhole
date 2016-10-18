@@ -1,11 +1,15 @@
 import json
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from typing import Optional, Callable, Generator
+del Optional, Callable, Generator, Deferred
+from typing import cast, Dict, Text, Any
 
 from .wormhole import wormhole
 
 
 @inlineCallbacks
 def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
+    # type: (object, str, str, str, Optional[bool], Optional[Callable[[str], None]]) -> Generator[None, Deferred, None]
     """
     This is a convenience API which returns a Deferred that callbacks
     with a single chunk of data from another wormhole (and then closes
@@ -56,6 +60,7 @@ def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
 
 @inlineCallbacks
 def send(reactor, appid, relay_url, data, code, use_tor=None, on_code=None):
+    # type: (object, str, str, Any, str, Optional[bool], Optional[Callable[[str], None]]) -> Generator[None, Deferred, None]
     """
     This is a convenience API which returns a Deferred that callbacks
     after a single chunk of data has been sent to another
@@ -89,13 +94,13 @@ def send(reactor, appid, relay_url, data, code, use_tor=None, on_code=None):
             }
         }).encode("utf-8")
     )
-    data = yield wh.get()
-    data = json.loads(data.decode("utf-8"))
-    answer = data.get('answer', None)
+    rbytes = yield wh.get() # type: bytes
+    rdata = cast(Dict[Text, Any], json.loads(rbytes.decode("utf-8")))
+    answer = rdata.get('answer', None)
     yield wh.close()
     if answer:
         returnValue(None)
     else:
         raise Exception(
-            "Unknown answer: {}".format(data)
+            "Unknown answer: {}".format(rdata)
         )

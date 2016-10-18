@@ -20,10 +20,10 @@ from .timing import DebugTiming
 from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
                    dict_to_bytes, bytes_to_dict)
 from hkdf import Hkdf
-from typing import Union, Text ; Union, Text
+from typing import Text, Optional ; del Text, Optional
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    # type: (bytes, int, Union[bytes, None], bytes) -> bytes
+    # type: (bytes, int, Optional[bytes], bytes) -> bytes
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 CONFMSG_NONCE_LENGTH = 128//8
@@ -273,6 +273,7 @@ class _Wormhole:
 
     # entry point 1: generate a new code. returns a Deferred
     def get_code(self, code_length=2): # XX rename to allocate_code()? create_?
+        # type: (Optional[int]) -> defer.Deferred
         return self._API_get_code(code_length)
 
     # entry point 2: interactively type in a code, with completion. returns
@@ -282,6 +283,7 @@ class _Wormhole:
 
     # entry point 3: paste in a fully-formed code. No return value.
     def set_code(self, code):
+        # type: (Text) -> None
         self._API_set_code(code)
 
     # todo: restore-saved-state entry points
@@ -297,6 +299,7 @@ class _Wormhole:
         return self._API_verify()
 
     def send(self, outbound_data):
+        # type: (bytes) -> None
         return self._API_send(outbound_data)
 
     def get(self):
@@ -893,7 +896,7 @@ class _Wormhole:
         # * close(wait=True) callers should fire right away
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
-    # type: (Text, Text, object, Union[object, None], Union[object, None]) -> _Wormhole
+    # type: (Text, Text, object, Optional[object], Optional[object]) -> _Wormhole
     timing = timing or DebugTiming()
     w = _Wormhole(appid, relay_url, reactor, tor_manager, timing)
     w._start()
