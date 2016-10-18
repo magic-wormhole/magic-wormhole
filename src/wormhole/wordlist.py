@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 # https://github.com/warrenguy/javascript-pgp-word-list
 
 from binascii import unhexlify
+from typing import Dict, Tuple, Text ; del Dict, Tuple, Text
 
 raw_words = {
 '00': ['aardvark', 'adroitness'], '01': ['absurd', 'adviser'],
@@ -137,7 +138,7 @@ raw_words = {
 'FA': ['wallet', 'whimsical'], 'FB': ['watchword', 'Wichita'],
 'FC': ['wayside', 'Wilmington'], 'FD': ['willow', 'Wyoming'],
 'FE': ['woodlark', 'yesteryear'], 'FF': ['Zulu', 'Yucatan']
-};
+} # type: Dict[Text, List[Text]]
 
 byte_to_even_word = dict([(unhexlify(k.encode("ascii")), both_words[0])
                           for k,both_words

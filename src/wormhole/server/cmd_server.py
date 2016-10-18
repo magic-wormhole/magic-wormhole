@@ -2,6 +2,7 @@ from __future__ import print_function, unicode_literals
 import os, time
 from twisted.python import usage
 from twisted.scripts import twistd
+from typing import List, Tuple, Union; del List, Tuple, Union
 
 class MyPlugin:
     tapname = "xyznode"
@@ -19,7 +20,7 @@ class MyPlugin:
                            )
 
 class MyTwistdConfig(twistd.ServerOptions):
-    subCommands = [("XYZ", None, usage.Options, "node")]
+    subCommands = [("XYZ", None, usage.Options, "node")] # type: List[Tuple[str, Union[str, None], usage.Options, str]]
 
 def start_server(args):
     c = MyTwistdConfig()
