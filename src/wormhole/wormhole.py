@@ -20,13 +20,16 @@ from .timing import DebugTiming
 from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
                    dict_to_bytes, bytes_to_dict)
 from hkdf import Hkdf
+from typing import Union, Text ; Union, Text
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
+    # type: (bytes, int, Union[bytes, None], bytes) -> bytes
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 CONFMSG_NONCE_LENGTH = 128//8
 CONFMSG_MAC_LENGTH = 256//8
 def make_confmsg(confkey, nonce):
+    # type: (bytes, bytes) -> bytes
     return nonce+HKDF(confkey, CONFMSG_MAC_LENGTH, nonce)
 
 
@@ -890,6 +893,7 @@ class _Wormhole:
         # * close(wait=True) callers should fire right away
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
+    # type: (Text, Text, object, Union[object, None], Union[object, None]) -> _Wormhole
     timing = timing or DebugTiming()
     w = _Wormhole(appid, relay_url, reactor, tor_manager, timing)
     w._start()
