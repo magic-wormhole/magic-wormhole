@@ -39,8 +39,7 @@ matrix:
 
 install:
   - |
-    %PYTHON%\python.exe -m pip install -U pip virtualenv
-    %PYTHON%\python.exe -m pip install wheel "hg+https://bitbucket.org/hpk42/tox#egg=tox"
+    %PYTHON%\python.exe -m pip install -U pip virtualenv wheel tox
 
 # note:
 # %PYTHON% has: python.exe
