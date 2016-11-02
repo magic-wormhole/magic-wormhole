@@ -10,6 +10,7 @@ from ..errors import TransferError, WormholeClosedError
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
+VERIFY_TIMER = 1
 
 class RespondError(Exception):
     def __init__(self, response):
@@ -69,7 +70,16 @@ class TwistedReceiver:
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        verifier = yield w.verify()
+        yield w.establish_key()
+        def on_slow_connection():
+            print(u"Key established, waiting for confirmation...",
+                  file=self.args.stderr)
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
+        try:
+            verifier = yield w.verify()
+        finally:
+            if not notify.called:
+                notify.cancel()
         self._show_verifier(verifier)
 
         want_offer = True

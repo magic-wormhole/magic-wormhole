@@ -522,6 +522,38 @@ class Basic(unittest.TestCase):
         self.assertEqual(len(pieces), 3) # nameplate plus two words
         self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
 
+    def _test_establish_key_hook(self, established, before):
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+
+        if before:
+            d = w.establish_key()
+
+        if established is True:
+            w._key = b"key"
+        elif established is False:
+            w._key = None
+        else:
+            w._key = b"key"
+            w._error = WelcomeError()
+
+        if not before:
+            d = w.establish_key()
+        else:
+            w._maybe_notify_key()
+
+        if w._key is not None and established is True:
+            self.successResultOf(d)
+        elif established is False:
+            self.assertNot(d.called)
+        else:
+            self.failureResultOf(d)
+
+    def test_establish_key_hook(self):
+        for established in (True, False, "error"):
+            for before in (True, False):
+                self._test_establish_key_hook(established, before)
+
     # make sure verify() can be called both before and after the verifier is
     # computed
 
