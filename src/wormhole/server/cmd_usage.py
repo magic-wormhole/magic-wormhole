@@ -3,6 +3,7 @@ import os, time, json
 from collections import defaultdict
 import click
 from .database import get_db
+from ..util import sizeof_fmt_iec
 
 def abbrev(t):
     if t is None:
@@ -13,31 +14,6 @@ def abbrev(t):
         return "%.1fms" % (t*1e3)
     return "%.1fus" % (t*1e6)
 
-def abbreviate_space(s, SI=True):
-    if s is None:
-        return "-"
-    if SI:
-        U = 1000.0
-        isuffix = "B"
-    else:
-        U = 1024.0
-        isuffix = "iB"
-    def r(count, suffix):
-        return "%.2f %s%s" % (count, suffix, isuffix)
-
-    if s < 1024: # 1000-1023 get emitted as bytes, even in SI mode
-        return "%d B" % s
-    if s < U*U:
-        return r(s/U, "k")
-    if s < U*U*U:
-        return r(s/(U*U), "M")
-    if s < U*U*U*U:
-        return r(s/(U*U*U), "G")
-    if s < U*U*U*U*U:
-        return r(s/(U*U*U*U), "T")
-    if s < U*U*U*U*U*U:
-        return r(s/(U*U*U*U*U), "P")
-    return r(s/(U*U*U*U*U*U), "E")
 
 def print_event(event):
     event_type, started, result, total_bytes, waiting_time, total_time = event
@@ -49,7 +25,7 @@ def print_event(event):
            abbrev(total_time),
            abbrev(waiting_time),
            abbrev(followthrough),
-           abbreviate_space(total_bytes),
+           sizeof_fmt_iec(total_bytes),
            time.ctime(started),
           ))
 
@@ -108,8 +84,8 @@ def show_usage(args):
         print(" %d events in %s (%.2f per hour)" % (total, abbrev(elapsed),
                                                     (3600 * total / elapsed)))
         rate = total_transit_bytes / elapsed
-        print(" %s total bytes, %sps" % (abbreviate_space(total_transit_bytes),
-                                         abbreviate_space(rate)))
+        print(" %s total bytes, %sps" % (sizeof_fmt_iec(total_transit_bytes),
+                                         sizeof_fmt_iec(rate)))
         print("", ", ".join(["%s=%d (%d%%)" %
                              (k, counters[k], (100.0 * counters[k] / total))
                              for k in sorted(counters)

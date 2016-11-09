@@ -8,7 +8,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError
 from ..wormhole import wormhole
 from ..transit import TransitSender
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, sizeof_fmt_iec
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -167,7 +167,7 @@ class Sender:
             text = six.moves.input("Text to send: ")
 
         if text is not None:
-            print(u"Sending text message (%d bytes)" % len(text),
+            print(u"Sending text message (%s)" % sizeof_fmt_iec(len(text), suffix='bytes'),
                   file=args.stdout)
             offer = { "message": text }
             fd_to_send = None
@@ -187,7 +187,8 @@ class Sender:
                 "filename": basename,
                 "filesize": filesize,
                 }
-            print(u"Sending %d byte file named '%s'" % (filesize, basename),
+            print(u"Sending %s file named '%s'"
+                  % (sizeof_fmt_iec(filesize), basename),
                   file=args.stdout)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
@@ -222,8 +223,8 @@ class Sender:
                 "numbytes": num_bytes,
                 "numfiles": num_files,
                 }
-            print(u"Sending directory (%d bytes compressed) named '%s'"
-                  % (filesize, basename), file=args.stdout)
+            print(u"Sending directory (%s compressed) named '%s'"
+                  % (sizeof_fmt_iec(filesize), basename), file=args.stdout)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)

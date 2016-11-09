@@ -7,7 +7,7 @@ from twisted.python import log
 from ..wormhole import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, sizeof_fmt_iec
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -194,8 +194,8 @@ class TwistedReceiver:
                                                   file_data["filename"])
         self.xfersize = file_data["filesize"]
 
-        self._msg(u"Receiving file (%d bytes) into: %s" %
-                  (self.xfersize, os.path.basename(self.abs_destname)))
+        self._msg(u"Receiving file (%s) into: %s" %
+                  (sizeof_fmt_iec(self.xfersize), os.path.basename(self.abs_destname)))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -210,10 +210,10 @@ class TwistedReceiver:
                                                   file_data["dirname"])
         self.xfersize = file_data["zipsize"]
 
-        self._msg(u"Receiving directory (%d bytes) into: %s/" %
-                  (self.xfersize, os.path.basename(self.abs_destname)))
-        self._msg(u"%d files, %d bytes (uncompressed)" %
-                  (file_data["numfiles"], file_data["numbytes"]))
+        self._msg(u"Receiving directory (%s) into: %s/" %
+                  (sizeof_fmt_iec(self.xfersize), os.path.basename(self.abs_destname)))
+        self._msg(u"%d files, %s (uncompressed)" %
+                  (file_data["numfiles"], sizeof_fmt_iec(file_data["numbytes"])))
         self._ask_permission()
         return tempfile.SpooledTemporaryFile()
 
