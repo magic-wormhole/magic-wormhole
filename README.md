@@ -51,9 +51,9 @@ Received file written to README.md
 
 ```$ pip install magic-wormhole```
 
-On Debian/Ubuntu systems, you may first need `apt-get install python-dev
-libffi-dev build-essential`. On Fedora it's `libffi-devel` and
-`python-devel`. On OS-X, you may need to install `pip` and run
+On Debian/Ubuntu systems, you may first need `apt-get install python-pip
+build-essential python-dev libffi-dev`. On Fedora it's `python-devel`
+and `libffi-devel`. On OS-X, you may need to install `pip` and run
 `xcode-select --install` to get GCC. Note: on Windows, only python2 is
 currently supported.
 
