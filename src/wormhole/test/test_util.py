@@ -38,31 +38,3 @@ class Utils(unittest.TestCase):
         d = util.bytes_to_dict(b)
         self.assertIsInstance(d, dict)
         self.assertEqual(d, {"a": "b", "c": 2})
-
-    def test_size_fmt_decimal(self):
-        """test the size formatting routines"""
-        si_size_map = {
-            0: '0 B',  # no rounding necessary for those
-            1: '1 B',
-            142: '142 B',
-            999: '999 B',
-            1000: '1.00 kB',  # rounding starts here
-            1001: '1.00 kB',  # should be rounded away
-            1234: '1.23 kB',  # should be rounded down
-            1235: '1.24 kB',  # should be rounded up
-            1010: '1.01 kB',  # rounded down as well
-            999990000: '999.99 MB',  # rounded down
-            999990001: '999.99 MB',  # rounded down
-            999995000: '1.00 GB',  # rounded up to next unit
-            10**6: '1.00 MB',  # and all the remaining units, megabytes
-            10**9: '1.00 GB',  # gigabytes
-            10**12: '1.00 TB',  # terabytes
-            10**15: '1.00 PB',  # petabytes
-            10**18: '1.00 EB',  # exabytes
-            10**21: '1.00 ZB',  # zottabytes
-            10**24: '1.00 YB',  # yottabytes
-            -1: '-1 B',  # negative value
-            -1010: '-1.01 kB',  # negative value with rounding
-        }
-        for size, fmt in si_size_map.items():
-            self.assertEqual(util.sizeof_fmt_decimal(size), fmt)

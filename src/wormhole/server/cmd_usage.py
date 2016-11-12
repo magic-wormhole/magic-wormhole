@@ -2,8 +2,8 @@ from __future__ import print_function, unicode_literals
 import os, time, json
 from collections import defaultdict
 import click
+from humanize import naturalsize
 from .database import get_db
-from ..util import sizeof_fmt_iec
 
 def abbrev(t):
     if t is None:
@@ -25,7 +25,7 @@ def print_event(event):
            abbrev(total_time),
            abbrev(waiting_time),
            abbrev(followthrough),
-           sizeof_fmt_iec(total_bytes),
+           naturalsize(total_bytes),
            time.ctime(started),
           ))
 
@@ -84,8 +84,8 @@ def show_usage(args):
         print(" %d events in %s (%.2f per hour)" % (total, abbrev(elapsed),
                                                     (3600 * total / elapsed)))
         rate = total_transit_bytes / elapsed
-        print(" %s total bytes, %sps" % (sizeof_fmt_iec(total_transit_bytes),
-                                         sizeof_fmt_iec(rate)))
+        print(" %s total bytes, %sps" % (naturalsize(total_transit_bytes),
+                                         naturalsize(rate)))
         print("", ", ".join(["%s=%d (%d%%)" %
                              (k, counters[k], (100.0 * counters[k] / total))
                              for k in sorted(counters)

@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
+from humanize import naturalsize
 from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
@@ -8,7 +9,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError
 from ..wormhole import wormhole
 from ..transit import TransitSender
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, sizeof_fmt_iec
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -167,7 +168,7 @@ class Sender:
             text = six.moves.input("Text to send: ")
 
         if text is not None:
-            print(u"Sending text message (%s)" % sizeof_fmt_iec(len(text), suffix='bytes'),
+            print(u"Sending text message (%s)" % naturalsize(len(text)),
                   file=args.stdout)
             offer = { "message": text }
             fd_to_send = None
@@ -188,7 +189,7 @@ class Sender:
                 "filesize": filesize,
                 }
             print(u"Sending %s file named '%s'"
-                  % (sizeof_fmt_iec(filesize), basename),
+                  % (naturalsize(filesize), basename),
                   file=args.stdout)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
@@ -224,7 +225,7 @@ class Sender:
                 "numfiles": num_files,
                 }
             print(u"Sending directory (%s compressed) named '%s'"
-                  % (sizeof_fmt_iec(filesize), basename), file=args.stdout)
+                  % (naturalsize(filesize), basename), file=args.stdout)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)

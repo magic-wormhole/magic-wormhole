@@ -33,6 +33,7 @@ setup(name="magic-wormhole",
           "autobahn[twisted] >= 0.14.1",
           "hkdf", "tqdm",
           "click",
+          "humanize",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],

@@ -1,13 +1,14 @@
 from __future__ import print_function
 import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
+from humanize import naturalsize
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
 from ..wormhole import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, sizeof_fmt_iec
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -195,7 +196,7 @@ class TwistedReceiver:
         self.xfersize = file_data["filesize"]
 
         self._msg(u"Receiving file (%s) into: %s" %
-                  (sizeof_fmt_iec(self.xfersize), os.path.basename(self.abs_destname)))
+                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -211,9 +212,9 @@ class TwistedReceiver:
         self.xfersize = file_data["zipsize"]
 
         self._msg(u"Receiving directory (%s) into: %s/" %
-                  (sizeof_fmt_iec(self.xfersize), os.path.basename(self.abs_destname)))
+                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
         self._msg(u"%d files, %s (uncompressed)" %
-                  (file_data["numfiles"], sizeof_fmt_iec(file_data["numbytes"])))
+                  (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
         return tempfile.SpooledTemporaryFile()
 

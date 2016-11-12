@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
 import os, sys, re, io, zipfile, six, stat
+from humanize import naturalsize
 import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
@@ -9,7 +10,6 @@ from .. import __version__
 from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive
 from ..errors import TransferError, WrongPasswordError, WelcomeError
-from ..util import sizeof_fmt_iec
 
 
 def build_offer(args):
@@ -378,7 +378,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessEqual(send_stdout, expected)
         elif mode == "file":
             self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                              .format(size=sizeof_fmt_iec(len(message)),
+                              .format(size=naturalsize(len(message)),
                                       name=send_filename,
                                       NL=NL), send_stdout)
             self.failUnlessIn("On the other computer, please run: "
@@ -405,7 +405,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessEqual(receive_stdout, message+NL)
         elif mode == "file":
             self.failUnlessIn("Receiving file ({size:s}) into: {name}"
-                              .format(size=sizeof_fmt_iec(len(message)),
+                              .format(size=naturalsize(len(message)),
                                       name=receive_filename), receive_stdout)
             self.failUnlessIn("Received file written to ", receive_stdout)
             fn = os.path.join(receive_dir, receive_filename)
@@ -514,7 +514,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check sender
         self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                          .format(size=sizeof_fmt_iec(len(message)),
+                          .format(size=naturalsize(len(message)),
                                   name=send_filename,
                                   NL=NL), send_stdout)
         self.failUnlessIn("On the other computer, please run: "
