@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
+from humanize import naturalsize
 from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
@@ -167,7 +168,7 @@ class Sender:
             text = six.moves.input("Text to send: ")
 
         if text is not None:
-            print(u"Sending text message (%d bytes)" % len(text),
+            print(u"Sending text message (%s)" % naturalsize(len(text)),
                   file=args.stdout)
             offer = { "message": text }
             fd_to_send = None
@@ -187,7 +188,8 @@ class Sender:
                 "filename": basename,
                 "filesize": filesize,
                 }
-            print(u"Sending %d byte file named '%s'" % (filesize, basename),
+            print(u"Sending %s file named '%s'"
+                  % (naturalsize(filesize), basename),
                   file=args.stdout)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
@@ -222,8 +224,8 @@ class Sender:
                 "numbytes": num_bytes,
                 "numfiles": num_files,
                 }
-            print(u"Sending directory (%d bytes compressed) named '%s'"
-                  % (filesize, basename), file=args.stdout)
+            print(u"Sending directory (%s compressed) named '%s'"
+                  % (naturalsize(filesize), basename), file=args.stdout)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)

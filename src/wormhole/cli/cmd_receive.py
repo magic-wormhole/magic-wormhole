@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os, sys, six, tempfile, zipfile, hashlib
 from tqdm import tqdm
+from humanize import naturalsize
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
@@ -194,8 +195,8 @@ class TwistedReceiver:
                                                   file_data["filename"])
         self.xfersize = file_data["filesize"]
 
-        self._msg(u"Receiving file (%d bytes) into: %s" %
-                  (self.xfersize, os.path.basename(self.abs_destname)))
+        self._msg(u"Receiving file (%s) into: %s" %
+                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -210,10 +211,10 @@ class TwistedReceiver:
                                                   file_data["dirname"])
         self.xfersize = file_data["zipsize"]
 
-        self._msg(u"Receiving directory (%d bytes) into: %s/" %
-                  (self.xfersize, os.path.basename(self.abs_destname)))
-        self._msg(u"%d files, %d bytes (uncompressed)" %
-                  (file_data["numfiles"], file_data["numbytes"]))
+        self._msg(u"Receiving directory (%s) into: %s/" %
+                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
+        self._msg(u"%d files, %s (uncompressed)" %
+                  (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
         return tempfile.SpooledTemporaryFile()
 

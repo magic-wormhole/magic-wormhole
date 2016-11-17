@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
 import os, sys, re, io, zipfile, six, stat
+from humanize import naturalsize
 import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
@@ -367,7 +368,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check sender
         if mode == "text":
-            expected = ("Sending text message ({bytes:d} bytes){NL}"
+            expected = ("Sending text message ({bytes:d} Bytes){NL}"
                         "On the other computer, please run: "
                         "wormhole receive{NL}"
                         "Wormhole code is: {code}{NL}{NL}"
@@ -376,8 +377,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                                         NL=NL)
             self.failUnlessEqual(send_stdout, expected)
         elif mode == "file":
-            self.failUnlessIn("Sending {bytes:d} byte file named '{name}'{NL}"
-                              .format(bytes=len(message), name=send_filename,
+            self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
+                              .format(size=naturalsize(len(message)),
+                                      name=send_filename,
                                       NL=NL), send_stdout)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
@@ -402,8 +404,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode == "text":
             self.failUnlessEqual(receive_stdout, message+NL)
         elif mode == "file":
-            self.failUnlessIn("Receiving file ({bytes:d} bytes) into: {name}"
-                              .format(bytes=len(message),
+            self.failUnlessIn("Receiving file ({size:s}) into: {name}"
+                              .format(size=naturalsize(len(message)),
                                       name=receive_filename), receive_stdout)
             self.failUnlessIn("Received file written to ", receive_stdout)
             fn = os.path.join(receive_dir, receive_filename)
@@ -411,7 +413,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
-            want = (r"Receiving directory \(\d+ bytes\) into: {name}/"
+            want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
                     .format(name=receive_dirname))
             self.failUnless(re.search(want, receive_stdout),
                             (want, receive_stdout))
@@ -511,8 +513,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                              (receive_stdout, receive_stderr))
 
         # check sender
-        self.failUnlessIn("Sending {bytes:d} byte file named '{name}'{NL}"
-                          .format(bytes=len(message), name=send_filename,
+        self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
+                          .format(size=naturalsize(len(message)),
+                                  name=send_filename,
                                   NL=NL), send_stdout)
         self.failUnlessIn("On the other computer, please run: "
                           "wormhole receive{NL}"
