@@ -368,7 +368,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check sender
         if mode == "text":
-            expected = ("Sending text message ({bytes:d} bytes){NL}"
+            expected = ("Sending text message ({bytes:d} Bytes){NL}"
                         "On the other computer, please run: "
                         "wormhole receive{NL}"
                         "Wormhole code is: {code}{NL}{NL}"
