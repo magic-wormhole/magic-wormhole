@@ -43,5 +43,6 @@ print "nameplates.value", (r["nameplates_total"]
                            - r["nameplate_moods"].get("happy", 0))
 print "mailboxes.value", (r["mailboxes_total"]
                           - r["mailbox_moods"].get("happy", 0))
+print "mailboxes_scary.value", r["mailbox_moods"].get("scary", 0)
 t = data["transit"]["since_reboot"]
 print "transit.value", (t["total"] - t["moods"].get("happy", 0))
