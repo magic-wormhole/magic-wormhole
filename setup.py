@@ -29,7 +29,7 @@ setup(name="magic-wormhole",
       install_requires=[
           "spake2==0.7", "pynacl",
           "six",
-          "twisted",
+          "twisted[tls]",
           "autobahn[twisted] >= 0.14.1",
           "hkdf", "tqdm",
           "click",
