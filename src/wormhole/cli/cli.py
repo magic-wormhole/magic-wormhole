@@ -100,17 +100,16 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
-    except WrongPasswordError as e:
+    except (WrongPasswordError, KeyFormatError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
+        raise SystemExit(1)
     except WelcomeError as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
         print(file=stderr)
         print(str(e), file=stderr)
-    except KeyFormatError as e:
-        msg = fill("ERROR: " + dedent(e.__doc__))
-        print(msg, file=stderr)
+        raise SystemExit(1)
     except Exception as e:
         # this prints a proper traceback, whereas
         # traceback.print_exc() just prints a TB to the "yield"
