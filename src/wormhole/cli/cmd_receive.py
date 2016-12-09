@@ -16,6 +16,10 @@ class RespondError(Exception):
     def __init__(self, response):
         self.response = response
 
+class TransferRejectedError(RespondError):
+    def __init__(self):
+        RespondError.__init__(self, "transfer rejected")
+
 def receive(args, reactor=reactor):
     """I implement 'wormhole receive'. I return a Deferred that fires with
     None (for success), or signals one of the following errors:
@@ -230,7 +234,7 @@ class TwistedReceiver:
         if os.path.exists(abs_destname):
             self._msg(u"Error: refusing to overwrite existing %s %s" %
                       (mode, destname))
-            raise RespondError("%s already exists" % mode)
+            raise TransferRejectedError()
         return abs_destname
 
     def _ask_permission(self):
@@ -241,7 +245,7 @@ class TwistedReceiver:
                     break
                 print(u"transfer rejected", file=sys.stderr)
                 t.detail(answer="no")
-                raise RespondError("transfer rejected")
+                raise TransferRejectedError()
             t.detail(answer="yes")
 
     def _send_permission(self, w):

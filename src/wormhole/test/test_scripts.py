@@ -491,10 +491,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         # both sides will fail because of the pre-existing file
 
         f = yield self.assertFailure(send_d, TransferError)
-        self.assertEqual(str(f), "remote error, transfer abandoned: file already exists")
+        self.assertEqual(str(f), "remote error, transfer abandoned: transfer rejected")
 
         f = yield self.assertFailure(receive_d, TransferError)
-        self.assertEqual(str(f), "file already exists")
+        self.assertEqual(str(f), "transfer rejected")
 
         send_stdout = send_cfg.stdout.getvalue()
         send_stderr = send_cfg.stderr.getvalue()
