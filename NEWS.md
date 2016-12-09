@@ -14,6 +14,9 @@ User-visible changes in "magic-wormhole":
 * CLI: don't print traceback upon "normal" errors
 * CLI: when target file already exists, don't reveal that fact to the sender,
   just say "transfer rejected"
+* magic-wormhole now depends upon `Twisted[tls]`, which will cause pyOpenSSL
+  and the `cryptography` package to be installed. This should prevent a
+  warning about the "service_identity" module not being available.
 * other smaller internal changes
 
 Thanks to everyone who submitted patches in this release cycle: anarcat,
