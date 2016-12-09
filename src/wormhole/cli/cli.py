@@ -8,7 +8,8 @@ from sys import stdout, stderr
 from . import public_relay
 from .. import __version__
 from ..timing import DebugTiming
-from ..errors import WrongPasswordError, WelcomeError, KeyFormatError
+from ..errors import (WrongPasswordError, WelcomeError, KeyFormatError,
+                      TransferError)
 from twisted.internet.defer import inlineCallbacks, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.internet.task import react
@@ -109,6 +110,9 @@ def _dispatch_command(reactor, cfg, command):
         print(msg, file=stderr)
         print(file=stderr)
         print(str(e), file=stderr)
+        raise SystemExit(1)
+    except TransferError as e:
+        print("TransferError: %s" % str(e), file=stderr)
         raise SystemExit(1)
     except Exception as e:
         # this prints a proper traceback, whereas
