@@ -102,5 +102,6 @@ def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
     return code
 
 if __name__ == "__main__":
-    code = input_code_with_completion("Enter wormhole code: ", lambda: [], 2)
+    code = input_code_with_completion("Enter wormhole code: ",
+                                      [], lambda: [], 2)
     print("code is:", code)
