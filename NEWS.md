@@ -1,6 +1,26 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.8.2 (08-Dec-2016)
+
+* CLI: add new "wormhole ssh invite" and "wormhole ssh accept" commands, to
+  facilitate appending your `~/.ssh/id_*.pub` key into a
+  suitably-permissioned remote `~/.ssh/authorized_keys` file. These commands
+  are experimental: the syntax might be changed in the future, or they might
+  be removed altogether.
+* CLI: "wormhole recv" and "wormhole recieve" are now accepted as aliases for
+  "wormhole receive", to help bad spelers :)
+* CLI: improve display of abbreviated file sizes
+* CLI: don't print traceback upon "normal" errors
+* CLI: when target file already exists, don't reveal that fact to the sender,
+  just say "transfer rejected"
+* other smaller internal changes
+
+Thanks to everyone who submitted patches in this release cycle: anarcat,
+Ofekmeister, Tom Lowenthal, meejah, dreid, and dkg. And thanks to the many
+bug reporters on Github!
+
+
 ## Release 0.8.1 (27-Jul-2016)
 
 This release contains mostly minor changes.
