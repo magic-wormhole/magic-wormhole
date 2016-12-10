@@ -3,6 +3,7 @@
 
 import os, re, subprocess, errno
 from sys import platform
+from twisted.python.procutils import which
 
 # Wow, I'm really amazed at home much mileage we've gotten out of calling
 # the external route.exe program on windows...  It appears to work on all
@@ -14,6 +15,7 @@ _win32_commands = (('route.exe', ('print',), _win32_re),)
 # These work in most Unices.
 _addr_re = re.compile(r'^\s*inet [a-zA-Z]*:?(?P<address>\d+\.\d+\.\d+\.\d+)[\s/].+$', flags=re.M|re.I|re.S)
 _unix_commands = (('/bin/ip', ('addr',), _addr_re),
+                  ('/sbin/ip', ('addr',), _addr_re),
                   ('/sbin/ifconfig', ('-a',), _addr_re),
                   ('/usr/sbin/ifconfig', ('-a',), _addr_re),
                   ('/usr/etc/ifconfig', ('-a',), _addr_re),
@@ -32,16 +34,24 @@ def find_addresses():
         commands = _unix_commands
 
     for (pathtotool, args, regex) in commands:
-        if platform != 'win32':
-            assert os.path.isabs(pathtotool), pathtotool
-        if not os.path.isfile(pathtotool):
-            continue
-        try:
-            addresses = _query(pathtotool, args, regex)
-        except Exception:
-            addresses = []
-        if addresses:
-            return addresses
+        # If pathtotool is a fully qualified path then we just try that.
+        # If it is merely an executable name then we use Twisted's
+        # "which()" utility and try each executable in turn until one
+        # gives us something that resembles a dotted-quad IPv4 address.
+
+        if os.path.isabs(pathtotool):
+            exes_to_try = [pathtotool]
+        else:
+            exes_to_try = which(pathtotool)
+
+        for exe in exes_to_try:
+            try:
+                addresses = _query(exe, args, regex)
+            except Exception:
+                addresses = []
+            if addresses:
+                return addresses
+
     return ["127.0.0.1"]
 
 def _query(path, args, regex):
