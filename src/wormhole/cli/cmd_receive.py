@@ -8,7 +8,8 @@ from twisted.python import log
 from ..wormhole import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
+                    estimate_free_space)
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -198,6 +199,11 @@ class TwistedReceiver:
         self.abs_destname = self._decide_destname("file",
                                                   file_data["filename"])
         self.xfersize = file_data["filesize"]
+        free = estimate_free_space(self.abs_destname)
+        if free is not None and free < self.xfersize:
+            self._msg(u"Error: insufficient free space (%sB) for file (%sB)"
+                      % (free, self.xfersize))
+            raise TransferRejectedError()
 
         self._msg(u"Receiving file (%s) into: %s" %
                   (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
@@ -214,6 +220,11 @@ class TwistedReceiver:
         self.abs_destname = self._decide_destname("directory",
                                                   file_data["dirname"])
         self.xfersize = file_data["zipsize"]
+        free = estimate_free_space(self.abs_destname)
+        if free is not None and free < file_data["numbytes"]:
+            self._msg(u"Error: insufficient free space (%sB) for directory (%sB)"
+                      % (free, file_data["numbytes"]))
+            raise TransferRejectedError()
 
         self._msg(u"Receiving directory (%s) into: %s/" %
                   (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
@@ -232,8 +243,7 @@ class TwistedReceiver:
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
-            self._msg(u"Error: refusing to overwrite existing %s %s" %
-                      (mode, destname))
+            self._msg(u"Error: refusing to overwrite existing '%s'" % destname)
             raise TransferRejectedError()
         return abs_destname
 

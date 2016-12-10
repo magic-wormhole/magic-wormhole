@@ -449,7 +449,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="directory", override_filename=True)
 
     @inlineCallbacks
-    def test_file_noclobber(self):
+    def _do_test_fail(self, mode, failmode):
+        assert mode in ("file", "directory")
+        assert failmode in ("noclobber", "toobig")
         send_cfg = config("send")
         recv_cfg = config("receive")
 
@@ -458,29 +460,42 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.relay_url = self.relayurl
             cfg.transit_helper = ""
             cfg.listen = False
-            cfg.code = code = "1-abc"
+            cfg.code = "1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
-
-        message = "test message"
-
-        recv_cfg.accept_file = True
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
+        recv_cfg.accept_file = True # don't ask for permission
 
-        send_filename = "testfile"
-        with open(os.path.join(send_dir, send_filename), "w") as f:
-            f.write(message)
-        send_cfg.what = receive_filename = send_filename
-        recv_cfg.what = receive_filename
+        if mode == "file":
+            message = "test message\n"
+            send_cfg.what = receive_name = send_filename = "testfile"
+            with open(os.path.join(send_dir, send_filename), "w") as f:
+                f.write(message)
 
-        PRESERVE = "don't clobber me\n"
-        clobberable = os.path.join(receive_dir, receive_filename)
-        with open(clobberable, "w") as f:
-            f.write(PRESERVE)
+        elif mode == "directory":
+            # $send_dir/
+            # $send_dir/$dirname/
+            # $send_dir/$dirname/[12345]
+            # cd $send_dir && wormhole send $dirname
+            # cd $receive_dir && wormhole receive
+            # expect: $receive_dir/$dirname/[12345]
+
+            send_cfg.what = receive_name = send_dirname = "testdir"
+            os.mkdir(os.path.join(send_dir, send_dirname))
+            for i in range(5):
+                path = os.path.join(send_dir, send_dirname, str(i))
+                with open(path, "w") as f:
+                    f.write("test message %d\n" % i)
+
+        if failmode == "noclobber":
+            PRESERVE = "don't clobber me\n"
+            clobberable = os.path.join(receive_dir, receive_name)
+            with open(clobberable, "w") as f:
+                f.write(PRESERVE)
 
         send_cfg.cwd = send_dir
         send_d = cmd_send.send(send_cfg)
@@ -488,13 +503,17 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         recv_cfg.cwd = receive_dir
         receive_d = cmd_receive.receive(recv_cfg)
 
-        # both sides will fail because of the pre-existing file
-
-        f = yield self.assertFailure(send_d, TransferError)
-        self.assertEqual(str(f), "remote error, transfer abandoned: transfer rejected")
-
-        f = yield self.assertFailure(receive_d, TransferError)
-        self.assertEqual(str(f), "transfer rejected")
+        # both sides will fail
+        if failmode == "noclobber":
+            free_space = 10000000
+        else:
+            free_space = 0
+        with mock.patch("wormhole.cli.cmd_receive.estimate_free_space",
+                        return_value=free_space):
+            f = yield self.assertFailure(send_d, TransferError)
+            self.assertEqual(str(f), "remote error, transfer abandoned: transfer rejected")
+            f = yield self.assertFailure(receive_d, TransferError)
+            self.assertEqual(str(f), "transfer rejected")
 
         send_stdout = send_cfg.stdout.getvalue()
         send_stderr = send_cfg.stderr.getvalue()
@@ -513,28 +532,74 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                              (receive_stdout, receive_stderr))
 
         # check sender
-        self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                          .format(size=naturalsize(len(message)),
-                                  name=send_filename,
-                                  NL=NL), send_stdout)
-        self.failUnlessIn("On the other computer, please run: "
-                          "wormhole receive{NL}"
-                          "Wormhole code is: {code}{NL}{NL}"
-                          .format(code=code, NL=NL),
-                          send_stdout)
-        self.failIfIn("File sent.. waiting for confirmation{NL}"
-                      "Confirmation received. Transfer complete.{NL}"
-                      .format(NL=NL), send_stdout)
+        if mode == "file":
+            self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
+                              .format(size=naturalsize(len(message)),
+                                      name=send_filename,
+                                      NL=NL), send_stdout)
+            self.failUnlessIn("On the other computer, please run: "
+                              "wormhole receive{NL}"
+                              "Wormhole code is: {code}{NL}{NL}"
+                              .format(code=send_cfg.code, NL=NL),
+                              send_stdout)
+            self.failIfIn("File sent.. waiting for confirmation{NL}"
+                          "Confirmation received. Transfer complete.{NL}"
+                          .format(NL=NL), send_stdout)
+        elif mode == "directory":
+            self.failUnlessIn("Sending directory", send_stdout)
+            self.failUnlessIn("named 'testdir'", send_stdout)
+            self.failUnlessIn("On the other computer, please run: "
+                              "wormhole receive{NL}"
+                              "Wormhole code is: {code}{NL}{NL}"
+                              .format(code=send_cfg.code, NL=NL), send_stdout)
+            self.failIfIn("File sent.. waiting for confirmation{NL}"
+                          "Confirmation received. Transfer complete.{NL}"
+                          .format(NL=NL), send_stdout)
 
         # check receiver
-        self.failUnlessIn("Error: "
-                          "refusing to overwrite existing file testfile{NL}"
-                          .format(NL=NL), receive_stdout)
-        self.failIfIn("Received file written to ", receive_stdout)
-        fn = os.path.join(receive_dir, receive_filename)
-        self.failUnless(os.path.exists(fn))
-        with open(fn, "r") as f:
-            self.failUnlessEqual(f.read(), PRESERVE)
+        if mode == "file":
+            self.failIfIn("Received file written to ", receive_stdout)
+            if failmode == "noclobber":
+                self.failUnlessIn("Error: "
+                                  "refusing to overwrite existing 'testfile'{NL}"
+                                  .format(NL=NL), receive_stdout)
+            else:
+                self.failUnlessIn("Error: "
+                                  "insufficient free space (0B) for file (13B){NL}"
+                                  .format(NL=NL), receive_stdout)
+        elif mode == "directory":
+            self.failIfIn("Received files written to {name}"
+                          .format(name=receive_name), receive_stdout)
+            #want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
+            #        .format(name=receive_name))
+            #self.failUnless(re.search(want, receive_stdout),
+            #                (want, receive_stdout))
+            if failmode == "noclobber":
+                self.failUnlessIn("Error: "
+                                  "refusing to overwrite existing 'testdir'{NL}"
+                                  .format(NL=NL), receive_stdout)
+            else:
+                self.failUnlessIn("Error: "
+                                  "insufficient free space (0B) for directory (75B){NL}"
+                                  .format(NL=NL), receive_stdout)
+
+        if failmode == "noclobber":
+            fn = os.path.join(receive_dir, receive_name)
+            self.failUnless(os.path.exists(fn))
+            with open(fn, "r") as f:
+                self.failUnlessEqual(f.read(), PRESERVE)
+
+        # check server stats
+        self._rendezvous.get_stats()
+
+    def test_fail_file_noclobber(self):
+        return self._do_test_fail("file", "noclobber")
+    def test_fail_directory_noclobber(self):
+        return self._do_test_fail("directory", "noclobber")
+    def test_fail_file_toobig(self):
+        return self._do_test_fail("file", "toobig")
+    def test_fail_directory_toobig(self):
+        return self._do_test_fail("directory", "toobig")
 
 class NotWelcome(ServerBase, unittest.TestCase):
     def setUp(self):
