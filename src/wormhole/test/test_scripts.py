@@ -473,8 +473,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode == "file":
             message = "test message\n"
             send_cfg.what = receive_name = send_filename = "testfile"
-            with open(os.path.join(send_dir, send_filename), "w") as f:
+            fn = os.path.join(send_dir, send_filename)
+            with open(fn, "w") as f:
                 f.write(message)
+            size = os.stat(fn).st_size
 
         elif mode == "directory":
             # $send_dir/
@@ -484,12 +486,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             # cd $receive_dir && wormhole receive
             # expect: $receive_dir/$dirname/[12345]
 
+            size = 0
             send_cfg.what = receive_name = send_dirname = "testdir"
             os.mkdir(os.path.join(send_dir, send_dirname))
             for i in range(5):
                 path = os.path.join(send_dir, send_dirname, str(i))
                 with open(path, "w") as f:
                     f.write("test message %d\n" % i)
+                size += os.stat(path).st_size
 
         if failmode == "noclobber":
             PRESERVE = "don't clobber me\n"
@@ -534,7 +538,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         # check sender
         if mode == "file":
             self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                              .format(size=naturalsize(len(message)),
+                              .format(size=naturalsize(size),
                                       name=send_filename,
                                       NL=NL), send_stdout)
             self.failUnlessIn("On the other computer, please run: "
@@ -565,8 +569,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                   .format(NL=NL), receive_stdout)
             else:
                 self.failUnlessIn("Error: "
-                                  "insufficient free space (0B) for file (13B){NL}"
-                                  .format(NL=NL), receive_stdout)
+                                  "insufficient free space (0B) for file ({size:d}B){NL}"
+                                  .format(NL=NL, size=size), receive_stdout)
         elif mode == "directory":
             self.failIfIn("Received files written to {name}"
                           .format(name=receive_name), receive_stdout)
@@ -580,8 +584,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                   .format(NL=NL), receive_stdout)
             else:
                 self.failUnlessIn("Error: "
-                                  "insufficient free space (0B) for directory (75B){NL}"
-                                  .format(NL=NL), receive_stdout)
+                                  "insufficient free space (0B) for directory ({size:d}B){NL}"
+                                  .format(NL=NL, size=size), receive_stdout)
 
         if failmode == "noclobber":
             fn = os.path.join(receive_dir, receive_name)
