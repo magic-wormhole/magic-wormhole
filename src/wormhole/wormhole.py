@@ -43,27 +43,29 @@ def make_confmsg(confkey, nonce):
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onOpen(self):
-        self.wormhole_open = True
-        self.factory.d.callback(self)
+        #self.wormhole_open = True
+        self.connection_machine.onOpen()
+        #self.factory.d.callback(self)
 
     def onMessage(self, payload, isBinary):
         assert not isBinary
         self.wormhole._ws_dispatch_response(payload)
 
     def onClose(self, wasClean, code, reason):
-        if self.wormhole_open:
-            self.wormhole._ws_closed(wasClean, code, reason)
-        else:
-            # we closed before establishing a connection (onConnect) or
-            # finishing WebSocket negotiation (onOpen): errback
-            self.factory.d.errback(error.ConnectError(reason))
+        self.connection_machine.onClose()
+        #if self.wormhole_open:
+        #    self.wormhole._ws_closed(wasClean, code, reason)
+        #else:
+        #    # we closed before establishing a connection (onConnect) or
+        #    # finishing WebSocket negotiation (onOpen): errback
+        #    self.factory.d.errback(error.ConnectError(reason))
 
 class WSFactory(websocket.WebSocketClientFactory):
     protocol = WSClient
     def buildProtocol(self, addr):
         proto = websocket.WebSocketClientFactory.buildProtocol(self, addr)
-        proto.wormhole = self.wormhole
-        proto.wormhole_open = False
+        proto.connection_machine = self.connection_machine
+        #proto.wormhole_open = False
         return proto
 
 
@@ -215,6 +217,100 @@ class _WelcomeHandler:
 # states for nameplates, mailboxes, and the websocket connection
 (CLOSED, OPENING, OPEN, CLOSING) = ("closed", "opening", "open", "closing")
 
+from automat import MethodicalMachine
+# pip install (path to automat checkout)[visualize]
+# automat-visualize wormhole.wormhole
+
+class _ConnectionMachine(object):
+    m = MethodicalMachine()
+
+    def __init__(self, ws_url):
+        self._f = f = WSFactory(ws_url)
+        f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
+        f.connection_machine = self # calls onOpen and onClose
+        p = urlparse(ws_url)
+        self._ep = self._make_endpoint(p.hostname, p.port or 80)
+        self._connector = None
+
+    @m.state(initial=True)
+    def initial(self): pass
+    @m.state()
+    def first_time_connecting(self): pass
+    @m.state()
+    def negotiating(self): pass
+    @m.state()
+    def open(self): pass
+    @m.state()
+    def waiting(self): pass
+    @m.state()
+    def connecting(self): pass
+    @m.state()
+    def disconnecting(self): pass
+    @m.state()
+    def disconnecting2(self): pass
+    @m.state(terminal=True)
+    def failed(self): pass
+    @m.state(terminal=True)
+    def closed(self): pass
+
+
+    @m.input()
+    def start(self): pass
+    @m.input()
+    def d_callback(self, p): pass
+    @m.input()
+    def d_errback(self, f): pass
+    @m.input()
+    def d_cancel(self): pass
+    @m.input()
+    def onOpen(self, ws): pass
+    @m.input()
+    def onClose(self): pass
+    @m.input()
+    def expire(self): pass
+    @m.input()
+    def close(self): pass
+
+    @m.output()
+    def ep_connect(self):
+        "ep.connect()"
+        self._d = self._ep.connect(self._f)
+        self._d.addBoth(self.d_callback, self.d_errback)
+    @m.output()
+    def handle_connection(self, ws):
+        pass
+    @m.output()
+    def start_timer(self):
+        pass
+    @m.output()
+    def cancel_timer(self):
+        pass
+    @m.output()
+    def dropConnection(self):
+        pass
+    @m.output()
+    def notify_fail(self):
+        pass
+
+    initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
+    first_time_connecting.upon(d_callback, enter=negotiating, outputs=[])
+    first_time_connecting.upon(d_errback, enter=failed, outputs=[notify_fail])
+    first_time_connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
+    disconnecting2.upon(d_errback, enter=closed, outputs=[])
+
+    negotiating.upon(onOpen, enter=open, outputs=[handle_connection])
+    negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
+    negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
+
+    open.upon(onClose, enter=waiting, outputs=[start_timer])
+    open.upon(close, enter=disconnecting, outputs=[dropConnection])
+    connecting.upon(d_callback, enter=negotiating, outputs=[])
+    connecting.upon(d_errback, enter=waiting, outputs=[start_timer])
+    connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
+
+    waiting.upon(expire, enter=connecting, outputs=[ep_connect])
+    waiting.upon(close, enter=closed, outputs=[cancel_timer])
+    disconnecting.upon(onClose, enter=closed, outputs=[])
 
 class _Wormhole:
     DEBUG = False
