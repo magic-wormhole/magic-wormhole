@@ -225,7 +225,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False):
-        assert mode in ("text", "file", "directory", "slow")
+        assert mode in ("text", "file", "directory", "slow-text")
         send_cfg = config("send")
         recv_cfg = config("receive")
         message = "blah blah blah ponies"
@@ -244,7 +244,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
 
-        if mode == "text" or mode == "slow":
+        if mode == "text" or mode == "slow-text":
             send_cfg.text = message
 
         elif mode == "file":
@@ -348,7 +348,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
-            if mode == "slow":
+            if mode == "slow-text":
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", 0), \
                       mock.patch.object(cmd_receive, "VERIFY_TIMER", 0):
                     yield gatherResults([send_d, receive_d], True)
@@ -367,7 +367,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None # show full output for assertion failures
 
-        if mode != "slow":
+        if mode != "slow-text":
             self.failUnlessEqual(send_stderr, "",
                                  (send_stdout, send_stderr))
             self.failUnlessEqual(receive_stderr, "",
@@ -381,7 +381,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 (receive_stdout, receive_stderr))
 
         # check sender
-        if mode == "text" or mode == "slow":
+        if mode == "text" or mode == "slow-text":
             expected = ("Sending text message ({bytes:d} Bytes){NL}"
                         "On the other computer, please run: "
                         "wormhole receive{NL}"
@@ -415,7 +415,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                               .format(NL=NL), send_stdout)
 
         # check receiver
-        if mode == "text" or mode == "slow":
+        if mode == "text" or mode == "slow-text":
             self.failUnlessEqual(receive_stdout, message+NL)
         elif mode == "file":
             self.failUnlessIn("Receiving file ({size:s}) into: {name}"
@@ -462,8 +462,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def test_directory_override(self):
         return self._do_test(mode="directory", override_filename=True)
 
-    def test_slow(self):
-        return self._do_test(mode="slow")
+    def test_slow_text(self):
+        return self._do_test(mode="slow-text")
 
     @inlineCallbacks
     def _do_test_fail(self, mode, failmode):
