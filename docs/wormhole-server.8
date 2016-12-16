@@ -1,0 +1,41 @@
+.TH WORMHOLE-SERVER "8" "July 2016"
+.SH NAME
+wormhole-server \- Securely and simply transfer data between computers
+.SH SYNOPSIS
+.B wormhole-server
+[\fI\,OPTIONS\/\fR] \fI\,COMMAND \/\fR[\fI\,ARGS\/\fR]...
+.SH DESCRIPTION
+.IP
+Control a relay server (most users shouldn't need to worry about this and
+can use the default server).
+.SH OPTIONS
+.TP
+\fB\-\-help\fR
+Show this message and exit.
+.SS "Commands:"
+.TP
+count\-channels
+Count active channels
+.TP
+count\-events
+Count events
+.TP
+restart
+Re\-start a relay server
+.TP
+start
+Start a relay server
+.TP
+stop
+Stop a relay server
+.TP
+tail\-usage
+Follow the latest usage
+.SH SEE ALSO
+.BR wormhole (1)
+.SH AUTHORS
+Brian Warner <warner-magic-wormhole@lothar.com>
+.PP
+This manual was written by Jameson Rollins
+<jrollins@finestructure.net> for the Debian project (and may be used
+by others).

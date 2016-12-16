@@ -1,0 +1,44 @@
+.TH WORMHOLE "1" "July 2016" "" "User Commands"
+.SH NAME
+wormhole \- Securely and simply transfer data between computers
+.SH SYNOPSIS
+.B wormhole
+[\fI\,OPTIONS\/\fR] \fI\,COMMAND \/\fR[\fI\,ARGS\/\fR]...
+.SH DESCRIPTION
+.IP
+Create a Magic Wormhole and communicate through it.
+.IP
+Wormholes are created by speaking the same magic CODE in two different
+places at the same time.  Wormholes are secure against anyone who doesn't
+use the same code.
+.SH OPTIONS
+.TP
+\fB\-\-relay\-url\fR URL
+rendezvous relay to use
+.TP
+\fB\-\-transit\-helper\fR tcp:HOST:PORT
+transit relay to use
+.TP
+\fB\-\-dump\-timing\fR FILE.json
+(debug) write timing data to file
+.TP
+\fB\-\-version\fR
+Show the version and exit.
+.TP
+\fB\-\-help\fR
+Show this message and exit.
+.SS "Commands:"
+.TP
+receive
+Receive a text message, file, or directory...
+.TP
+send
+Send a text message, file, or directory
+.SH SEE ALSO
+.BR wormhole-server (8)
+.SH AUTHORS
+Brian Warner <warner-magic-wormhole@lothar.com>
+.PP
+This manual was written by Jameson Rollins
+<jrollins@finestructure.net> for the Debian project (and may be used
+by others).
