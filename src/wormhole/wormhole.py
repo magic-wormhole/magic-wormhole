@@ -289,7 +289,7 @@ class _ConnectionMachine(object):
     def dropConnection(self):
         pass
     @m.output()
-    def notify_fail(self):
+    def notify_fail(self, f):
         pass
 
     initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
