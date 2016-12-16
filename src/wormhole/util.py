@@ -1,5 +1,5 @@
 # No unicode_literals
-import json, unicodedata
+import os, json, unicodedata
 from binascii import hexlify, unhexlify
 
 def to_bytes(u):
@@ -24,3 +24,15 @@ def bytes_to_dict(b):
     d = json.loads(b.decode("utf-8"))
     assert isinstance(d, dict)
     return d
+
+def estimate_free_space(target):
+    # f_bfree is the blocks available to a root user. It might be more
+    # accurate to use f_bavail (blocks available to non-root user), but we
+    # don't know which user is running us, and a lot of installations don't
+    # bother with reserving extra space for root, so let's just stick to the
+    # basic (larger) estimate.
+    try:
+        s = os.statvfs(os.path.dirname(os.path.abspath(target)))
+        return s.f_frsize * s.f_bfree
+    except AttributeError:
+        return None
