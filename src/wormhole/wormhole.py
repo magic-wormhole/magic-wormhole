@@ -237,6 +237,7 @@ class _Wormhole:
         self._flag_need_to_see_mailbox_used = True
         self._flag_need_to_build_msg1 = True
         self._flag_need_to_send_PAKE = True
+        self._establish_key_called = False
         self._key_waiter = None
         self._key = None
 
@@ -581,6 +582,8 @@ class _Wormhole:
 
     def _API_establish_key(self):
         if self._error: return defer.fail(self._error)
+        if self._establish_key_called: raise InternalError
+        self._establish_key_called = True
         if self._key is not None:
             return defer.succeed(True)
         self._key_waiter = defer.Deferred()

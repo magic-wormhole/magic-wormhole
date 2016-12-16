@@ -554,6 +554,13 @@ class Basic(unittest.TestCase):
             for before in (True, False):
                 self._test_establish_key_hook(established, before)
 
+    def test_establish_key_twice(self):
+        timing = DebugTiming()
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        d = w.establish_key()
+        self.assertRaises(InternalError, w.establish_key)
+        del d
+
     # make sure verify() can be called both before and after the verifier is
     # computed
 
