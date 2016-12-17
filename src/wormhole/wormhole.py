@@ -1,7 +1,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 import os, sys, re
 from six.moves.urllib_parse import urlparse
-from twisted.internet import defer, endpoints, error
+from twisted.internet import defer, endpoints #, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log, failure
@@ -43,16 +43,19 @@ def make_confmsg(confkey, nonce):
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onOpen(self):
-        #self.wormhole_open = True
-        self.connection_machine.onOpen()
+        self.wormhole_open = True
+        ##self.connection_machine.onOpen(self)
         #self.factory.d.callback(self)
+
+    def onConnect(self):
+        self.connection_machine.onConnect(self)
 
     def onMessage(self, payload, isBinary):
         assert not isBinary
         self.wormhole._ws_dispatch_response(payload)
 
     def onClose(self, wasClean, code, reason):
-        self.connection_machine.onClose()
+        self.connection_machine.onClose(f=None)
         #if self.wormhole_open:
         #    self.wormhole._ws_closed(wasClean, code, reason)
         #else:
@@ -225,13 +228,17 @@ class _ConnectionMachine(object):
     m = MethodicalMachine()
     ALLOW_CLOSE = True
 
-    def __init__(self, ws_url):
+    def __init__(self, ws_url, reactor):
+        self._reactor = reactor
         self._f = f = WSFactory(ws_url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         f.connection_machine = self # calls onOpen and onClose
         p = urlparse(ws_url)
         self._ep = self._make_endpoint(p.hostname, p.port or 80)
         self._connector = None
+        self._done_d = defer.Deferred()
+    def _make_endpoint(self, hostname, port):
+        return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
     @m.state(initial=True)
     def initial(self): pass
@@ -257,15 +264,15 @@ class _ConnectionMachine(object):
 
 
     @m.input()
-    def start(self): pass
+    def start(self): pass ; print("in start")
     @m.input()
-    def d_callback(self, p): pass
+    def d_callback(self, p): pass ; print("in d_callback")
     @m.input()
-    def d_errback(self, f): pass
+    def d_errback(self, f): pass ; print("in d_errback")
     @m.input()
     def d_cancel(self): pass
     @m.input()
-    def onOpen(self, ws): pass
+    def onConnect(self, ws): pass ; print("in onConnect")
     @m.input()
     def onClose(self, f): pass
     @m.input()
@@ -277,6 +284,7 @@ class _ConnectionMachine(object):
     @m.output()
     def ep_connect(self):
         "ep.connect()"
+        print("ep_connect()")
         self._d = self._ep.connect(self._f)
         self._d.addBoth(self.d_callback, self.d_errback)
     @m.output()
@@ -298,11 +306,12 @@ class _ConnectionMachine(object):
     initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
     first_time_connecting.upon(d_callback, enter=negotiating, outputs=[])
     first_time_connecting.upon(d_errback, enter=failed, outputs=[notify_fail])
+    first_time_connecting.upon(onClose, enter=failed, outputs=[notify_fail])
     if ALLOW_CLOSE:
         first_time_connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
         disconnecting2.upon(d_errback, enter=closed, outputs=[])
 
-    negotiating.upon(onOpen, enter=open, outputs=[handle_connection])
+    negotiating.upon(onConnect, enter=open, outputs=[handle_connection])
     if ALLOW_CLOSE:
         negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
     negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
@@ -312,6 +321,7 @@ class _ConnectionMachine(object):
         open.upon(close, enter=disconnecting, outputs=[dropConnection])
     connecting.upon(d_callback, enter=negotiating, outputs=[])
     connecting.upon(d_errback, enter=waiting, outputs=[start_timer])
+    connecting.upon(onClose, enter=waiting, outputs=[start_timer])
     if ALLOW_CLOSE:
         connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
 
@@ -319,6 +329,17 @@ class _ConnectionMachine(object):
     if ALLOW_CLOSE:
         waiting.upon(close, enter=closed, outputs=[cancel_timer])
         disconnecting.upon(onClose, enter=closed, outputs=[])
+
+def tryit(reactor):
+    cm = _ConnectionMachine("ws://127.0.0.1:4000/v1", reactor)
+    print("_ConnectionMachine created")
+    cm.start()
+    print("waiting on _done_d to finish")
+    return cm._done_d
+
+if __name__ == "__main__":
+    from twisted.internet.task import react
+    react(tryit)
 
 class _Wormhole:
     DEBUG = False
