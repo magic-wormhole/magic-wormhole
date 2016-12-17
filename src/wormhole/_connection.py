@@ -54,9 +54,9 @@ class Dummy(protocol.Protocol):
         self.factory.cm.onClose(why)
 
 # pip install (path to automat checkout)[visualize]
-# automat-visualize wormhole.wormhole
+# automat-visualize wormhole._connection
 
-class _WebSocketMachine(object):
+class WebSocketMachine(object):
     m = MethodicalMachine()
     ALLOW_CLOSE = True
 
@@ -172,7 +172,7 @@ class _WebSocketMachine(object):
         disconnecting.upon(onClose, enter=closed, outputs=[])
 
 def tryit(reactor):
-    cm = _WebSocketMachine("ws://127.0.0.1:4000/v1", reactor)
+    cm = WebSocketMachine("ws://127.0.0.1:4000/v1", reactor)
     print("_ConnectionMachine created")
     print("start:", cm.start())
     print("waiting on _done_d to finish")
