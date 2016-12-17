@@ -5,7 +5,6 @@ from twisted.internet import defer, endpoints #, error
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log, failure
-from autobahn.twisted import websocket
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 from nacl import utils
@@ -40,37 +39,6 @@ def make_confmsg(confkey, nonce):
 # phase=pake: just the SPAKE2 'start' message (binary)
 # phase=version: version data, key verification (HKDF(key, nonce)+nonce)
 # phase=1,2,3,..: application messages
-
-class WSClient(websocket.WebSocketClientProtocol):
-    def onOpen(self):
-        self.wormhole_open = True
-        ##self.connection_machine.onOpen(self)
-        #self.factory.d.callback(self)
-
-    def onConnect(self):
-        self.connection_machine.onConnect(self)
-
-    def onMessage(self, payload, isBinary):
-        assert not isBinary
-        self.wormhole._ws_dispatch_response(payload)
-
-    def onClose(self, wasClean, code, reason):
-        self.connection_machine.onClose(f=None)
-        #if self.wormhole_open:
-        #    self.wormhole._ws_closed(wasClean, code, reason)
-        #else:
-        #    # we closed before establishing a connection (onConnect) or
-        #    # finishing WebSocket negotiation (onOpen): errback
-        #    self.factory.d.errback(error.ConnectError(reason))
-
-class WSFactory(websocket.WebSocketClientFactory):
-    protocol = WSClient
-    def buildProtocol(self, addr):
-        proto = websocket.WebSocketClientFactory.buildProtocol(self, addr)
-        proto.connection_machine = self.connection_machine
-        #proto.wormhole_open = False
-        return proto
-
 
 class _GetCode:
     def __init__(self, code_length, send_command, timing):
@@ -219,127 +187,6 @@ class _WelcomeHandler:
 
 # states for nameplates, mailboxes, and the websocket connection
 (CLOSED, OPENING, OPEN, CLOSING) = ("closed", "opening", "open", "closing")
-
-from automat import MethodicalMachine
-# pip install (path to automat checkout)[visualize]
-# automat-visualize wormhole.wormhole
-
-class _ConnectionMachine(object):
-    m = MethodicalMachine()
-    ALLOW_CLOSE = True
-
-    def __init__(self, ws_url, reactor):
-        self._reactor = reactor
-        self._f = f = WSFactory(ws_url)
-        f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
-        f.connection_machine = self # calls onOpen and onClose
-        p = urlparse(ws_url)
-        self._ep = self._make_endpoint(p.hostname, p.port or 80)
-        self._connector = None
-        self._done_d = defer.Deferred()
-    def _make_endpoint(self, hostname, port):
-        return endpoints.HostnameEndpoint(self._reactor, hostname, port)
-
-    @m.state(initial=True)
-    def initial(self): pass
-    @m.state()
-    def first_time_connecting(self): pass
-    @m.state()
-    def negotiating(self): pass
-    @m.state(terminal=True)
-    def failed(self): pass
-    @m.state()
-    def open(self): pass
-    @m.state()
-    def waiting(self): pass
-    @m.state()
-    def connecting(self): pass
-    if ALLOW_CLOSE:
-        @m.state()
-        def disconnecting(self): pass
-        @m.state()
-        def disconnecting2(self): pass
-        @m.state(terminal=True)
-        def closed(self): pass
-
-
-    @m.input()
-    def start(self): pass ; print("in start")
-    @m.input()
-    def d_callback(self, p): pass ; print("in d_callback")
-    @m.input()
-    def d_errback(self, f): pass ; print("in d_errback")
-    @m.input()
-    def d_cancel(self): pass
-    @m.input()
-    def onConnect(self, ws): pass ; print("in onConnect")
-    @m.input()
-    def onClose(self, f): pass
-    @m.input()
-    def expire(self): pass
-    if ALLOW_CLOSE:
-        @m.input()
-        def close(self): pass
-
-    @m.output()
-    def ep_connect(self):
-        "ep.connect()"
-        print("ep_connect()")
-        self._d = self._ep.connect(self._f)
-        self._d.addBoth(self.d_callback, self.d_errback)
-    @m.output()
-    def handle_connection(self, ws):
-        pass
-    @m.output()
-    def start_timer(self, f):
-        pass
-    @m.output()
-    def cancel_timer(self):
-        pass
-    @m.output()
-    def dropConnection(self):
-        pass
-    @m.output()
-    def notify_fail(self, f):
-        pass
-
-    initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
-    first_time_connecting.upon(d_callback, enter=negotiating, outputs=[])
-    first_time_connecting.upon(d_errback, enter=failed, outputs=[notify_fail])
-    first_time_connecting.upon(onClose, enter=failed, outputs=[notify_fail])
-    if ALLOW_CLOSE:
-        first_time_connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
-        disconnecting2.upon(d_errback, enter=closed, outputs=[])
-
-    negotiating.upon(onConnect, enter=open, outputs=[handle_connection])
-    if ALLOW_CLOSE:
-        negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
-    negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
-
-    open.upon(onClose, enter=waiting, outputs=[start_timer])
-    if ALLOW_CLOSE:
-        open.upon(close, enter=disconnecting, outputs=[dropConnection])
-    connecting.upon(d_callback, enter=negotiating, outputs=[])
-    connecting.upon(d_errback, enter=waiting, outputs=[start_timer])
-    connecting.upon(onClose, enter=waiting, outputs=[start_timer])
-    if ALLOW_CLOSE:
-        connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
-
-    waiting.upon(expire, enter=connecting, outputs=[ep_connect])
-    if ALLOW_CLOSE:
-        waiting.upon(close, enter=closed, outputs=[cancel_timer])
-        disconnecting.upon(onClose, enter=closed, outputs=[])
-
-def tryit(reactor):
-    cm = _ConnectionMachine("ws://127.0.0.1:4000/v1", reactor)
-    print("_ConnectionMachine created")
-    cm.start()
-    print("waiting on _done_d to finish")
-    return cm._done_d
-
-if __name__ == "__main__":
-    from twisted.internet.task import react
-    react(tryit)
 
 class _Wormhole:
     DEBUG = False
