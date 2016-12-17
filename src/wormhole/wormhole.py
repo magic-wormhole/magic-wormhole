@@ -223,6 +223,7 @@ from automat import MethodicalMachine
 
 class _ConnectionMachine(object):
     m = MethodicalMachine()
+    ALLOW_CLOSE = True
 
     def __init__(self, ws_url):
         self._f = f = WSFactory(ws_url)
@@ -238,20 +239,21 @@ class _ConnectionMachine(object):
     def first_time_connecting(self): pass
     @m.state()
     def negotiating(self): pass
+    @m.state(terminal=True)
+    def failed(self): pass
     @m.state()
     def open(self): pass
     @m.state()
     def waiting(self): pass
     @m.state()
     def connecting(self): pass
-    @m.state()
-    def disconnecting(self): pass
-    @m.state()
-    def disconnecting2(self): pass
-    @m.state(terminal=True)
-    def failed(self): pass
-    @m.state(terminal=True)
-    def closed(self): pass
+    if ALLOW_CLOSE:
+        @m.state()
+        def disconnecting(self): pass
+        @m.state()
+        def disconnecting2(self): pass
+        @m.state(terminal=True)
+        def closed(self): pass
 
 
     @m.input()
@@ -265,11 +267,12 @@ class _ConnectionMachine(object):
     @m.input()
     def onOpen(self, ws): pass
     @m.input()
-    def onClose(self): pass
+    def onClose(self, f): pass
     @m.input()
     def expire(self): pass
-    @m.input()
-    def close(self): pass
+    if ALLOW_CLOSE:
+        @m.input()
+        def close(self): pass
 
     @m.output()
     def ep_connect(self):
@@ -280,7 +283,7 @@ class _ConnectionMachine(object):
     def handle_connection(self, ws):
         pass
     @m.output()
-    def start_timer(self):
+    def start_timer(self, f):
         pass
     @m.output()
     def cancel_timer(self):
@@ -295,22 +298,27 @@ class _ConnectionMachine(object):
     initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
     first_time_connecting.upon(d_callback, enter=negotiating, outputs=[])
     first_time_connecting.upon(d_errback, enter=failed, outputs=[notify_fail])
-    first_time_connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
-    disconnecting2.upon(d_errback, enter=closed, outputs=[])
+    if ALLOW_CLOSE:
+        first_time_connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
+        disconnecting2.upon(d_errback, enter=closed, outputs=[])
 
     negotiating.upon(onOpen, enter=open, outputs=[handle_connection])
-    negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
+    if ALLOW_CLOSE:
+        negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
     negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
 
     open.upon(onClose, enter=waiting, outputs=[start_timer])
-    open.upon(close, enter=disconnecting, outputs=[dropConnection])
+    if ALLOW_CLOSE:
+        open.upon(close, enter=disconnecting, outputs=[dropConnection])
     connecting.upon(d_callback, enter=negotiating, outputs=[])
     connecting.upon(d_errback, enter=waiting, outputs=[start_timer])
-    connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
+    if ALLOW_CLOSE:
+        connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
 
     waiting.upon(expire, enter=connecting, outputs=[ep_connect])
-    waiting.upon(close, enter=closed, outputs=[cancel_timer])
-    disconnecting.upon(onClose, enter=closed, outputs=[])
+    if ALLOW_CLOSE:
+        waiting.upon(close, enter=closed, outputs=[cancel_timer])
+        disconnecting.upon(onClose, enter=closed, outputs=[])
 
 class _Wormhole:
     DEBUG = False
