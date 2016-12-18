@@ -84,6 +84,8 @@ class Sender:
 
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stdout)
+            # flush stdout so the code is displayed immediately
+            args.stdout.flush()
         print(u"", file=args.stdout)
 
         yield w.establish_key()
