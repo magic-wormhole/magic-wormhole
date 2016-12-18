@@ -178,8 +178,10 @@ def tryit(reactor):
     print("waiting on _done_d to finish")
     return cm._done_d
 
+# http://autobahn-python.readthedocs.io/en/latest/websocket/programming.html
+# observed sequence of events:
 # success: d_callback, onConnect(response), onOpen(), onMessage()
-# negotifail: d_callback, onClose()
+# negotifail (non-websocket): d_callback, onClose()
 # noconnect: d_errback
 
 def tryws(reactor):
