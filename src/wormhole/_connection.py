@@ -453,7 +453,11 @@ class Wormhole:
     @m.state()
     def know_code_and_mailbox(): pass # no longer need nameplate
     @m.state()
-    def waiting_to_verify(): pass # key is established, want any message
+    def waiting_first_msg(): pass # key is established, want any message
+    @m.state()
+    def processing_version(): pass
+    @m.state()
+    def processing_phase(): pass
     @m.state()
     def open(): pass # key is verified, can post app messages
     @m.state(terminal=True)
@@ -481,18 +485,21 @@ class Wormhole:
 
     @m.input()
     def rx_pake(self, pake): pass # reponse["message"][phase=pake]
-    def rx_version(self, version): # response["message"][phase=version]
-        their_verifier = com
-        if OK:
-            self.verify_good(verifier)
-        else:
-            self.verify_bad(f)
-        pass
 
+    @m.input()
+    def rx_version(self, version): # response["message"][phase=version]
+        pass
     @m.input()
     def verify_good(self, verifier): pass
     @m.input()
     def verify_bad(self, f): pass
+
+    @m.input()
+    def rx_phase(self, message): pass
+    @m.input()
+    def phase_good(self, message): pass
+    @m.input()
+    def phase_bad(self, f): pass
 
     @m.output()
     def compute_and_post_pake(self, code):
@@ -509,8 +516,13 @@ class Wormhole:
         self._mailbox = mailbox
 
     @m.output()
-    def deliver_message(self, message):
-        self._qc.deliver_message(message)
+    def process_version(self, version): # response["message"][phase=version]
+        their_verifier = com
+        if OK:
+            self.verify_good(verifier)
+        else:
+            self.verify_bad(f)
+        pass
 
     @m.output()
     def notify_verified(self, verifier):
@@ -520,6 +532,23 @@ class Wormhole:
     def notify_failed(self, f):
         for d in self._verify_waiters:
             d.errback(f)
+
+    @m.output()
+    def process_phase(self, message): # response["message"][phase=version]
+        their_verifier = com
+        if OK:
+            self.verify_good(verifier)
+        else:
+            self.verify_bad(f)
+        pass
+
+    @m.output()
+    def post_inbound(self, message):
+        pass
+
+    @m.output()
+    def deliver_message(self, message):
+        self._qc.deliver_message(message)
 
     @m.output()
     def compute_key_and_post_version(self, pake):
@@ -535,10 +564,15 @@ class Wormhole:
                 outputs=[compute_and_post_pake])
     know_code_not_mailbox.upon(w_set_mailbox, enter=know_code_and_mailbox,
                                outputs=[set_mailbox])
-    know_code_and_mailbox.upon(rx_pake, enter=waiting_to_verify,
+    know_code_and_mailbox.upon(rx_pake, enter=waiting_first_msg,
                                outputs=[compute_key_and_post_version])
-    waiting_to_verify.upon(verify_good, enter=open, outputs=[notify_verified])
-    waiting_to_verify.upon(verify_bad, enter=failed, outputs=[notify_failed])
+    waiting_first_msg.upon(rx_version, enter=processing_version,
+                           outputs=[process_version])
+    processing_version.upon(verify_good, enter=open, outputs=[notify_verified])
+    processing_version.upon(verify_bad, enter=failed, outputs=[notify_failed])
+    open.upon(rx_phase, enter=processing_phase, outputs=[process_phase])
+    processing_phase.upon(phase_good, enter=open, outputs=[post_inbound])
+    processing_phase.upon(phase_bad, enter=failed, outputs=[notify_failed])
 
 class QueueConnect:
     m = MethodicalMachine()
