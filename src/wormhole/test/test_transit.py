@@ -138,29 +138,29 @@ class Hints(unittest.TestCase):
     def test_endpoint_from_hint_obj(self):
         c = transit.Common("")
         efho = c._endpoint_from_hint_obj
-        self.assertIsInstance(efho(transit.DirectTCPV1Hint("host", 1234)),
+        self.assertIsInstance(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
                               endpoints.HostnameEndpoint)
         self.assertEqual(efho("unknown:stuff:yowza:pivlor"), None)
         # c._tor_manager is currently None
-        self.assertEqual(efho(transit.TorTCPV1Hint("host", "port")), None)
+        self.assertEqual(efho(transit.TorTCPV1Hint("host", "port", 0)), None)
         c._tor_manager = mock.Mock()
         def tor_ep(hostname, port):
             if hostname == "non-public":
                 return None
             return ("tor_ep", hostname, port)
         c._tor_manager.get_endpoint_for = mock.Mock(side_effect=tor_ep)
-        self.assertEqual(efho(transit.DirectTCPV1Hint("host", 1234)),
+        self.assertEqual(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
                          ("tor_ep", "host", 1234))
-        self.assertEqual(efho(transit.TorTCPV1Hint("host2.onion", 1234)),
+        self.assertEqual(efho(transit.TorTCPV1Hint("host2.onion", 1234, 0.0)),
                          ("tor_ep", "host2.onion", 1234))
-        self.assertEqual(efho(transit.DirectTCPV1Hint("non-public", 1234)),
+        self.assertEqual(efho(transit.DirectTCPV1Hint("non-public", 1234, 0.0)),
                          None)
         self.assertEqual(efho(UnknownHint("foo")), None)
 
     def test_comparable(self):
-        h1 = transit.DirectTCPV1Hint("hostname", "port1")
-        h1b = transit.DirectTCPV1Hint("hostname", "port1")
-        h2 = transit.DirectTCPV1Hint("hostname", "port2")
+        h1 = transit.DirectTCPV1Hint("hostname", "port1", 0.0)
+        h1b = transit.DirectTCPV1Hint("hostname", "port1", 0.0)
+        h2 = transit.DirectTCPV1Hint("hostname", "port2", 0.0)
         r1 = transit.RelayV1Hint(tuple(sorted([h1, h2])))
         r2 = transit.RelayV1Hint(tuple(sorted([h2, h1])))
         r3 = transit.RelayV1Hint(tuple(sorted([h1b, h2])))
@@ -173,9 +173,15 @@ class Hints(unittest.TestCase):
         p = c._parse_tcp_v1_hint
         self.assertEqual(p({"type": "unknown"}), None)
         h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234})
-        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234))
+        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 0.0))
+        h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234,
+               "priority": 2.5})
+        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 2.5))
         h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234})
-        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234))
+        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 0.0))
+        h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234,
+               "priority": 2.5})
+        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 2.5))
         self.assertEqual(p({"type": "direct-tcp-v1"}),
                          None) # missing hostname
         self.assertEqual(p({"type": "direct-tcp-v1", "hostname": 12}),
@@ -192,7 +198,11 @@ class Hints(unittest.TestCase):
             value = transit.parse_hint_argv(hint, stderr=stderr)
             return value, stderr.getvalue()
         h,stderr = p("tcp:host:1234")
-        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234))
+        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 0.0))
+        self.assertEqual(stderr, "")
+
+        h,stderr = p("tcp:host:1234:priority=2.6")
+        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 2.6))
         self.assertEqual(stderr, "")
 
         h,stderr = p("$!@#^")
@@ -204,16 +214,26 @@ class Hints(unittest.TestCase):
         self.assertEqual(stderr,
                          "unknown hint type 'unknown' in 'unknown:stuff'\n")
 
+        h,stderr = p("tcp:just-a-hostname")
+        self.assertEqual(h, None)
+        self.assertEqual(stderr,
+                         "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n")
+
         h,stderr = p("tcp:host:number")
         self.assertEqual(h, None)
         self.assertEqual(stderr,
-                         "unparseable TCP hint 'tcp:host:number'\n")
+                         "non-numeric port in TCP hint 'tcp:host:number'\n")
+
+        h,stderr = p("tcp:host:1234:priority=bad")
+        self.assertEqual(h, None)
+        self.assertEqual(stderr,
+                         "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
 
     def test_describe_hint_obj(self):
         d = transit.describe_hint_obj
-        self.assertEqual(d(transit.DirectTCPV1Hint("host", 1234)),
+        self.assertEqual(d(transit.DirectTCPV1Hint("host", 1234, 0.0)),
                          "tcp:host:1234")
-        self.assertEqual(d(transit.TorTCPV1Hint("host", 1234)),
+        self.assertEqual(d(transit.TorTCPV1Hint("host", 1234, 0.0)),
                          "tor:host:1234")
         self.assertEqual(d(UnknownHint("stuff")), str(UnknownHint("stuff")))
 
@@ -225,8 +245,9 @@ class Basic(unittest.TestCase):
         hints = yield c.get_connection_hints()
         self.assertEqual(hints, [{"type": "relay-v1",
                                   "hints": [{"type": "direct-tcp-v1",
-                                            "hostname": "host",
-                                            "port": 1234}],
+                                             "hostname": "host",
+                                             "port": 1234,
+                                             "priority": 0.0}],
                                   }])
         self.assertRaises(InternalError, transit.Common, 123)
 

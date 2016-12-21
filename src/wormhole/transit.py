@@ -87,8 +87,8 @@ def build_sided_relay_handshake(key, side):
 # * expect to see the receiver/sender handshake bytes from the other side
 # * the sender writes "go\n", the receiver waits for "go\n"
 # * the rest of the connection contains transit data
-DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port"])
-TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port"])
+DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port", "priority"])
+TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
 # RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
 # use a tuple rather than a list so they'll be hashable into a set). For each
 # one, make the TCP connection, send the relay handshake, then complete the
@@ -106,6 +106,7 @@ def describe_hint_obj(hint):
 def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
+    priority = 0.0
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
         print("unparseable hint '%s'" % (hint,), file=stderr)
@@ -115,17 +116,27 @@ def parse_hint_argv(hint, stderr=sys.stderr):
         print("unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
         return None
     hint_value = mo.group(2)
-    mo = re.search(r'^(.*):(\d+)$', hint_value)
-    if not mo:
-        print("unparseable TCP hint '%s'" % (hint,), file=stderr)
+    pieces = hint_value.split(":")
+    if len(pieces) < 2:
+        print("unparseable TCP hint (need more colons) '%s'" % (hint,),
+              file=stderr)
         return None
-    hint_host = mo.group(1)
-    try:
-        hint_port = int(mo.group(2))
-    except ValueError:
+    mo = re.search(r'^(\d+)$', pieces[1])
+    if not mo:
         print("non-numeric port in TCP hint '%s'" % (hint,), file=stderr)
         return None
-    return DirectTCPV1Hint(hint_host, hint_port)
+    hint_host = pieces[0]
+    hint_port = int(pieces[1])
+    for more in pieces[2:]:
+        if more.startswith("priority="):
+            more_pieces = more.split("=")
+            try:
+                priority = float(more_pieces[1])
+            except ValueError:
+                print("non-float priority= in TCP hint '%s'" % (hint,),
+                      file=stderr)
+                return None
+    return DirectTCPV1Hint(hint_host, hint_port, priority)
 
 TIMEOUT=15
 
@@ -604,7 +615,7 @@ class Common:
             # some test hosts, including the appveyor VMs, *only* have
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
-        direct_hints = [DirectTCPV1Hint(six.u(addr), portnum)
+        direct_hints = [DirectTCPV1Hint(six.u(addr), portnum, 0.0)
                         for addr in addresses]
         ep = endpoints.serverFromString(reactor, "tcp:%d" % portnum)
         return direct_hints, ep
@@ -620,6 +631,7 @@ class Common:
         direct_hints = yield self._get_direct_hints()
         for dh in direct_hints:
             hints.append({u"type": u"direct-tcp-v1",
+                          u"priority": dh.priority,
                           u"hostname": dh.hostname,
                           u"port": dh.port, # integer
                           })
@@ -627,6 +639,7 @@ class Common:
             rhint = {u"type": u"relay-v1", u"hints": []}
             for rh in relay.hints:
                 rhint[u"hints"].append({u"type": u"direct-tcp-v1",
+                                        u"priority": rh.priority,
                                         u"hostname": rh.hostname,
                                         u"port": rh.port})
             hints.append(rhint)
@@ -686,10 +699,11 @@ class Common:
         if not(u"port" in hint and isinstance(hint[u"port"], int)):
             log.msg("invalid port in hint: %r" % (hint,))
             return None
+        priority = hint.get(u"priority", 0.0)
         if hint_type == u"direct-tcp-v1":
-            return DirectTCPV1Hint(hint[u"hostname"], hint[u"port"])
+            return DirectTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
         else:
-            return TorTCPV1Hint(hint[u"hostname"], hint[u"port"])
+            return TorTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
 
     def add_connection_hints(self, hints):
         for h in hints: # hint structs
