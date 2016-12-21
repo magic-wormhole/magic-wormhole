@@ -152,6 +152,7 @@ class AppNamespace:
         self._mailboxes = {}
         self._nameplate_counts = collections.defaultdict(int)
         self._mailbox_counts = collections.defaultdict(int)
+    COOLDOWN_TIME = 3600
 
     def get_nameplate_ids(self):
         db = self._db
@@ -159,9 +160,15 @@ class AppNamespace:
         c = db.execute("SELECT DISTINCT `name` FROM `nameplates`"
                        " WHERE `app_id`=?", (self._app_id,))
         return set([row["name"] for row in c.fetchall()])
+    def get_reserved_ids(self, when):
+        db = self._db
+        c = db.execute("SELECT `name` FROM `nameplate_cooldown`"
+                       " WHERE `app_id`=? AND `until`<?",
+                       (self._app_id, when))
+        return set([row["name"] for row in c.fetchall()])
 
-    def _find_available_nameplate_id(self):
-        claimed = self.get_nameplate_ids()
+    def _find_available_nameplate_id(self, when):
+        claimed = self.get_nameplate_ids() | self.get_reserved_ids(when)
         for size in range(1,4): # stick to 1-999 for now
             available = set()
             for id_int in range(10**(size-1), 10**size):
@@ -193,6 +200,12 @@ class AppNamespace:
         assert isinstance(name, type("")), type(name)
         assert isinstance(side, type("")), type(side)
         db = self._db
+        row = db.execute("SELECT * FROM `nameplate_cooldown`"
+                         " WHERE `app_id`=? AND `name`=? AND `until`>=?",
+                         (self._app_id, name, when)).fetchone()
+        if row:
+            raise CooldownError("nameplate is still reserved")
+
         row = db.execute("SELECT * FROM `nameplates`"
                          " WHERE `app_id`=? AND `name`=?",
                          (self._app_id, name)).fetchone()
@@ -228,6 +241,12 @@ class AppNamespace:
             # this line will probably never get hit: any crowding is noticed
             # on mailbox_sides first, inside open_mailbox()
             raise CrowdedError("too many sides have claimed this nameplate")
+        if len(rows) == 2:
+            db.execute("INSERT INTO `nameplate_cooldown`"
+                       " (`app_id`, `name`, `until`)"
+                       " VALUES(?,?,?)",
+                       (self._app_id, name, when + self.COOLDOWN_TIME))
+            db.commit()
         return mailbox_id
 
     def release_nameplate(self, name, side, when):
@@ -472,6 +491,14 @@ class AppNamespace:
                        (mailbox_id,))
             self._summarize_mailbox_and_store(for_nameplate, side_rows,
                                               now, pruned=True)
+            modified = True
+
+        for row in db.execute("SELECT * FROM `nameplate_cooldown`"
+                              " WHERE `app_id`=? AND `until`<?",
+                              (self._app_id, now)).fetchall():
+            db.execute("DELETE FROM `nameplate_cooldown`"
+                       " WHERE `app_id`=? AND `name`=?",
+                       (self._app_id, row["name"]))
             modified = True
 
         if modified:
