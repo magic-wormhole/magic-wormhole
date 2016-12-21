@@ -1,0 +1,122 @@
+digraph {
+        W_S_nothing [label="know\nnothing"]
+        W_S_nothing -> W_S_know_nameplate [label="set_nameplate()"]
+        W_S_know_nameplate [label="know (just)\nnameplate"]
+
+        W_P_build_and_post_pake [label="build_pake()\nMM_send(pake)" shape="box"]
+        W_S_know_code [label="know code\n"]
+        W_P_compute_key [label="compute_key()" shape="box"]
+        W_P_post_version [label="MM_send(version)\nnotify_verifier()" shape="box"]
+        W_S_know_key [label="know_key\nunverified" color="orange"]
+        W_P_verify [label="verify(msg)" shape="box"]
+        W_P_accept_msg [label="deliver\ninbound\nmsg()" shape="box"]
+        W_S_verified_key [color="green"]
+        W_P_mood_scary [shape="box" label="mood(scary)"]
+        W_P_notify_failure [shape="box" label="notify_failure()" color="red"]
+        W_P_mood_happy [shape="box" label="mood(happy)"]
+        W_S_closed [label="closed"]
+        W_P_mood_lonely [shape="box" label="mood(lonely)"]
+        W_P_queue1 [shape="box" style="dotted" label="queue\noutbound msg"]
+        W_P_queue2 [shape="box" style="dotted" label="queue\noutbound msg"]
+        W_P_queue3 [shape="box" style="dotted" label="queue\noutbound msg"]
+        W_P_queue4 [shape="box" style="dotted" label="queue\noutbound msg"]
+        W_P_send [shape="box" label="MM_send(msg)"]
+        W_P_send_queued [shape="box" label="MM_send()\nany queued\nmessages"]
+
+        W_S_nothing -> W_P_build_and_post_pake [label="set_code()"]
+        W_S_nothing -> W_P_queue1 [label="API_send" style="dotted"]
+        W_P_queue1 -> W_S_nothing [style="dotted"]
+        W_S_know_nameplate -> W_P_got_pakeinfo [label="W_rx_pake"]
+        W_S_know_nameplate -> W_P_build_and_post_pake [label="set_code()"]
+        W_P_got_pakeinfo [shape="box" label="got wordlist"]
+        W_P_got_pakeinfo -> W_S_know_pake2
+        W_S_know_pake2 [label="know their pake"]
+        W_S_know_pake2 -> W_P_compute_key [label="set_code()"]
+        W_S_know_pake2 -> W_P_queue4 [label="API_send" style="dotted"]
+        W_P_queue4 -> W_S_know_pake2 [style="dotted"]
+        W_P_build_and_post_pake -> W_S_know_code
+        W_S_know_code -> W_P_compute_key [label="W_rx_pake"]
+        W_S_know_code -> W_P_queue2 [label="API_send" style="dotted"]
+        W_P_queue2 -> W_S_know_code [style="dotted"]
+        W_P_compute_key -> W_P_post_version [label="pake ok"]
+        W_P_post_version -> W_S_know_key
+        W_P_compute_key -> W_P_mood_scary [label="pake bad"]
+        W_P_mood_scary -> W_P_notify_failure
+        W_P_notify_failure -> W_S_closed
+        W_S_know_key -> W_P_verify [label="W_rx_msg()"] /* version or phase */
+        W_S_know_key -> W_P_mood_lonely [label="close"] /* more like impatient */
+        W_S_know_key -> W_P_queue3 [label="API_send" style="dotted"]
+        W_P_queue3 -> W_S_know_key [style="dotted"]
+        W_P_verify -> W_P_accept_msg [label="verify good"]
+        W_P_accept_msg -> W_P_send_queued
+        W_P_send_queued -> W_S_verified_key
+        W_P_verify -> W_P_mood_scary [label="verify bad"]
+        W_S_verified_key -> W_P_verify [label="W_rx_msg()"] /* probably phase */
+        W_S_verified_key -> W_P_mood_happy [label="close"]
+        W_P_mood_happy -> W_S_closed
+        W_S_verified_key -> W_P_send [label="API_send"]
+        W_P_send -> W_S_verified_key
+        W_S_know_code -> W_P_mood_lonely [label="close"]
+        W_P_mood_lonely -> W_S_closed
+
+        NM_S_unclaimed [label="no nameplate"]
+        NM_S_unclaimed -> NM_S_unclaimed [label="NM_release()"]
+        NM_P_set_nameplate [shape="box" label="post_claim()"]
+        NM_S_unclaimed -> NM_P_set_nameplate [label="set_nameplate()"]
+        NM_S_claiming [label="claim pending"]
+        NM_P_set_nameplate -> NM_S_claiming
+        NM_S_claiming -> NM_P_rx_claimed [label="rx claimed"]
+        NM_P_rx_claimed [label="set_mailbox()" shape="box"]
+        NM_P_rx_claimed -> NM_S_claimed
+        NM_S_claimed [label="claimed"]
+        NM_S_claimed -> NM_P_release [label="NM_release()"]
+        NM_P_release [shape="box" label="post_release()"]
+        NM_P_release -> NM_S_releasing
+        NM_S_releasing [label="release pending"]
+        NM_S_releasing -> NM_S_releasing [label="NM_release()"]
+        NM_S_releasing -> NM_S_released [label="rx released"]
+        NM_S_released [label="released"]
+        NM_S_released -> NM_S_released [label="NM_release()"]
+
+        
+        MM_S_want_mailbox [label="want mailbox"]
+        MM_S_want_mailbox -> MM_P_queue1 [label="MM_send()" style="dotted"]
+        MM_P_queue1 [shape="box" style="dotted" label="queue message"]
+        MM_P_queue1 -> MM_S_want_mailbox [style="dotted"]
+        MM_P_open_mailbox [shape="box" label="post_open()"]
+        MM_S_want_mailbox -> MM_P_open_mailbox [label="set_mailbox()"]
+        MM_P_send_queued [shape="box" label="post add() for\nqueued messages"]
+        MM_P_open_mailbox -> MM_P_send_queued
+        MM_P_send_queued -> MM_S_open
+        MM_S_open [label="open\nunused"]
+        MM_S_open -> MM_P_send_queued [label="MM_send()"]
+
+        MM_S_open -> MM_P_rx [label="rx message"]
+        MM_P_rx [shape="box" label="W_rx_pake()\nor W_rx_msg()"]
+        MM_P_rx -> MM_P_release
+        MM_P_release [shape="box" label="NM_release()"]
+        MM_P_release -> MM_S_used
+        MM_S_used [label="open\nused"]
+        MM_S_used -> MM_P_rx [label="rx message"]
+        MM_S_used -> MM_P_send [label="MM_send()"]
+        MM_P_send [shape="box" label="post message"]
+        MM_P_send -> MM_S_used
+
+        /* upgrading to new PAKE algorithm */
+        P2_start [label="(PAKE\nupgrade)\nstart"]
+        P2_start -> P2_P_send_abilities [label="set_code()"]
+        P2_P_send_abilities [shape="box" label="send pake_abilities"]
+        P2_P_send_abilities -> P2_wondering
+        P2_wondering [label="waiting\nwondering"]
+        P2_wondering -> P2_P_send_pakev1 [label="rx pake_v1"]
+        P2_P_send_pakev1 [shape="box" label="send pake_v1"]
+        P2_P_send_pakev1 -> P2_P_process_v1
+        P2_P_process_v1 [shape="box" label="process v1"]
+        P2_wondering -> P2_P_find_max [label="rx pake_abilities"]
+        P2_P_find_max [shape="box" label="find max"]
+        P2_P_find_max -> P2_P_send_pakev2
+        P2_P_send_pakev2
+        P2_P_send_pakev2 [shape="box" label="send pake_v2"]
+        P2_P_send_pakev2 -> P2_P_process_v2 [label="rx pake_v2"]
+        P2_P_process_v2 [shape="box" label="process v2"]
+}
