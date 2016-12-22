@@ -590,7 +590,7 @@ class Common:
         else:
             self._transit_relays = []
         self._their_direct_hints = [] # hintobjs
-        self._their_relay_hints = []
+        self._our_relay_hints = set(self._transit_relays)
         self._tor_manager = tor_manager
         self._transit_key = None
         self._no_listen = no_listen
@@ -710,10 +710,14 @@ class Common:
                 # with a set of equally-valid ways to connect to it. Treat
                 # them as separate relays, instead of merging them all
                 # together like this.
+                relay_hints = []
                 for rhs in h.get(u"hints", []):
-                    rh = self._parse_tcp_v1_hint(rhs)
-                    if rh:
-                        self._their_relay_hints.append(rh)
+                    h = self._parse_tcp_v1_hint(rhs)
+                    if h:
+                        relay_hints.append(h)
+                if relay_hints:
+                    rh = RelayV1Hint(hints=tuple(sorted(relay_hints)))
+                    self._our_relay_hints.add(rh)
             else:
                 log.msg("unknown hint type: %r" % (h,))
 
@@ -804,21 +808,22 @@ class Common:
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
 
-        # Start trying the relay a few seconds after we start to try the
+        # Start trying the relays a few seconds after we start to try the
         # direct hints. The idea is to prefer direct connections, but not be
-        # afraid of using the relay when we have direct hints that don't
+        # afraid of using a relay when we have direct hints that don't
         # resolve quickly. Many direct hints will be to unused local-network
         # IP addresses, which won't answer, and would take the full TCP
         # timeout (30s or more) to fail.
-        for hint_obj in self._their_relay_hints:
-            ep = self._endpoint_from_hint_obj(hint_obj)
-            if not ep:
-                continue
-            description = "->relay:%s" % describe_hint_obj(hint_obj)
-            d = task.deferLater(self._reactor, relay_delay,
-                                self._start_connector, ep, description,
-                                is_relay=True)
-            contenders.append(d)
+        for rh in self._our_relay_hints:
+            for hint_obj in rh.hints:
+                ep = self._endpoint_from_hint_obj(hint_obj)
+                if not ep:
+                    continue
+                description = "->relay:%s" % describe_hint_obj(hint_obj)
+                d = task.deferLater(self._reactor, relay_delay,
+                                    self._start_connector, ep, description,
+                                    is_relay=True)
+                contenders.append(d)
 
         if not contenders:
             raise TransitError("No contenders for connection")

@@ -176,7 +176,7 @@ class Basic(unittest.TestCase):
         c.add_connection_hints([{"type": "relay-v1",
                                  "hints": [{"type": "unknown"}]}])
         self.assertEqual(c._their_direct_hints, [])
-        self.assertEqual(c._their_relay_hints, [])
+        self.assertEqual(c._our_relay_hints, set())
 
     def test_ignore_localhost_hint(self):
         # this actually starts the listener
