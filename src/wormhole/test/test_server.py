@@ -1072,6 +1072,7 @@ class Accumulator(protocol.Protocol):
         self.data = b""
         self.count = 0
         self._wait = None
+        self._disconnect = defer.Deferred()
     def waitForBytes(self, more):
         assert self._wait is None
         self.count = more
@@ -1089,6 +1090,7 @@ class Accumulator(protocol.Protocol):
     def connectionLost(self, why):
         if self._wait:
             self._wait.errback(RuntimeError("closed"))
+        self._disconnect.callback(None)
 
 class Transit(ServerBase, unittest.TestCase):
     def test_blur_size(self):
@@ -1115,7 +1117,32 @@ class Transit(ServerBase, unittest.TestCase):
         self.assertEqual('Wormhole Relay'.encode('ascii'), resp.strip())
 
     @defer.inlineCallbacks
-    def test_basic(self):
+    def test_register(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        a1.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+
+        # let that arrive
+        while self.count() == 0:
+            yield self.wait()
+        self.assertEqual(self.count(), 1)
+
+        a1.transport.loseConnection()
+
+        # let that get removed
+        while self.count() > 0:
+            yield self.wait()
+        self.assertEqual(self.count(), 0)
+
+        # the token should be removed too
+        self.assertEqual(len(self._transit_server._pending_requests), 0)
+
+    @defer.inlineCallbacks
+    def test_both_unsided(self):
         ep = clientFromString(reactor, self.transit)
         a1 = yield connectProtocol(ep, Accumulator())
         a2 = yield connectProtocol(ep, Accumulator())
@@ -1139,6 +1166,133 @@ class Transit(ServerBase, unittest.TestCase):
         exp = b"ok\n"+s1
         yield a2.waitForBytes(len(exp))
         self.assertEqual(a2.data, exp)
+
+        a1.transport.loseConnection()
+        a2.transport.loseConnection()
+
+    @defer.inlineCallbacks
+    def test_sided_unsided(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+        a2 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        a1.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+        a2.transport.write(b"please relay " + hexlify(token1) + b"\n")
+
+        # a correct handshake yields an ack, after which we can send
+        exp = b"ok\n"
+        yield a1.waitForBytes(len(exp))
+        self.assertEqual(a1.data, exp)
+        s1 = b"data1"
+        a1.transport.write(s1)
+
+        exp = b"ok\n"
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        # all data they sent after the handshake should be given to us
+        exp = b"ok\n"+s1
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        a1.transport.loseConnection()
+        a2.transport.loseConnection()
+
+    @defer.inlineCallbacks
+    def test_unsided_sided(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+        a2 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        a1.transport.write(b"please relay " + hexlify(token1) + b"\n")
+        a2.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+
+        # a correct handshake yields an ack, after which we can send
+        exp = b"ok\n"
+        yield a1.waitForBytes(len(exp))
+        self.assertEqual(a1.data, exp)
+        s1 = b"data1"
+        a1.transport.write(s1)
+
+        exp = b"ok\n"
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        # all data they sent after the handshake should be given to us
+        exp = b"ok\n"+s1
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        a1.transport.loseConnection()
+        a2.transport.loseConnection()
+
+    @defer.inlineCallbacks
+    def test_both_sided(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+        a2 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        side2 = b"\x02"*8
+        a1.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+        a2.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side2) + b"\n")
+
+        # a correct handshake yields an ack, after which we can send
+        exp = b"ok\n"
+        yield a1.waitForBytes(len(exp))
+        self.assertEqual(a1.data, exp)
+        s1 = b"data1"
+        a1.transport.write(s1)
+
+        exp = b"ok\n"
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        # all data they sent after the handshake should be given to us
+        exp = b"ok\n"+s1
+        yield a2.waitForBytes(len(exp))
+        self.assertEqual(a2.data, exp)
+
+        a1.transport.loseConnection()
+        a2.transport.loseConnection()
+
+    def count(self):
+        return sum([len(potentials)
+                    for potentials
+                    in self._transit_server._pending_requests.values()])
+    def wait(self):
+        d = defer.Deferred()
+        reactor.callLater(0.001, d.callback, None)
+        return d
+
+    @defer.inlineCallbacks
+    def test_ignore_same_side(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+        a2 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        a1.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+        # let that arrive
+        while self.count() == 0:
+            yield self.wait()
+        a2.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\n")
+        # let that arrive
+        while self.count() == 1:
+            yield self.wait()
+        self.assertEqual(self.count(), 2) # same-side connections don't match
 
         a1.transport.loseConnection()
         a2.transport.loseConnection()
@@ -1186,7 +1340,7 @@ class Transit(ServerBase, unittest.TestCase):
 
         token1 = b"\x00"*32
         # sending too many bytes is impatience.
-        a1.transport.write(b"please RELAY NOWNOW " + hexlify(token1) + b"\n")
+        a1.transport.write(b"please relay " + hexlify(token1) + b"\nNOWNOWNOW")
 
         exp = b"impatient\n"
         yield a1.waitForBytes(len(exp))
