@@ -1,6 +1,6 @@
 # no unicode_literals, revisit after twisted patch
 from __future__ import print_function, absolute_import
-import re, sys, time, socket
+import os, re, sys, time, socket
 from collections import namedtuple, deque
 from binascii import hexlify, unhexlify
 import six
@@ -15,6 +15,7 @@ from nacl.secret import SecretBox
 from hkdf import Hkdf
 from .errors import InternalError
 from .timing import DebugTiming
+from .util import bytes_to_hexstr
 from . import ipaddrs
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -76,9 +77,11 @@ def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
     return b"transit sender "+hexlify(hexid)+b" ready\n\n"
 
-def build_relay_handshake(key):
+def build_sided_relay_handshake(key, side):
+    assert isinstance(side, type(u""))
+    assert len(side) == 8*2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return b"please relay "+hexlify(token)+b"\n"
+    return b"please relay "+hexlify(token)+b" for side "+side.encode("ascii")+b"\n"
 
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
@@ -575,6 +578,7 @@ class Common:
 
     def __init__(self, transit_relay, no_listen=False, tor_manager=None,
                  reactor=reactor, timing=None):
+        self._side = bytes_to_hexstr(os.urandom(8)) # unicode
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise InternalError
@@ -830,11 +834,14 @@ class Common:
         d.addBoth(_done)
         return d
 
+    def _build_relay_handshake(self):
+        return build_sided_relay_handshake(self._transit_key, self._side)
+
     def _start_connector(self, ep, description, is_relay=False):
         relay_handshake = None
         if is_relay:
             assert self._transit_key
-            relay_handshake = build_relay_handshake(self._transit_key)
+            relay_handshake = self._build_relay_handshake()
         f = OutboundConnectionFactory(self, relay_handshake, description)
         d = ep.connect(f)
         # fires with protocol, or ConnectError

@@ -1,6 +1,7 @@
 from __future__ import print_function, unicode_literals
 import io
 import gc
+import mock
 from binascii import hexlify, unhexlify
 from twisted.trial import unittest
 from twisted.internet import defer, task, endpoints, protocol, address, error
@@ -9,6 +10,7 @@ from twisted.python import log, failure
 from twisted.test import proto_helpers
 from ..errors import InternalError
 from .. import transit
+from ..server import transit_server
 from .common import ServerBase
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
@@ -1319,6 +1321,38 @@ class Transit(unittest.TestCase):
 
         relay_connectors[0].callback("winner")
         self.assertEqual(results, ["winner"])
+
+class RelayHandshake(unittest.TestCase):
+    def old_build_relay_handshake(self, key):
+        token = transit.HKDF(key, 32, CTXinfo=b"transit_relay_token")
+        return (token, b"please relay "+hexlify(token)+b"\n")
+
+    def test_old(self):
+        key = b"\x00"
+        token, old_handshake = self.old_build_relay_handshake(key)
+        tc = transit_server.TransitConnection()
+        tc.factory = mock.Mock()
+        tc.factory.connection_got_token = mock.Mock()
+        tc.dataReceived(old_handshake[:-1])
+        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        tc.dataReceived(old_handshake[-1:])
+        self.assertEqual(tc.factory.connection_got_token.mock_calls,
+                         [mock.call(hexlify(token), None, tc)])
+
+    def test_new(self):
+        c = transit.Common(None)
+        c.set_transit_key(b"\x00")
+        new_handshake = c._build_relay_handshake()
+        token, old_handshake = self.old_build_relay_handshake(b"\x00")
+
+        tc = transit_server.TransitConnection()
+        tc.factory = mock.Mock()
+        tc.factory.connection_got_token = mock.Mock()
+        tc.dataReceived(new_handshake[:-1])
+        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        tc.dataReceived(new_handshake[-1:])
+        self.assertEqual(tc.factory.connection_got_token.mock_calls,
+                         [mock.call(hexlify(token), c._side.encode("ascii"), tc)])
 
 
 class Full(ServerBase, unittest.TestCase):
