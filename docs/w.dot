@@ -110,12 +110,6 @@ digraph {
         WCM_S_allocate_waiting -> WCM_P_allocate_generate [label="WCM_rx_allocation()"]
         WCM_P_allocate_generate [shape="box" label="generate\nrandom code"]
         WCM_P_allocate_generate -> WCM_P_set_code
-
-        /* ConnectionMachine */
-        /*WCM_S_known -> CM_start [style="invis"]
-        CM_start [label="Connection\nMachine" style="dotted"]
-        CM_start -> CM_S_neither [style="invis"]
-        CM_S_neither [label="neither"]*/
         
         
         
@@ -199,4 +193,10 @@ digraph {
         P2_P_send_pakev2 -> P2_P_process_v2 [label="rx pake_v2"]
         P2_P_process_v2 [shape="box" label="process v2"]
         */
+
+        /* ConnectionMachine */
+        WCM_S_known -> CM_start [style="invis"]
+        CM_start [label="Connection\nMachine" style="dotted"]
+        CM_start -> CM_S_neither [style="invis"]
+        CM_S_neither [label="neither"]
 }
