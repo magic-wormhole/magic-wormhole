@@ -95,9 +95,10 @@ def build_sided_relay_handshake(key, side):
 # * the rest of the connection contains transit data
 DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port"])
 TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port"])
-# RelayV1Hint contains a list of DirectTCPV1Hint and TorTCPV1Hint hints. For
-# each one, make the TCP connection, send the relay handshake, then complete
-# the rest of the V1 protocol. Only one hint per relay is useful.
+# RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
+# use a tuple rather than a list so they'll be hashable into a set). For each
+# one, make the TCP connection, send the relay handshake, then complete the
+# rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
 
 def describe_hint_obj(hint):
@@ -582,7 +583,9 @@ class Common:
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise InternalError
-            relay = RelayV1Hint(hints=[parse_hint_argv(transit_relay)])
+            # TODO: allow multiple hints for a single relay
+            relay_hint = parse_hint_argv(transit_relay)
+            relay = RelayV1Hint(hints=(relay_hint,))
             self._transit_relays = [relay]
         else:
             self._transit_relays = []

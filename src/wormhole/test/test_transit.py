@@ -139,6 +139,17 @@ class Hints(unittest.TestCase):
         ep = c._endpoint_from_hint_obj("unknown:stuff:yowza:pivlor")
         self.assertEqual(ep, None)
 
+    def test_comparable(self):
+        h1 = transit.DirectTCPV1Hint("hostname", "port1")
+        h1b = transit.DirectTCPV1Hint("hostname", "port1")
+        h2 = transit.DirectTCPV1Hint("hostname", "port2")
+        r1 = transit.RelayV1Hint(tuple(sorted([h1, h2])))
+        r2 = transit.RelayV1Hint(tuple(sorted([h2, h1])))
+        r3 = transit.RelayV1Hint(tuple(sorted([h1b, h2])))
+        self.assertEqual(r1, r2)
+        self.assertEqual(r2, r3)
+        self.assertEqual(len(set([r1, r2, r3])), 1)
+
 
 class Basic(unittest.TestCase):
     @inlineCallbacks
