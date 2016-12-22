@@ -57,8 +57,8 @@ class TwistedReceiver:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(APPID, self.args.relay_url, self._reactor,
-                     self._tor_manager, timing=self.args.timing)
+        w = wormhole(self.args.appid or APPID, self.args.relay_url,
+                     self._reactor, self._tor_manager, timing=self.args.timing)
         # I wanted to do this instead:
         #
         #    try:

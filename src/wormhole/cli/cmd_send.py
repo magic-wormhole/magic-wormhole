@@ -47,7 +47,7 @@ class Sender:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(APPID, self._args.relay_url,
+        w = wormhole(self._args.appid or APPID, self._args.relay_url,
                      self._reactor, self._tor_manager,
                      timing=self._timing)
         d = self._go(w)

@@ -740,3 +740,34 @@ class ExtractFile(unittest.TestCase):
         zi.filename = "/etc/passwd"
         e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
         self.assertIn("malicious zipfile", str(e))
+
+class AppID(ServerBase, unittest.TestCase):
+    def setUp(self):
+        d = super(AppID, self).setUp()
+        self.cfg = cfg = config("send")
+        # common options for all tests in this suite
+        cfg.hide_progress = True
+        cfg.relay_url = self.relayurl
+        cfg.transit_helper = ""
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
+        return d
+
+    @inlineCallbacks
+    def test_override(self):
+        # make sure we use the overridden appid, not the default
+        self.cfg.text = "hello"
+        self.cfg.appid = "appid2"
+        self.cfg.code = "1-abc"
+
+        send_d = cmd_send.send(self.cfg)
+        receive_d = cmd_receive.receive(self.cfg)
+
+        yield send_d
+        yield receive_d
+
+        used = self._rendezvous._db.execute("SELECT DISTINCT `app_id`"
+                                            " FROM `nameplate_usage`"
+                                            ).fetchall()
+        self.assertEqual(len(used), 1, used)
+        self.assertEqual(used[0]["app_id"], u"appid2")

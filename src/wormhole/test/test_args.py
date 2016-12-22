@@ -14,12 +14,19 @@ class Send(unittest.TestCase):
         self.assertEqual(cfg.dump_timing, None)
         self.assertEqual(cfg.hide_progress, False)
         self.assertEqual(cfg.listen, True)
+        self.assertEqual(cfg.appid, None)
         self.assertEqual(cfg.relay_url, RENDEZVOUS_RELAY)
         self.assertEqual(cfg.transit_helper, TRANSIT_RELAY)
         self.assertEqual(cfg.text, "hi")
         self.assertEqual(cfg.tor, False)
         self.assertEqual(cfg.verify, False)
         self.assertEqual(cfg.zeromode, False)
+
+    def test_appid(self):
+        cfg = config("--appid", "xyz", "send", "--text", "hi")
+        self.assertEqual(cfg.appid, "xyz")
+        cfg = config("--appid=xyz", "send", "--text", "hi")
+        self.assertEqual(cfg.appid, "xyz")
 
     def test_file(self):
         cfg = config("send", "fn")
@@ -76,11 +83,18 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.listen, True)
         self.assertEqual(cfg.only_text, False)
         self.assertEqual(cfg.output_file, None)
+        self.assertEqual(cfg.appid, None)
         self.assertEqual(cfg.relay_url, RENDEZVOUS_RELAY)
         self.assertEqual(cfg.transit_helper, TRANSIT_RELAY)
         self.assertEqual(cfg.tor, False)
         self.assertEqual(cfg.verify, False)
         self.assertEqual(cfg.zeromode, False)
+
+    def test_appid(self):
+        cfg = config("--appid", "xyz", "receive")
+        self.assertEqual(cfg.appid, "xyz")
+        cfg = config("--appid=xyz", "receive")
+        self.assertEqual(cfg.appid, "xyz")
 
     def test_nolisten(self):
         cfg = config("receive", "--no-listen")

@@ -55,6 +55,8 @@ class AliasedGroup(click.Group):
 # top-level command ("wormhole ...")
 @click.group(cls=AliasedGroup)
 @click.option(
+    "--appid", default=None, metavar="APPID", help="appid to use")
+@click.option(
     "--relay-url", default=public_relay.RENDEZVOUS_RELAY,
     metavar="URL",
     help="rendezvous relay to use",
@@ -75,7 +77,7 @@ class AliasedGroup(click.Group):
     version=__version__,
 )
 @click.pass_context
-def wormhole(context, dump_timing, transit_helper, relay_url):
+def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     """
     Create a Magic Wormhole and communicate through it.
 
@@ -84,6 +86,7 @@ def wormhole(context, dump_timing, transit_helper, relay_url):
     anyone who doesn't use the same code.
     """
     context.obj = cfg = Config()
+    cfg.appid = appid
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.dump_timing = dump_timing
