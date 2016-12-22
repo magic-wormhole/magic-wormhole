@@ -199,4 +199,11 @@ digraph {
         CM_start [label="Connection\nMachine" style="dotted"]
         CM_start -> CM_S_neither [style="invis"]
         CM_S_neither [label="neither"]
+        CM_S_neither -> CM_S_unbound
+        CM_S_unbound [label="unbound"]
+        CM_S_unbound -> CM_P_bind
+        CM_P_bind [shape="box" label="C_send(bind)"]
+        CM_P_bind -> CM_S_bound
+        CM_S_bound [label="bound"]
+        
 }
