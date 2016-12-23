@@ -1334,13 +1334,30 @@ class Transit(ServerBase, unittest.TestCase):
         a1.transport.loseConnection()
 
     @defer.inlineCallbacks
-    def test_impatience(self):
+    def test_impatience_old(self):
         ep = clientFromString(reactor, self.transit)
         a1 = yield connectProtocol(ep, Accumulator())
 
         token1 = b"\x00"*32
         # sending too many bytes is impatience.
         a1.transport.write(b"please relay " + hexlify(token1) + b"\nNOWNOWNOW")
+
+        exp = b"impatient\n"
+        yield a1.waitForBytes(len(exp))
+        self.assertEqual(a1.data, exp)
+
+        a1.transport.loseConnection()
+
+    @defer.inlineCallbacks
+    def test_impatience_new(self):
+        ep = clientFromString(reactor, self.transit)
+        a1 = yield connectProtocol(ep, Accumulator())
+
+        token1 = b"\x00"*32
+        side1 = b"\x01"*8
+        # sending too many bytes is impatience.
+        a1.transport.write(b"please relay " + hexlify(token1) +
+                           b" for side " + hexlify(side1) + b"\nNOWNOWNOW")
 
         exp = b"impatient\n"
         yield a1.waitForBytes(len(exp))
