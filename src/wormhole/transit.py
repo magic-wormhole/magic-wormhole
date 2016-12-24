@@ -1,6 +1,6 @@
 # no unicode_literals, revisit after twisted patch
 from __future__ import print_function, absolute_import
-import re, sys, time, socket
+import os, re, sys, time, socket
 from collections import namedtuple, deque
 from binascii import hexlify, unhexlify
 import six
@@ -15,6 +15,7 @@ from nacl.secret import SecretBox
 from hkdf import Hkdf
 from .errors import InternalError
 from .timing import DebugTiming
+from .util import bytes_to_hexstr
 from . import ipaddrs
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -76,9 +77,11 @@ def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
     return b"transit sender "+hexlify(hexid)+b" ready\n\n"
 
-def build_relay_handshake(key):
+def build_sided_relay_handshake(key, side):
+    assert isinstance(side, type(u""))
+    assert len(side) == 8*2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return b"please relay "+hexlify(token)+b"\n"
+    return b"please relay "+hexlify(token)+b" for side "+side.encode("ascii")+b"\n"
 
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
@@ -92,9 +95,10 @@ def build_relay_handshake(key):
 # * the rest of the connection contains transit data
 DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port"])
 TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port"])
-# RelayV1Hint contains a list of DirectTCPV1Hint and TorTCPV1Hint hints. For
-# each one, make the TCP connection, send the relay handshake, then complete
-# the rest of the V1 protocol. Only one hint per relay is useful.
+# RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
+# use a tuple rather than a list so they'll be hashable into a set). For each
+# one, make the TCP connection, send the relay handshake, then complete the
+# rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
 
 def describe_hint_obj(hint):
@@ -575,15 +579,18 @@ class Common:
 
     def __init__(self, transit_relay, no_listen=False, tor_manager=None,
                  reactor=reactor, timing=None):
+        self._side = bytes_to_hexstr(os.urandom(8)) # unicode
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise InternalError
-            relay = RelayV1Hint(hints=[parse_hint_argv(transit_relay)])
+            # TODO: allow multiple hints for a single relay
+            relay_hint = parse_hint_argv(transit_relay)
+            relay = RelayV1Hint(hints=(relay_hint,))
             self._transit_relays = [relay]
         else:
             self._transit_relays = []
         self._their_direct_hints = [] # hintobjs
-        self._their_relay_hints = []
+        self._our_relay_hints = set(self._transit_relays)
         self._tor_manager = tor_manager
         self._transit_key = None
         self._no_listen = no_listen
@@ -703,10 +710,14 @@ class Common:
                 # with a set of equally-valid ways to connect to it. Treat
                 # them as separate relays, instead of merging them all
                 # together like this.
+                relay_hints = []
                 for rhs in h.get(u"hints", []):
-                    rh = self._parse_tcp_v1_hint(rhs)
-                    if rh:
-                        self._their_relay_hints.append(rh)
+                    h = self._parse_tcp_v1_hint(rhs)
+                    if h:
+                        relay_hints.append(h)
+                if relay_hints:
+                    rh = RelayV1Hint(hints=tuple(sorted(relay_hints)))
+                    self._our_relay_hints.add(rh)
             else:
                 log.msg("unknown hint type: %r" % (h,))
 
@@ -797,21 +808,22 @@ class Common:
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
 
-        # Start trying the relay a few seconds after we start to try the
+        # Start trying the relays a few seconds after we start to try the
         # direct hints. The idea is to prefer direct connections, but not be
-        # afraid of using the relay when we have direct hints that don't
+        # afraid of using a relay when we have direct hints that don't
         # resolve quickly. Many direct hints will be to unused local-network
         # IP addresses, which won't answer, and would take the full TCP
         # timeout (30s or more) to fail.
-        for hint_obj in self._their_relay_hints:
-            ep = self._endpoint_from_hint_obj(hint_obj)
-            if not ep:
-                continue
-            description = "->relay:%s" % describe_hint_obj(hint_obj)
-            d = task.deferLater(self._reactor, relay_delay,
-                                self._start_connector, ep, description,
-                                is_relay=True)
-            contenders.append(d)
+        for rh in self._our_relay_hints:
+            for hint_obj in rh.hints:
+                ep = self._endpoint_from_hint_obj(hint_obj)
+                if not ep:
+                    continue
+                description = "->relay:%s" % describe_hint_obj(hint_obj)
+                d = task.deferLater(self._reactor, relay_delay,
+                                    self._start_connector, ep, description,
+                                    is_relay=True)
+                contenders.append(d)
 
         if not contenders:
             raise TransitError("No contenders for connection")
@@ -830,11 +842,14 @@ class Common:
         d.addBoth(_done)
         return d
 
+    def _build_relay_handshake(self):
+        return build_sided_relay_handshake(self._transit_key, self._side)
+
     def _start_connector(self, ep, description, is_relay=False):
         relay_handshake = None
         if is_relay:
             assert self._transit_key
-            relay_handshake = build_relay_handshake(self._transit_key)
+            relay_handshake = self._build_relay_handshake()
         f = OutboundConnectionFactory(self, relay_handshake, description)
         d = ep.connect(f)
         # fires with protocol, or ConnectError
