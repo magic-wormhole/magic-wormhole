@@ -9,32 +9,36 @@ digraph {
         {rank=same; S1 S1B}
         S1 [label="1: know nothing"]
         S1B [label="1: know nothing\n(bound)"]
-
         S1 -> S1B [label="connect()"]
         S1B -> S1 [label="lose()"]
+
+        S1 -> S2 [label="set_nameplate()"]
+        S1B -> P_claim1 [label="set_nameplate()"]
+        P_claim1 [shape="box" label="tx claim()"]
+        P_claim1 -> S2B
 
         {rank=same; S2 S2B P_claim2}
         S2 [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open"]
         S2B [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open\n(bound)"]
-        S1 -> S2 [label="set_nameplate()"]
         S2 -> P_claim2 [label="connect()"]
         S2B -> S2 [label="lose()"]
-        S1B -> P_claim1 [label="set_nameplate()"]
-        P_claim1 [shape="box" label="tx claim()"]
-        P_claim1 -> S2B
         P_claim2 [shape="box" label="tx claim()"]
         P_claim2 -> S2B
         S2 -> P2_queue [label="M_send(msg)"]
         P2_queue [shape="box" label="queue"]
         P2_queue -> S2
+        S2B -> P2B_queue [label="M_send(msg)"]
+        P2B_queue [shape="box" label="queue"]
+        P2B_queue -> S2B
 
-        {rank=same; S3 S3B P3_open P3_send}
-        S3 [label="3: claimed\nknown mailbox\nwant open"]
-        S3B [label="3: claimed\nknown mailbox\nwant open\n(bound)"]
         S2 -> S3 [label="(none)" style="invis"]
         S2B -> P_open [label="rx_claimed()"]
         P_open [shape="box" label="store mailbox\ntx open()\ntx add(queued)"]
         P_open -> S3B
+
+        {rank=same; S3 S3B P3_open P3_send}
+        S3 [label="3: claimed\nknown mailbox\nwant open"]
+        S3B [label="3: claimed\nknown mailbox\nwant open\n(bound)"]
         S3 -> P3_open [label="connect()"]
         S3B -> S3 [label="lose()"]
         /*S3B -> S2 [label="lose()"]*/ /* not worth it */
@@ -48,15 +52,14 @@ digraph {
         P3_queue [shape="box" label="queue"]
         P3_queue -> S3
 
+        S3 -> S4 [label="(none)" style="invis"]
+        S3B -> P3_release_process [label="rx_message()"]
+        P3_release_process [shape="box" label="tx release()\nprocess message"]
+        P3_release_process -> S4B
+
         {rank=same; S4 P4_release S4B P4_process P4_send P4_queue}
         S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
         S4B [label="4: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
-        S3 -> S4 [label="(none)" style="invis"]
-        S3B -> P_release [label="rx_message()"]
-        P_release [shape="box" label="tx release()"]
-        P_release -> P3_process
-        P3_process [shape="box" label="process message"]
-        P3_process -> S4B
         S4 -> P4_release [label="connect()"]
         /* it is currently an error to release a nameplate you aren't
         currently claiming, so release() is not idempotent. #118 fixes that */
@@ -76,11 +79,12 @@ digraph {
         P4_process [shape="box" label="process message"]
         P4_process -> S4B
 
+        S4 -> S5 [label="(none)" style="invis"]
+        S4B -> S5B [label="rx_released()"]
+
         {rank=same; S5 S5B P5_open P5_process}
         S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
         S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
-        S4 -> S5 [label="(none)" style="invis"]
-        S4B -> S5B [label="rx_released()"]
         S5 -> P5_open [label="connect()"]
         P5_open [shape="box" label="tx open()\ntx add(queued)"]
         P5_open -> S5B
@@ -95,13 +99,14 @@ digraph {
         P5_queue [shape="box" label="queue"]
         P5_queue -> S5
 
-        {rank=same; S6 P6_close S6B}
-        S6 [label="6: closing\nunwant mailbox\nopen\n"]
-        S6B [label="6: closing\nunwant mailbox\nopen\n(bound)"]
         S5 -> S6 [label="M_close()"]
         S5B -> P_close [label="M_close()"]
         P_close [shape="box" label="tx close()"]
         P_close -> S6B
+
+        {rank=same; S6 P6_close S6B}
+        S6 [label="6: closing\nunwant mailbox\nopen\n"]
+        S6B [label="6: closing\nunwant mailbox\nopen\n(bound)"]
         S6 -> P6_close [label="connect()"]
         P6_close [shape="box" label="tx close()"]
         P6_close -> S6B
@@ -111,13 +116,14 @@ digraph {
         S6B -> S6B [label="M_send()"]
         S6 -> S6 [label="M_send()"]
 
-        {rank=same; S7 S7B}
-        S7 [label="7: closed\n"]
-        S7B [label="7: closed\n(bound)"]
         S6 -> S7 [label="(none)" style="invis"]
         S6B -> P7_drop [label="rx_closed()"]
         P7_drop [shape="box" label="C_drop()"]
         P7_drop -> S7B
+
+        {rank=same; S7 S7B}
+        S7 [label="7: closed\n"]
+        S7B [label="7: closed\n(bound)"]
         S7 -> S7B [label="connect()" style="invis"]
         S7B -> S7 [label="lose()"]
         S7B -> S7B [label="M_close()"]
