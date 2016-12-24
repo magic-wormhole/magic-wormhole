@@ -367,18 +367,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None # show full output for assertion failures
 
-        if mode != "slow-text":
-            self.failUnlessEqual(send_stderr, "",
-                                 (send_stdout, send_stderr))
-            self.failUnlessEqual(receive_stderr, "",
-                                 (receive_stdout, receive_stderr))
-        else:
-            self.assertEqual(send_stderr,
-                "Key established, waiting for confirmation...\n",
-                (send_stdout, send_stderr))
-            self.assertEqual(receive_stderr,
-                "Key established, waiting for confirmation...\n",
-                (receive_stdout, receive_stderr))
+        key_established = ""
+        if mode == "slow-text":
+            key_established = "Key established, waiting for confirmation...\n"
+
+        self.assertEqual(send_stdout, "")
 
         # check sender
         if mode == "text" or mode == "slow-text":
@@ -386,53 +379,58 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         "On the other computer, please run: "
                         "wormhole receive{NL}"
                         "Wormhole code is: {code}{NL}{NL}"
+                        "{KE}"
                         "text message sent{NL}").format(bytes=len(message),
                                                         code=send_cfg.code,
-                                                        NL=NL)
-            self.failUnlessEqual(send_stdout, expected)
+                                                        NL=NL,
+                                                        KE=key_established)
+            self.failUnlessEqual(send_stderr, expected)
         elif mode == "file":
             self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
                               .format(size=naturalsize(len(message)),
                                       name=send_filename,
-                                      NL=NL), send_stdout)
+                                      NL=NL), send_stderr)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
                               .format(code=send_cfg.code, NL=NL),
-                              send_stdout)
+                              send_stderr)
             self.failUnlessIn("File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=NL), send_stdout)
+                              .format(NL=NL), send_stderr)
         elif mode == "directory":
-            self.failUnlessIn("Sending directory", send_stdout)
-            self.failUnlessIn("named 'testdir'", send_stdout)
+            self.failUnlessIn("Sending directory", send_stderr)
+            self.failUnlessIn("named 'testdir'", send_stderr)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=send_cfg.code, NL=NL), send_stdout)
+                              .format(code=send_cfg.code, NL=NL), send_stderr)
             self.failUnlessIn("File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=NL), send_stdout)
+                              .format(NL=NL), send_stderr)
 
         # check receiver
         if mode == "text" or mode == "slow-text":
-            self.failUnlessEqual(receive_stdout, message+NL)
+            self.assertEqual(receive_stdout, message+NL)
+            self.assertEqual(receive_stderr, key_established)
         elif mode == "file":
+            self.failUnlessEqual(receive_stdout, "")
             self.failUnlessIn("Receiving file ({size:s}) into: {name}"
                               .format(size=naturalsize(len(message)),
-                                      name=receive_filename), receive_stdout)
-            self.failUnlessIn("Received file written to ", receive_stdout)
+                                      name=receive_filename), receive_stderr)
+            self.failUnlessIn("Received file written to ", receive_stderr)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
+            self.failUnlessEqual(receive_stdout, "")
             want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
                     .format(name=receive_dirname))
-            self.failUnless(re.search(want, receive_stdout),
-                            (want, receive_stdout))
+            self.failUnless(re.search(want, receive_stderr),
+                            (want, receive_stderr))
             self.failUnlessIn("Received files written to {name}"
-                              .format(name=receive_dirname), receive_stdout)
+                              .format(name=receive_dirname), receive_stderr)
             fn = os.path.join(receive_dir, receive_dirname)
             self.failUnless(os.path.exists(fn), fn)
             for i in range(5):
@@ -547,62 +545,60 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None # show full output for assertion failures
 
-        self.failUnlessEqual(send_stderr, "",
-                             (send_stdout, send_stderr))
-        self.failUnlessEqual(receive_stderr, "",
-                             (receive_stdout, receive_stderr))
+        self.assertEqual(send_stdout, "")
+        self.assertEqual(receive_stdout, "")
 
         # check sender
         if mode == "file":
             self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
                               .format(size=naturalsize(size),
                                       name=send_filename,
-                                      NL=NL), send_stdout)
+                                      NL=NL), send_stderr)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
                               .format(code=send_cfg.code, NL=NL),
-                              send_stdout)
+                              send_stderr)
             self.failIfIn("File sent.. waiting for confirmation{NL}"
                           "Confirmation received. Transfer complete.{NL}"
-                          .format(NL=NL), send_stdout)
+                          .format(NL=NL), send_stderr)
         elif mode == "directory":
-            self.failUnlessIn("Sending directory", send_stdout)
-            self.failUnlessIn("named 'testdir'", send_stdout)
+            self.failUnlessIn("Sending directory", send_stderr)
+            self.failUnlessIn("named 'testdir'", send_stderr)
             self.failUnlessIn("On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
-                              .format(code=send_cfg.code, NL=NL), send_stdout)
+                              .format(code=send_cfg.code, NL=NL), send_stderr)
             self.failIfIn("File sent.. waiting for confirmation{NL}"
                           "Confirmation received. Transfer complete.{NL}"
-                          .format(NL=NL), send_stdout)
+                          .format(NL=NL), send_stderr)
 
         # check receiver
         if mode == "file":
-            self.failIfIn("Received file written to ", receive_stdout)
+            self.failIfIn("Received file written to ", receive_stderr)
             if failmode == "noclobber":
                 self.failUnlessIn("Error: "
                                   "refusing to overwrite existing 'testfile'{NL}"
-                                  .format(NL=NL), receive_stdout)
+                                  .format(NL=NL), receive_stderr)
             else:
                 self.failUnlessIn("Error: "
                                   "insufficient free space (0B) for file ({size:d}B){NL}"
-                                  .format(NL=NL, size=size), receive_stdout)
+                                  .format(NL=NL, size=size), receive_stderr)
         elif mode == "directory":
             self.failIfIn("Received files written to {name}"
-                          .format(name=receive_name), receive_stdout)
+                          .format(name=receive_name), receive_stderr)
             #want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
             #        .format(name=receive_name))
-            #self.failUnless(re.search(want, receive_stdout),
-            #                (want, receive_stdout))
+            #self.failUnless(re.search(want, receive_stderr),
+            #                (want, receive_stderr))
             if failmode == "noclobber":
                 self.failUnlessIn("Error: "
                                   "refusing to overwrite existing 'testdir'{NL}"
-                                  .format(NL=NL), receive_stdout)
+                                  .format(NL=NL), receive_stderr)
             else:
                 self.failUnlessIn("Error: "
                                   "insufficient free space (0B) for directory ({size:d}B){NL}"
-                                  .format(NL=NL, size=size), receive_stdout)
+                                  .format(NL=NL, size=size), receive_stderr)
 
         if failmode == "noclobber":
             fn = os.path.join(receive_dir, receive_name)

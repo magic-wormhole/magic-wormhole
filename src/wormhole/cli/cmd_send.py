@@ -74,7 +74,7 @@ class Sender:
             other_cmd += " -0"
 
         print(u"On the other computer, please run: %s" % other_cmd,
-              file=args.stdout)
+              file=args.stderr)
 
         if args.code:
             w.set_code(args.code)
@@ -83,10 +83,10 @@ class Sender:
             code = yield w.get_code(args.code_length)
 
         if not args.zeromode:
-            print(u"Wormhole code is: %s" % code, file=args.stdout)
-            # flush stdout so the code is displayed immediately
-            args.stdout.flush()
-        print(u"", file=args.stdout)
+            print(u"Wormhole code is: %s" % code, file=args.stderr)
+            # flush stderr so the code is displayed immediately
+            args.stderr.flush()
+        print(u"", file=args.stderr)
 
         yield w.establish_key()
         def on_slow_connection():
@@ -176,14 +176,14 @@ class Sender:
         args = self._args
         text = args.text
         if text == "-":
-            print(u"Reading text message from stdin..", file=args.stdout)
+            print(u"Reading text message from stdin..", file=args.stderr)
             text = sys.stdin.read()
         if not text and not args.what:
             text = six.moves.input("Text to send: ")
 
         if text is not None:
             print(u"Sending text message (%s)" % naturalsize(len(text)),
-                  file=args.stdout)
+                  file=args.stderr)
             offer = { "message": text }
             fd_to_send = None
             return offer, fd_to_send
@@ -204,12 +204,12 @@ class Sender:
                 }
             print(u"Sending %s file named '%s'"
                   % (naturalsize(filesize), basename),
-                  file=args.stdout)
+                  file=args.stderr)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
 
         if os.path.isdir(what):
-            print(u"Building zipfile..", file=args.stdout)
+            print(u"Building zipfile..", file=args.stderr)
             # We're sending a directory. Create a zipfile in a tempdir and
             # send that.
             fd_to_send = tempfile.SpooledTemporaryFile()
@@ -239,7 +239,7 @@ class Sender:
                 "numfiles": num_files,
                 }
             print(u"Sending directory (%s compressed) named '%s'"
-                  % (naturalsize(filesize), basename), file=args.stdout)
+                  % (naturalsize(filesize), basename), file=args.stderr)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)
@@ -248,7 +248,7 @@ class Sender:
     def _handle_answer(self, them_answer):
         if self._fd_to_send is None:
             if them_answer["message_ack"] == "ok":
-                print(u"text message sent", file=self._args.stdout)
+                print(u"text message sent", file=self._args.stderr)
                 returnValue(None) # terminates this function
             raise TransferError("error sending text: %r" % (them_answer,))
 
@@ -270,11 +270,11 @@ class Sender:
         record_pipe = yield ts.connect()
         self._timing.add("transit connected")
         # record_pipe should implement IConsumer, chunks are just records
-        stdout = self._args.stdout
-        print(u"Sending (%s).." % record_pipe.describe(), file=stdout)
+        stderr = self._args.stderr
+        print(u"Sending (%s).." % record_pipe.describe(), file=stderr)
 
         hasher = hashlib.sha256()
-        progress = tqdm(file=stdout, disable=self._args.hide_progress,
+        progress = tqdm(file=stderr, disable=self._args.hide_progress,
                         unit="B", unit_scale=True,
                         total=filesize)
         def _count_and_hash(data):
@@ -290,7 +290,7 @@ class Sender:
 
         expected_hash = hasher.digest()
         expected_hex = bytes_to_hexstr(expected_hash)
-        print(u"File sent.. waiting for confirmation", file=stdout)
+        print(u"File sent.. waiting for confirmation", file=stderr)
         with self._timing.add("get ack") as t:
             ack_bytes = yield record_pipe.receive_record()
             record_pipe.close()
@@ -303,5 +303,5 @@ class Sender:
                 if ack[u"sha256"] != expected_hex:
                     t.detail(datahash="failed")
                     raise TransferError("Transfer failed (bad remote hash)")
-            print(u"Confirmation received. Transfer complete.", file=stdout)
+            print(u"Confirmation received. Transfer complete.", file=stderr)
             t.detail(ack="ok")

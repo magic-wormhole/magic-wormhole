@@ -42,7 +42,7 @@ class TwistedReceiver:
         self._transit_receiver = None
 
     def _msg(self, *args, **kwargs):
-        print(*args, file=self.args.stdout, **kwargs)
+        print(*args, file=self.args.stderr, **kwargs)
 
     @inlineCallbacks
     def go(self):
@@ -201,7 +201,7 @@ class TwistedReceiver:
 
     def _handle_text(self, them_d, w):
         # we're receiving a text message
-        self._msg(them_d["message"])
+        print(them_d["message"], file=self.args.stdout)
         self._send_data({"answer": {"message_ack": "ok"}}, w)
 
     def _handle_file(self, them_d):
@@ -283,7 +283,7 @@ class TwistedReceiver:
         self._msg(u"Receiving (%s).." % record_pipe.describe())
 
         with self.args.timing.add("rx file"):
-            progress = tqdm(file=self.args.stdout,
+            progress = tqdm(file=self.args.stderr,
                             disable=self.args.hide_progress,
                             unit="B", unit_scale=True, total=self.xfersize)
             hasher = hashlib.sha256()
