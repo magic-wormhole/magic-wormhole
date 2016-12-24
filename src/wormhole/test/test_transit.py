@@ -1212,14 +1212,18 @@ DIRECT_HINT = {"type": "direct-tcp-v1",
 RELAY_HINT = {"type": "relay-v1",
               "hints": [{"type": "direct-tcp-v1",
                           "hostname": "relay", "port": 1234}]}
-UNUSABLE_HINT = {"type": "unknown"}
+UNRECOGNIZED_HINT = {"type": "unknown"}
+UNAVAILABLE_HINT = {"type": "direct-tcp-v1", # e.g. Tor without txtorcon
+                    "hostname": "unavailable", "port": 1234}
 RELAY_HINT2 = {"type": "relay-v1",
                "hints": [{"type": "direct-tcp-v1",
                            "hostname": "relay", "port": 1234},
-                          UNUSABLE_HINT]}
+                          UNRECOGNIZED_HINT]}
+UNAVAILABLE_RELAY_HINT = {"type": "relay-v1",
+                          "hints": [UNAVAILABLE_HINT]}
 DIRECT_HINT_INTERNAL = transit.DirectTCPV1Hint("direct", 1234)
 RELAY_HINT_FIRST = transit.DirectTCPV1Hint("relay", 1234)
-RELAY_HINT_INTERNAL = transit.RelayV1Hint([RELAY_HINT_FIRST])
+RELAY_HINT_INTERNAL = transit.RelayV1Hint((RELAY_HINT_FIRST,))
 
 class Transit(unittest.TestCase):
     @inlineCallbacks
@@ -1229,7 +1233,7 @@ class Transit(unittest.TestCase):
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_connection_hints([DIRECT_HINT, UNUSABLE_HINT])
+        s.add_connection_hints([DIRECT_HINT, UNRECOGNIZED_HINT])
 
         connectors = []
         def _start_connector(ep, description, is_relay=False):
@@ -1253,7 +1257,7 @@ class Transit(unittest.TestCase):
         elif hint == RELAY_HINT_FIRST:
             return "relay"
         else:
-            return None
+            return None # e.g. UNAVAILABLE_HINT
 
     @inlineCallbacks
     def test_wait_for_relay(self):
@@ -1262,7 +1266,7 @@ class Transit(unittest.TestCase):
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_connection_hints([DIRECT_HINT, UNUSABLE_HINT, RELAY_HINT])
+        s.add_connection_hints([DIRECT_HINT, UNRECOGNIZED_HINT, RELAY_HINT])
 
         direct_connectors = []
         relay_connectors = []
@@ -1301,7 +1305,9 @@ class Transit(unittest.TestCase):
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_connection_hints([UNUSABLE_HINT, RELAY_HINT2])
+        # include hints that can't be turned into an endpoint at runtime
+        s.add_connection_hints([UNRECOGNIZED_HINT, UNAVAILABLE_HINT,
+                                RELAY_HINT2, UNAVAILABLE_RELAY_HINT])
 
         direct_connectors = []
         relay_connectors = []
@@ -1332,6 +1338,33 @@ class Transit(unittest.TestCase):
 
         relay_connectors[0].callback("winner")
         self.assertEqual(results, ["winner"])
+
+    @inlineCallbacks
+    def test_no_contenders(self):
+        clock = task.Clock()
+        s = transit.TransitSender("", reactor=clock, no_listen=True)
+        s.set_transit_key(b"key")
+        hints = yield s.get_connection_hints() # start the listener
+        del hints
+        s.add_connection_hints([]) # no hints at all
+
+        direct_connectors = []
+        relay_connectors = []
+        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
+        def _start_connector(ep, description, is_relay=False):
+            d = defer.Deferred()
+            if ep == "direct":
+                direct_connectors.append(d)
+            elif ep == "relay":
+                relay_connectors.append(d)
+            else:
+                raise ValueError
+            return d
+        s._start_connector = _start_connector
+
+        d = s.connect()
+        f = self.failureResultOf(d, transit.TransitError)
+        self.assertEqual(str(f.value), "No contenders for connection")
 
 class RelayHandshake(unittest.TestCase):
     def old_build_relay_handshake(self, key):
