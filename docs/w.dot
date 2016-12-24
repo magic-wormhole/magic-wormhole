@@ -1,4 +1,5 @@
 digraph {
+
         /* could shave a RTT by committing to the nameplate early, before
         finishing the rest of the code input. While the user is still
         typing/completing the code, we claim the nameplate, open the mailbox,
@@ -195,6 +196,7 @@ digraph {
         */
 
         /* ConnectionMachine */
+        /*
         WCM_S_known -> CM_start [style="invis"]
         CM_start [label="Connection\nMachine" style="dotted"]
         CM_start -> CM_S_neither [style="invis"]
@@ -205,5 +207,5 @@ digraph {
         CM_P_bind [shape="box" label="C_send(bind)"]
         CM_P_bind -> CM_S_bound
         CM_S_bound [label="bound"]
-        
+        */
 }
