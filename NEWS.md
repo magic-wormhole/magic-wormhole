@@ -1,6 +1,21 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.9.0 (24-Dec-2016)
+
+This release fixes an important "Transit Relay" bug that would have prevented future versions from using non-default relay servers. It is now easier to run `wormhole` as a subprocess beneath some other program (the long term goal is to provide a nice API, but even with one, there will be programs written in languages without Wormhole bindings that may find it most convenient to use a subprocess).
+
+* fix `--transit-helper=`: Older versions had a bug that broke file/directory transfers when the two sides offered different transit-relay servers. This was fixed by deduplicating relay hints and adding a new kind of relay handshake. Clients running 0.9.0 or higher now require a transit-relay server running 0.9.0 or higher. (#115)
+* `wormhole receive`: reject transfers when the target does not appear to have enough space (not available on windows) (#91)
+* CLI: emit pacifier message when key-verification is slow (#29)
+* add `--appid=` so wrapping scripts can use a distinct value (#113)
+* `wormhole send`: flush output after displaying code, for use in scripts (#108)
+* CLI: print progress messages to stderr, not stdout (#99)
+* add basic man(1) pages (#69)
+
+Many thanks to patch submitters for this release: Joey Hess, Jared Anderson, Antoine Beaupré, and to everyone testing and filing issues on Github.
+
+
 ## Release 0.8.2 (08-Dec-2016)
 
 * CLI: add new "wormhole ssh invite" and "wormhole ssh accept" commands, to
