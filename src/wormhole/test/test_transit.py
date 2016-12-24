@@ -9,6 +9,7 @@ from twisted.python import log, failure
 from twisted.test import proto_helpers
 from ..errors import InternalError
 from .. import transit
+from .common import ServerBase
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 
@@ -1320,15 +1321,43 @@ class Transit(unittest.TestCase):
         self.assertEqual(results, ["winner"])
 
 
-class Full(unittest.TestCase):
+class Full(ServerBase, unittest.TestCase):
     def doBoth(self, d1, d2):
         return gatherResults([d1, d2], True)
 
     @inlineCallbacks
-    def test_full(self):
+    def test_direct(self):
         KEY = b"k"*32
         s = transit.TransitSender(None)
         r = transit.TransitReceiver(None)
+
+        s.set_transit_key(KEY)
+        r.set_transit_key(KEY)
+
+        shints = yield s.get_connection_hints()
+        rhints = yield r.get_connection_hints()
+
+        s.add_connection_hints(rhints)
+        r.add_connection_hints(shints)
+
+        (x,y) = yield self.doBoth(s.connect(), r.connect())
+        self.assertIsInstance(x, transit.Connection)
+        self.assertIsInstance(y, transit.Connection)
+
+        d = y.receive_record()
+
+        x.send_record(b"record1")
+        r = yield d
+        self.assertEqual(r, b"record1")
+
+        yield x.close()
+        yield y.close()
+
+    @inlineCallbacks
+    def test_relay(self):
+        KEY = b"k"*32
+        s = transit.TransitSender(self.transit, no_listen=True)
+        r = transit.TransitReceiver(self.transit, no_listen=True)
 
         s.set_transit_key(KEY)
         r.set_transit_key(KEY)
