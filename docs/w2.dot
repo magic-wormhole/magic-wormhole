@@ -3,7 +3,7 @@ digraph {
 
         foo [label="whole\ncode"]
         foo -> S1
-        allocation -> S1B
+        allocation -> S1B [label="already\nconnected"]
         interactive -> S1B
 
         {rank=same; S1 S1B}
@@ -44,7 +44,7 @@ digraph {
         /*S3B -> S2 [label="lose()"]*/ /* not worth it */
         P3_open [shape="box" label="tx open()\ntx add(queued)"]
         P3_open -> S3B
-        /*S3B -> S3B [label="rx_claimed()"] */
+        S3B -> S3B [label="rx_claimed()"]
         S3B -> P3_send [label="M_send(msg)"]
         P3_send [shape="box" label="queue\ntx add(msg)"]
         P3_send -> S3B
@@ -53,18 +53,22 @@ digraph {
         P3_queue -> S3
 
         S3 -> S4 [label="(none)" style="invis"]
-        S3B -> P3_release_process [label="rx_message()"]
-        P3_release_process [shape="box" label="tx release()\nprocess message"]
-        P3_release_process -> S4B
+        S3B -> P3_process_ours [label="rx_message(ours)"]
+        P3_process_ours [shape="box" label="process message"]
+        P3_process_ours -> S3B
+        S3B -> P3_process_theirs [label="rx_message(theirs)"]
+        P3_process_theirs [shape="box" label="tx release()\nprocess message"]
+        P3_process_theirs -> S4B
 
         {rank=same; S4 P4_release S4B P4_process P4_send P4_queue}
         S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
+
         S4B [label="4: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
         S4 -> P4_release [label="connect()"]
         /* it is currently an error to release a nameplate you aren't
         currently claiming, so release() is not idempotent. #118 fixes that */
-        P4_release [shape="box" label="tx claim() *#118\ntx release()\ntx open()\ntx add(queued)"]
-        S4B -> S4B [label="rx_claimed() *#118"]
+        P4_release [shape="box" label="tx open()\ntx add(queued)\ntx release()"]
+        /*S4B -> S4B [label="rx_claimed() *#118"]*/
         S4B -> P_close [label="M_close()"]
         S4B -> P4_send [label="M_send(msg)"]
         P4_send [shape="box" label="queue\ntx add(msg)"]
@@ -75,6 +79,7 @@ digraph {
 
         P4_release -> S4B
         S4B -> S4 [label="lose()"]
+        /*S4B -> S2 [label="lose()"]*/
         S4B -> P4_process [label="rx_message()"]
         P4_process [shape="box" label="process message"]
         P4_process -> S4B
@@ -82,7 +87,9 @@ digraph {
         S4 -> S5 [label="(none)" style="invis"]
         S4B -> S5B [label="rx_released()"]
 
-        {rank=same; S5 S5B P5_open P5_process}
+        seed [label="from Seed?"]
+        seed -> S5
+        {rank=same; seed S5 S5B P5_open P5_process}
         S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
         S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
         S5 -> P5_open [label="connect()"]
