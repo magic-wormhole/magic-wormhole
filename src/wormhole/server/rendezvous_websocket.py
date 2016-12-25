@@ -62,6 +62,7 @@ from ..util import dict_to_bytes, bytes_to_dict
 # -> {type: "claim", nameplate: str} -> mailbox
 #  <- {type: "claimed", mailbox: str}
 # -> {type: "release"}
+#     .nameplate is optional, but must match previous claim()
 #  <- {type: "released"}
 #
 # -> {type: "open", mailbox: str} -> message
@@ -89,7 +90,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._side = None
         self._did_allocate = False # only one allocate() per websocket
         self._listening = False
+        self._did_claim = False
         self._nameplate_id = None
+        self._did_release = False
         self._mailbox = None
 
     def onConnect(self, request):
@@ -125,7 +128,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "claim":
                 return self.handle_claim(msg, server_rx)
             if mtype == "release":
-                return self.handle_release(server_rx)
+                return self.handle_release(msg, server_rx)
 
             if mtype == "open":
                 return self.handle_open(msg, server_rx)
@@ -172,6 +175,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_claim(self, msg, server_rx):
         if "nameplate" not in msg:
             raise Error("claim requires 'nameplate'")
+        if self._did_claim:
+            raise Error("only one claim per connection")
+        self._did_claim = True
         nameplate_id = msg["nameplate"]
         assert isinstance(nameplate_id, type("")), type(nameplate_id)
         self._nameplate_id = nameplate_id
@@ -182,11 +188,21 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             raise Error("crowded")
         self.send("claimed", mailbox=mailbox_id)
 
-    def handle_release(self, server_rx):
-        if not self._nameplate_id:
-            raise Error("must claim a nameplate before releasing it")
-        self._app.release_nameplate(self._nameplate_id, self._side, server_rx)
-        self._nameplate_id = None
+    def handle_release(self, msg, server_rx):
+        if self._did_release:
+            raise Error("only one release per connection")
+        if "nameplate" in msg:
+            if self._nameplate_id is not None:
+                if msg["nameplate"] != self._nameplate_id:
+                    raise Error("release and claim must use same nameplate")
+            nameplate_id = msg["nameplate"]
+        else:
+            if self._nameplate_id is None:
+                raise Error("release without nameplate must follow claim")
+            nameplate_id = self._nameplate_id
+        assert nameplate_id is not None
+        self._did_release = True
+        self._app.release_nameplate(nameplate_id, self._side, server_rx)
         self.send("released")
 
 

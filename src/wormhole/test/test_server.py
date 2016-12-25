@@ -754,6 +754,11 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         mailbox_id = m["mailbox"]
         self.assertEqual(type(mailbox_id), type(""))
 
+        c1.send("claim", nameplate="np1")
+        err = yield c1.next_non_ack()
+        self.assertEqual(err["type"], "error", err)
+        self.assertEqual(err["error"], "only one claim per connection")
+
         nids = app.get_nameplate_ids()
         self.assertEqual(len(nids), 1)
         self.assertEqual("np1", list(nids)[0])
@@ -796,14 +801,14 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
         self.assertEqual(err["error"],
-                         "must claim a nameplate before releasing it")
+                         "release without nameplate must follow claim")
 
         c1.send("claim", nameplate="np1")
         yield c1.next_non_ack()
 
         c1.send("release")
         m = yield c1.next_non_ack()
-        self.assertEqual(m["type"], "released")
+        self.assertEqual(m["type"], "released", m)
 
         np_row, side_rows = self._nameplate(app, "np1")
         claims = [(row["side"], row["claimed"]) for row in side_rows]
@@ -813,8 +818,45 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         c1.send("release") # no longer claimed
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
+        self.assertEqual(err["error"], "only one release per connection")
+
+    @inlineCallbacks
+    def test_release_named(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("claim", nameplate="np1")
+        yield c1.next_non_ack()
+
+        c1.send("release", nameplate="np1")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m["type"], "released", m)
+
+    @inlineCallbacks
+    def test_release_named_ignored(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("release", nameplate="np1") # didn't do claim first, ignored
+        m = yield c1.next_non_ack()
+        self.assertEqual(m["type"], "released", m)
+
+    @inlineCallbacks
+    def test_release_named_mismatch(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("claim", nameplate="np1")
+        yield c1.next_non_ack()
+
+        c1.send("release", nameplate="np2") # mismatching nameplate
+        err = yield c1.next_non_ack()
+        self.assertEqual(err["type"], "error")
         self.assertEqual(err["error"],
-                         "must claim a nameplate before releasing it")
+                         "release and claim must use same nameplate")
 
     @inlineCallbacks
     def test_open(self):
@@ -934,6 +976,64 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
             yield d
         self.assertFalse(mb1.has_listeners())
 
+    @inlineCallbacks
+    def test_interrupted_client_nameplate(self):
+        # a client's interactions with the server might be split over
+        # multiple sequential WebSocket connections, e.g. when the server is
+        # bounced and the client reconnects, or vice versa
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+
+        c.send("claim", nameplate="np1")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "claimed")
+        mailbox_id = m["mailbox"]
+        self.assertEqual(type(mailbox_id), type(""))
+        np_row, side_rows = self._nameplate(app, "np1")
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertEqual(claims, [("side", True)])
+        c.close()
+        yield c.d
+
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        c.send("claim", nameplate="np1") # idempotent
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "claimed")
+        self.assertEqual(m["mailbox"], mailbox_id) # mailbox id is stable
+        np_row, side_rows = self._nameplate(app, "np1")
+        claims = [(row["side"], row["claimed"]) for row in side_rows]
+        self.assertEqual(claims, [("side", True)])
+        c.close()
+        yield c.d
+
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        # we haven't done a claim with this particular connection, but we can
+        # still send a release as long as we include the nameplate
+        c.send("release", nameplate="np1") # release-without-claim
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "released")
+        np_row, side_rows = self._nameplate(app, "np1")
+        self.assertEqual(np_row, None)
+        c.close()
+        yield c.d
+
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        # and the release is idempotent, when done on separate connections
+        c.send("release", nameplate="np1")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "released")
+        np_row, side_rows = self._nameplate(app, "np1")
+        self.assertEqual(np_row, None)
+        c.close()
+        yield c.d
 
 class Summary(unittest.TestCase):
     def test_mailbox(self):
