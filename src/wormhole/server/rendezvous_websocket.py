@@ -71,6 +71,7 @@ from ..util import dict_to_bytes, bytes_to_dict
 # -> {type: "add", phase: str, body: hex} # will send echo in a "message"
 #
 # -> {type: "close", mood: str} -> closed
+#     .mailbox is optional, but must match previous open()
 #  <- {type: "closed"}
 #
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
@@ -93,7 +94,10 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._did_claim = False
         self._nameplate_id = None
         self._did_release = False
+        self._did_open = False
         self._mailbox = None
+        self._mailbox_id = None
+        self._did_close = False
 
     def onConnect(self, request):
         rv = self.factory.rendezvous
@@ -208,11 +212,12 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
     def handle_open(self, msg, server_rx):
         if self._mailbox:
-            raise Error("you already have a mailbox open")
+            raise Error("only one open per connection")
         if "mailbox" not in msg:
             raise Error("open requires 'mailbox'")
         mailbox_id = msg["mailbox"]
         assert isinstance(mailbox_id, type(""))
+        self._mailbox_id = mailbox_id
         self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
                                                server_rx)
         def _send(sm):
@@ -238,11 +243,24 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._mailbox.add_message(sm)
 
     def handle_close(self, msg, server_rx):
+        if self._did_close:
+            raise Error("only one close per connection")
+        if "mailbox" in msg:
+            if self._mailbox_id is not None:
+                if msg["mailbox"] != self._mailbox_id:
+                    raise Error("open and close must use same mailbox")
+            mailbox_id = msg["mailbox"]
+        else:
+            if self._mailbox_id is None:
+                raise Error("close without mailbox must follow open")
+            mailbox_id = self._mailbox_id
         if not self._mailbox:
-            raise Error("must open mailbox before closing")
+            self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
+                                                   server_rx)
         if self._listening:
             self._mailbox.remove_listener(self)
             self._listening = False
+        self._did_close = True
         self._mailbox.close(self._side, msg.get("mood"), server_rx)
         self._mailbox = None
         self.send("closed")

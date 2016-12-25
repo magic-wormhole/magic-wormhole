@@ -891,7 +891,7 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         c1.send("open", mailbox="mb1")
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
-        self.assertEqual(err["error"], "you already have a mailbox open")
+        self.assertEqual(err["error"], "only one open per connection")
 
     @inlineCallbacks
     def test_add(self):
@@ -938,7 +938,7 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         c1.send("close", mood="mood") # must open first
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
-        self.assertEqual(err["error"], "must open mailbox before closing")
+        self.assertEqual(err["error"], "close without mailbox must follow open")
 
         c1.send("open", mailbox="mb1")
         yield c1.sync()
@@ -952,8 +952,46 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
 
         c1.send("close", mood="mood") # already closed
         err = yield c1.next_non_ack()
+        self.assertEqual(err["type"], "error", m)
+        self.assertEqual(err["error"], "only one close per connection")
+
+    @inlineCallbacks
+    def test_close_named(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("open", mailbox="mb1")
+        yield c1.sync()
+
+        c1.send("close", mailbox="mb1", mood="mood")
+        m = yield c1.next_non_ack()
+        self.assertEqual(m["type"], "closed")
+
+    @inlineCallbacks
+    def test_close_named_ignored(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("close", mailbox="mb1", mood="mood") # no open first, ignored
+        m = yield c1.next_non_ack()
+        self.assertEqual(m["type"], "closed")
+
+    @inlineCallbacks
+    def test_close_named_mismatch(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+
+        c1.send("open", mailbox="mb1")
+        yield c1.sync()
+
+        c1.send("close", mailbox="mb2", mood="mood")
+        err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
-        self.assertEqual(err["error"], "must open mailbox before closing")
+        self.assertEqual(err["error"], "open and close must use same mailbox")
+
 
     @inlineCallbacks
     def test_disconnect(self):
@@ -1034,6 +1072,64 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         self.assertEqual(np_row, None)
         c.close()
         yield c.d
+
+    @inlineCallbacks
+    def test_interrupted_client_mailbox(self):
+        # a client's interactions with the server might be split over
+        # multiple sequential WebSocket connections, e.g. when the server is
+        # bounced and the client reconnects, or vice versa
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+        mb1 = app.open_mailbox("mb1", "side2", 0)
+        mb1.add_message(SidedMessage(side="side2", phase="phase",
+                                     body="body", server_rx=0,
+                                     msg_id="msgid"))
+
+        c.send("open", mailbox="mb1")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "message")
+        self.assertEqual(m["body"], "body")
+        self.assertTrue(mb1.has_listeners())
+        c.close()
+        yield c.d
+
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        # open should be idempotent
+        c.send("open", mailbox="mb1")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "message")
+        self.assertEqual(m["body"], "body")
+        mb_row, side_rows = self._mailbox(app, "mb1")
+        openeds = [(row["side"], row["opened"]) for row in side_rows]
+        self.assertIn(("side", 1), openeds) # TODO: why 1, and not True?
+
+        # close on the same connection as open is ok
+        c.send("close", mailbox="mb1", mood="mood")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "closed", m)
+        mb_row, side_rows = self._mailbox(app, "mb1")
+        openeds = [(row["side"], row["opened"]) for row in side_rows]
+        self.assertIn(("side", 0), openeds)
+        c.close()
+        yield c.d
+
+        # close (on a separate connection) is idempotent
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        c.send("close", mailbox="mb1", mood="mood")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "closed", m)
+        mb_row, side_rows = self._mailbox(app, "mb1")
+        openeds = [(row["side"], row["opened"]) for row in side_rows]
+        self.assertIn(("side", 0), openeds)
+        c.close()
+        yield c.d
+
 
 class Summary(unittest.TestCase):
     def test_mailbox(self):
