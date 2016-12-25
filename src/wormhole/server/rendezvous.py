@@ -234,7 +234,7 @@ class AppNamespace:
         # when we're done:
         # * the 'claimed' flag will be cleared on the nameplate_sides row
         # * if the nameplate is now unused (no claimed sides):
-        #  * mailbox.nameplate_closed will be populated
+        #  * a usage record will be added
         #  * the nameplate row will be removed
         #  * the nameplate sides will be removed
         assert isinstance(name, type("")), type(name)
