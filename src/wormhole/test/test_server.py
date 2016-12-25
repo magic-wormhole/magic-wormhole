@@ -12,7 +12,36 @@ from ..server import server, rendezvous
 from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
 
-class Server(ServerBase, unittest.TestCase):
+class _Util:
+    def _nameplate(self, app, name):
+        np_row = app._db.execute("SELECT * FROM `nameplates`"
+                                 " WHERE `app_id`='appid' AND `name`=?",
+                                 (name,)).fetchone()
+        if not np_row:
+            return None, None
+        npid = np_row["id"]
+        side_rows = app._db.execute("SELECT * FROM `nameplate_sides`"
+                                    " WHERE `nameplates_id`=?",
+                                    (npid,)).fetchall()
+        return np_row, side_rows
+
+    def _mailbox(self, app, mailbox_id):
+        mb_row = app._db.execute("SELECT * FROM `mailboxes`"
+                                 " WHERE `app_id`='appid' AND `id`=?",
+                                 (mailbox_id,)).fetchone()
+        if not mb_row:
+            return None, None
+        side_rows = app._db.execute("SELECT * FROM `mailbox_sides`"
+                                    " WHERE `mailbox_id`=?",
+                                    (mailbox_id,)).fetchall()
+        return mb_row, side_rows
+
+    def _messages(self, app):
+        c = app._db.execute("SELECT * FROM `messages`"
+                            " WHERE `app_id`='appid' AND `mailbox_id`='mid'")
+        return c.fetchall()
+
+class Server(_Util, ServerBase, unittest.TestCase):
     def test_apps(self):
         app1 = self._rendezvous.get_app("appid1")
         self.assertIdentical(app1, self._rendezvous.get_app("appid1"))
@@ -44,18 +73,6 @@ class Server(ServerBase, unittest.TestCase):
         self.assertEqual(len(nids), 1000)
         biggest = max(nids)
         self.assert_(1000 <= biggest < 1000000, biggest)
-
-    def _nameplate(self, app, name):
-        np_row = app._db.execute("SELECT * FROM `nameplates`"
-                                 " WHERE `app_id`='appid' AND `name`=?",
-                                 (name,)).fetchone()
-        if not np_row:
-            return None, None
-        npid = np_row["id"]
-        side_rows = app._db.execute("SELECT * FROM `nameplate_sides`"
-                                    " WHERE `nameplates_id`=?",
-                                    (npid,)).fetchall()
-        return np_row, side_rows
 
     def test_nameplate(self):
         app = self._rendezvous.get_app("appid")
@@ -148,17 +165,6 @@ class Server(ServerBase, unittest.TestCase):
         self.assertEqual(usage["result"], "crowded")
 
 
-    def _mailbox(self, app, mailbox_id):
-        mb_row = app._db.execute("SELECT * FROM `mailboxes`"
-                                 " WHERE `app_id`='appid' AND `id`=?",
-                                 (mailbox_id,)).fetchone()
-        if not mb_row:
-            return None, None
-        side_rows = app._db.execute("SELECT * FROM `mailbox_sides`"
-                                    " WHERE `mailbox_id`=?",
-                                    (mailbox_id,)).fetchall()
-        return mb_row, side_rows
-
     def test_mailbox(self):
         app = self._rendezvous.get_app("appid")
         mailbox_id = "mid"
@@ -228,11 +234,6 @@ class Server(ServerBase, unittest.TestCase):
         self.assertEqual(usage["waiting_time"], 2)
         self.assertEqual(usage["total_time"], 7)
         self.assertEqual(usage["result"], "crowded")
-
-    def _messages(self, app):
-        c = app._db.execute("SELECT * FROM `messages`"
-                            " WHERE `app_id`='appid' AND `mailbox_id`='mid'")
-        return c.fetchall()
 
     def test_messages(self):
         app = self._rendezvous.get_app("appid")
@@ -599,7 +600,7 @@ class WSClientSync(unittest.TestCase):
 
 
 
-class WebSocketAPI(ServerBase, unittest.TestCase):
+class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
     def setUp(self):
         self._clients = []
         return ServerBase.setUp(self)
@@ -698,18 +699,6 @@ class WebSocketAPI(ServerBase, unittest.TestCase):
             self.assertEqual(list(n.keys()), ["id"])
             nids.add(n["id"])
         self.assertEqual(nids, set([nameplate_id1, "np2"]))
-
-    def _nameplate(self, app, name):
-        np_row = app._db.execute("SELECT * FROM `nameplates`"
-                                 " WHERE `app_id`='appid' AND `name`=?",
-                                 (name,)).fetchone()
-        if not np_row:
-            return None, None
-        npid = np_row["id"]
-        side_rows = app._db.execute("SELECT * FROM `nameplate_sides`"
-                                    " WHERE `nameplates_id`=?",
-                                    (npid,)).fetchall()
-        return np_row, side_rows
 
     @inlineCallbacks
     def test_allocate(self):
