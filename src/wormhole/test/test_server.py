@@ -1073,6 +1073,47 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         c.close()
         yield c.d
 
+
+    @inlineCallbacks
+    def test_interrupted_client_nameplate_reclaimed(self):
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+
+        # a new claim on a previously-closed nameplate is forbidden. We make
+        # a new nameplate here and manually open a second claim on it, so the
+        # nameplate stays alive long enough for the code check to happen.
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        c.send("claim", nameplate="np2")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "claimed")
+        app.claim_nameplate("np2", "side2", 0)
+        c.send("release", nameplate="np2")
+        m = yield c.next_non_ack()
+        self.assertEqual(m["type"], "released")
+        np_row, side_rows = self._nameplate(app, "np2")
+        claims = sorted([(row["side"], row["claimed"]) for row in side_rows])
+        self.assertEqual(claims, [("side", 0), ("side2", 1)])
+        c.close()
+        yield c.d
+
+        c = yield self.make_client()
+        yield c.next_non_ack()
+        c.send("bind", appid="appid", side="side")
+        c.send("claim", nameplate="np2") # new claim is forbidden
+        err = yield c.next_non_ack()
+        self.assertEqual(err["type"], "error")
+        self.assertEqual(err["error"], "reclaimed")
+
+        np_row, side_rows = self._nameplate(app, "np2")
+        claims = sorted([(row["side"], row["claimed"]) for row in side_rows])
+        self.assertEqual(claims, [("side", 0), ("side2", 1)])
+        c.close()
+        yield c.d
+
     @inlineCallbacks
     def test_interrupted_client_mailbox(self):
         # a client's interactions with the server might be split over

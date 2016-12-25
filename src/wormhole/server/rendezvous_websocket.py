@@ -3,7 +3,7 @@ import time
 from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
-from .rendezvous import CrowdedError, SidedMessage
+from .rendezvous import CrowdedError, ReclaimedError, SidedMessage
 from ..util import dict_to_bytes, bytes_to_dict
 
 # The WebSocket allows the client to send "commands" to the server, and the
@@ -190,6 +190,8 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                                                    server_rx)
         except CrowdedError:
             raise Error("crowded")
+        except ReclaimedError:
+            raise Error("reclaimed")
         self.send("claimed", mailbox=mailbox_id)
 
     def handle_release(self, msg, server_rx):
