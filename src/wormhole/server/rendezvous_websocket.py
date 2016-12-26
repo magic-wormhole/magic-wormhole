@@ -3,7 +3,7 @@ import time
 from twisted.internet import reactor
 from twisted.python import log
 from autobahn.twisted import websocket
-from .rendezvous import CrowdedError, SidedMessage
+from .rendezvous import CrowdedError, ReclaimedError, SidedMessage
 from ..util import dict_to_bytes, bytes_to_dict
 
 # The WebSocket allows the client to send "commands" to the server, and the
@@ -62,6 +62,7 @@ from ..util import dict_to_bytes, bytes_to_dict
 # -> {type: "claim", nameplate: str} -> mailbox
 #  <- {type: "claimed", mailbox: str}
 # -> {type: "release"}
+#     .nameplate is optional, but must match previous claim()
 #  <- {type: "released"}
 #
 # -> {type: "open", mailbox: str} -> message
@@ -70,6 +71,7 @@ from ..util import dict_to_bytes, bytes_to_dict
 # -> {type: "add", phase: str, body: hex} # will send echo in a "message"
 #
 # -> {type: "close", mood: str} -> closed
+#     .mailbox is optional, but must match previous open()
 #  <- {type: "closed"}
 #
 #  <- {type: "error", error: str, orig: {}} # in response to malformed msgs
@@ -89,8 +91,13 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._side = None
         self._did_allocate = False # only one allocate() per websocket
         self._listening = False
+        self._did_claim = False
         self._nameplate_id = None
+        self._did_release = False
+        self._did_open = False
         self._mailbox = None
+        self._mailbox_id = None
+        self._did_close = False
 
     def onConnect(self, request):
         rv = self.factory.rendezvous
@@ -125,7 +132,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             if mtype == "claim":
                 return self.handle_claim(msg, server_rx)
             if mtype == "release":
-                return self.handle_release(server_rx)
+                return self.handle_release(msg, server_rx)
 
             if mtype == "open":
                 return self.handle_open(msg, server_rx)
@@ -172,6 +179,9 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
     def handle_claim(self, msg, server_rx):
         if "nameplate" not in msg:
             raise Error("claim requires 'nameplate'")
+        if self._did_claim:
+            raise Error("only one claim per connection")
+        self._did_claim = True
         nameplate_id = msg["nameplate"]
         assert isinstance(nameplate_id, type("")), type(nameplate_id)
         self._nameplate_id = nameplate_id
@@ -180,23 +190,36 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                                                    server_rx)
         except CrowdedError:
             raise Error("crowded")
+        except ReclaimedError:
+            raise Error("reclaimed")
         self.send("claimed", mailbox=mailbox_id)
 
-    def handle_release(self, server_rx):
-        if not self._nameplate_id:
-            raise Error("must claim a nameplate before releasing it")
-        self._app.release_nameplate(self._nameplate_id, self._side, server_rx)
-        self._nameplate_id = None
+    def handle_release(self, msg, server_rx):
+        if self._did_release:
+            raise Error("only one release per connection")
+        if "nameplate" in msg:
+            if self._nameplate_id is not None:
+                if msg["nameplate"] != self._nameplate_id:
+                    raise Error("release and claim must use same nameplate")
+            nameplate_id = msg["nameplate"]
+        else:
+            if self._nameplate_id is None:
+                raise Error("release without nameplate must follow claim")
+            nameplate_id = self._nameplate_id
+        assert nameplate_id is not None
+        self._did_release = True
+        self._app.release_nameplate(nameplate_id, self._side, server_rx)
         self.send("released")
 
 
     def handle_open(self, msg, server_rx):
         if self._mailbox:
-            raise Error("you already have a mailbox open")
+            raise Error("only one open per connection")
         if "mailbox" not in msg:
             raise Error("open requires 'mailbox'")
         mailbox_id = msg["mailbox"]
         assert isinstance(mailbox_id, type(""))
+        self._mailbox_id = mailbox_id
         self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
                                                server_rx)
         def _send(sm):
@@ -222,11 +245,24 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._mailbox.add_message(sm)
 
     def handle_close(self, msg, server_rx):
+        if self._did_close:
+            raise Error("only one close per connection")
+        if "mailbox" in msg:
+            if self._mailbox_id is not None:
+                if msg["mailbox"] != self._mailbox_id:
+                    raise Error("open and close must use same mailbox")
+            mailbox_id = msg["mailbox"]
+        else:
+            if self._mailbox_id is None:
+                raise Error("close without mailbox must follow open")
+            mailbox_id = self._mailbox_id
         if not self._mailbox:
-            raise Error("must open mailbox before closing")
+            self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
+                                                   server_rx)
         if self._listening:
             self._mailbox.remove_listener(self)
             self._listening = False
+        self._did_close = True
         self._mailbox.close(self._side, msg.get("mood"), server_rx)
         self._mailbox = None
         self.send("closed")

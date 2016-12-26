@@ -9,6 +9,8 @@ def generate_mailbox_id():
 
 class CrowdedError(Exception):
     pass
+class ReclaimedError(Exception):
+    pass
 
 Usage = namedtuple("Usage", ["started", "waiting_time", "total_time", "result"])
 TransitUsage = namedtuple("TransitUsage",
@@ -41,6 +43,20 @@ class Mailbox:
                        " (`mailbox_id`, `opened`, `side`, `added`)"
                        " VALUES(?,?,?,?)",
                        (self._mailbox_id, True, side, when))
+        # We accept re-opening a mailbox which a side previously closed,
+        # unlike claim_nameplate(), which forbids any side from re-claiming a
+        # nameplate which they previously released. (Nameplates forbid this
+        # because the act of claiming a nameplate for the first time causes a
+        # new mailbox to be created, which should only happen once).
+        # Mailboxes have their own distinct objects (to manage
+        # subscriptions), so closing one which was already closed requires
+        # making a new object, which works by calling open() just before
+        # close(). We really do want to support re-closing closed mailboxes,
+        # because this enables intermittently-connected clients, who remember
+        # sending a 'close' but aren't sure whether it was received or not,
+        # then get shut down. Those clients will wake up and re-send the
+        # 'close', until they receive the 'closed' ack message.
+
         self._touch(when)
         db.commit() # XXX: reconcile the need for this with the comment above
 
@@ -219,6 +235,10 @@ class AppNamespace:
                        " (`nameplates_id`, `claimed`, `side`, `added`)"
                        " VALUES(?,?,?,?)",
                        (npid, True, side, when))
+        else:
+            if not row["claimed"]:
+                raise ReclaimedError("you cannot re-claim a nameplate that your side previously released")
+            # since that might cause a new mailbox to be allocated
         db.commit()
 
         self.open_mailbox(mailbox_id, side, when) # may raise CrowdedError
