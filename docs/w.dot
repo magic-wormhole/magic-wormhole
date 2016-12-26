@@ -17,7 +17,7 @@ digraph {
         WM_P_queue1 -> WM_S_nothing [style="dotted"]
         WM_S_nothing -> WM_P_build_and_post_pake [label="WM_set_code()"]
 
-        WM_P_build_and_post_pake [label="NM_set_nameplate()\nbuild_pake()\nMM_send(pake)" shape="box"]
+        WM_P_build_and_post_pake [label="M_set_nameplate()\nbuild_pake()\nM_send(pake)" shape="box"]
         WM_P_build_and_post_pake -> WM_S_know_code
 
         WM_S_know_code [label="know code\n"]
@@ -37,7 +37,7 @@ digraph {
         WM_P_notify_failure [shape="box" label="notify_failure()" color="red"]
         WM_P_notify_failure -> WM_S_closed
 
-        WM_P_post_version [label="MM_send(version)\nnotify_verifier()" shape="box"]
+        WM_P_post_version [label="M_send(version)\nnotify_verifier()" shape="box"]
         WM_P_post_version -> WM_S_know_key
 
         WM_S_know_key [label="know_key\nunverified" color="orange"]
@@ -54,7 +54,7 @@ digraph {
         WM_P_accept_msg [label="deliver\ninbound\nmsg()" shape="box"]
         WM_P_accept_msg -> WM_P_send_queued
 
-        WM_P_send_queued [shape="box" label="MM_send()\nany queued\nmessages"]
+        WM_P_send_queued [shape="box" label="M_send()\nany queued\nmessages"]
         WM_P_send_queued -> WM_S_verified_key
 
         WM_S_verified_key [color="green"]
@@ -68,7 +68,7 @@ digraph {
         WM_P_mood_lonely [shape="box" label="MM_close()\nmood=lonely"]
         WM_P_mood_lonely -> WM_S_closed
 
-        WM_P_send [shape="box" label="MM_send(msg)"]
+        WM_P_send [shape="box" label="M_send(msg)"]
         WM_P_send -> WM_S_verified_key
 
         WM_S_closed [label="closed"]
@@ -113,7 +113,7 @@ digraph {
         WCM_P_allocate_generate -> WCM_P_set_code
         
         
-        
+        /*
         NM_start [label="Nameplate\nMachine" style="dotted"]
         NM_start -> NM_S_unclaimed [style="invis"]
         NM_S_unclaimed [label="no nameplate"]
@@ -134,8 +134,9 @@ digraph {
         NM_S_releasing -> NM_S_released [label="rx released"]
         NM_S_released [label="released"]
         NM_S_released -> NM_S_released [label="NM_release()"]
+        */
 
-
+        /*
         MM_start [label="Mailbox\nMachine" style="dotted"]
         MM_start -> MM_S_want_mailbox [style="invis"]
         MM_S_want_mailbox [label="want mailbox"]
@@ -173,6 +174,7 @@ digraph {
         MM_S_closing -> MM_S_closed [label="rx closed"]
         MM_S_closed [label="closed"]
         MM_S_closed -> MM_S_closed [label="MM_close()"]
+        */
 
         /* upgrading to new PAKE algorithm, the slower form (the faster form
         puts the pake_abilities record in the nameplate_info message) */
