@@ -758,10 +758,15 @@ class _Wormhole:
 
         if self._closing:
             log.msg("received peer message while closing '%s'" % phase)
+        if phase in self._received_messages:
+            log.msg("ignoring duplicate peer message '%s'" % phase)
+            return
 
         if phase == "pake":
+            self._received_messages["pake"] = body
             return self._event_received_pake(body)
         if phase == "version":
+            self._received_messages["version"] = body
             return self._event_received_version(side, body)
         if re.search(r'^\d+$', phase):
             return self._event_received_phase_message(side, phase, body)
