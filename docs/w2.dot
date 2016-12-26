@@ -1,139 +1,144 @@
 digraph {
         /* new idea */
 
-        foo [label="whole\ncode"]
-        foo -> S1
-        allocation -> S1B [label="already\nconnected"]
-        interactive -> S1B
+        {rank=same; M_entry_whole_code M_title M_entry_allocation M_entry_interactive}
+        M_entry_whole_code [label="whole\ncode"]
+        M_entry_whole_code -> M_S1
+        M_title [label="Message\nMachine" style="dotted"]
+        M_entry_whole_code -> M_title [style="invis"]
+        M_entry_allocation [label="allocation"]
+        M_entry_allocation -> M_S1B [label="already\nconnected"]
+        M_entry_interactive [label="interactive"]
+        M_entry_interactive -> M_S1B
 
-        {rank=same; S1 S1B}
-        S1 [label="1: know nothing"]
-        S1B [label="1: know nothing\n(bound)"]
-        S1 -> S1B [label="connect()"]
-        S1B -> S1 [label="lose()"]
+        {rank=same; M_S1 M_S1B}
+        M_S1 [label="1: know nothing"]
+        M_S1B [label="1: know nothing\n(bound)"]
+        M_S1 -> M_S1B [label="connect()"]
+        M_S1B -> M_S1 [label="lose()"]
 
-        S1 -> S2 [label="set_nameplate()"]
-        S1B -> P_claim1 [label="set_nameplate()"]
-        P_claim1 [shape="box" label="tx claim()"]
-        P_claim1 -> S2B
+        M_S1 -> M_S2 [label="M_set_nameplate()"]
+        M_S1B -> M_P_claim1 [label="M_set_nameplate()"]
+        M_P_claim1 [shape="box" label="tx claim()"]
+        M_P_claim1 -> M_S2B
 
-        {rank=same; S2 S2B P_claim2}
-        S2 [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open"]
-        S2B [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open\n(bound)"]
-        S2 -> P_claim2 [label="connect()"]
-        S2B -> S2 [label="lose()"]
-        P_claim2 [shape="box" label="tx claim()"]
-        P_claim2 -> S2B
-        S2 -> P2_queue [label="M_send(msg)"]
-        P2_queue [shape="box" label="queue"]
-        P2_queue -> S2
-        S2B -> P2B_queue [label="M_send(msg)"]
-        P2B_queue [shape="box" label="queue"]
-        P2B_queue -> S2B
+        {rank=same; M_S2 M_S2B M_P_claim2}
+        M_S2 [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open"]
+        M_S2B [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open\n(bound)"]
+        M_S2 -> M_P_claim2 [label="connect()"]
+        M_S2B -> M_S2 [label="lose()"]
+        M_P_claim2 [shape="box" label="tx claim()"]
+        M_P_claim2 -> M_S2B
+        M_S2 -> M_P2_queue [label="M_send(msg)"]
+        M_P2_queue [shape="box" label="queue"]
+        M_P2_queue -> M_S2
+        M_S2B -> M_P2B_queue [label="M_send(msg)"]
+        M_P2B_queue [shape="box" label="queue"]
+        M_P2B_queue -> M_S2B
 
-        S2 -> S3 [label="(none)" style="invis"]
-        S2B -> P_open [label="rx_claimed()"]
-        P_open [shape="box" label="store mailbox\ntx open()\ntx add(queued)"]
-        P_open -> S3B
+        M_S2 -> M_S3 [label="(none)" style="invis"]
+        M_S2B -> M_P_open [label="rx_claimed()"]
+        M_P_open [shape="box" label="store mailbox\ntx open()\ntx add(queued)"]
+        M_P_open -> M_S3B
 
-        {rank=same; S3 S3B P3_open P3_send}
-        S3 [label="3: claimed\nknown mailbox\nwant open"]
-        S3B [label="3: claimed\nknown mailbox\nwant open\n(bound)"]
-        S3 -> P3_open [label="connect()"]
-        S3B -> S3 [label="lose()"]
-        /*S3B -> S2 [label="lose()"]*/ /* not worth it */
-        P3_open [shape="box" label="tx open()\ntx add(queued)"]
-        P3_open -> S3B
-        S3B -> S3B [label="rx_claimed()"]
-        S3B -> P3_send [label="M_send(msg)"]
-        P3_send [shape="box" label="queue\ntx add(msg)"]
-        P3_send -> S3B
-        S3 -> P3_queue [label="M_send(msg)"]
-        P3_queue [shape="box" label="queue"]
-        P3_queue -> S3
+        {rank=same; M_S3 M_S3B M_P3_open M_P3_send}
+        M_S3 [label="3: claimed\nknown mailbox\nwant open"]
+        M_S3B [label="3: claimed\nknown mailbox\nwant open\n(bound)"]
+        M_S3 -> M_P3_open [label="connect()"]
+        M_S3B -> M_S3 [label="lose()"]
+        /*M_S3B -> M_S2 [label="lose()"]*/ /* not worth it */
+        M_P3_open [shape="box" label="tx open()\ntx add(queued)"]
+        M_P3_open -> M_S3B
+        M_S3B -> M_S3B [label="rx_claimed()"]
+        M_S3B -> M_P3_send [label="M_send(msg)"]
+        M_P3_send [shape="box" label="queue\ntx add(msg)"]
+        M_P3_send -> M_S3B
+        M_S3 -> M_P3_queue [label="M_send(msg)"]
+        M_P3_queue [shape="box" label="queue"]
+        M_P3_queue -> M_S3
 
-        S3 -> S4 [label="(none)" style="invis"]
-        S3B -> P3_process_ours [label="rx_message(ours)"]
-        P3_process_ours [shape="box" label="process message"]
-        P3_process_ours -> S3B
-        S3B -> P3_process_theirs [label="rx_message(theirs)"]
-        P3_process_theirs [shape="box" label="tx release()\nprocess message"]
-        P3_process_theirs -> S4B
+        M_S3 -> M_S4 [label="(none)" style="invis"]
+        M_S3B -> M_P3_process_ours [label="rx_message(side=me)"]
+        M_P3_process_ours [shape="box" label="process message"]
+        M_P3_process_ours -> M_S3B
+        M_S3B -> M_P3_process_theirs [label="rx_message(side!=me)"]
+        M_P3_process_theirs [shape="box" label="tx release()\nprocess message"]
+        M_P3_process_theirs -> M_S4B
 
-        {rank=same; S4 P4_release S4B P4_process P4_send P4_queue}
-        S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
+        {rank=same; M_S4 M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
+        M_S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
 
-        S4B [label="4: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
-        S4 -> P4_release [label="connect()"]
+        M_S4B [label="4: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
+        M_S4 -> M_P4_release [label="connect()"]
         /* it is currently an error to release a nameplate you aren't
         currently claiming, so release() is not idempotent. #118 fixes that */
-        P4_release [shape="box" label="tx open()\ntx add(queued)\ntx release()"]
-        /*S4B -> S4B [label="rx_claimed() *#118"]*/
-        S4B -> P_close [label="M_close()"]
-        S4B -> P4_send [label="M_send(msg)"]
-        P4_send [shape="box" label="queue\ntx add(msg)"]
-        P4_send -> S4B
-        S4 -> P4_queue [label="M_send(msg)"]
-        P4_queue [shape="box" label="queue"]
-        P4_queue -> S4
+        M_P4_release [shape="box" label="tx open()\ntx add(queued)\ntx release()"]
+        /*M_S4B -> M_S4B [label="rx_claimed() *#118"]*/
+        M_S4B -> M_P_close [label="M_close()"]
+        M_S4B -> M_P4_send [label="M_send(msg)"]
+        M_P4_send [shape="box" label="queue\ntx add(msg)"]
+        M_P4_send -> M_S4B
+        M_S4 -> M_P4_queue [label="M_send(msg)"]
+        M_P4_queue [shape="box" label="queue"]
+        M_P4_queue -> M_S4
 
-        P4_release -> S4B
-        S4B -> S4 [label="lose()"]
-        /*S4B -> S2 [label="lose()"]*/
-        S4B -> P4_process [label="rx_message()"]
-        P4_process [shape="box" label="process message"]
-        P4_process -> S4B
+        M_P4_release -> M_S4B
+        M_S4B -> M_S4 [label="lose()"]
+        /*M_S4B -> M_S2 [label="lose()"]*/
+        M_S4B -> M_P4_process [label="rx_message()"]
+        M_P4_process [shape="box" label="process message"]
+        M_P4_process -> M_S4B
 
-        S4 -> S5 [label="(none)" style="invis"]
-        S4B -> S5B [label="rx_released()"]
+        M_S4 -> M_S5 [label="(none)" style="invis"]
+        M_S4B -> M_S5B [label="rx_released()"]
 
         seed [label="from Seed?"]
-        seed -> S5
-        {rank=same; seed S5 S5B P5_open P5_process}
-        S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
-        S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
-        S5 -> P5_open [label="connect()"]
-        P5_open [shape="box" label="tx open()\ntx add(queued)"]
-        P5_open -> S5B
-        S5B -> S5 [label="lose()"]
-        S5B -> P5_process [label="rx_message()"]
-        P5_process [shape="box" label="process message"]
-        P5_process -> S5B
-        S5B -> P5_send [label="M_send(msg)"]
-        P5_send [shape="box" label="queue\ntx add(msg)"]
-        P5_send -> S5B
-        S5 -> P5_queue [label="M_send(msg)"]
-        P5_queue [shape="box" label="queue"]
-        P5_queue -> S5
+        seed -> M_S5
+        {rank=same; seed M_S5 M_S5B M_P5_open M_P5_process}
+        M_S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
+        M_S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
+        M_S5 -> M_P5_open [label="connect()"]
+        M_P5_open [shape="box" label="tx open()\ntx add(queued)"]
+        M_P5_open -> M_S5B
+        M_S5B -> M_S5 [label="lose()"]
+        M_S5B -> M_P5_process [label="rx_message()"]
+        M_P5_process [shape="box" label="process message"]
+        M_P5_process -> M_S5B
+        M_S5B -> M_P5_send [label="M_send(msg)"]
+        M_P5_send [shape="box" label="queue\ntx add(msg)"]
+        M_P5_send -> M_S5B
+        M_S5 -> M_P5_queue [label="M_send(msg)"]
+        M_P5_queue [shape="box" label="queue"]
+        M_P5_queue -> M_S5
 
-        S5 -> S6 [label="M_close()"]
-        S5B -> P_close [label="M_close()"]
-        P_close [shape="box" label="tx close()"]
-        P_close -> S6B
+        M_S5 -> M_S6 [label="M_close()"]
+        M_S5B -> M_P_close [label="M_close()"]
+        M_P_close [shape="box" label="tx close()"]
+        M_P_close -> M_S6B
 
-        {rank=same; S6 P6_close S6B}
-        S6 [label="6: closing\nunwant mailbox\nopen\n"]
-        S6B [label="6: closing\nunwant mailbox\nopen\n(bound)"]
-        S6 -> P6_close [label="connect()"]
-        P6_close [shape="box" label="tx close()"]
-        P6_close -> S6B
-        S6B -> S6 [label="lose()"]
-        S6B -> S6B [label="rx_released()"]
-        S6B -> S6B [label="M_close()"]
-        S6B -> S6B [label="M_send()"]
-        S6 -> S6 [label="M_send()"]
+        {rank=same; M_S6 M_P6_close M_S6B}
+        M_S6 [label="6: closing\nunwant mailbox\nopen\n"]
+        M_S6B [label="6: closing\nunwant mailbox\nopen\n(bound)"]
+        M_S6 -> M_P6_close [label="connect()"]
+        M_P6_close [shape="box" label="tx close()"]
+        M_P6_close -> M_S6B
+        M_S6B -> M_S6 [label="lose()"]
+        M_S6B -> M_S6B [label="rx_released()"]
+        M_S6B -> M_S6B [label="M_close()"]
+        M_S6B -> M_S6B [label="M_send()"]
+        M_S6 -> M_S6 [label="M_send()"]
 
-        S6 -> S7 [label="(none)" style="invis"]
-        S6B -> P7_drop [label="rx_closed()"]
-        P7_drop [shape="box" label="C_drop()"]
-        P7_drop -> S7B
+        M_S6 -> M_S7 [label="(none)" style="invis"]
+        M_S6B -> M_P7_drop [label="rx_closed()"]
+        M_P7_drop [shape="box" label="C_drop()"]
+        M_P7_drop -> M_S7B
 
-        {rank=same; S7 S7B}
-        S7 [label="7: closed\n"]
-        S7B [label="7: closed\n(bound)"]
-        S7 -> S7B [label="connect()" style="invis"]
-        S7B -> S7 [label="lose()"]
-        S7B -> S7B [label="M_close()"]
-        S7B -> S7B [label="M_send()"]
+        {rank=same; M_S7 M_S7B}
+        M_S7 [label="7: closed\n"]
+        M_S7B [label="7: closed\n(bound)"]
+        M_S7 -> M_S7B [label="connect()" style="invis"]
+        M_S7B -> M_S7 [label="lose()"]
+        M_S7B -> M_S7B [label="M_close()"]
+        M_S7B -> M_S7B [label="M_send()"]
 
 }
