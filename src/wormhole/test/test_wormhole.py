@@ -910,6 +910,40 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.close()
         yield w2.close()
 
+    @inlineCallbacks
+    def test_rx_dedup(self):
+        # Future clients will handle losing/reestablishing the Rendezvous
+        # Server connection by retransmitting messages, which will sometimes
+        # cause duplicate messages. Make sure this client can tolerate them.
+        # The first place this would fail was when the second copy of the
+        # incoming PAKE message was received, which would cause
+        # SPAKE2.finish() to be called a second time, which throws an error
+        # (which, being somewhat unexpected, caused a hang rather than a
+        # clear exception).
+        with mock.patch("wormhole.wormhole._Wormhole", MessageDoublingReceiver):
+            w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        w1.set_code("123-purple-elephant")
+        w2.set_code("123-purple-elephant")
+        w1.send(b"data1"), w2.send(b"data2")
+        dl = yield self.doBoth(w1.get(), w2.get())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        yield w1.close()
+        yield w2.close()
+
+class MessageDoublingReceiver(wormhole._Wormhole):
+    # we could double messages on the sending side, but a future server will
+    # strip those duplicates, so to really exercise the receiver, we must
+    # double them on the inbound side instead
+    #def _msg_send(self, phase, body):
+    #    wormhole._Wormhole._msg_send(self, phase, body)
+    #    self._ws_send_command("add", phase=phase, body=bytes_to_hexstr(body))
+    def _event_received_peer_message(self, side, phase, body):
+        wormhole._Wormhole._event_received_peer_message(self, side, phase, body)
+        wormhole._Wormhole._event_received_peer_message(self, side, phase, body)
+
 class Errors(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_codes_1(self):
