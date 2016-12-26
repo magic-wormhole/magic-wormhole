@@ -502,6 +502,9 @@ class WSClient(websocket.WebSocketClientProtocol):
     def next_non_ack(self):
         while True:
             m = yield self.next_event()
+            if isinstance(m, tuple):
+                print("unexpected onClose", m)
+                raise AssertionError("unexpected onClose")
             if m["type"] != "ack":
                 returnValue(m)
 
