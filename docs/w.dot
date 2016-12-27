@@ -31,7 +31,7 @@ digraph {
         WM_P_compute_key -> WM_P_post_version [label="pake ok"]
         WM_P_compute_key -> WM_P_mood_scary [label="pake bad"]
 
-        WM_P_mood_scary [shape="box" label="MM_close()\nmood=scary"]
+        WM_P_mood_scary [shape="box" label="M_close()\nmood=scary"]
         WM_P_mood_scary -> WM_P_notify_failure
 
         WM_P_notify_failure [shape="box" label="notify_failure()" color="red"]
@@ -54,7 +54,7 @@ digraph {
         WM_P_accept_msg [label="deliver\ninbound\nmsg()" shape="box"]
         WM_P_accept_msg -> WM_P_send_queued
 
-        WM_P_send_queued [shape="box" label="M_send()\nany queued\nmessages"]
+        WM_P_send_queued [shape="box" label="M_send()\nqueued"]
         WM_P_send_queued -> WM_S_verified_key
 
         WM_S_verified_key [color="green"]
@@ -62,10 +62,10 @@ digraph {
         WM_S_verified_key -> WM_P_mood_happy [label="close"]
         WM_S_verified_key -> WM_P_send [label="API_send"]
 
-        WM_P_mood_happy [shape="box" label="MM_close()\nmood=happy"]
+        WM_P_mood_happy [shape="box" label="M_close()\nmood=happy"]
         WM_P_mood_happy -> WM_S_closed
 
-        WM_P_mood_lonely [shape="box" label="MM_close()\nmood=lonely"]
+        WM_P_mood_lonely [shape="box" label="M_close()\nmood=lonely"]
         WM_P_mood_lonely -> WM_S_closed
 
         WM_P_send [shape="box" label="M_send(msg)"]
@@ -80,7 +80,7 @@ digraph {
         WCM_S_unknown -> WCM_P_set_code [label="set"]
         WCM_P_set_code [shape="box" label="WM_set_code()"]
         WCM_P_set_code -> WCM_S_known
-        WCM_S_known [label="known"]
+        WCM_S_known [label="known" color="green"]
 
         WCM_S_unknown -> WCM_P_list_nameplates [label="input"]
         WCM_S_typing_nameplate [label="typing\nnameplate"]
@@ -198,16 +198,21 @@ digraph {
         */
 
         /* ConnectionMachine */
-        /*
-        WCM_S_known -> CM_start [style="invis"]
-        CM_start [label="Connection\nMachine" style="dotted"]
-        CM_start -> CM_S_neither [style="invis"]
-        CM_S_neither [label="neither"]
-        CM_S_neither -> CM_S_unbound
-        CM_S_unbound [label="unbound"]
-        CM_S_unbound -> CM_P_bind
-        CM_P_bind [shape="box" label="C_send(bind)"]
-        CM_P_bind -> CM_S_bound
-        CM_S_bound [label="bound"]
-        */
+        C_start [label="Connection\nMachine" style="dotted"]
+        C_start -> C_S_connecting [label="C_start()"]
+        C_S_connecting [label="connecting"]
+        C_S_connecting -> C_S_connected [label="connected"]
+        C_S_connecting -> C_P_stop_connecting [label="C_stop()"]
+        C_P_stop_connecting [shape="box" label="cancel\nconnection\nattempt"]
+        C_P_stop_connecting -> C_S_stopped
+        C_S_connected [label="connected" color="green"]
+        C_S_connected -> C_S_waiting [label="lost"]
+        C_S_waiting [label="waiting"]
+        C_S_waiting -> C_S_connecting [label="expire"]
+        C_S_waiting -> C_S_stopped [label="C_stop()"]
+        C_S_connected -> C_S_stopping [label="C_stop()"]
+        C_S_stopping [label="stopping"]
+        C_S_stopping -> C_S_stopped [label="stopped"]
+        C_S_stopped [label="stopped"]
+        
 }
