@@ -29,12 +29,12 @@ digraph {
         M_S2B -> M_S2 [label="lose()"]
         M_P_claim2 [shape="box" label="tx claim()"]
         M_P_claim2 -> M_S2B
-        M_S2 -> M_P2_queue [label="M_send(msg)"]
-        M_P2_queue [shape="box" label="queue"]
-        M_P2_queue -> M_S2
-        M_S2B -> M_P2B_queue [label="M_send(msg)"]
-        M_P2B_queue [shape="box" label="queue"]
-        M_P2B_queue -> M_S2B
+        M_S2 -> M_P2_queue [label="M_send(msg)" style="dotted"]
+        M_P2_queue [shape="box" label="queue" style="dotted"]
+        M_P2_queue -> M_S2 [style="dotted"]
+        M_S2B -> M_P2B_queue [label="M_send(msg)" style="dotted"]
+        M_P2B_queue [shape="box" label="queue" style="dotted"]
+        M_P2B_queue -> M_S2B [style="dotted"]
 
         M_S2 -> M_S3 [label="(none)" style="invis"]
         M_S2B -> M_P_open [label="rx_claimed()"]
@@ -53,17 +53,20 @@ digraph {
         M_S3B -> M_P3_send [label="M_send(msg)"]
         M_P3_send [shape="box" label="queue\ntx add(msg)"]
         M_P3_send -> M_S3B
-        M_S3 -> M_P3_queue [label="M_send(msg)"]
-        M_P3_queue [shape="box" label="queue"]
-        M_P3_queue -> M_S3
+        M_S3 -> M_P3_queue [label="M_send(msg)" style="dotted"]
+        M_P3_queue [shape="box" label="queue" style="dotted"]
+        M_P3_queue -> M_S3 [style="dotted"]
 
         M_S3 -> M_S4 [label="(none)" style="invis"]
         M_S3B -> M_P3_process_ours [label="rx_message(side=me)"]
-        M_P3_process_ours [shape="box" label="process message"]
+        M_P3_process_ours [shape="box" label="dequeue"]
         M_P3_process_ours -> M_S3B
         M_S3B -> M_P3_process_theirs [label="rx_message(side!=me)"]
         M_P3_process_theirs [shape="box" label="tx release()\nprocess message"]
         M_P3_process_theirs -> M_S4B
+        M_S3B -> M_P3_close [label="M_close()"]
+        M_P3_close [shape="box" label="tx release()\n"]
+        M_P3_close -> M_P_close
 
         {rank=same; M_S4 M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
         M_S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
@@ -78,9 +81,9 @@ digraph {
         M_S4B -> M_P4_send [label="M_send(msg)"]
         M_P4_send [shape="box" label="queue\ntx add(msg)"]
         M_P4_send -> M_S4B
-        M_S4 -> M_P4_queue [label="M_send(msg)"]
-        M_P4_queue [shape="box" label="queue"]
-        M_P4_queue -> M_S4
+        M_S4 -> M_P4_queue [label="M_send(msg)" style="dotted"]
+        M_P4_queue [shape="box" label="queue" style="dotted"]
+        M_P4_queue -> M_S4 [style="dotted"]
 
         M_P4_release -> M_S4B
         M_S4B -> M_S4 [label="lose()"]
@@ -96,7 +99,7 @@ digraph {
         seed -> M_S5
         {rank=same; seed M_S5 M_S5B M_P5_open M_P5_process}
         M_S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
-        M_S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
+        M_S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)" color="green"]
         M_S5 -> M_P5_open [label="connect()"]
         M_P5_open [shape="box" label="tx open()\ntx add(queued)"]
         M_P5_open -> M_S5B
@@ -107,11 +110,12 @@ digraph {
         M_S5B -> M_P5_send [label="M_send(msg)"]
         M_P5_send [shape="box" label="queue\ntx add(msg)"]
         M_P5_send -> M_S5B
-        M_S5 -> M_P5_queue [label="M_send(msg)"]
-        M_P5_queue [shape="box" label="queue"]
-        M_P5_queue -> M_S5
+        M_S5 -> M_P5_queue [label="M_send(msg)" style="dotted"]
+        M_P5_queue [shape="box" label="queue" style="dotted"]
+        M_P5_queue -> M_S5 [style="dotted"]
 
         M_S5 -> M_S6 [label="M_close()"]
+        /*M_S5 -> M_P7_drop [label="M_close()"]*/
         M_S5B -> M_P_close [label="M_close()"]
         M_P_close [shape="box" label="tx close()"]
         M_P_close -> M_S6B
@@ -129,8 +133,9 @@ digraph {
         M_S6 -> M_S6 [label="M_send()"]
 
         M_S6 -> M_S7 [label="(none)" style="invis"]
+        /*M_S6 -> M_P7_drop [label="M_close()"]*/
         M_S6B -> M_P7_drop [label="rx_closed()"]
-        M_P7_drop [shape="box" label="C_drop()"]
+        M_P7_drop [shape="box" label="C_stop()"]
         M_P7_drop -> M_S7B
 
         {rank=same; M_S7 M_S7B}
@@ -140,5 +145,16 @@ digraph {
         M_S7B -> M_S7 [label="lose()"]
         M_S7B -> M_S7B [label="M_close()"]
         M_S7B -> M_S7B [label="M_send()"]
+
+
+        M_process [shape="box" label="process"]
+        M_process_me [shape="box" label="dequeue"]
+        M_process -> M_process_me [label="side == me"]
+        M_process_them [shape="box" label="" style="dotted"]
+        M_process -> M_process_them [label="side != me"]
+        M_process_them -> M_process_pake [label="phase == pake"]
+        M_process_pake [shape="box" label="WM_rx_pake()"]
+        M_process_them -> M_process_other [label="phase in (version,numbered)"]
+        M_process_other [shape="box" label="WM_rx_msg()"]
 
 }
