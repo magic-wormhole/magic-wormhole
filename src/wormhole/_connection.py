@@ -88,7 +88,7 @@ class WSRelayClient(object):
         @m.state()
         def disconnecting(self): pass
         @m.state()
-        def disconnecting2(self): pass
+        def cancelling(self): pass
         @m.state(terminal=True)
         def closed(self): pass
 
@@ -100,16 +100,17 @@ class WSRelayClient(object):
     @m.input()
     def d_errback(self, f): pass ; print("in d_errback", f)
     @m.input()
+
     def d_cancel(self, f): pass # XXX remove f
     @m.input()
     def onOpen(self, ws): pass ; print("in onOpen")
     @m.input()
-    def onClose(self, f): pass # XXX maybe remove f
+    def onClose(self, f): pass # XXX p.onClose does cm.onClose("made up failure")
     @m.input()
     def expire(self): pass
     if ALLOW_CLOSE:
         @m.input()
-        def close(self, f): pass
+        def stop(self, f): pass
 
     @m.output()
     def ep_connect(self):
@@ -124,8 +125,8 @@ class WSRelayClient(object):
                                         self._wormhole.side, self)
         self._wormhole.add_connection(self._connection)
     @m.output()
-    def remove_connection(self, f): # XXX remove f
-        self._wormhole.remove_connection(self._connection)
+    def M_lost(self, f): # XXX remove f
+        self._wormhole.M_lost(self._connection)
         self._connection = None
     @m.output()
     def start_timer(self, f): # XXX remove f
@@ -144,35 +145,38 @@ class WSRelayClient(object):
     def notify_fail(self, f):
         print("notify_fail", f.value)
         self._done_d.errback(f)
+    @m.output()
+    def MC_stopped(self):
+        pass
 
     initial.upon(start, enter=first_time_connecting, outputs=[ep_connect])
     first_time_connecting.upon(d_callback, enter=negotiating, outputs=[])
     first_time_connecting.upon(d_errback, enter=failed, outputs=[notify_fail])
     first_time_connecting.upon(onClose, enter=failed, outputs=[notify_fail])
     if ALLOW_CLOSE:
-        first_time_connecting.upon(close, enter=disconnecting2,
+        first_time_connecting.upon(stop, enter=cancelling,
                                    outputs=[d_cancel])
-        disconnecting2.upon(d_errback, enter=closed, outputs=[])
+        cancelling.upon(d_errback, enter=closed, outputs=[])
 
     negotiating.upon(onOpen, enter=open, outputs=[add_connection])
     if ALLOW_CLOSE:
-        negotiating.upon(close, enter=disconnecting, outputs=[dropConnection])
+        negotiating.upon(stop, enter=disconnecting, outputs=[dropConnection])
     negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
 
-    open.upon(onClose, enter=waiting, outputs=[remove_connection, start_timer])
+    open.upon(onClose, enter=waiting, outputs=[M_lost, start_timer])
     if ALLOW_CLOSE:
-        open.upon(close, enter=disconnecting,
-                  outputs=[dropConnection, remove_connection])
+        open.upon(stop, enter=disconnecting,
+                  outputs=[dropConnection, M_lost])
     connecting.upon(d_callback, enter=negotiating, outputs=[])
     connecting.upon(d_errback, enter=waiting, outputs=[start_timer])
     connecting.upon(onClose, enter=waiting, outputs=[start_timer])
     if ALLOW_CLOSE:
-        connecting.upon(close, enter=disconnecting2, outputs=[d_cancel])
+        connecting.upon(stop, enter=cancelling, outputs=[d_cancel])
 
     waiting.upon(expire, enter=connecting, outputs=[ep_connect])
     if ALLOW_CLOSE:
-        waiting.upon(close, enter=closed, outputs=[cancel_timer])
-        disconnecting.upon(onClose, enter=closed, outputs=[])
+        waiting.upon(stop, enter=closed, outputs=[cancel_timer])
+        disconnecting.upon(onClose, enter=closed, outputs=[]) #MC_stopped
 
 def tryit(reactor):
     cm = WSRelayClient(None, "ws://127.0.0.1:4000/v1", reactor)
