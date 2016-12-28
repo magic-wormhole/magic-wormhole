@@ -133,6 +133,11 @@ class Machine:
                                         format_attrs(**t._dot_attrs())))
         f.write("}\n")
 
+    # all descriptions are from the state machine's point of view
+    # States are gerunds: Foo-ing
+    # Events are past-tense verbs: Foo-ed, as in "I have been Foo-ed"
+    # * machine.do(event) ? vs machine.fooed()
+    # Actions are immediate-tense verbs: foo, connect
 
     def State(self, name, initial=False, **dot_attrs):
         s = _State(self, name, dot_attrs)
@@ -260,6 +265,7 @@ class ConnectionMachine:
     waiting.upon(expire, goto=reconnect, color="blue")
     waiting.upon(stop, goto=cancel_timer)
     reconnecting.upon(d_callback, goto=reset_timer, color="blue")
+    reconnecting.upon(d_errback, goto=start_timer)
     reconnecting.upon(stop, goto=d_cancel)
     disconnecting.upon(onClose, goto=MC_stopped, color="orange")
     cancelling.upon(d_errback, goto=MC_stopped)
