@@ -3,174 +3,132 @@ digraph {
 
         {rank=same; M_entry_whole_code M_title M_entry_allocation M_entry_interactive}
         M_entry_whole_code [label="whole\ncode"]
-        M_entry_whole_code -> M_S1
+        M_entry_whole_code -> M_S1A
         M_title [label="Message\nMachine" style="dotted"]
         M_entry_whole_code -> M_title [style="invis"]
-        M_entry_allocation [label="allocation"]
-        M_entry_allocation -> M_S1B [label="already\nconnected"]
-        M_entry_interactive [label="interactive"]
-        M_entry_interactive -> M_S1B
+        M_entry_allocation [label="allocation" color="orange"]
+        M_entry_allocation -> M_S1B [label="already\nconnected" color="orange" fontcolor="orange"]
+        M_entry_interactive [label="interactive" color="orange"]
+        M_entry_interactive -> M_S1B [color="orange"]
 
-        {rank=same; M_S1 M_S1B}
-        M_S1 [label="1: know nothing"]
-        M_S1B [label="1: know nothing\n(bound)"]
-        M_S1 -> M_S1B [label="M_connected()"]
-        M_S1B -> M_S1 [label="M_lost()"]
+        {rank=same; M_S1A M_S1B}
+        M_S1A [label="S1A:\nknow nothing"]
+        M_S1B [label="S1B:\nknow nothing\n(bound)" color="orange"]
+        M_S1A -> M_S1B [label="M_connected()"]
+        M_S1B -> M_S1A [label="M_lost()"]
 
-        M_S1 -> M_S2 [label="M_set_nameplate()"]
-        M_S1B -> M_P_claim1 [label="M_set_nameplate()"]
-        M_P_claim1 [shape="box" label="tx claim()"]
-        M_P_claim1 -> M_S2B
+        M_S1A -> M_S2A [label="M_set_nameplate()"]
+        M_S1B -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
 
-        {rank=same; M_S2 M_S2B M_P_claim2}
-        M_S2 [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open"]
-        M_S2B [label="2: know nameplate\nwant claim\nunknown mailbox\nwant open\n(bound)"]
-        M_S2 -> M_P_claim2 [label="M_connected()"]
-        M_S2B -> M_S2 [label="M_lost()"]
-        M_P_claim2 [shape="box" label="tx claim()"]
-        M_P_claim2 -> M_S2B
-        M_S2 -> M_P2_queue [label="M_send(msg)" style="dotted"]
-        M_P2_queue [shape="box" label="queue" style="dotted"]
-        M_P2_queue -> M_S2 [style="dotted"]
+        {rank=same; M_S2A M_S2B M_S2C M_P2_claim}
+        M_S2A [label="S2A:\nnot claimed"]
+        M_S2C [label="S2C:\nmaybe claimed"]
+        M_S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
+        M_S2A -> M_P2_claim [label="M_connected()"]
+        M_S2A -> M_C_stop [label="M_close()" style="dashed"]
+        M_C_stop [shape="box" label="C_stop()" style="dashed"]
+        M_S2B -> M_SrB [label="M_close()" style="dashed"]
+        M_SrB [label="SrB" style="dashed"]
+        M_S2C -> M_SrA [label="M_close()" style="dashed"]
+        M_SrA [label="SrA" style="dashed"]
+
+        M_S2C -> M_P2_claim [label="M_connected()"]
+        M_S2B -> M_S2C [label="M_lost()"]
+        M_P2_claim [shape="box" label="tx claim" color="orange"]
+        M_P2_claim -> M_S2B [color="orange"]
+        M_S2A -> M_P2A_queue [label="M_send(msg)" style="dotted"]
+        M_P2A_queue [shape="box" label="queue" style="dotted"]
+        M_P2A_queue -> M_S2A [style="dotted"]
+        M_S2C -> M_P2C_queue [label="M_send(msg)" style="dotted"]
+        M_P2C_queue [shape="box" label="queue" style="dotted"]
+        M_P2C_queue -> M_S2C [style="dotted"]
         M_S2B -> M_P2B_queue [label="M_send(msg)" style="dotted"]
         M_P2B_queue [shape="box" label="queue" style="dotted"]
         M_P2B_queue -> M_S2B [style="dotted"]
 
-        M_S2 -> M_S3 [label="(none)" style="invis"]
-        M_S2B -> M_P_open [label="rx_claimed()"]
-        M_P_open [shape="box" label="store mailbox\ntx open()\ntx add(queued)"]
-        M_P_open -> M_S3B
+        M_S2A -> M_S3A [label="(none)" style="invis"]
+        M_S2B -> M_P_open [label="rx claimed" color="orange" fontcolor="orange"]
+        M_P_open [shape="box" label="store mailbox\ntx open\ntx add(queued)" color="orange"]
+        M_P_open -> M_S3B [color="orange"]
 
-        {rank=same; M_S3 M_S3B M_P3_open M_P3_send}
-        M_S3 [label="3: claimed\nknown mailbox\nwant open"]
-        M_S3B [label="3: claimed\nknown mailbox\nwant open\n(bound)"]
-        M_S3 -> M_P3_open [label="M_connected()"]
-        M_S3B -> M_S3 [label="M_lost()"]
-        /*M_S3B -> M_S2 [label="M_lost()"]*/ /* not worth it */
-        M_P3_open [shape="box" label="tx open()\ntx add(queued)"]
+        {rank=same; M_S3A M_S3B M_P3_open M_P3_send}
+        M_S3A [label="S3A:\nclaimed\nmaybe open"]
+        M_S3B [label="S3B:\nclaimed\nmaybe open\n(bound)" color="orange"]
+        M_S3A -> M_P3_open [label="M_connected()"]
+        M_S3B -> M_S3A [label="M_lost()"]
+        M_P3_open [shape="box" label="tx open\ntx add(queued)"]
         M_P3_open -> M_S3B
-        M_S3B -> M_S3B [label="rx_claimed()"]
+        M_S3B -> M_S3B [label="rx claimed"]
         M_S3B -> M_P3_send [label="M_send(msg)"]
         M_P3_send [shape="box" label="queue\ntx add(msg)"]
         M_P3_send -> M_S3B
-        M_S3 -> M_P3_queue [label="M_send(msg)" style="dotted"]
+        M_S3A -> M_P3_queue [label="M_send(msg)" style="dotted"]
         M_P3_queue [shape="box" label="queue" style="dotted"]
-        M_P3_queue -> M_S3 [style="dotted"]
+        M_P3_queue -> M_S3A [style="dotted"]
 
-        M_S3 -> M_S4 [label="(none)" style="invis"]
-        M_S3B -> M_P3_process_ours [label="rx_message(side=me)"]
+        M_S3A -> M_S4A [label="(none)" style="invis"]
+        M_S3B -> M_P3_process_ours [label="rx message(side=me)"]
         M_P3_process_ours [shape="box" label="dequeue"]
         M_P3_process_ours -> M_S3B
-        M_S3B -> M_P3_process_theirs [label="rx_message(side!=me)"]
-        M_P3_process_theirs [shape="box" label="tx release()\nprocess message"]
+        M_S3B -> M_P3_process_theirs1 [label="rx message(side!=me)" color="orange" fontcolor="orange"]
+        M_P3_process_theirs1 [shape="box" label="tx release" color="orange"]
+        M_P3_process_theirs1 -> M_P3_process_theirs2 [color="orange"]
+        M_P3_process_theirs2 [shape="octagon" label="process message" color="orange"]
         /* pay attention to the race here: this process_message() will
         deliver msg_pake to the WormholeMachine, which will compute_key() and
-        M_send(version), and we're inbetween M_S2 (where M_send gets queued)
-        and M_S3 (where M_send gets sent and queued), and we're no longer
-        passing through the M_P3_open phase (which drains the queue). So
-        there's a real possibility of the outbound msg_version getting
+        M_send(version), and we're in between M_S2A (where M_send gets
+        queued) and M_S3A (where M_send gets sent and queued), and we're no
+        longer passing through the M_P3_open phase (which drains the queue).
+        So there's a real possibility of the outbound msg_version getting
         dropped on the floor, or put in a queue but never delivered. */
-        M_P3_process_theirs -> M_S4B
-        M_S3B -> M_P3_close [label="M_close(mood)"]
-        M_P3_close [shape="box" label="tx release()\n"]
-        M_P3_close -> M_P_close
+        M_P3_process_theirs2 -> M_S4B [color="orange"]
 
-        {rank=same; M_S4 M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
-        M_S4 [label="4: released\nunwant nameplate\nwant mailbox\nopen\n"]
+        {rank=same; M_S4A M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
+        M_S4A [label="S4A:\nmaybe released\nmaybe open\n"]
 
-        M_S4B [label="4: released\nunwant nameplate\nwant mailbox\nopen\n(bound)"]
-        M_S4 -> M_P4_release [label="M_connected()"]
-        /* it is currently an error to release a nameplate you aren't
-        currently claiming, so release() is not idempotent. #118 fixes that */
-        M_P4_release [shape="box" label="tx open()\ntx add(queued)\ntx release()"]
-        /*M_S4B -> M_S4B [label="rx_claimed() *#118"]*/
-        M_S4B -> M_P_close [label="M_close(mood)"]
+        M_S4B [label="S4B:\nmaybe released\nmaybe open\n(bound)" color="orange"]
+        M_S4A -> M_P4_release [label="M_connected()"]
+        M_P4_release [shape="box" label="tx open\ntx add(queued)\ntx release"]
         M_S4B -> M_P4_send [label="M_send(msg)"]
         M_P4_send [shape="box" label="queue\ntx add(msg)"]
         M_P4_send -> M_S4B
-        M_S4 -> M_P4_queue [label="M_send(msg)" style="dotted"]
+        M_S4A -> M_P4_queue [label="M_send(msg)" style="dotted"]
         M_P4_queue [shape="box" label="queue" style="dotted"]
-        M_P4_queue -> M_S4 [style="dotted"]
+        M_P4_queue -> M_S4A [style="dotted"]
 
         M_P4_release -> M_S4B
-        M_S4B -> M_S4 [label="M_lost()"]
-        /*M_S4B -> M_S2 [label="M_lost()"]*/
-        M_S4B -> M_P4_process [label="rx_message()"]
-        M_P4_process [shape="box" label="process message"]
+        M_S4B -> M_S4A [label="M_lost()"]
+        M_S4B -> M_P4_process [label="rx message"]
+        M_P4_process [shape="octagon" label="process message"]
         M_P4_process -> M_S4B
 
-        M_S4 -> M_S5 [label="(none)" style="invis"]
-        M_S4B -> M_S5B [label="rx_released()"]
+        M_S4A -> M_S5A [label="(none)" style="invis"]
+        M_S4B -> M_S5B [label="rx released" color="orange" fontcolor="orange"]
 
         seed [label="from Seed?"]
-        M_S3 -> seed [style="invis"]
-        M_S4 -> seed [style="invis"]
-        seed -> M_S5
-        {rank=same; seed M_S5 M_S5B M_P5_open M_P5_process}
-        M_S5 [label="5: released\nunwant nameplate\nwant mailbox\nopen\n"]
-        M_S5B [label="5: released\nunwant nameplate\nwant mailbox\nopen\n(bound)" color="green"]
-        M_S5 -> M_P5_open [label="M_connected()"]
-        M_P5_open [shape="box" label="tx open()\ntx add(queued)"]
+        M_S3A -> seed [style="invis"]
+        M_S4A -> seed [style="invis"]
+        seed -> M_S5A
+        {rank=same; seed M_S5A M_S5B M_P5_open M_process}
+        M_S5A [label="S5A:\nreleased\nmaybe open"]
+        M_S5B [label="S5B:\nreleased\nmaybe open\n(bound)" color="green"]
+        M_S5A -> M_P5_open [label="M_connected()"]
+        M_P5_open [shape="box" label="tx open\ntx add(queued)"]
         M_P5_open -> M_S5B
-        M_S5B -> M_S5 [label="M_lost()"]
-        M_S5B -> M_P5_process [label="rx_message()"]
-        M_P5_process [shape="box" label="process message"]
-        M_P5_process -> M_S5B
-        M_S5B -> M_P5_send [label="M_send(msg)"]
-        M_P5_send [shape="box" label="queue\ntx add(msg)"]
-        M_P5_send -> M_S5B
-        M_S5 -> M_P5_queue [label="M_send(msg)" style="dotted"]
+        M_S5B -> M_S5A [label="M_lost()"]
+        M_S5B -> M_process [label="rx message" color="green" fontcolor="green"]
+        M_process [shape="octagon" label="process message" color="green"]
+        M_process -> M_S5B [color="green"]
+        M_S5B -> M_P5_send [label="M_send(msg)" color="green" fontcolor="green"]
+        M_P5_send [shape="box" label="queue\ntx add(msg)" color="green"]
+        M_P5_send -> M_S5B [color="green"]
+        M_S5A -> M_P5_queue [label="M_send(msg)" style="dotted"]
         M_P5_queue [shape="box" label="queue" style="dotted"]
-        M_P5_queue -> M_S5 [style="dotted"]
+        M_P5_queue -> M_S5A [style="dotted"]
+        M_S5B -> M_CcB_P_close [label="M_close()" style="dashed" color="orange" fontcolor="orange"]
+        M_CcB_P_close [label="tx close" style="dashed" color="orange"]
 
-        M_S5 -> M_S6 [style="invis"]
-        M_S5B -> M_P_close [label="M_close(mood)"]
-        M_P_close [shape="box" label="tx close(mood)"]
-        M_P_close -> M_S6B
-
-        {rank=same; M_S6 M_P6_close M_S6B}
-        M_S6 [label="6: closing\nunwant mailbox\nopen\n"]
-        M_S6B [label="6: closing\nunwant mailbox\nopen\n(bound)"]
-        M_S6 -> M_P6_close [label="M_connected()"]
-        M_P6_close [shape="box" label="tx close()"]
-        M_P6_close -> M_S6B
-        M_S6B -> M_S6 [label="M_lost()"]
-        M_S6B -> M_S6B [label="rx_released()"]
-        M_S6B -> M_S6B [label="M_close()"]
-        M_S6B -> M_S6B [label="M_send()"]
-        M_S6 -> M_S6 [label="M_send()"]
-
-        M_S6 -> M_S7 [label="(none)" style="invis"]
-        {rank=same; M_other_closes M_P7_drop}
-        M_other_closes [label="all\nother\nunbound\nstates" style="dotted"]
-        M_other_closes -> M_P7_stop [label="M_close()" style="dotted"]
-        M_P7_stop [shape="box" label="C_stop()"]
-        M_P7_stop -> M_S7
-        /*M_S1 -> M_other_closes [label="M_close()"]
-        M_S2 -> M_other_closes [label="M_close()"]
-        M_S3 -> M_other_closes [label="M_close()"]
-        M_S4 -> M_other_closes [label="M_close()"]*/
-        M_S5 -> M_other_closes [style="dotted"]
-        /*M_S6 -> M_P7_stop [label="M_close()"]*/
-        M_S6 -> M_other_closes [style="dotted"]
-        M_S1B -> M_P7_drop [label="M_close()"]
-        M_S2B -> M_P2_drop [label="M_close()"]
-        M_P2_drop [shape="box" label="tx release()"]
-        M_P2_drop -> M_P7_drop
-        M_S6B -> M_P7_drop [label="rx_closed()"]
-        M_P7_drop [shape="box" label="C_stop()"]
-        M_P7_drop -> M_S7B
-
-        {rank=same; M_S7 M_S7B}
-        M_S7 [label="7: closed\n"]
-        M_S7B [label="7: closed\n(bound)"]
-        M_S7 -> M_S7B [style="invis"]
-        M_S7B -> M_S7 [label="M_lost()"]
-        M_S7B -> M_S7B [label="M_close()"]
-        M_S7B -> M_S7B [label="M_send()"]
-
-
-        M_process [shape="box" label="process"]
+        M_process [shape="octagon" label="process message"]
         M_process_me [shape="box" label="dequeue"]
         M_process -> M_process_me [label="side == me"]
         M_process_them [shape="box" label="" style="dotted"]

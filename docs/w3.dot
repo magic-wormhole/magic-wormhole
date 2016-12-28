@@ -1,0 +1,76 @@
+digraph {
+        /* M_close pathways */
+
+        /* All dashed states are from the main Mailbox Machine diagram, and
+        all dashed lines indicate M_close() pathways in from those states.
+        Within this graph, all M_close() events leave the state unchanged. */
+
+        {rank=same; MC_SrA MC_SrB}
+        MC_SrA [label="SrA:\nwaiting for:\nrelease"]
+        MC_SrA -> MC_Pr [label="M_connected()"]
+        MC_Pr [shape="box" label="tx release" color="orange"]
+        MC_Pr -> MC_SrB [color="orange"]
+        MC_SrB [label="SrB:\nwaiting for:\nrelease" color="orange"]
+        MC_SrB -> MC_SrA [label="M_lost()"]
+        MC_SrB -> MC_P_stop [label="rx released" color="orange" fontcolor="orange"]
+
+        /*{rank=same; MC_ScA MC_ScB}*/
+        MC_ScA [label="ScA:\nwaiting for:\nclosed"]
+        MC_ScA -> MC_Pc [label="M_connected()"]
+        MC_Pc [shape="box" label="tx close" color="orange"]
+        MC_Pc -> MC_ScB [color="orange"]
+        MC_ScB [label="ScB:\nwaiting for:\nclosed" color="orange"]
+        MC_ScB -> MC_ScA [label="M_lost()"]
+        MC_ScB -> MC_P_stop [label="rx closed" color="orange" fontcolor="orange"]
+
+        {rank=same; MC_SrcA MC_SrcB}
+        MC_SrcA [label="SrcA:\nwaiting for:\nrelease\nclose"]
+        MC_SrcA -> MC_Prc [label="M_connected()"]
+        MC_Prc [shape="box" label="tx release\ntx close" color="orange"]
+        MC_Prc -> MC_SrcB [color="orange"]
+        MC_SrcB [label="SrcB:\nwaiting for:\nrelease\nclosed" color="orange"]
+        MC_SrcB -> MC_SrcA [label="M_lost()"]
+        MC_SrcB -> MC_ScB [label="rx released" color="orange" fontcolor="orange"]
+        MC_SrcB -> MC_SrB [label="rx closed" color="orange" fontcolor="orange"]
+
+
+        MC_P_stop [shape="box" label="C_stop()"]
+        MC_P_stop -> MC_SsB
+
+        MC_SsB -> MC_Ss [label="MC_stopped()"]
+        MC_SsB [label="SsB: closed\nstopping"]
+
+        MC_Ss [label="Ss: closed" color="green"]
+
+
+        MC_S1A [label="S1A" style="dashed"]
+        MC_S1A -> MC_P_stop [style="dashed"]
+        MC_S1B [label="S1B" color="orange" style="dashed"]
+        MC_S1B -> MC_P_stop [style="dashed" color="orange"]
+
+        {rank=same; MC_S2A MC_S2B MC_S2C}
+        MC_S2A [label="S2A" style="dashed"]
+        MC_S2A -> MC_P_stop [style="dashed"]
+        MC_S2C [label="S2C" style="dashed"]
+        MC_S2C -> MC_SrA [style="dashed"]
+        MC_S2B [label="S2B" color="orange" style="dashed"]
+        MC_S2B -> MC_SrB [color="orange" style="dashed"]
+
+        {rank=same; MC_S3A MC_S4A MC_S3B MC_S4B}
+        MC_S3A [label="S3A" style="dashed"]
+        MC_S3B [label="S3B" color="orange" style="dashed"]
+        MC_S3A -> MC_SrcA [style="dashed"]
+        MC_S3B -> MC_Prc [color="orange" style="dashed"]
+
+        MC_S4A [label="S4A" style="dashed"]
+        MC_S4B [label="S4B" color="orange" style="dashed"]
+        MC_S4A -> MC_SrcA [style="dashed"]
+        MC_S4B -> MC_Prc [color="orange" style="dashed"]
+
+        {rank=same; MC_S5A MC_S5B}
+        MC_S5A [label="S5A" style="dashed"]
+        MC_S5B [label="S5B" color="green" style="dashed"]
+        MC_S5A -> MC_ScA [style="dashed"]
+        MC_S5B -> MC_Pc [color="green"]
+
+}
