@@ -1,5 +1,7 @@
 digraph {
         /* M_close pathways */
+        MC_title [label="Mailbox\nClose\nMachine" style="dotted"]
+        MC_title -> MC_S2B [style="invis"]
 
         /* All dashed states are from the main Mailbox Machine diagram, and
         all dashed lines indicate M_close() pathways in from those states.
@@ -56,7 +58,7 @@ digraph {
         MC_S2B [label="S2B" color="orange" style="dashed"]
         MC_S2B -> MC_SrB [color="orange" style="dashed"]
 
-        {rank=same; MC_S3A MC_S4A MC_S3B MC_S4B}
+        {rank=same; MC_title MC_S3A MC_S4A MC_S3B MC_S4B}
         MC_S3A [label="S3A" style="dashed"]
         MC_S3B [label="S3B" color="orange" style="dashed"]
         MC_S3A -> MC_SrcA [style="dashed"]

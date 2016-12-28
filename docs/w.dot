@@ -197,26 +197,13 @@ digraph {
         P2_P_process_v2 [shape="box" label="process v2"]
         */
 
-        /* ConnectionMachine */
-        C_start [label="Connection\nMachine" style="dotted"]
-        C_start -> C_S_connecting [label="C_start()"]
-        C_S_connecting [label="connecting"]
-        C_S_connecting -> C_P_connected [label="onConnect"]
-        C_P_connected [shape="box" label="M_connected()"]
-        C_P_connected -> C_S_connected
-        C_S_connecting -> C_P_stop_connecting [label="C_stop()"]
-        C_P_stop_connecting [shape="box" label="cancel\nconnection\nattempt"]
-        C_P_stop_connecting -> C_S_stopped
-        C_S_connected [label="connected" color="green"]
-        C_S_connected -> C_P_lost [label="onClose"]
-        C_P_lost [shape="box" label="M_lost()\nstart timer"]
-        C_P_lost -> C_S_waiting
-        C_S_waiting [label="waiting"]
-        C_S_waiting -> C_S_connecting [label="expire"]
-        C_S_waiting -> C_S_stopped [label="C_stop()"]
-        C_S_connected -> C_S_stopping [label="C_stop()"]
-        C_S_stopping [label="stopping"]
-        C_S_stopping -> C_S_stopped [label="onClose"]
-        C_S_stopped [label="stopped"]
-        
+        WCM_S_known -> O_WM [style="invis"]
+        O_WM [label="Wormhole\nMachine" style="dotted"]
+        O_WM -> O_MM [style="dotted"]
+        O_WM -> O_MCM [style="dotted"]
+        O_MM -> O_MCM [style="dotted"]
+        O_MM [label="Mailbox\nMachine" style="dotted"]
+        O_MCM [label="Mailbox\nClose\nMachine" style="dotted"]
+        O_MM -> O_CM [style="dotted"]
+        O_CM [label="Connection\nMachine" style="dotted"]
 }
