@@ -52,10 +52,12 @@ Received file written to README.md
 ```$ pip install magic-wormhole```
 
 On Debian/Ubuntu systems, you may first need `apt-get install python-pip
-build-essential python-dev libffi-dev libssl-dev`. On Fedora it's
-`python-devel` and `libffi-devel`. On OS-X, you may need to install `pip` and
-run `xcode-select --install` to get GCC. Note: on Windows, python2 may work
-better than python3.
+build-essential python-dev libffi-dev libssl-dev`. On Fedora it's `dnf
+install python-pip python-devel libffi-devel openssl-devel gcc-c++
+libtool redhat-rpm-config`. On OS-X, you may need to install `pip` and
+run `xcode-select --install` to get GCC. On Windows, python2 may work
+better than python3. On older systems, `pip install --upgrade pip` may
+be necessary to get a version that can compile all the dependencies.
 
 If you get errors like `fatal error: sodium.h: No such file or directory` on
 Linux, either use `SODIUM_INSTALL=bundled pip install magic-wormhole`, or try
