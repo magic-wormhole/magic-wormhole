@@ -64,7 +64,8 @@ a bug in pynacl which gets confused when the libsodium runtime is installed
 (e.g. `libsodium13`) but not the development package.
 
 Developers can clone the source tree and run `tox` to run the unit tests on
-all supported (and installed) versions of python: 2.7, 3.3, 3.4, and 3.5.
+all supported (and installed) versions of python: 2.7, 3.3, 3.4, 3.5, and
+3.6.
 
 ## Motivation
 
@@ -177,8 +178,9 @@ PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.3, 3.4, and 3.5 . It is probably
-compatible with py2.6, but the latest Twisted (>=15.5.0) is not.
+This library is compatible with python2.7, 3.3, 3.4, 3.5, and 3.6 . It
+is probably compatible with py2.6, but the latest Twisted (>=15.5.0) is
+not.
 
 
 #### footnotes
