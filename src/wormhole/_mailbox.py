@@ -86,7 +86,8 @@ class _Mailbox_Machine(object):
     def M_stopped(self): pass
 
     @m.output()
-    def tx_claim(self): pass
+    def tx_claim(self):
+        self._c.send_command("claim", nameplate=self._nameplate)
     @m.output()
     def tx_open(self): pass
     @m.output()
