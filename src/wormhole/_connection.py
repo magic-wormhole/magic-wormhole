@@ -194,6 +194,7 @@ class WSRelayClient(object):
                                         self._wormhole.side, self)
         self._mailbox.connected(ws)
         self._wormhole.add_connection(self._connection)
+        self._ws_send_command("bind", appid=self._appid, side=self._side)
     def M_lost(self):
         self._wormhole.M_lost(self._connection)
         self._connection = None
@@ -245,134 +246,8 @@ if __name__ == "__main__":
     from twisted.internet.task import react
     react(tryit)
 
-# a new WSConnection is created each time the WSRelayClient gets through
+# ??? a new WSConnection is created each time the WSRelayClient gets through
 # negotiation
-@attrs
-class WSConnection(object):
-    _ws = attrib()
-    _appid = attrib()
-    _side = attrib()
-    _wsrc = attrib()
-    m = MethodicalMachine()
-
-    @m.state(initial=True)
-    def unbound(self): pass
-    @m.state()
-    def binding(self): pass
-    @m.state()
-    def neither(self): pass
-    @m.state()
-    def has_nameplate(self): pass
-    @m.state()
-    def has_mailbox(self): pass
-    @m.state()
-    def has_both(self): pass
-    @m.state()
-    def closing(self): pass
-    @m.state()
-    def closed(self): pass
-
-    @m.input()
-    def bind(self): pass
-    @m.input()
-    def ack_bind(self): pass
-    @m.input()
-    def wsc_set_nameplate(self): pass
-    @m.input()
-    def wsc_set_mailbox(self, mailbox): pass
-    @m.input()
-    def wsc_release_nameplate(self): pass
-    @m.input()
-    def wsc_release_mailbox(self): pass
-    @m.input()
-    def ack_close(self): pass
-
-    @m.output()
-    def send_bind(self):
-        self._ws_send_command("bind", appid=self._appid, side=self._side)
-    @m.output()
-    def notify_bound(self):
-        self._nameplate_machine.bound()
-        self._connection.make_listing_machine()
-    @m.output()
-    def m_set_mailbox(self, mailbox):
-        self._mailbox_machine.m_set_mailbox(mailbox)
-    @m.output()
-    def request_close(self):
-        self._wsrc.close()
-    @m.output()
-    def notify_close(self):
-        pass
-
-    unbound.upon(bind, enter=binding, outputs=[send_bind])
-    binding.upon(ack_bind, enter=neither, outputs=[notify_bound])
-    neither.upon(wsc_set_nameplate, enter=has_nameplate, outputs=[])
-    neither.upon(wsc_set_mailbox, enter=has_mailbox, outputs=[m_set_mailbox])
-    has_nameplate.upon(wsc_set_mailbox, enter=has_both, outputs=[m_set_mailbox])
-    has_nameplate.upon(wsc_release_nameplate, enter=closing, outputs=[request_close])
-    has_mailbox.upon(wsc_set_nameplate, enter=has_both, outputs=[])
-    has_mailbox.upon(wsc_release_mailbox, enter=closing, outputs=[request_close])
-    has_both.upon(wsc_release_nameplate, enter=has_mailbox, outputs=[])
-    has_both.upon(wsc_release_mailbox, enter=has_nameplate, outputs=[])
-    closing.upon(ack_close, enter=closed, outputs=[])
-
-class NameplateMachine(object):
-    m = MethodicalMachine()
-
-    @m.state(initial=True)
-    def unclaimed(self): pass # but bound
-    @m.state()
-    def claiming(self): pass
-    @m.state()
-    def claimed(self): pass
-    @m.state()
-    def releasing(self): pass
-    @m.state(terminal=True)
-    def done(self): pass
-
-    @m.input()
-    def learned_nameplate(self, nameplate):
-        """Call learned_nameplate() when you learn the nameplate: either
-        through allocation or code entry"""
-        pass
-    @m.input()
-    def rx_claimed(self, mailbox): pass # response("claimed")
-    @m.input()
-    def nm_release_nameplate(self): pass
-    @m.input()
-    def release_acked(self): pass # response("released")
-
-    @m.output()
-    def send_claim(self, nameplate):
-        self._ws_send_command("claim", nameplate=nameplate)
-    @m.output()
-    def wsc_set_nameplate(self, mailbox):
-        self._connection_machine.wsc_set_nameplate()
-    @m.output()
-    def wsc_set_mailbox(self, mailbox):
-        self._connection_machine.wsc_set_mailbox()
-    @m.output()
-    def mm_set_mailbox(self, mailbox):
-        self._mm.mm_set_mailbox()
-    @m.output()
-    def send_release(self):
-        self._ws_send_command("release")
-    @m.output()
-    def wsc_release_nameplate(self):
-        # let someone know, when both the mailbox and the nameplate are
-        # released, the websocket can be closed, and we're done
-        self._wsc.wsc_release_nameplate()
-
-    unclaimed.upon(learned_nameplate, enter=claiming, outputs=[send_claim])
-    claiming.upon(rx_claimed, enter=claimed, outputs=[wsc_set_nameplate,
-                                                      mm_set_mailbox,
-                                                      wsc_set_mailbox])
-    #claiming.upon(learned_nameplate, enter=claiming, outputs=[])
-    claimed.upon(nm_release_nameplate, enter=releasing, outputs=[send_release])
-    #claimed.upon(learned_nameplate, enter=claimed, outputs=[])
-    #releasing.upon(release, enter=releasing, outputs=[])
-    releasing.upon(release_acked, enter=done, outputs=[wsc_release_nameplate])
-    #releasing.upon(learned_nameplate, enter=releasing, outputs=[])
 
 class NameplateListingMachine(object):
     m = MethodicalMachine()
@@ -426,51 +301,6 @@ class NameplateListingMachine(object):
     # nlm._connection = c = Connection(ws)
     # nlm.list_nameplates().addCallback(display_completions)
     # c.register_dispatch("nameplates", nlm.response)
-
-class MailboxMachine(object):
-    m = MethodicalMachine()
-
-    @m.state()
-    def unknown(initial=True): pass
-    @m.state()
-    def mailbox_unused(): pass
-    @m.state()
-    def mailbox_used(): pass
-
-    @m.input()
-    def mm_set_mailbox(self, mailbox): pass
-    @m.input()
-    def add_connection(self, connection): pass
-    @m.input()
-    def rx_message(self): pass
-
-    @m.input()
-    def close(self): pass
-
-    @m.output()
-    def open_mailbox(self):
-        self._mm.mm_set_mailbox(self._mailbox)
-    @m.output()
-    def nm_release_nameplate(self):
-        self._nm.nm_release_nameplate()
-    @m.output()
-    def wsc_release_mailbox(self):
-        self._wsc.wsc_release_mailbox()
-    @m.output()
-    def open_mailbox(self, mailbox):
-        self._ws_send_command("open", mailbox=mailbox)
-
-    @m.output()
-    def close_mailbox(self, mood):
-        self._ws_send_command("close", mood=mood)
-
-    unknown.upon(mm_set_mailbox, enter=mailbox_unused, outputs=[open_mailbox])
-    mailbox_unused.upon(rx_message, enter=mailbox_used,
-                        outputs=[nm_release_nameplate])
-    #open.upon(message_pake, enter=key_established, outputs=[send_pake,
-    #                                                        send_version])
-    #key_established.upon(message_version, enter=key_verified, outputs=[])
-    #key_verified.upon(close, enter=closed, outputs=[wsc_release_mailbox])
 
 class Wormhole:
     m = MethodicalMachine()

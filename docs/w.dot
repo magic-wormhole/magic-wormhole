@@ -200,10 +200,7 @@ digraph {
         WCM_S_known -> O_WM [style="invis"]
         O_WM [label="Wormhole\nMachine" style="dotted"]
         O_WM -> O_MM [style="dotted"]
-        O_WM -> O_MCM [style="dotted"]
-        O_MM -> O_MCM [style="dotted"]
         O_MM [label="Mailbox\nMachine" style="dotted"]
-        O_MCM [label="Mailbox\nClose\nMachine" style="dotted"]
         O_MM -> O_CM [style="dotted"]
         O_CM [label="Connection\nMachine" style="dotted"]
 }
