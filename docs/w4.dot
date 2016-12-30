@@ -44,7 +44,7 @@ digraph {
         C_P_stop_timer -> C_P_stopped
         C_Pc2 [shape="box" label="ep.connect()" color="blue"]
         C_Pc2 -> C_Sc2 [color="blue"]
-        C_Sc2 [label="connecting" color="blue"]
+        C_Sc2 [label="reconnecting" color="blue"]
         C_Sc2 -> C_P_reset [label="d.callback" color="blue" fontcolor="blue"]
         C_P_reset [shape="box" label="reset\ntimer" color="blue"]
         C_P_reset -> C_S_negotiating [color="blue"]
