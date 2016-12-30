@@ -43,12 +43,8 @@ class WSFactory(websocket.WebSocketClientFactory):
         #proto.wormhole_open = False
         return proto
 
-
 # pip install (path to automat checkout)[visualize]
 # automat-visualize wormhole._connection
-
-# We have one WSRelayClient for each wsurl we know about, and it lasts
-# as long as its parent Wormhole does.
 
 @attrs
 class _WSRelayClient_Machine(object):
@@ -102,9 +98,9 @@ class _WSRelayClient_Machine(object):
     def reset_timer(self):
         self._c.reset_timer()
     @m.output()
-    def add_connection(self):
-        print("add_connection")
-        self._c.add_connection()
+    def connection_established(self):
+        print("connection_established")
+        self._c.connection_established()
     @m.output()
     def M_lost(self):
         self._c.M_lost()
@@ -131,7 +127,7 @@ class _WSRelayClient_Machine(object):
     connecting.upon(stop, enter=cancelling, outputs=[d_cancel])
     cancelling.upon(d_errback, enter=closed, outputs=[])
 
-    negotiating.upon(onOpen, enter=open, outputs=[add_connection])
+    negotiating.upon(onOpen, enter=open, outputs=[connection_established])
     negotiating.upon(stop, enter=disconnecting, outputs=[dropConnection])
     negotiating.upon(onClose, enter=failed, outputs=[notify_fail])
 
@@ -146,9 +142,13 @@ class _WSRelayClient_Machine(object):
     waiting.upon(stop, enter=closed, outputs=[cancel_timer])
     disconnecting.upon(onClose, enter=closed, outputs=[MC_stopped])
 
+# We have one WSRelayClient for each wsurl we know about, and it lasts
+# as long as its parent Wormhole does.
+
 @attrs
 class WSRelayClient(object):
     _wormhole = attrib()
+    _mailbox = attrib()
     _ws_url = attrib()
     _reactor = attrib()
     INITIAL_DELAY = 1.0
@@ -189,9 +189,10 @@ class WSRelayClient(object):
         print("ep_connect()")
         self._d = self._ep.connect(self._f)
         self._d.addCallbacks(self.d_callback, self.d_errback)
-    def add_connection(self):
+    def connection_established(self):
         self._connection = WSConnection(ws, self._wormhole.appid,
                                         self._wormhole.side, self)
+        self._mailbox.connected(ws)
         self._wormhole.add_connection(self._connection)
     def M_lost(self):
         self._wormhole.M_lost(self._connection)
