@@ -1273,25 +1273,32 @@ class FileConsumer(unittest.TestCase):
         self.assertEqual(f.getvalue(), b"."*99+b"!")
 
 
-DIRECT_HINT = {"type": "direct-tcp-v1",
-               "hostname": "direct", "port": 1234}
-RELAY_HINT = {"type": "relay-v1",
-              "hints": [{"type": "direct-tcp-v1",
-                          "hostname": "relay", "port": 1234}]}
-UNRECOGNIZED_HINT = {"type": "unknown"}
-UNAVAILABLE_HINT = {"type": "direct-tcp-v1", # e.g. Tor without txtorcon
-                    "hostname": "unavailable", "port": 1234}
-RELAY_HINT2 = {"type": "relay-v1",
-               "hints": [{"type": "direct-tcp-v1",
-                           "hostname": "relay", "port": 1234},
-                          UNRECOGNIZED_HINT]}
-UNAVAILABLE_RELAY_HINT = {"type": "relay-v1",
-                          "hints": [UNAVAILABLE_HINT]}
-DIRECT_HINT_INTERNAL = transit.DirectTCPV1Hint("direct", 1234)
-RELAY_HINT_FIRST = transit.DirectTCPV1Hint("relay", 1234)
-RELAY_HINT_INTERNAL = transit.RelayV1Hint((RELAY_HINT_FIRST,))
+DIRECT_HINT_JSON = {"type": "direct-tcp-v1",
+                    "hostname": "direct", "port": 1234}
+RELAY_HINT_JSON = {"type": "relay-v1",
+                   "hints": [{"type": "direct-tcp-v1",
+                              "hostname": "relay", "port": 1234}]}
+UNRECOGNIZED_HINT_JSON = {"type": "unknown"}
+UNAVAILABLE_HINT_JSON = {"type": "direct-tcp-v1", # e.g. Tor without txtorcon
+                         "hostname": "unavailable", "port": 1234}
+RELAY_HINT2_JSON = {"type": "relay-v1",
+                    "hints": [{"type": "direct-tcp-v1",
+                               "hostname": "relay", "port": 1234},
+                              UNRECOGNIZED_HINT_JSON]}
+UNAVAILABLE_RELAY_HINT_JSON = {"type": "relay-v1",
+                               "hints": [UNAVAILABLE_HINT_JSON]}
 
 class Transit(unittest.TestCase):
+    def setUp(self):
+        self._connectors = []
+        self._waiters = []
+
+    def _start_connector(self, ep, description, is_relay=False):
+        d = defer.Deferred()
+        self._connectors.append(ep)
+        self._waiters.append(d)
+        return d
+
     @inlineCallbacks
     def test_success_direct(self):
         clock = task.Clock()
@@ -1299,54 +1306,38 @@ class Transit(unittest.TestCase):
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints
-        s.add_connection_hints([DIRECT_HINT, UNRECOGNIZED_HINT])
+        s.add_connection_hints([DIRECT_HINT_JSON, UNRECOGNIZED_HINT_JSON])
 
-        connectors = []
-        def _start_connector(ep, description, is_relay=False):
-            d = defer.Deferred()
-            connectors.append(d)
-            return d
-        s._start_connector = _start_connector
+        s._start_connector = self._start_connector
         d = s.connect()
         results = []
         d.addBoth(results.append)
         self.assertEqual(results, [])
-        self.assertEqual(len(connectors), 1)
-        self.assertIsInstance(connectors[0], defer.Deferred)
+        self.assertEqual(len(self._waiters), 1)
+        self.assertIsInstance(self._waiters[0], defer.Deferred)
 
-        connectors[0].callback("winner")
+        self._waiters[0].callback("winner")
         self.assertEqual(results, ["winner"])
 
     def _endpoint_from_hint_obj(self, hint):
-        if hint == DIRECT_HINT_INTERNAL:
-            return "direct"
-        elif hint == RELAY_HINT_FIRST:
-            return "relay"
-        else:
-            return None # e.g. UNAVAILABLE_HINT
+        if isinstance(hint, transit.DirectTCPV1Hint):
+            if hint.hostname == "unavailable":
+                return None
+            return hint.hostname
+        return None
 
     @inlineCallbacks
     def test_wait_for_relay(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()
         del hints
-        s.add_connection_hints([DIRECT_HINT, UNRECOGNIZED_HINT, RELAY_HINT])
-
-        direct_connectors = []
-        relay_connectors = []
+        s.add_connection_hints([DIRECT_HINT_JSON,
+                                UNRECOGNIZED_HINT_JSON,
+                                RELAY_HINT_JSON])
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
-        def _start_connector(ep, description, is_relay=False):
-            d = defer.Deferred()
-            if ep == "direct":
-                direct_connectors.append(d)
-            elif ep == "relay":
-                relay_connectors.append(d)
-            else:
-                raise ValueError
-            return d
-        s._start_connector = _start_connector
+        s._start_connector = self._start_connector
 
         d = s.connect()
         results = []
@@ -1354,14 +1345,12 @@ class Transit(unittest.TestCase):
         self.assertEqual(results, [])
         # the direct connectors are tried right away, but the relay
         # connectors are stalled for a few seconds
-        self.assertEqual(len(direct_connectors), 1)
-        self.assertEqual(len(relay_connectors), 0)
+        self.assertEqual(self._connectors, ["direct"])
 
         clock.advance(s.RELAY_DELAY + 1.0)
-        self.assertEqual(len(direct_connectors), 1)
-        self.assertEqual(len(relay_connectors), 1)
+        self.assertEqual(self._connectors, ["direct", "relay"])
 
-        direct_connectors[0].callback("winner")
+        self._waiters[0].callback("winner")
         self.assertEqual(results, ["winner"])
 
     @inlineCallbacks
@@ -1372,22 +1361,12 @@ class Transit(unittest.TestCase):
         hints = yield s.get_connection_hints() # start the listener
         del hints
         # include hints that can't be turned into an endpoint at runtime
-        s.add_connection_hints([UNRECOGNIZED_HINT, UNAVAILABLE_HINT,
-                                RELAY_HINT2, UNAVAILABLE_RELAY_HINT])
-
-        direct_connectors = []
-        relay_connectors = []
+        s.add_connection_hints([UNRECOGNIZED_HINT_JSON,
+                                UNAVAILABLE_HINT_JSON,
+                                RELAY_HINT2_JSON,
+                                UNAVAILABLE_RELAY_HINT_JSON])
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
-        def _start_connector(ep, description, is_relay=False):
-            d = defer.Deferred()
-            if ep == "direct":
-                direct_connectors.append(d)
-            elif ep == "relay":
-                relay_connectors.append(d)
-            else:
-                raise ValueError
-            return d
-        s._start_connector = _start_connector
+        s._start_connector = self._start_connector
 
         d = s.connect()
         results = []
@@ -1395,14 +1374,12 @@ class Transit(unittest.TestCase):
         self.assertEqual(results, [])
         # since there are no usable direct hints, the relay connector will
         # only be stalled for 0 seconds
-        self.assertEqual(len(direct_connectors), 0)
-        self.assertEqual(len(relay_connectors), 0)
+        self.assertEqual(self._connectors, [])
 
         clock.advance(0)
-        self.assertEqual(len(direct_connectors), 0)
-        self.assertEqual(len(relay_connectors), 1)
+        self.assertEqual(self._connectors, ["relay"])
 
-        relay_connectors[0].callback("winner")
+        self._waiters[0].callback("winner")
         self.assertEqual(results, ["winner"])
 
     @inlineCallbacks
@@ -1413,20 +1390,8 @@ class Transit(unittest.TestCase):
         hints = yield s.get_connection_hints() # start the listener
         del hints
         s.add_connection_hints([]) # no hints at all
-
-        direct_connectors = []
-        relay_connectors = []
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
-        def _start_connector(ep, description, is_relay=False):
-            d = defer.Deferred()
-            if ep == "direct":
-                direct_connectors.append(d)
-            elif ep == "relay":
-                relay_connectors.append(d)
-            else:
-                raise ValueError
-            return d
-        s._start_connector = _start_connector
+        s._start_connector = self._start_connector
 
         d = s.connect()
         f = self.failureResultOf(d, transit.TransitError)
