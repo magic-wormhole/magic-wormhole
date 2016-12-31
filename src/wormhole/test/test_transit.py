@@ -1375,6 +1375,56 @@ class Transit(unittest.TestCase):
         self.assertEqual(results, ["winner"])
 
     @inlineCallbacks
+    def test_priorities(self):
+        clock = task.Clock()
+        s = transit.TransitSender("", reactor=clock, no_listen=True)
+        s.set_transit_key(b"key")
+        hints = yield s.get_connection_hints()
+        del hints
+        s.add_connection_hints([
+            {"type": "relay-v1",
+             "hints": [{"type": "direct-tcp-v1",
+                        "hostname": "relay", "port": 1234}]},
+            {"type": "direct-tcp-v1",
+             "hostname": "direct", "port": 1234},
+            {"type": "relay-v1",
+             "hints": [{"type": "direct-tcp-v1", "priority": 2.0,
+                        "hostname": "relay2", "port": 1234},
+                       {"type": "direct-tcp-v1", "priority": 3.0,
+                        "hostname": "relay3", "port": 1234}]},
+            {"type": "relay-v1",
+             "hints": [{"type": "direct-tcp-v1", "priority": 2.0,
+                        "hostname": "relay4", "port": 1234}]},
+            ])
+        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
+        s._start_connector = self._start_connector
+
+        d = s.connect()
+        results = []
+        d.addBoth(results.append)
+        self.assertEqual(results, [])
+        # direct connector should be used first, then the priority=3.0 relay,
+        # then the two 2.0 relays, then the (default) 0.0 relay
+
+        self.assertEqual(self._connectors, ["direct"])
+
+        clock.advance(s.RELAY_DELAY + 1.0)
+        self.assertEqual(self._connectors, ["direct", "relay3"])
+
+        clock.advance(s.RELAY_DELAY)
+        self.assertIn(self._connectors,
+                      (["direct", "relay3", "relay2", "relay4"],
+                       ["direct", "relay3", "relay4", "relay2"]))
+
+        clock.advance(s.RELAY_DELAY)
+        self.assertIn(self._connectors,
+                      (["direct", "relay3", "relay2", "relay4", "relay"],
+                       ["direct", "relay3", "relay4", "relay2", "relay"]))
+
+        self._waiters[0].callback("winner")
+        self.assertEqual(results, ["winner"])
+
+    @inlineCallbacks
     def test_no_direct_hints(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)

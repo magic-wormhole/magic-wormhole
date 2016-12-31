@@ -821,8 +821,17 @@ class Common:
         # resolve quickly. Many direct hints will be to unused local-network
         # IP addresses, which won't answer, and would take the full TCP
         # timeout (30s or more) to fail.
+
+        prioritized_relays = {}
         for rh in self._our_relay_hints:
             for hint_obj in rh.hints:
+                priority = hint_obj.priority
+                if priority not in prioritized_relays:
+                    prioritized_relays[priority] = set()
+                prioritized_relays[priority].add(hint_obj)
+
+        for priority in sorted(prioritized_relays, reverse=True):
+            for hint_obj in prioritized_relays[priority]:
                 ep = self._endpoint_from_hint_obj(hint_obj)
                 if not ep:
                     continue
@@ -831,6 +840,7 @@ class Common:
                                     self._start_connector, ep, description,
                                     is_relay=True)
                 contenders.append(d)
+            relay_delay += self.RELAY_DELAY
 
         if not contenders:
             raise TransitError("No contenders for connection")
