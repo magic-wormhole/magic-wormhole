@@ -167,6 +167,23 @@ class Hints(unittest.TestCase):
         self.assertEqual(r2, r3)
         self.assertEqual(len(set([r1, r2, r3])), 1)
 
+    def test_parse_tcp_v1_hint(self):
+        c = transit.Common("")
+        p = c._parse_tcp_v1_hint
+        self.assertEqual(p({"type": "unknown"}), None)
+        h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234})
+        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234))
+        h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234})
+        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234))
+        self.assertEqual(p({"type": "direct-tcp-v1"}),
+                         None) # missing hostname
+        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": 12}),
+                         None) # invalid hostname
+        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": "foo"}),
+                         None) # missing port
+        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": "foo",
+                            "port": "not a number"}),
+                         None) # invalid port
 
 class Basic(unittest.TestCase):
     @inlineCallbacks
