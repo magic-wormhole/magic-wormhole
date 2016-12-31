@@ -103,27 +103,27 @@ def describe_hint_obj(hint):
     else:
         return str(hint)
 
-def parse_hint_argv(hint):
+def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
-        print("unparseable hint '%s'" % (hint,))
+        print("unparseable hint '%s'" % (hint,), file=stderr)
         return None
     hint_type = mo.group(1)
     if hint_type != "tcp":
-        print("unknown hint type '%s' in '%s'" % (hint_type, hint))
+        print("unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
         return None
     hint_value = mo.group(2)
     mo = re.search(r'^(.*):(\d+)$', hint_value)
     if not mo:
-        print("unparseable TCP hint '%s'" % (hint,))
+        print("unparseable TCP hint '%s'" % (hint,), file=stderr)
         return None
     hint_host = mo.group(1)
     try:
         hint_port = int(mo.group(2))
     except ValueError:
-        print("non-numeric port in TCP hint '%s'" % (hint,))
+        print("non-numeric port in TCP hint '%s'" % (hint,), file=stderr)
         return None
     return DirectTCPV1Hint(hint_host, hint_port)
 

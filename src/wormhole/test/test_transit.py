@@ -132,6 +132,8 @@ class Misc(unittest.TestCase):
         portno = transit.allocate_tcp_port()
         self.assertIsInstance(portno, int)
 
+UnknownHint = namedtuple("UnknownHint", ["stuff"])
+
 class Hints(unittest.TestCase):
     def test_endpoint_from_hint_obj(self):
         c = transit.Common("")
@@ -153,7 +155,6 @@ class Hints(unittest.TestCase):
                          ("tor_ep", "host2.onion", 1234))
         self.assertEqual(efho(transit.DirectTCPV1Hint("non-public", 1234)),
                          None)
-        UnknownHint = namedtuple("UnknownHint", ["stuff"])
         self.assertEqual(efho(UnknownHint("foo")), None)
 
     def test_comparable(self):
@@ -184,6 +185,37 @@ class Hints(unittest.TestCase):
         self.assertEqual(p({"type": "direct-tcp-v1", "hostname": "foo",
                             "port": "not a number"}),
                          None) # invalid port
+
+    def test_parse_hint_argv(self):
+        def p(hint):
+            stderr = io.StringIO()
+            value = transit.parse_hint_argv(hint, stderr=stderr)
+            return value, stderr.getvalue()
+        h,stderr = p("tcp:host:1234")
+        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234))
+        self.assertEqual(stderr, "")
+
+        h,stderr = p("$!@#^")
+        self.assertEqual(h, None)
+        self.assertEqual(stderr, "unparseable hint '$!@#^'\n")
+
+        h,stderr = p("unknown:stuff")
+        self.assertEqual(h, None)
+        self.assertEqual(stderr,
+                         "unknown hint type 'unknown' in 'unknown:stuff'\n")
+
+        h,stderr = p("tcp:host:number")
+        self.assertEqual(h, None)
+        self.assertEqual(stderr,
+                         "unparseable TCP hint 'tcp:host:number'\n")
+
+    def test_describe_hint_obj(self):
+        d = transit.describe_hint_obj
+        self.assertEqual(d(transit.DirectTCPV1Hint("host", 1234)),
+                         "tcp:host:1234")
+        self.assertEqual(d(transit.TorTCPV1Hint("host", 1234)),
+                         "tor:host:1234")
+        self.assertEqual(d(UnknownHint("stuff")), str(UnknownHint("stuff")))
 
 class Basic(unittest.TestCase):
     @inlineCallbacks
