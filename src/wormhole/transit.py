@@ -21,12 +21,6 @@ from . import ipaddrs
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
-def debug(msg):
-    if False:
-        print(msg)
-def since(start):
-    return time.time() - start
-
 class TransitError(Exception):
     pass
 
@@ -154,7 +148,6 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self._waiting_reads = deque()
 
     def connectionMade(self):
-        debug("handle %r" %  (self.transport,))
         self.setTimeout(TIMEOUT) # does timeoutConnection() when it expires
         self.factory.connectionWasMade(self)
 
