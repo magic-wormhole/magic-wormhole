@@ -1,6 +1,29 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.9.1 (01-Jan-2017)
+
+The `wormhole` client's `--transit-helper=` argument can now include a
+"relay priority" via a numerical `priority=` field, e.g.
+`--transit-helper tcp:example.org:12345:priority=2.5`. Clients exchange
+transit relay suggestions, then try to use the highest-priority relay
+first, falling back to others after a few seconds if necessary. Direct
+connections are always preferred to a relay. Clients running 0.9.0 or
+earlier will ignore priorities, and unmarked relay arguments have an
+implicit priority of 0. (#103)
+
+Other changes:
+
+* clients now tolerate duplicate peer messages: in the future, this will
+  help clients recover from intermittent rendezvous connections (#121)
+* rendezvous server: ensure release() and close() are idempotent (from
+  different connections), also for lost-connection recovery (#118)
+* transit server: respect --blur-usage= by not logging connections
+* README: note py3.6 compatibility
+
+Thanks to xloem, kneufeld, and meejah for their help this cycle.
+
+
 ## Release 0.9.0 (24-Dec-2016)
 
 This release fixes an important "Transit Relay" bug that would have
