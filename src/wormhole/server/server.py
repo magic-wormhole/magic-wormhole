@@ -105,7 +105,7 @@ class RelayServer(service.MultiService):
         log.msg("Wormhole relay server (Rendezvous and Transit) running")
         if self._blur_usage:
             log.msg("blurring access times to %d seconds" % self._blur_usage)
-            log.msg("not logging HTTP requests")
+            log.msg("not logging HTTP requests or Transit connections")
         else:
             log.msg("not blurring access times")
 

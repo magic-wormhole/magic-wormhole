@@ -44,6 +44,7 @@ class TransitConnection(protocol.Protocol):
 
     def connectionMade(self):
         self._started = time.time()
+        self._log_requests = self.factory._log_requests
 
     def dataReceived(self, data):
         if self._sent_ok:
@@ -59,7 +60,8 @@ class TransitConnection(protocol.Protocol):
 
         if self._got_token: # but not yet sent_ok
             self.transport.write(b"impatient\n")
-            log.msg("transit impatience failure")
+            if self._log_requests:
+                log.msg("transit impatience failure")
             return self.disconnect() # impatience yields failure
 
         # else this should be (part of) the token
@@ -75,7 +77,8 @@ class TransitConnection(protocol.Protocol):
             # handshake until we've said go
             if len(buf) > handshake_len:
                 self.transport.write(b"impatient\n")
-                log.msg("transit impatience failure")
+                if self._log_requests:
+                    log.msg("transit impatience failure")
                 return self.disconnect() # impatience yields failure
             return self._got_handshake(token, None)
         (new, handshake_len, token, side) = self._check_new_handshake(buf)
@@ -83,12 +86,14 @@ class TransitConnection(protocol.Protocol):
         if new == "yes":
             if len(buf) > handshake_len:
                 self.transport.write(b"impatient\n")
-                log.msg("transit impatience failure")
+                if self._log_requests:
+                    log.msg("transit impatience failure")
                 return self.disconnect() # impatience yields failure
             return self._got_handshake(token, side)
         if (old == "no" and new == "no"):
             self.transport.write(b"bad handshake\n")
-            log.msg("transit handshake failure")
+            if self._log_requests:
+                log.msg("transit handshake failure")
             return self.disconnect() # incorrectness yields failure
         # else we'll keep waiting
 
@@ -142,7 +147,8 @@ class TransitConnection(protocol.Protocol):
         # there will be two producer/consumer pairs.
 
     def buddy_disconnected(self):
-        log.msg("buddy_disconnected %s" % self.describeToken())
+        if self._log_requests:
+            log.msg("buddy_disconnected %s" % self.describeToken())
         self._buddy = None
         self.transport.loseConnection()
 
@@ -219,6 +225,7 @@ class Transit(protocol.ServerFactory, service.MultiService):
         service.MultiService.__init__(self)
         self._db = db
         self._blur_usage = blur_usage
+        self._log_requests = blur_usage is None
         self._pending_requests = {} # token -> set((side, TransitConnection))
         self._active_connections = set() # TransitConnection
         self._counts = collections.defaultdict(int)
@@ -234,7 +241,8 @@ class Transit(protocol.ServerFactory, service.MultiService):
                 or (new_side is None)
                 or (old_side != new_side)):
                 # we found a match
-                log.msg("transit relay 2: %s" % new_tc.describeToken())
+                if self._log_requests:
+                    log.msg("transit relay 2: %s" % new_tc.describeToken())
 
                 # drop and stop tracking the rest
                 potentials.remove(old)
@@ -248,13 +256,15 @@ class Transit(protocol.ServerFactory, service.MultiService):
                 new_tc.buddy_connected(old_tc)
                 old_tc.buddy_connected(new_tc)
                 return
-        log.msg("transit relay 1: %s" % new_tc.describeToken())
+        if self._log_requests:
+            log.msg("transit relay 1: %s" % new_tc.describeToken())
         potentials.add((new_side, new_tc))
         # TODO: timer
 
     def recordUsage(self, started, result, total_bytes,
                     total_time, waiting_time):
-        log.msg("Transit.recordUsage (%dB)" % total_bytes)
+        if self._log_requests:
+            log.msg("Transit.recordUsage (%dB)" % total_bytes)
         if self._blur_usage:
             started = self._blur_usage * (started // self._blur_usage)
             total_bytes = blur_size(total_bytes)
@@ -275,11 +285,13 @@ class Transit(protocol.ServerFactory, service.MultiService):
                 self._pending_requests[token].remove(side_tc)
             if not self._pending_requests[token]: # set is now empty
                 del self._pending_requests[token]
-        log.msg("transitFinished %s" % (description,))
+        if self._log_requests:
+            log.msg("transitFinished %s" % (description,))
         self._active_connections.discard(tc)
 
     def transitFailed(self, p):
-        log.msg("transitFailed %r" % p)
+        if self._log_requests:
+            log.msg("transitFailed %r" % p)
         pass
 
     def get_stats(self):
