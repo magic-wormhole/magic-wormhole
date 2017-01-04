@@ -185,6 +185,6 @@ is probably compatible with py2.6, but the latest Twisted (>=15.5.0) is
 not.
 
 
-#### footnotes
+<!-- footnotes -->
 
 [1]: http://www.di.ens.fr/~pointche/Documents/Papers/2005_rsa.pdf "RSA 2005"
