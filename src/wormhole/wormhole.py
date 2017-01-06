@@ -89,12 +89,14 @@ class _GetCode:
         self._allocated_d.callback(nid)
 
 class _InputCode:
-    def __init__(self, reactor, prompt, code_length, send_command, timing):
+    def __init__(self, reactor, prompt, code_length, send_command, timing,
+                 stderr):
         self._reactor = reactor
         self._prompt = prompt
         self._code_length = code_length
         self._send_command = send_command
         self._timing = timing
+        self._stderr = stderr
 
     @inlineCallbacks
     def _list(self):
@@ -211,12 +213,13 @@ class _WelcomeHandler:
 class _Wormhole:
     DEBUG = False
 
-    def __init__(self, appid, relay_url, reactor, tor_manager, timing):
+    def __init__(self, appid, relay_url, reactor, tor_manager, timing, stderr):
         self._appid = appid
         self._ws_url = relay_url
         self._reactor = reactor
         self._tor_manager = tor_manager
         self._timing = timing
+        self._stderr = stderr
 
         self._welcomer = _WelcomeHandler(self._ws_url, __version__,
                                          self._signal_error)
@@ -460,7 +463,7 @@ class _Wormhole:
         with self._timing.add("API input_code"):
             yield self._when_connected()
             ic = _InputCode(self._reactor, prompt, code_length,
-                            self._ws_send_command, self._timing)
+                            self._ws_send_command, self._timing, self._stderr)
             self._response_handle_nameplates = ic._response_handle_nameplates
             # we reveal the Deferred we're waiting on, so _signal_error can
             # wake us up if something goes wrong (like a welcome error)
@@ -927,9 +930,10 @@ class _Wormhole:
         # * can't re-close websocket
         # * close(wait=True) callers should fire right away
 
-def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None):
+def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None,
+             stderr=sys.stderr):
     timing = timing or DebugTiming()
-    w = _Wormhole(appid, relay_url, reactor, tor_manager, timing)
+    w = _Wormhole(appid, relay_url, reactor, tor_manager, timing, stderr)
     w._start()
     return w
 
