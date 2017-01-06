@@ -123,12 +123,15 @@ class _InputCode:
         with self._timing.add("input code", waiting="user"):
             t = self._reactor.addSystemEventTrigger("before", "shutdown",
                                                     self._warn_readline)
-            code = yield deferToThread(codes.input_code_with_completion,
-                                       self._prompt,
-                                       initial_nameplate_ids,
-                                       self._list_blocking,
-                                       self._code_length)
+            res = yield deferToThread(codes.input_code_with_completion,
+                                      self._prompt,
+                                      initial_nameplate_ids,
+                                      self._list_blocking,
+                                      self._code_length)
+            (code, used_completion) = res
             self._reactor.removeSystemEventTrigger(t)
+            if not used_completion:
+                self._remind_about_tab()
         returnValue(code)
 
     def _response_handle_nameplates(self, msg):
@@ -175,6 +178,9 @@ class _InputCode:
         # signal.SIGKILL), or SIGTERM, doesn't seem to work: the thread
         # doesn't see the signal, and we must still wait for stdin to make
         # readline finish.
+
+    def _remind_about_tab(self):
+        print(" (note: you can use <Tab> to complete words)", file=self._stderr)
 
 class _WelcomeHandler:
     def __init__(self, url, current_version, signal_error):
