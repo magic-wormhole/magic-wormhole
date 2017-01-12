@@ -15,10 +15,15 @@ digraph {
         WM_S_nothing -> WM_P_queue1 [label="API_send" style="dotted"]
         WM_P_queue1 [shape="box" style="dotted" label="queue\noutbound msg"]
         WM_P_queue1 -> WM_S_nothing [style="dotted"]
-        WM_S_nothing -> WM_P_build_and_post_pake [label="WM_set_code()"]
+        WM_S_nothing -> WM_P_build_pake [label="WM_set_code()"]
 
-        WM_P_build_and_post_pake [label="M_set_nameplate()\nbuild_pake()\nM_send(pake)" shape="box"]
-        WM_P_build_and_post_pake -> WM_S_know_code
+        WM_P_build_pake [shape="box" label="build_pake()"]
+        WM_P_build_pake -> WM_S_save_pake
+        WM_S_save_pake [label="checkpoint"]
+        WM_S_save_pake -> WM_P_post_pake [label="saved"]
+
+        WM_P_post_pake [label="M_set_nameplate()\nM_send(pake)" shape="box"]
+        WM_P_post_pake -> WM_S_know_code
 
         WM_S_know_code [label="know code\n"]
         WM_S_know_code -> WM_P_queue2 [label="API_send" style="dotted"]
@@ -28,7 +33,9 @@ digraph {
         WM_S_know_code -> WM_P_mood_lonely [label="close"]
 
         WM_P_compute_key [label="compute_key()" shape="box"]
-        WM_P_compute_key -> WM_P_post_version [label="pake ok"]
+        WM_P_compute_key -> WM_P_save_key [label="pake ok"]
+        WM_P_save_key [label="checkpoint"]
+        WM_P_save_key -> WM_P_post_version [label="saved"]
         WM_P_compute_key -> WM_P_mood_scary [label="pake bad"]
 
         WM_P_mood_scary [shape="box" label="M_close()\nmood=scary"]
