@@ -19,12 +19,14 @@ def extract_channel_id(code):
     return channel_id
 
 class CodeInputter:
-    def __init__(self, initial_channelids, get_channel_ids, code_length):
+    def __init__(self, initial_channelids, get_channel_ids, code_length,
+                 used_completion_f):
         self._initial_channelids = initial_channelids
         self._get_channel_ids = get_channel_ids
         self.code_length = code_length
         self.last_text = None # memoize for a speedup
         self.last_matches = None
+        self._used_completion_f = used_completion_f
 
     def get_current_channel_ids(self):
         if self._initial_channelids is not None:
@@ -43,6 +45,7 @@ class CodeInputter:
             raise e
 
     def completer(self, text, state):
+        self._used_completion_f()
         #if state == 0:
         #    print("", file=sys.stderr)
         #print("completer: '%s' %d '%d'" % (text, state,
@@ -84,9 +87,13 @@ class CodeInputter:
 
 def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
                                code_length):
+    used_completion = []
+    def used_completion_f():
+        used_completion.append(True)
     try:
         import readline
-        c = CodeInputter(initial_channelids, get_channel_ids, code_length)
+        c = CodeInputter(initial_channelids, get_channel_ids, code_length,
+                         used_completion_f)
         if "libedit" in readline.__doc__:
             readline.parse_and_bind("bind ^I rl_complete")
         else:
@@ -99,7 +106,7 @@ def input_code_with_completion(prompt, initial_channelids, get_channel_ids,
     # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
     if isinstance(code, bytes):
         code = code.decode("utf-8")
-    return code
+    return (code, bool(used_completion))
 
 if __name__ == "__main__":
     code = input_code_with_completion("Enter wormhole code: ",

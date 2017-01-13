@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, json, re, gc
+import os, json, re, gc, io
 from binascii import hexlify, unhexlify
 import mock
 from twisted.trial import unittest
@@ -105,8 +105,9 @@ class Welcome(unittest.TestCase):
 class InputCode(unittest.TestCase):
     def test_list(self):
         send_command = mock.Mock()
+        stderr = io.StringIO()
         ic = wormhole._InputCode(None, "prompt", 2, send_command,
-                                 DebugTiming())
+                                 DebugTiming(), stderr)
         d = ic._list()
         self.assertNoResult(d)
         self.assertEqual(send_command.mock_calls, [mock.call("list")])
@@ -114,6 +115,8 @@ class InputCode(unittest.TestCase):
                                         "nameplates": [{"id": "123"}]})
         res = self.successResultOf(d)
         self.assertEqual(res, ["123"])
+        self.assertEqual(stderr.getvalue(), "")
+
 
 class GetCode(unittest.TestCase):
     def test_get(self):
@@ -159,7 +162,7 @@ class Basic(unittest.TestCase):
         return key, msg2
 
     def test_create(self):
-        wormhole._Wormhole(APPID, "relay_url", reactor, None, None)
+        wormhole._Wormhole(APPID, "relay_url", reactor, None, None, None)
 
     def test_basic(self):
         # We don't call w._start(), so this doesn't create a WebSocket
@@ -172,7 +175,8 @@ class Basic(unittest.TestCase):
 
         timing = DebugTiming()
         with mock.patch("wormhole.wormhole._WelcomeHandler") as wh_c:
-            w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+            w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing,
+                                   None)
         wh = wh_c.return_value
         self.assertEqual(w._ws_url, "relay_url")
         self.assertTrue(w._flag_need_nameplate)
@@ -317,7 +321,7 @@ class Basic(unittest.TestCase):
         # Close before the connection is established. The connection still
         # gets established, but it is then torn down before sending anything.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
 
         d = w.close()
@@ -335,7 +339,7 @@ class Basic(unittest.TestCase):
     def test_close_wait_1(self):
         # close before even claiming the nameplate
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -354,7 +358,7 @@ class Basic(unittest.TestCase):
         # Close after claiming the nameplate, but before opening the mailbox.
         # The 'claimed' response arrives before we close.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -385,7 +389,7 @@ class Basic(unittest.TestCase):
         # close after claiming the nameplate, but before opening the mailbox
         # The 'claimed' response arrives after we start to close.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -410,7 +414,7 @@ class Basic(unittest.TestCase):
     def test_close_wait_4(self):
         # close after both claiming the nameplate and opening the mailbox
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -440,7 +444,7 @@ class Basic(unittest.TestCase):
         # close after claiming the nameplate, opening the mailbox, then
         # releasing the nameplate
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -481,7 +485,7 @@ class Basic(unittest.TestCase):
 
     def test_get_code_mock(self):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         ws = MockWebSocket() # TODO: mock w._ws_send_command instead
         w._event_connected(ws)
         w._event_ws_opened(None)
@@ -500,7 +504,7 @@ class Basic(unittest.TestCase):
 
     def test_get_code_real(self):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         ws = MockWebSocket()
         w._event_connected(ws)
         w._event_ws_opened(None)
@@ -524,7 +528,7 @@ class Basic(unittest.TestCase):
 
     def _test_establish_key_hook(self, established, before):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
 
         if before:
             d = w.establish_key()
@@ -556,7 +560,7 @@ class Basic(unittest.TestCase):
 
     def test_establish_key_twice(self):
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         d = w.establish_key()
         self.assertRaises(InternalError, w.establish_key)
         del d
@@ -571,7 +575,7 @@ class Basic(unittest.TestCase):
         #print(when, order, success)
 
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         w._ws_send_command = mock.Mock()
         w._mailbox_state = wormhole.OPEN
@@ -634,7 +638,7 @@ class Basic(unittest.TestCase):
         # states in which we might see it.
 
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
@@ -667,7 +671,7 @@ class Basic(unittest.TestCase):
         # PAKE message, by which point we should know the key. If the
         # confirmation message doesn't decrypt, we signal an error.
         timing = DebugTiming()
-        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing)
+        w = wormhole._Wormhole(APPID, "relay_url", reactor, None, timing, None)
         w._drop_connection = mock.Mock()
         ws = MockWebSocket()
         w._event_connected(ws)
