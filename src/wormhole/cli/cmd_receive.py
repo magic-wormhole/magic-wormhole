@@ -50,6 +50,8 @@ class TwistedReceiver:
             with self.args.timing.add("import", which="tor_manager"):
                 from ..tor_manager import TorManager
             self._tor_manager = TorManager(self._reactor,
+                                           self.args.launch_tor,
+                                           self.args.tor_control_port,
                                            timing=self.args.timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager

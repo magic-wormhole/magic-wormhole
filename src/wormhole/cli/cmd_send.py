@@ -40,7 +40,10 @@ class Sender:
         if self._args.tor:
             with self._timing.add("import", which="tor_manager"):
                 from ..tor_manager import TorManager
-            self._tor_manager = TorManager(reactor, timing=self._timing)
+            self._tor_manager = TorManager(reactor,
+                                           self._args.launch_tor,
+                                           self._args.tor_control_port,
+                                           timing=self._timing)
             # For now, block everything until Tor has started. Soon: launch
             # tor in parallel with everything else, make sure the TorManager
             # can lazy-provide an endpoint, and overlap the startup process
