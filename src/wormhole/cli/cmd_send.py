@@ -6,7 +6,7 @@ from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..errors import TransferError, WormholeClosedError
+from ..errors import TransferError, WormholeClosedError, NoTorError
 from ..wormhole import wormhole
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -40,6 +40,8 @@ class Sender:
         if self._args.tor:
             with self._timing.add("import", which="tor_manager"):
                 from ..tor_manager import TorManager
+            if not TorManager:
+                raise NoTorError()
             self._tor_manager = TorManager(reactor,
                                            self._args.launch_tor,
                                            self._args.tor_control_port,

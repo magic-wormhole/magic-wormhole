@@ -55,3 +55,6 @@ class WormholeClosedError(InternalError):
 
 class TransferError(Exception):
     """Something bad happened and the transfer failed."""
+
+class NoTorError(Exception):
+    """--tor was requested, but 'txtorcon' is not installed."""
