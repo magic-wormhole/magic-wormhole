@@ -4,8 +4,7 @@ from twisted.trial import unittest
 from twisted.internet import defer
 from twisted.internet.error import ConnectError
 
-from ..tor_manager import TorManager
-import txtorcon
+from ..tor_manager import TorManager, DEFAULT_VALUE
 
 class Tor(unittest.TestCase):
     def test_create(self):
@@ -56,7 +55,7 @@ class Tor(unittest.TestCase):
         attempted_control_ports = []
         def next_d(control_port):
             attempted_control_ports.append(control_port)
-            return tcp_ds_iter.next()
+            return tcp_ds_iter.__next__()
         tm._try_control_port = mock.Mock(side_effect=next_d)
         d = tm.start()
         tsep = object()
@@ -135,7 +134,7 @@ class Tor(unittest.TestCase):
         attempted_control_ports = []
         def next_d(control_port):
             attempted_control_ports.append(control_port)
-            return tcp_ds_iter.next()
+            return tcp_ds_iter.__next__()
         tm._try_control_port = mock.Mock(side_effect=next_d)
         d = tm.start()
         tsep = object()
@@ -258,7 +257,8 @@ class Tor(unittest.TestCase):
         self._do_test_try_control_port(["unix:/foo WorldWritable",
                                         "1234 ignorestuff"],
                                        "unix:/foo")
-        self._do_test_try_control_port([txtorcon.DEFAULT_VALUE, "1234"],
+        self._do_test_try_control_port([DEFAULT_VALUE,
+                                        "1234"],
                                        "tcp:127.0.0.1:9050")
 
     def _do_test_try_control_port_exception(self, btc_exc=None, tcfp_exc=None):
@@ -320,7 +320,7 @@ class Tor(unittest.TestCase):
             ep = tm.get_endpoint_for("example.com", 1234)
             self.assertIs(ep, exp_ep)
             self.assertEqual(tce.mock_calls,
-                             [mock.call("example.com", 1234,
+                             [mock.call(b"example.com", 1234,
                                         socks_endpoint=tse)])
         with mock.patch("wormhole.tor_manager.TorClientEndpoint",
                         return_value=exp_ep) as tce:

@@ -3,8 +3,15 @@ import sys, re
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 from twisted.internet.endpoints import clientFromString
-from txtorcon import (TorConfig, launch_tor, build_tor_connection,
-                      DEFAULT_VALUE, TorClientEndpoint)
+try:
+    from txtorcon import (TorConfig, launch_tor, build_tor_connection,
+                          DEFAULT_VALUE, TorClientEndpoint)
+except ImportError:
+    TorConfig = None
+    launch_tor = None
+    build_tor_connection = None
+    TorClientEndpoint = None
+    DEFAULT_VALUE = "DEFAULT_VALUE"
 import ipaddress
 from .timing import DebugTiming
 from .transit import allocate_tcp_port
