@@ -1,15 +1,17 @@
 from __future__ import print_function, unicode_literals
+import sys, re
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 from twisted.internet.endpoints import clientFromString
-import txtorcon
+from txtorcon import (TorConfig, launch_tor, build_tor_connection,
+                      DEFAULT_VALUE, TorClientEndpoint)
 import ipaddress
 from .timing import DebugTiming
 from .transit import allocate_tcp_port
 
 class TorManager:
     def __init__(self, reactor, launch_tor=False, tor_control_port=None,
-                 timing=None):
+                 timing=None, stderr=sys.stderr):
         """
         If launch_tor=True, I will try to launch a new Tor process, ask it
         for its SOCKS and control ports, and use those for outbound
@@ -40,13 +42,16 @@ class TorManager:
         # permission via --tor.
 
         self._reactor = reactor
-        assert isinstance(launch_tor, int) # note: False is int
-        assert isinstance(tor_control_port, (type(""), type(None)))
+        if not isinstance(launch_tor, bool): # note: False is int
+            raise TypeError("launch_tor= must be boolean")
+        if not isinstance(tor_control_port, (type(""), type(None))):
+            raise TypeError("tor_control_port= must be str or None")
         if launch_tor and tor_control_port is not None:
             raise ValueError("cannot combine --launch-tor and --tor-control-port=")
         self._launch_tor = launch_tor
         self._tor_control_port = tor_control_port
         self._timing = timing or DebugTiming()
+        self._stderr = stderr
 
     @inlineCallbacks
     def start(self):
@@ -56,7 +61,7 @@ class TorManager:
         # need the control port.
 
         if self._launch_tor:
-            print("launching my own Tor process")
+            print(" launching a new Tor process..", file=self._stderr)
             with self._timing.add("launch tor"):
                 (tproto, tconfig, socks_desc) = yield self._do_launch_tor()
         else:
@@ -83,15 +88,12 @@ class TorManager:
 
     @inlineCallbacks
     def _do_launch_tor(self):
-        tconfig = txtorcon.TorConfig()
+        tconfig = TorConfig()
         #tconfig.ControlPort = allocate_tcp_port() # defaults to 9052
-        #print("setting config.ControlPort to", tconfig.ControlPort)
         tconfig.SocksPort = allocate_tcp_port()
         socks_desc = "tcp:127.0.0.1:%d" % tconfig.SocksPort
-        #print("setting config.SocksPort to", tconfig.SocksPort)
-
         # this could take tor_binary=
-        tproto = yield txtorcon.launch_tor(tconfig, self._reactor)
+        tproto = yield launch_tor(tconfig, self._reactor)
         returnValue((tproto, tconfig, socks_desc))
 
     @inlineCallbacks
@@ -99,26 +101,23 @@ class TorManager:
         NOPE = (None, None, None)
         ep = clientFromString(self._reactor, control_port)
         try:
-            tproto = yield txtorcon.build_tor_connection(ep, build_state=False)
+            tproto = yield build_tor_connection(ep, build_state=False)
             # now wait for bootstrap
-            tconfig = yield txtorcon.TorConfig.from_protocol(tproto)
+            tconfig = yield TorConfig.from_protocol(tproto)
         except (ValueError, ConnectError):
             returnValue(NOPE)
         socks_ports = list(tconfig.SocksPort)
-        for socks_port in socks_ports:
-            pieces = socks_port.split()
-            p = pieces[0]
-            if p == txtorcon.DEFAULT_VALUE:
-                p = "9050"
-            try:
-                portnum = int(p)
-                socks_desc = "tcp:127.0.0.1:%d" % portnum
-                returnValue((tproto, tconfig, socks_desc))
-            except ValueError:
-                pass
-        print("connected to Tor, but could not use config.SocksPort: %r" %
-              (socks_ports,))
-        returnValue(NOPE)
+        socks_port = socks_ports[0] # TODO: when might there be multiple?
+        # I've seen "9050", and "unix:/var/run/tor/socks WorldWritable"
+        pieces = socks_port.split()
+        p = pieces[0]
+        if p == DEFAULT_VALUE:
+            socks_desc = "tcp:127.0.0.1:9050"
+        elif re.search('^\d+$', p):
+            socks_desc = "tcp:127.0.0.1:%s" % p
+        else:
+            socks_desc = p
+        returnValue((tproto, tconfig, socks_desc))
 
     def is_non_public_numeric_address(self, host):
         # for numeric hostnames, skip RFC1918 addresses, since no Tor exit
@@ -137,13 +136,12 @@ class TorManager:
     def get_endpoint_for(self, host, port):
         assert isinstance(port, int)
         if self.is_non_public_numeric_address(host):
-            print("ignoring non-Tor-able %s" % host)
             return None
 
         # txsocksx doesn't like unicode: it concatenates some binary protocol
         # bytes with the hostname when talking to the SOCKS server, so the
         # py2 automatic unicode promotion blows up
         host = host.encode("ascii")
-        ep = txtorcon.TorClientEndpoint(host, port,
-                                        socks_endpoint=self._tor_socks_endpoint)
+        ep = TorClientEndpoint(host, port,
+                               socks_endpoint=self._tor_socks_endpoint)
         return ep
