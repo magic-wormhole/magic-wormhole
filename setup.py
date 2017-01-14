@@ -5,6 +5,12 @@ import versioneer
 
 commands = versioneer.get_cmdclass()
 
+DEV_REQUIREMENTS = [
+    "mock",
+    "tox",
+    "pyflakes",
+]
+
 setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
@@ -34,16 +40,16 @@ setup(name="magic-wormhole",
           "hkdf", "tqdm",
           "click",
           "humanize",
+          "ipaddress",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
           "tor": ["txtorcon", "ipaddress"],
-          "dev": [
-              "mock",
-              "tox",
-              "pyflakes",
-              "txtorcon", "ipaddress",
-          ],
+          "dev": DEV_REQUIREMENTS + ["txtorcon"],
+          # txtorcon is not yet compatible with py3, so tox knows to install
+          # ".[dev-without-tor]" on py3, and the test suite will skip the tor
+          # tests when txtorcon is not importable
+          "dev-without-tor": DEV_REQUIREMENTS,
       },
       test_suite="wormhole.test",
       cmdclass=commands,
