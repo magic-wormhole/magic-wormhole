@@ -6,7 +6,7 @@ from twisted.internet.endpoints import clientFromString
 try:
     from txtorcon import (TorConfig, launch_tor, build_tor_connection,
                           DEFAULT_VALUE, TorClientEndpoint)
-except ImportError:
+except (ModuleNotFoundError, ImportError) as e:
     TorConfig = None
     launch_tor = None
     build_tor_connection = None
@@ -152,3 +152,6 @@ class TorManager:
         ep = TorClientEndpoint(host, port,
                                socks_endpoint=self._tor_socks_endpoint)
         return ep
+
+if not TorConfig:
+    TorManager = None
