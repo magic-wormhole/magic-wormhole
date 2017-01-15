@@ -5,6 +5,12 @@ import versioneer
 
 commands = versioneer.get_cmdclass()
 
+DEV_REQUIREMENTS = [
+    "mock",
+    "tox",
+    "pyflakes",
+]
+
 setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
@@ -34,15 +40,12 @@ setup(name="magic-wormhole",
           "hkdf", "tqdm",
           "click",
           "humanize",
+          "ipaddress",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
-          "tor": ["txtorcon", "ipaddress"],
-          "dev": [
-              "mock",
-              "tox",
-              "pyflakes",
-          ],
+          "tor": ["txtorcon"],
+          "dev": DEV_REQUIREMENTS,
       },
       test_suite="wormhole.test",
       cmdclass=commands,
