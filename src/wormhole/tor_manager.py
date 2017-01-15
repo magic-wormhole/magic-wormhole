@@ -74,7 +74,8 @@ class TorManager:
         # need the control port.
 
         if self._launch_tor:
-            print(" launching a new Tor process..", file=self._stderr)
+            print(" launching a new Tor process, this may take a while..",
+                  file=self._stderr)
             with self._timing.add("launch tor"):
                 (tproto, tconfig, socks_desc) = yield self._do_launch_tor()
         else:
@@ -89,11 +90,16 @@ class TorManager:
                     (tproto, tconfig,
                      socks_desc) = yield self._try_control_port(control_port)
                     if tproto:
+                        print(" using Tor (control port %s) (SOCKS port %s)"
+                              % (control_port, socks_desc),
+                              file=self._stderr)
                         break
                 else:
                     tproto = None
                     tconfig = None
                     socks_desc = "tcp:127.0.0.1:9050" # fallback
+                    print(" using Tor (SOCKS port %s)" % socks_desc,
+                          file=self._stderr)
 
         self._tor_protocol = tproto
         self._tor_config = tconfig
