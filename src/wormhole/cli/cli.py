@@ -9,7 +9,7 @@ from . import public_relay
 from .. import __version__
 from ..timing import DebugTiming
 from ..errors import (WrongPasswordError, WelcomeError, KeyFormatError,
-                      TransferError)
+                      TransferError, NoTorError)
 from twisted.internet.defer import inlineCallbacks, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.internet.task import react
@@ -104,7 +104,7 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
-    except (WrongPasswordError, KeyFormatError) as e:
+    except (WrongPasswordError, KeyFormatError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
         raise SystemExit(1)
@@ -146,14 +146,24 @@ CommonArgs = _compose(
     click.option("--listen/--no-listen", default=True,
                  help="(debug) don't open a listening socket for Transit",
                  ),
+)
+
+TorArgs = _compose(
     click.option("--tor", is_flag=True, default=False,
                  help="use Tor when connecting",
+                 ),
+    click.option("--launch-tor", is_flag=True, default=False,
+                 help="launch Tor, rather than use existing control/socks port",
+                 ),
+    click.option("--tor-control-port", default=None, metavar="ENDPOINT",
+                 help="endpoint descriptor for Tor control port",
                  ),
 )
 
 # wormhole send (or "wormhole tx")
 @wormhole.command()
 @CommonArgs
+@TorArgs
 @click.option(
     "--code", metavar="CODE",
     help="human-generated code phrase",
@@ -183,6 +193,7 @@ def go(f, cfg):
 # wormhole receive (or "wormhole rx")
 @wormhole.command()
 @CommonArgs
+@TorArgs
 @click.option(
     "--only-text", "-t", is_flag=True,
     help="refuse file transfers, only accept text transfers",
@@ -245,6 +256,7 @@ def ssh():
     metavar="USER",
     help="Add to USER's ~/.ssh/authorized_keys",
 )
+@TorArgs
 @click.pass_context
 def ssh_invite(ctx, code_length, user):
     """
@@ -269,6 +281,7 @@ def ssh_invite(ctx, code_length, user):
     "--yes", "-y", is_flag=True,
     help="Skip confirmation prompt to send key",
 )
+@TorArgs
 @click.pass_obj
 def ssh_accept(cfg, code, key_file, yes):
     """
