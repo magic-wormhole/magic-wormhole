@@ -49,7 +49,8 @@ class Tor(unittest.TestCase):
 
     def test_start_control_port_default_failure(self):
         reactor = object()
-        tm = TorManager(reactor)
+        stderr = io.StringIO()
+        tm = TorManager(reactor, stderr=stderr)
         tm._do_launch_tor = mock.Mock()
         tcp_ds = [defer.Deferred() for i in range(5)]
         tcp_ds_iter = iter(tcp_ds)
@@ -104,7 +105,8 @@ class Tor(unittest.TestCase):
 
     def test_start_control_port_default(self):
         reactor = object()
-        tm = TorManager(reactor)
+        stderr = io.StringIO()
+        tm = TorManager(reactor, stderr=stderr)
         tm._do_launch_tor = mock.Mock()
         tcp_d = defer.Deferred()
         # let it succeed on the first try
@@ -128,7 +130,8 @@ class Tor(unittest.TestCase):
     def test_start_control_port_non_default_failure(self):
         reactor = object()
         my_port = "my_port"
-        tm = TorManager(reactor, tor_control_port=my_port)
+        stderr = io.StringIO()
+        tm = TorManager(reactor, tor_control_port=my_port, stderr=stderr)
         tm._do_launch_tor = mock.Mock()
         tcp_ds = [defer.Deferred() for i in range(5)]
         tcp_ds_iter = iter(tcp_ds)
@@ -159,7 +162,8 @@ class Tor(unittest.TestCase):
     def test_start_control_port_non_default(self):
         reactor = object()
         my_port = "my_port"
-        tm = TorManager(reactor, tor_control_port=my_port)
+        stderr = io.StringIO()
+        tm = TorManager(reactor, tor_control_port=my_port, stderr=stderr)
         tm._do_launch_tor = mock.Mock()
         tcp_d = defer.Deferred()
         tm._try_control_port = mock.Mock(return_value=tcp_d)
@@ -213,6 +217,7 @@ class Tor(unittest.TestCase):
     def _do_test_try_control_port(self, socks_ports, exp_socks_desc,
                                   btc_exception=None, tcfp_exception=None):
         reactor = object()
+        stderr = io.StringIO()
         ep = object()
         mock_clientFromString = mock.patch("wormhole.tor_manager.clientFromString",
                                            return_value=ep)
@@ -231,7 +236,7 @@ class Tor(unittest.TestCase):
         with mock_clientFromString as cfs:
             with mock_build_tor_connection as btc:
                 with mock_torconfig:
-                    tm = TorManager(reactor)
+                    tm = TorManager(reactor, stderr=stderr)
                     d = tm._try_control_port(control_port)
                     # waiting in 'tproto = yield build_tor_connection(..)'
                     self.assertNoResult(d)
@@ -264,6 +269,7 @@ class Tor(unittest.TestCase):
 
     def _do_test_try_control_port_exception(self, btc_exc=None, tcfp_exc=None):
         reactor = object()
+        stderr = io.StringIO()
         ep = object()
         mock_clientFromString = mock.patch("wormhole.tor_manager.clientFromString",
                                            return_value=ep)
@@ -280,7 +286,7 @@ class Tor(unittest.TestCase):
         with mock_clientFromString:
             with mock_build_tor_connection:
                 with mock_torconfig:
-                    tm = TorManager(reactor)
+                    tm = TorManager(reactor, stderr=stderr)
                     d = tm._try_control_port(control_port)
                     # waiting in 'tproto = yield build_tor_connection(..)'
                     self.assertNoResult(d)
@@ -313,7 +319,8 @@ class Tor(unittest.TestCase):
 
     def test_endpoint(self):
         reactor = object()
-        tm = TorManager(reactor)
+        stderr = io.StringIO()
+        tm = TorManager(reactor, stderr=stderr)
         tm._tor_socks_endpoint = tse = object()
         exp_ep = object()
         with mock.patch("wormhole.tor_manager.TorClientEndpoint",
