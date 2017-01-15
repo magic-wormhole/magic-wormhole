@@ -9,7 +9,7 @@ from . import public_relay
 from .. import __version__
 from ..timing import DebugTiming
 from ..errors import (WrongPasswordError, WelcomeError, KeyFormatError,
-                      TransferError)
+                      TransferError, NoTorError)
 from twisted.internet.defer import inlineCallbacks, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.internet.task import react
@@ -104,7 +104,7 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
-    except (WrongPasswordError, KeyFormatError) as e:
+    except (WrongPasswordError, KeyFormatError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=stderr)
         raise SystemExit(1)
