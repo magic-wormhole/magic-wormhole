@@ -811,6 +811,8 @@ class Common:
             if not ep:
                 continue
             description = "->%s" % describe_hint_obj(hint_obj)
+            if self._tor_manager:
+                description = "tor" + description
             d = self._start_connector(ep, description)
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
@@ -836,6 +838,8 @@ class Common:
                 if not ep:
                     continue
                 description = "->relay:%s" % describe_hint_obj(hint_obj)
+                if self._tor_manager:
+                    description = "tor" + description
                 d = task.deferLater(self._reactor, relay_delay,
                                     self._start_connector, ep, description,
                                     is_relay=True)
