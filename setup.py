@@ -52,7 +52,7 @@ setup(name="magic-wormhole",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
-          "tor": ["txtorcon", "ipaddress"],
+          "tor": ["txtorcon"],
           "dev": DEV_REQUIREMENTS, # includes txtorcon on py2, but not py3
       },
       test_suite="wormhole.test",
