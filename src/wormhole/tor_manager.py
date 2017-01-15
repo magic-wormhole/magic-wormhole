@@ -6,7 +6,7 @@ from twisted.internet.endpoints import clientFromString
 try:
     from txtorcon import (TorConfig, launch_tor, build_tor_connection,
                           DEFAULT_VALUE, TorClientEndpoint)
-except (ModuleNotFoundError, ImportError) as e:
+except ImportError:
     TorConfig = None
     launch_tor = None
     build_tor_connection = None
@@ -59,6 +59,12 @@ class TorManager:
         self._tor_control_port = tor_control_port
         self._timing = timing or DebugTiming()
         self._stderr = stderr
+
+    def tor_available(self):
+        # unit tests mock out everything we get from txtorcon, so we can test
+        # this class under py3 even if txtorcon isn't installed. But the real
+        # commands need to know if they have Tor or not.
+        return bool(TorConfig)
 
     @inlineCallbacks
     def start(self):
@@ -152,6 +158,3 @@ class TorManager:
         ep = TorClientEndpoint(host, port,
                                socks_endpoint=self._tor_socks_endpoint)
         return ep
-
-if not TorConfig:
-    TorManager = None

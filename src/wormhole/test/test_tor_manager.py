@@ -3,6 +3,7 @@ import mock, io
 from twisted.trial import unittest
 from twisted.internet import defer
 from twisted.internet.error import ConnectError
+from six import next
 
 from ..tor_manager import TorManager, DEFAULT_VALUE
 
@@ -55,7 +56,7 @@ class Tor(unittest.TestCase):
         attempted_control_ports = []
         def next_d(control_port):
             attempted_control_ports.append(control_port)
-            return tcp_ds_iter.__next__()
+            return next(tcp_ds_iter)
         tm._try_control_port = mock.Mock(side_effect=next_d)
         d = tm.start()
         tsep = object()
@@ -134,7 +135,7 @@ class Tor(unittest.TestCase):
         attempted_control_ports = []
         def next_d(control_port):
             attempted_control_ports.append(control_port)
-            return tcp_ds_iter.__next__()
+            return next(tcp_ds_iter)
         tm._try_control_port = mock.Mock(side_effect=next_d)
         d = tm.start()
         tsep = object()
