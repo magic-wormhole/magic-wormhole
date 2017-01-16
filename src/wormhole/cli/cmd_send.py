@@ -290,8 +290,10 @@ class Sender:
 
         with self._timing.add("tx file"):
             with progress:
-                yield fs.beginFileTransfer(self._fd_to_send, record_pipe,
-                                           transform=_count_and_hash)
+                if filesize:
+                    # don't send zero-length files
+                    yield fs.beginFileTransfer(self._fd_to_send, record_pipe,
+                                               transform=_count_and_hash)
 
         expected_hash = hasher.digest()
         expected_hex = bytes_to_hexstr(expected_hash)

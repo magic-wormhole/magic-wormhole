@@ -239,7 +239,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False,
                  fake_tor=False):
-        assert mode in ("text", "file", "directory", "slow-text")
+        assert mode in ("text", "file", "empty-file", "directory", "slow-text")
         if fake_tor:
             assert not as_subprocess
         send_cfg = config("send")
@@ -260,10 +260,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
 
-        if mode == "text" or mode == "slow-text":
+        if mode in ("text", "slow-text"):
             send_cfg.text = message
 
-        elif mode == "file":
+        elif mode in ("file", "empty-file"):
+            if mode == "empty-file":
+                message = ""
             send_filename = "testfile"
             with open(os.path.join(send_dir, send_filename), "w") as f:
                 f.write(message)
@@ -503,6 +505,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="file", override_filename=True)
     def test_file_tor(self):
         return self._do_test(mode="file", fake_tor=True)
+    def test_empty_file(self):
+        return self._do_test(mode="empty-file")
 
     def test_directory(self):
         return self._do_test(mode="directory")

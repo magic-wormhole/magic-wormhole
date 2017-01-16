@@ -374,7 +374,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         least that number of bytes have been written. This function will then
         return a Deferred (that fires with the number of bytes actually
         received). If the connection is lost while this Deferred is
-        outstanding, it will errback.
+        outstanding, it will errback. If 'expected' is 0, the Deferred will
+        fire right away.
 
         If 'expected' is None, then this function returns None instead of a
         Deferred, and you must call disconnectConsumer() when you are done."""
@@ -402,6 +403,9 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         if expected is not None:
             d = defer.Deferred()
         self._consumer_deferred = d
+        if expected == 0:
+            # write empty record to kick consumer into shutdown
+            self._writeToConsumer(b"")
         # drain any pending records
         while self._consumer and self._inbound_records:
             r = self._inbound_records.popleft()
@@ -428,6 +432,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     # optional callable which will be called on each write (with the number
     # of bytes written). Returns a Deferred that fires (with the number of
     # bytes written) when the count is reached or the RecordPipe is closed.
+
     def writeToFile(self, f, expected, progress=None, hasher=None):
         fc = FileConsumer(f, progress, hasher)
         return self.connectConsumer(fc, expected)
