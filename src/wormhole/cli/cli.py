@@ -146,6 +146,9 @@ CommonArgs = _compose(
     click.option("--listen/--no-listen", default=True,
                  help="(debug) don't open a listening socket for Transit",
                  ),
+)
+
+TorArgs = _compose(
     click.option("--tor", is_flag=True, default=False,
                  help="use Tor when connecting",
                  ),
@@ -154,6 +157,7 @@ CommonArgs = _compose(
 # wormhole send (or "wormhole tx")
 @wormhole.command()
 @CommonArgs
+@TorArgs
 @click.option(
     "--code", metavar="CODE",
     help="human-generated code phrase",
@@ -183,6 +187,7 @@ def go(f, cfg):
 # wormhole receive (or "wormhole rx")
 @wormhole.command()
 @CommonArgs
+@TorArgs
 @click.option(
     "--only-text", "-t", is_flag=True,
     help="refuse file transfers, only accept text transfers",
@@ -245,6 +250,7 @@ def ssh():
     metavar="USER",
     help="Add to USER's ~/.ssh/authorized_keys",
 )
+@TorArgs
 @click.pass_context
 def ssh_invite(ctx, code_length, user):
     """
@@ -269,6 +275,7 @@ def ssh_invite(ctx, code_length, user):
     "--yes", "-y", is_flag=True,
     help="Skip confirmation prompt to send key",
 )
+@TorArgs
 @click.pass_obj
 def ssh_accept(cfg, code, key_file, yes):
     """
