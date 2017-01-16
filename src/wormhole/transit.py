@@ -138,7 +138,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
 
-TIMEOUT=15
+TIMEOUT = 60 # seconds
 
 @implementer(interfaces.IProducer, interfaces.IConsumer)
 class Connection(protocol.Protocol, policies.TimeoutMixin):
