@@ -1,7 +1,7 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release 0.9.2 (???)
+## Release 0.9.2 (16-Jan-2017)
 
 Tor support was rewritten. `wormhole send`, `wormhole receive`,
 `wormhole ssh invite`, and `wormhole ssh accept` all now accept three
@@ -37,8 +37,10 @@ you didn't use the Tab key while entering the code. (#15)
 readline-completion library caused a failure on previous releases).
 (#111)
 
-Thanks to Atul Varma, Leo Arias, dkg, and Joey Hess for patches and bug
-reports in this cycle.
+Thanks to Atul Varma, Leo Arias, Daniel Kahn Gillmor, Christopher Wood,
+Kostin Anagnostopoulos, Martin Falatic, and Joey Hess for patches and
+bug reports in this cycle.
+
 
 ## Release 0.9.1 (01-Jan-2017)
 
