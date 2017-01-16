@@ -19,6 +19,8 @@ package, or because the
 application is running), simply adding `--tor` should be sufficient. If
 Tor is installed but not running, you may need to use both, e.g.
 `wormhole send --tor --launch-tor`. See docs/tor.md for more details.
+Note that Tor support must be requested at install time (with `pip
+install magic-wormhole[tor]`), and only works on python2.7 (not py3).
 (#64, #97)
 
 The relay and transit URLs were changed to point at the project's
