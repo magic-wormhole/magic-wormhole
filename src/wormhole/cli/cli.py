@@ -258,10 +258,12 @@ def ssh():
 )
 @TorArgs
 @click.pass_context
-def ssh_invite(ctx, code_length, user):
+def ssh_invite(ctx, code_length, user, **kwargs):
     """
     Add a public-key to a ~/.ssh/authorized_keys file
     """
+    for name, value in kwargs.items():
+        setattr(ctx.obj, name, value)
     from . import cmd_ssh
     ctx.obj.code_length = code_length
     ctx.obj.ssh_user = user
@@ -283,7 +285,7 @@ def ssh_invite(ctx, code_length, user):
 )
 @TorArgs
 @click.pass_obj
-def ssh_accept(cfg, code, key_file, yes):
+def ssh_accept(cfg, code, key_file, yes, **kwargs):
     """
     Send your SSH public-key
 
@@ -291,6 +293,8 @@ def ssh_accept(cfg, code, key_file, yes):
     you specify (if there's only one in ~/.ssh/* that will be sent).
     """
 
+    for name, value in kwargs.items():
+        setattr(cfg.obj, name, value)
     from . import cmd_ssh
     kind, keyid, pubkey = cmd_ssh.find_public_key(key_file)
     print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
