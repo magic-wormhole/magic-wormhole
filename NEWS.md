@@ -1,6 +1,25 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.9.2 (???)
+
+Tor support was rewritten. `wormhole send`, `wormhole receive`, `wormhole ssh invite`, and `wormhole ssh accept` all now accept three Tor-related arguments:
+
+* `--tor`: use Tor for all connections, and hide all IP addresses
+* `--launch-tor`: launch a new Tor process instead of using an existing one
+* `--tor-control-port=`: use a specific control port, instead of using the default
+
+If Tor is already running on your system (either as a system package, or because the TorBrowser application is running), simply adding `--tor` should be sufficient. If Tor is installed but not running, you may need to use `--tor --launch-tor`. See docs/tor.md for more details. #64, #97
+
+The relay and transit URLs were changed to point at the project's official domain name (magic-wormhole.io). The servers are the same, so this release is fully compatible with previous releases.
+
+A packaging file for "snapcraft.io" is now included. #131
+
+`wormhole receive` now reminds you that tab-completion is available, if you didn't use the Tab key while entering the code. #15
+
+`wormhole receive` should work on cygwin now (a problem with the readline-completion library caused a failure on previous releases). #111
+
+
 ## Release 0.9.1 (01-Jan-2017)
 
 The `wormhole` client's `--transit-helper=` argument can now include a
