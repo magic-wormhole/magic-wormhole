@@ -294,7 +294,7 @@ def ssh_accept(cfg, code, key_file, yes, **kwargs):
     """
 
     for name, value in kwargs.items():
-        setattr(cfg.obj, name, value)
+        setattr(cfg, name, value)
     from . import cmd_ssh
     kind, keyid, pubkey = cmd_ssh.find_public_key(key_file)
     print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
