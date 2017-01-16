@@ -4,6 +4,7 @@ from humanize import naturalsize
 import mock
 from twisted.trial import unittest
 from twisted.python import procutils, log
+from twisted.internet import defer, endpoints, reactor
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from .. import __version__
@@ -213,6 +214,18 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         self.failUnlessEqual(ver.strip(), "magic-wormhole {}".format(__version__))
         self.failUnlessEqual(rc, 0)
 
+class FakeTorManager:
+    # use normal endpoints, but record the fact that we were asked
+    def __init__(self):
+        self.endpoints = []
+    def tor_available(self):
+        return True
+    def start(self):
+        return defer.succeed(None)
+    def get_endpoint_for(self, host, port):
+        self.endpoints.append((host, port))
+        return endpoints.HostnameEndpoint(reactor, host, port)
+
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
@@ -224,8 +237,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
-                 mode="text", addslash=False, override_filename=False):
+                 mode="text", addslash=False, override_filename=False,
+                 fake_tor=False):
         assert mode in ("text", "file", "directory", "slow-text")
+        if fake_tor:
+            assert not as_subprocess
         send_cfg = config("send")
         recv_cfg = config("receive")
         message = "blah blah blah ponies"
@@ -341,10 +357,27 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                              (send_res, receive_res))
         else:
             send_cfg.cwd = send_dir
-            send_d = cmd_send.send(send_cfg)
-
             recv_cfg.cwd = receive_dir
-            receive_d = cmd_receive.receive(recv_cfg)
+
+            if fake_tor:
+                send_cfg.tor = True
+                send_cfg.transit_helper = self.transit
+                tx_tm = FakeTorManager()
+                with mock.patch("wormhole.tor_manager.TorManager",
+                                return_value=tx_tm,
+                                ) as mtx_tm:
+                    send_d = cmd_send.send(send_cfg)
+
+                recv_cfg.tor = True
+                recv_cfg.transit_helper = self.transit
+                rx_tm = FakeTorManager()
+                with mock.patch("wormhole.tor_manager.TorManager",
+                                return_value=rx_tm,
+                                ) as mrx_tm:
+                    receive_d = cmd_receive.receive(recv_cfg)
+            else:
+                send_d = cmd_send.send(send_cfg)
+                receive_d = cmd_receive.receive(recv_cfg)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
@@ -355,6 +388,20 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             else:
                 yield gatherResults([send_d, receive_d], True)
 
+            if fake_tor:
+                expected_endpoints = [("127.0.0.1", self.relayport)]
+                if mode in ("file", "directory"):
+                    expected_endpoints.append(("127.0.0.1", self.transitport))
+                tx_timing = mtx_tm.call_args[1]["timing"]
+                self.assertEqual(tx_tm.endpoints, expected_endpoints)
+                self.assertEqual(mtx_tm.mock_calls,
+                                 [mock.call(reactor, False, None,
+                                            timing=tx_timing)])
+                rx_timing = mrx_tm.call_args[1]["timing"]
+                self.assertEqual(rx_tm.endpoints, expected_endpoints)
+                self.assertEqual(mrx_tm.mock_calls,
+                                 [mock.call(reactor, False, None,
+                                            timing=rx_timing)])
 
             send_stdout = send_cfg.stdout.getvalue()
             send_stderr = send_cfg.stderr.getvalue()
@@ -447,11 +494,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test()
     def test_text_subprocess(self):
         return self._do_test(as_subprocess=True)
+    def test_text_tor(self):
+        return self._do_test(fake_tor=True)
 
     def test_file(self):
         return self._do_test(mode="file")
     def test_file_override(self):
         return self._do_test(mode="file", override_filename=True)
+    def test_file_tor(self):
+        return self._do_test(mode="file", fake_tor=True)
 
     def test_directory(self):
         return self._do_test(mode="directory")
