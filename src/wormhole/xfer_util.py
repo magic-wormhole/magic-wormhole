@@ -2,10 +2,13 @@ import json
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from .wormhole import wormhole
-
+from .tor_manager import TorManager
+from .errors import NoTorError
 
 @inlineCallbacks
-def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
+def receive(reactor, appid, relay_url, code,
+            use_tor=False, launch_tor=False, tor_control_port=None,
+            on_code=None):
     """
     This is a convenience API which returns a Deferred that callbacks
     with a single chunk of data from another wormhole (and then closes
@@ -24,7 +27,18 @@ def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
     :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
     :type on_code: single-argument callable
     """
-    wh = wormhole(appid, relay_url, reactor, use_tor)
+    tm = None
+    if use_tor:
+        tm = TorManager(reactor, launch_tor, tor_control_port)
+        # For now, block everything until Tor has started. Soon: launch
+        # tor in parallel with everything else, make sure the TorManager
+        # can lazy-provide an endpoint, and overlap the startup process
+        # with the user handing off the wormhole code
+        if not tm.tor_available():
+            raise NoTorError()
+        yield tm.start()
+
+    wh = wormhole(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
         code = yield wh.get_code()
     else:
@@ -55,7 +69,9 @@ def receive(reactor, appid, relay_url, code, use_tor=None, on_code=None):
 
 
 @inlineCallbacks
-def send(reactor, appid, relay_url, data, code, use_tor=None, on_code=None):
+def send(reactor, appid, relay_url, data, code,
+         use_tor=False, launch_tor=False, tor_control_port=None,
+         on_code=None):
     """
     This is a convenience API which returns a Deferred that callbacks
     after a single chunk of data has been sent to another
@@ -74,7 +90,17 @@ def send(reactor, appid, relay_url, data, code, use_tor=None, on_code=None):
     :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
     :type on_code: single-argument callable
     """
-    wh = wormhole(appid, relay_url, reactor, use_tor)
+    tm = None
+    if use_tor:
+        tm = TorManager(reactor, launch_tor, tor_control_port)
+        # For now, block everything until Tor has started. Soon: launch
+        # tor in parallel with everything else, make sure the TorManager
+        # can lazy-provide an endpoint, and overlap the startup process
+        # with the user handing off the wormhole code
+        if not tm.tor_available():
+            raise NoTorError()
+        yield tm.start()
+    wh = wormhole(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
         code = yield wh.get_code()
     else:

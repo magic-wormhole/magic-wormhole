@@ -68,6 +68,8 @@ def accept(cfg, reactor=reactor):
         data=cfg.public_key[2],
         code=cfg.code,
         use_tor=cfg.tor,
+        launch_tor=cfg.launch_tor,
+        tor_control_port=cfg.tor_control_port,
     )
     print("Key sent.")
 
@@ -108,6 +110,8 @@ def invite(cfg, reactor=reactor):
         cfg.relay_url,
         None,  # allocate a code for us
         use_tor=cfg.tor,
+        launch_tor=cfg.launch_tor,
+        tor_control_port=cfg.tor_control_port,
         on_code=on_code_created,
     )
 

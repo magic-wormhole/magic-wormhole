@@ -152,6 +152,12 @@ TorArgs = _compose(
     click.option("--tor", is_flag=True, default=False,
                  help="use Tor when connecting",
                  ),
+    click.option("--launch-tor", is_flag=True, default=False,
+                 help="launch Tor, rather than use existing control/socks port",
+                 ),
+    click.option("--tor-control-port", default=None, metavar="ENDPOINT",
+                 help="endpoint descriptor for Tor control port",
+                 ),
 )
 
 # wormhole send (or "wormhole tx")
