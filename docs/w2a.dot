@@ -1,0 +1,80 @@
+digraph {
+        /* new idea */
+
+        M_title [label="Message\nMachine" style="dotted"]
+
+        M_S1 [label="S1:\nknow nothing" color="orange"]
+
+        M_S1 -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
+
+        M_S2 [label="S2:\nmaybe claimed" color="orange"]
+        /*M_S2 -> M_SrB [label="M_close()" style="dashed"]
+        M_SrB [label="SrB" style="dashed"]*/
+
+        M_P2_claim [shape="box" label="qtx claim" color="orange"]
+        M_P2_claim -> M_S2 [color="orange"]
+        M_S2 -> M_P2_queue [label="M_send(msg)" style="dotted"]
+        M_P2_queue [shape="box" label="queue" style="dotted"]
+        M_P2_queue -> M_S2 [style="dotted"]
+
+        M_S2 -> M_P_open [label="rx claimed" color="orange" fontcolor="orange"]
+        M_P_open [shape="box" label="store mailbox\nqtx open\nqtx add(queued)" color="orange"]
+        M_P_open -> M_S3 [color="orange"]
+
+        M_S3 [label="S3:\nclaimed\nmaybe open" color="orange"]
+        M_S3 -> M_S3 [label="rx claimed"]
+        M_S3 -> M_P3_send [label="M_send(msg)"]
+        M_P3_send [shape="box" label="queue\nqtx add(msg)"]
+        M_P3_send -> M_S3
+
+        M_S3 -> M_P3_process_ours [label="rx message(side=me)"]
+        M_P3_process_ours [shape="box" label="dequeue"]
+        M_P3_process_ours -> M_S3
+        M_S3 -> M_P3_process_theirs1 [label="rx message(side!=me)" color="orange" fontcolor="orange"]
+        M_P3_process_theirs1 [shape="box" label="qtx release" color="orange"]
+        M_P3_process_theirs1 -> M_P3_process_theirs2 [color="orange"]
+        M_P3_process_theirs2 [shape="octagon" label="process message" color="orange"]
+        /* pay attention to the race here: this process_message() will
+        deliver msg_pake to the WormholeMachine, which will compute_key() and
+        M_send(version), and we're in between M_S2A (where M_send gets
+        queued) and M_S3A (where M_send gets sent and queued), and we're no
+        longer passing through the M_P3_open phase (which drains the queue).
+        So there's a real possibility of the outbound msg_version getting
+        dropped on the floor, or put in a queue but never delivered. */
+        M_P3_process_theirs2 -> M_S4 [color="orange"]
+
+        /*{rank=same; M_S4A M_P4_release M_S4 M_P4_process M_P4_send M_P4_queue}*/
+        M_S4 [label="S4:\nmaybe released\nmaybe open" color="orange"]
+        M_S4 -> M_P4_send [label="M_send(msg)"]
+        M_P4_send [shape="box" label="queue\nqtx add(msg)"]
+        M_P4_send -> M_S4
+
+        M_S4 -> M_P4_process [label="rx message"]
+        M_P4_process [shape="octagon" label="process message"]
+        M_P4_process -> M_S4
+
+        M_S4 -> M_S5 [label="rx released" color="orange" fontcolor="orange"]
+
+        seed [label="from Seed?"]
+        seed -> M_S5
+        M_S5 [label="S5:\nreleased\nmaybe open" color="green"]
+        M_S5 -> M_process [label="rx message" color="green" fontcolor="green"]
+        M_process [shape="octagon" label="process message" color="green"]
+        M_process -> M_S5 [color="green"]
+        M_S5 -> M_P5_send [label="M_send(msg)" color="green" fontcolor="green"]
+        M_P5_send [shape="box" label="queue\nqtx add(msg)" color="green"]
+        M_P5_send -> M_S5 [color="green"]
+        /*M_S5 -> M_CcB_P_close [label="M_close()" style="dashed" color="orange" fontcolor="orange"]
+        M_CcB_P_close [label="qtx close" style="dashed" color="orange"] */
+
+        M_process [shape="octagon" label="process message"]
+        M_process_me [shape="box" label="dequeue"]
+        M_process -> M_process_me [label="side == me"]
+        M_process_them [shape="box" label="" style="dotted"]
+        M_process -> M_process_them [label="side != me"]
+        M_process_them -> M_process_pake [label="phase == pake"]
+        M_process_pake [shape="box" label="WM_rx_pake()"]
+        M_process_them -> M_process_other [label="phase in (version,numbered)"]
+        M_process_other [shape="box" label="WM_rx_msg()"]
+
+}

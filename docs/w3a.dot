@@ -1,0 +1,52 @@
+digraph {
+        /* M_close pathways */
+        MC_title [label="Mailbox\nClose\nMachine" style="dotted"]
+        MC_title -> MC_S2 [style="invis"]
+
+        /* All dashed states are from the main Mailbox Machine diagram, and
+        all dashed lines indicate M_close() pathways in from those states.
+        Within this graph, all M_close() events leave the state unchanged. */
+
+        MC_Pr [shape="box" label="qtx release" color="orange"]
+        MC_Pr -> MC_Sr [color="orange"]
+        MC_Sr [label="SrB:\nwaiting for:\nrelease" color="orange"]
+        MC_Sr -> MC_P_stop [label="rx released" color="orange" fontcolor="orange"]
+
+        MC_Pc [shape="box" label="qtx close" color="orange"]
+        MC_Pc -> MC_Sc [color="orange"]
+        MC_Sc [label="ScB:\nwaiting for:\nclosed" color="orange"]
+        MC_Sc -> MC_P_stop [label="rx closed" color="orange" fontcolor="orange"]
+
+        MC_Prc [shape="box" label="qtx release\nqtx close" color="orange"]
+        MC_Prc -> MC_Src [color="orange"]
+        MC_Src [label="SrcB:\nwaiting for:\nrelease\nclosed" color="orange"]
+        MC_Src -> MC_Sc [label="rx released" color="orange" fontcolor="orange"]
+        MC_Src -> MC_Sr [label="rx closed" color="orange" fontcolor="orange"]
+
+
+        MC_P_stop [shape="box" label="C_stop()"]
+        MC_P_stop -> MC_Ss
+
+        MC_Ss -> MC_Ss [label="M_stopped()"]
+        MC_Ss [label="SsB: closed\nstopping"]
+
+        MC_Ss [label="Ss: closed" color="green"]
+
+
+        {rank=same; MC_S2 MC_S1 MC_S3 MC_S4 MC_S5}
+        MC_S1 [label="S1" color="orange" style="dashed"]
+        MC_S1 -> MC_P_stop [style="dashed" color="orange"]
+
+        MC_S2 [label="S2" color="orange" style="dashed"]
+        MC_S2 -> MC_Pr [color="orange" style="dashed"]
+
+        MC_S3 [label="S3" color="orange" style="dashed"]
+        MC_S3 -> MC_Prc [color="orange" style="dashed"]
+
+        MC_S4 [label="S4" color="orange" style="dashed"]
+        MC_S4 -> MC_Prc [color="orange" style="dashed"]
+
+        MC_S5 [label="S5" color="green" style="dashed"]
+        MC_S5 -> MC_Pc [style="dashed" color="green"]
+
+}
