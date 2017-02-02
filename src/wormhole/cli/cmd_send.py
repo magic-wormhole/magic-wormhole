@@ -221,7 +221,9 @@ class Sender:
             num_files = 0
             num_bytes = 0
             tostrip = len(what.split(os.sep))
-            with zipfile.ZipFile(fd_to_send, "w", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(fd_to_send, "w",
+                                 compression=zipfile.ZIP_DEFLATED,
+                                 allowZip64=True) as zf:
                 for path,dirs,files in os.walk(what):
                     # path always starts with args.what, then sometimes might
                     # have "/subdir" appended. We want the zipfile to contain
