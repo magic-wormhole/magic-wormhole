@@ -238,7 +238,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False,
-                 fake_tor=False, overwrite=False):
+                 fake_tor=False, overwrite=False, mock_accept=False):
         assert mode in ("text", "file", "empty-file", "directory", "slow-text")
         if fake_tor:
             assert not as_subprocess
@@ -272,7 +272,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_cfg.what = send_filename
             receive_filename = send_filename
 
-            recv_cfg.accept_file = True
+            recv_cfg.accept_file = False if mock_accept else True
             if override_filename:
                 recv_cfg.output_file = receive_filename = "outfile"
             if overwrite:
@@ -310,7 +310,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_cfg.what = send_dirname_arg
             receive_dirname = send_dirname
 
-            recv_cfg.accept_file = True
+            recv_cfg.accept_file = False if mock_accept else True
             if override_filename:
                 recv_cfg.output_file = receive_dirname = "outdir"
             if overwrite:
@@ -394,6 +394,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             if mode == "slow-text":
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", 0), \
                       mock.patch.object(cmd_receive, "VERIFY_TIMER", 0):
+                    yield gatherResults([send_d, receive_d], True)
+            elif mock_accept:
+                with mock.patch.object(cmd_receive.six.moves, 'input', return_value='y'):
                     yield gatherResults([send_d, receive_d], True)
             else:
                 yield gatherResults([send_d, receive_d], True)
@@ -513,6 +516,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="file", override_filename=True)
     def test_file_overwrite(self):
         return self._do_test(mode="file", overwrite=True)
+    def test_file_overwrite_mock_accept(self):
+        return self._do_test(mode="file", overwrite=True, mock_accept=True)
     def test_file_tor(self):
         return self._do_test(mode="file", fake_tor=True)
     def test_empty_file(self):
@@ -526,6 +531,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         return self._do_test(mode="directory", override_filename=True)
     def test_directory_overwrite(self):
         return self._do_test(mode="directory", overwrite=True)
+    def test_directory_overwrite_mock_accept(self):
+        return self._do_test(mode="directory", overwrite=True, mock_accept=True)
 
     def test_slow_text(self):
         return self._do_test(mode="slow-text")

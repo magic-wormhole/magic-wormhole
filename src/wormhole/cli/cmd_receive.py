@@ -267,10 +267,8 @@ class TwistedReceiver:
         return abs_destname
 
     def _remove_existing(self, path):
-        if os.path.isfile(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
+        if os.path.isfile(path): os.remove(path)
+        if os.path.isdir(path): shutil.rmtree(path)
 
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
