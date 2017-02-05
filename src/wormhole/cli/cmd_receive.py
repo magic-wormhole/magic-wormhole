@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os, sys, six, tempfile, zipfile, hashlib
+import os, sys, six, tempfile, zipfile, hashlib, shutil
 from tqdm import tqdm
 from humanize import naturalsize
 from twisted.internet import reactor
@@ -259,16 +259,26 @@ class TwistedReceiver:
         if os.path.exists(abs_destname):
             if self.args.output_file: # overwrite is intentional
                 self._msg(u"Overwriting '%s'" % destname)
+                if self.args.accept_file:
+                    self._remove_existing(abs_destname)
             else:
                 self._msg(u"Error: refusing to overwrite existing '%s'" % destname)
                 raise TransferRejectedError()
         return abs_destname
+
+    def _remove_existing(self, path):
+        if os.path.isfile(path):
+            os.remove(path)
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
 
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
             while True and not self.args.accept_file:
                 ok = six.moves.input("ok? (y/n): ")
                 if ok.lower().startswith("y"):
+                    if os.path.exists(self.abs_destname):
+                        self._remove_existing(self.abs_destname)
                     break
                 print(u"transfer rejected", file=sys.stderr)
                 t.detail(answer="no")
