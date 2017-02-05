@@ -257,8 +257,11 @@ class TwistedReceiver:
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
-            self._msg(u"Error: refusing to overwrite existing '%s'" % destname)
-            raise TransferRejectedError()
+            if self.args.output_file: # overwrite is intentional
+                self._msg(u"Overwriting '%s'" % destname)
+            else:
+                self._msg(u"Error: refusing to overwrite existing '%s'" % destname)
+                raise TransferRejectedError()
         return abs_destname
 
     def _ask_permission(self):
