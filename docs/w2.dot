@@ -3,50 +3,56 @@ digraph {
 
         {rank=same; M_entry_whole_code M_title M_entry_allocation M_entry_interactive}
         M_entry_whole_code [label="whole\ncode"]
-        M_entry_whole_code -> M_S1A
+        M_entry_whole_code -> M_S0A
         M_title [label="Message\nMachine" style="dotted"]
         M_entry_whole_code -> M_title [style="invis"]
         M_entry_allocation [label="allocation" color="orange"]
-        M_entry_allocation -> M_S1B [label="already\nconnected" color="orange" fontcolor="orange"]
+        M_entry_allocation -> M_S0B [label="already\nconnected" color="orange" fontcolor="orange"]
         M_entry_interactive [label="interactive" color="orange"]
-        M_entry_interactive -> M_S1B [color="orange"]
+        M_entry_interactive -> M_S0B [color="orange"]
 
-        {rank=same; M_S1A M_S1B}
-        M_S1A [label="S1A:\nknow nothing"]
-        M_S1B [label="S1B:\nknow nothing\n(bound)" color="orange"]
-        M_S1A -> M_S1B [label="M_connected()"]
-        M_S1B -> M_S1A [label="M_lost()"]
+        {rank=same; M_S0A M_S0B}
+        M_S0A [label="S0A:\nknow nothing"]
+        M_S0B [label="S0B:\nknow nothing\n(bound)" color="orange"]
+        M_S0A -> M_S0B [label="M_connected()"]
+        M_S0B -> M_S0A [label="M_lost()"]
 
-        M_S1A -> M_S2A [label="M_set_nameplate()"]
-        M_S1B -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
+        M_S0A -> M_S1A [label="M_set_nameplate()"]
+        M_S0B -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
 
-        {rank=same; M_S2A M_S2B M_S2C M_P2_claim}
-        M_S2A [label="S2A:\nnot claimed"]
-        M_S2C [label="S2C:\nmaybe claimed"]
-        M_S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
-        M_S2A -> M_P2_claim [label="M_connected()"]
-        M_S2A -> M_C_stop [label="M_close()" style="dashed"]
+        {rank=same; M_S1A M_C_stop M_P1A_queue}
+        M_S0B -> M_S2B [style="invis"]
+        M_S1A -> M_S2A [style="invis"]
+        M_S1A [label="S1A:\nnot claimed"]
+        M_S1A -> M_P2_claim [label="M_connected()"]
+        M_S1A -> M_C_stop [label="M_close()" style="dashed"]
         M_C_stop [shape="box" label="C_stop()" style="dashed"]
+        M_S1A -> M_P1A_queue [label="M_send(msg)" style="dotted"]
+        M_P1A_queue [shape="box" label="queue" style="dotted"]
+        M_P1A_queue -> M_S1A [style="dotted"]
+
+        {rank=same; M_S2B M_S2A M_P2_claim}
+        M_S1A -> M_S2A [style="invis"]
+        M_S2A -> M_S3A [style="invis"]
+        M_S2A [label="S2A:\nmaybe claimed"]
+        M_S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
         M_S2B -> M_SrB [label="M_close()" style="dashed"]
         M_SrB [label="SrB" style="dashed"]
-        M_S2C -> M_SrA [label="M_close()" style="dashed"]
+        M_S2A -> M_SrA [label="M_close()" style="dashed"]
         M_SrA [label="SrA" style="dashed"]
 
-        M_S2C -> M_P2_claim [label="M_connected()"]
-        M_S2B -> M_S2C [label="M_lost()"]
+        M_S2A -> M_P2_claim [label="M_connected()"]
+        M_S2B -> M_S2A [label="M_lost()"]
         M_P2_claim [shape="box" label="tx claim" color="orange"]
         M_P2_claim -> M_S2B [color="orange"]
-        M_S2A -> M_P2A_queue [label="M_send(msg)" style="dotted"]
-        M_P2A_queue [shape="box" label="queue" style="dotted"]
-        M_P2A_queue -> M_S2A [style="dotted"]
-        M_S2C -> M_P2C_queue [label="M_send(msg)" style="dotted"]
+        M_S2A -> M_P2C_queue [label="M_send(msg)" style="dotted"]
         M_P2C_queue [shape="box" label="queue" style="dotted"]
-        M_P2C_queue -> M_S2C [style="dotted"]
+        M_P2C_queue -> M_S2A [style="dotted"]
         M_S2B -> M_P2B_queue [label="M_send(msg)" style="dotted"]
         M_P2B_queue [shape="box" label="queue" style="dotted"]
         M_P2B_queue -> M_S2B [style="dotted"]
 
-        M_S2A -> M_S3A [label="(none)" style="invis"]
+        M_S1A -> M_S3A [label="(none)" style="invis"]
         M_S2B -> M_P_open [label="rx claimed" color="orange" fontcolor="orange"]
         M_P_open [shape="box" label="store mailbox\ntx open\ntx add(queued)" color="orange"]
         M_P_open -> M_S3B [color="orange"]
@@ -76,7 +82,7 @@ digraph {
         M_P3_process_theirs2 [shape="octagon" label="process message" color="orange"]
         /* pay attention to the race here: this process_message() will
         deliver msg_pake to the WormholeMachine, which will compute_key() and
-        M_send(version), and we're in between M_S2A (where M_send gets
+        M_send(version), and we're in between M_S1A (where M_send gets
         queued) and M_S3A (where M_send gets sent and queued), and we're no
         longer passing through the M_P3_open phase (which drains the queue).
         So there's a real possibility of the outbound msg_version getting
