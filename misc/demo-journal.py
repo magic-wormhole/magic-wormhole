@@ -2,7 +2,15 @@ import os, sys, json
 from twisted.internet import task, defer, endpoints
 from twisted.application import service, internet
 from twisted.web import server, static, resource
-from wormhole import journal
+from wormhole import journal, wormhole
+
+# considerations for state management:
+# * be somewhat principled about the data (e.g. have a schema)
+# * discourage accidental schema changes
+# * avoid surprise mutations by app code (don't hand out mutables)
+# * discourage app from keeping state itself: make state object easy enough
+#   to use for everything. App should only hold objects that are active
+#   (Services, subscribers, etc). App must wire up these objects each time.
 
 class State(object):
     @classmethod
@@ -118,7 +126,8 @@ class Agent(service.MultiService):
             w = wormhole.journaled_from_data(invitation_state["wormhole"],
                                              reactor=self._reactor,
                                              journal=self._jm,
-                                             event_handler=_dispatch)
+                                             event_handler=self,
+                                             event_handler_args=(iid,))
             self._wormholes[iid] = w
             w.setServiceParent(self)
 
@@ -134,13 +143,18 @@ class Agent(service.MultiService):
     def _invite(self, args):
         print "invite", args
         petname = args["petname"]
+        # it'd be better to use a unique object for the event_handler
+        # correlation, but we can't store them into the state database. I'm
+        # not 100% sure we need one for the database: maybe it should hold a
+        # list instead, and assign lookup keys at runtime. If they really
+        # need to be serializable, they should be allocated rather than
+        # random.
         iid = random.randint(1,1000)
         my_pubkey = random.randint(1,1000)
         with self._jm.process():
-            def _dispatch(event, *args, **kwargs):
-                self._dispatch_wormhole_event(iid, event, *args, **kwargs)
-            w = wormhole.journaled(reactor=self._reactor,
-                                   journal=self._jm, event_handler=_dispatch)
+            w = wormhole.journaled(reactor=self._reactor, journal=self._jm,
+                                   event_handler=self,
+                                   event_handler_args=(iid,))
             self._wormholes[iid] = w
             w.setServiceParent(self)
             w.get_code() # event_handler means code returns via callback
@@ -158,10 +172,9 @@ class Agent(service.MultiService):
         iid = random.randint(1,1000)
         my_pubkey = random.randint(2,2000)
         with self._jm.process():
-            def _dispatch(event, *args, **kwargs):
-                self._dispatch_wormhole_event(iid, event, *args, **kwargs)
-            w = wormhole.wormhole(reactor=self._reactor,
-                                  event_dispatcher=_dispatch)
+            w = wormhole.journaled(reactor=self._reactor, journal=self._jm,
+                                  event_dispatcher=self,
+                                  event_dispatcher_args=(iid,))
             w.set_code(code)
             md = {"my_pubkey": my_pubkey}
             w.send(json.dumps(md).encode("utf-8"))
@@ -172,29 +185,61 @@ class Agent(service.MultiService):
             self._state.add_invitation(iid, invitation_state)
         return b"ok"
 
-    def _dispatch_wormhole_event(self, iid, event, *args, **kwargs):
+    # dispatch options:
+    # * register one function, which takes (eventname, *args)
+    #   * to handle multiple wormholes, app must give is a closure
+    # * register multiple functions (one per event type)
+    # * register an object, with well-known method names
+    # * extra: register args and/or kwargs with the callback
+    #
+    # events to dispatch:
+    #  generated_code(code)
+    #  got_verifier(verifier_bytes)
+    #  verified()
+    #  got_data(data_bytes)
+    #  closed()
+
+    def wormhole_dispatch_got_code(self, code, iid):
         # we're already in a jm.process() context
         invitation_state = self._state.get_all_invitations()[iid]
-        if event == "got-code":
-            (code,) = args
-            invitation_state["code"] = code
-            self._state.update_invitation(iid, invitation_state)
-            self._wormholes[iid].set_code(code)
-            # notify UI subscribers to update the display
-        elif event == "got-data":
-            (data,) = args
-            md = json.loads(data.decode("utf-8"))
-            contact = {"petname": invitation_state["petname"],
-                       "my_pubkey": invitation_state["my_pubkey"],
-                       "their_pubkey": md["my_pubkey"],
-                       }
-            self._state.add_contact(contact)
-            self._wormholes[iid].close()
-        elif event == "closed":
-            self._wormholes[iid].disownServiceParent()
-            del self._wormholes[iid]
-            self._state.remove_invitation(iid)
-            
+        invitation_state["code"] = code
+        self._state.update_invitation(iid, invitation_state)
+        self._wormholes[iid].set_code(code)
+        # notify UI subscribers to update the display
+
+    def wormhole_dispatch_got_verifier(self, verifier, iid):
+        pass
+    def wormhole_dispatch_verified(self, _, iid):
+        pass
+
+    def wormhole_dispatch_got_data(self, data, iid):
+        invitation_state = self._state.get_all_invitations()[iid]
+        md = json.loads(data.decode("utf-8"))
+        contact = {"petname": invitation_state["petname"],
+                   "my_pubkey": invitation_state["my_pubkey"],
+                   "their_pubkey": md["my_pubkey"],
+                   }
+        self._state.add_contact(contact)
+        self._wormholes[iid].close() # now waiting for "closed"
+
+    def wormhole_dispatch_closed(self, _, iid):
+        self._wormholes[iid].disownServiceParent()
+        del self._wormholes[iid]
+        self._state.remove_invitation(iid)
+
+
+    def handle_app_event(self, args, ack_f): # sample function
+        # Imagine here that the app has received a message (not
+        # wormhole-related) from some other server, and needs to act on it.
+        # Also imagine that ack_f() is how we tell the sender that they can
+        # stop sending the message, or how we ask our poller/subscriber
+        # client to send a DELETE message. If the process dies before ack_f()
+        # delivers whatever it needs to deliver, then in the next launch,
+        # handle_app_event() will be called again.
+        stuff = parse(args)
+        with self._jm.process():
+            update_my_state()
+            self._jm.queue_outbound(ack_f)
 
 def create(reactor, basedir):
     os.mkdir(basedir)

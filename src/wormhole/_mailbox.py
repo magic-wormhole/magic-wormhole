@@ -9,49 +9,66 @@ class _Mailbox_Machine(object):
     @m.state(initial=True)
     def initial(self): pass
 
-    @m.state()
-    def S1A(self): pass # know nothing, not connected
-    @m.state()
-    def S1B(self): pass # know nothing, yes connected
+    # all -A states: not connected
+    # all -B states: yes connected
+    # B states serialize as A, so they deserialize as unconnected
 
+    # S0: know nothing
     @m.state()
-    def S2A(self): pass # not claimed, not connected
+    def S0A(self): pass
     @m.state()
-    def S2B(self): pass # maybe claimed, yes connected
-    @m.state()
-    def S2C(self): pass # maybe claimed, not connected
+    def S0B(self): pass
 
+    # S1: nameplate known, not claimed
     @m.state()
-    def S3A(self): pass # claimed, maybe opened, not connected
-    @m.state()
-    def S3B(self): pass # claimed, maybe opened, yes connected
+    def S1A(self): pass
 
+    # S2: nameplate known, maybe claimed
     @m.state()
-    def S4A(self): pass # maybe released, maybe opened, not connected
+    def S2A(self): pass
     @m.state()
-    def S4B(self): pass # maybe released, maybe opened, yes connected
+    def S2B(self): pass
 
+    # S3: nameplate claimed, mailbox known, maybe open
     @m.state()
-    def S5A(self): pass # released, maybe open, not connected
+    def S3A(self): pass
     @m.state()
-    def S5B(self): pass # released, maybe open, yes connected
+    def S3B(self): pass
 
+    # S4: mailbox maybe open, nameplate maybe released
+    # We've definitely opened the mailbox at least once, but it must be
+    # re-opened with each connection, because open() is also subscribe()
     @m.state()
-    def SrcA(self): pass # waiting for release+close, not connected
+    def S4A(self): pass
     @m.state()
-    def SrcB(self): pass # waiting for release+close, yes connected
+    def S4B(self): pass
+
+    # S5: mailbox maybe open, nameplate released
     @m.state()
-    def SrA(self): pass # waiting for release, not connected
+    def S5A(self): pass
     @m.state()
-    def SrB(self): pass # waiting for release, yes connected
+    def S5B(self): pass
+
+    # Src: waiting for release+close
     @m.state()
-    def ScA(self): pass # waiting for close, not connected
+    def SrcA(self): pass
     @m.state()
-    def ScB(self): pass # waiting for close, yes connected
+    def SrcB(self): pass
+    # Sr: closed (or never opened), waiting for release
     @m.state()
-    def SsB(self): pass # closed, stopping
+    def SrA(self): pass
     @m.state()
-    def Ss(self): pass # stopped
+    def SrB(self): pass
+    # Sc: released (or never claimed), waiting for close
+    @m.state()
+    def ScA(self): pass
+    @m.state()
+    def ScB(self): pass
+    # Ss: closed and released, waiting for stop
+    @m.state()
+    def SsB(self): pass
+    @m.state()
+    def Ss(self): pass # terminal
 
 
     def connected(self, ws):
@@ -110,26 +127,27 @@ class _Mailbox_Machine(object):
     def C_stop(self): pass
     
 
-    initial.upon(M_start_connected, enter=S1A, outputs=[])
-    initial.upon(M_start_unconnected, enter=S1B, outputs=[])
-    S1A.upon(M_connected, enter=S1B, outputs=[])
-    S1A.upon(M_set_nameplate, enter=S2A, outputs=[])
-    S1A.upon(M_stop, enter=SsB, outputs=[C_stop])
-    S1B.upon(M_lost, enter=S1A, outputs=[])
-    S1B.upon(M_set_nameplate, enter=S2B, outputs=[tx_claim])
-    S1B.upon(M_stop, enter=SsB, outputs=[C_stop])
+    initial.upon(M_start_unconnected, enter=S0A, outputs=[])
+    initial.upon(M_start_connected, enter=S0B, outputs=[])
+    S0A.upon(M_connected, enter=S0B, outputs=[])
+    S0A.upon(M_set_nameplate, enter=S1A, outputs=[])
+    S0A.upon(M_stop, enter=SsB, outputs=[C_stop])
+    S0B.upon(M_lost, enter=S0A, outputs=[])
+    S0B.upon(M_set_nameplate, enter=S2B, outputs=[tx_claim])
+    S0B.upon(M_stop, enter=SsB, outputs=[C_stop])
+
+    S1A.upon(M_connected, enter=S2B, outputs=[tx_claim])
+    S1A.upon(M_send, enter=S1A, outputs=[queue])
+    S1A.upon(M_stop, enter=SrA, outputs=[])
 
     S2A.upon(M_connected, enter=S2B, outputs=[tx_claim])
     S2A.upon(M_stop, enter=SsB, outputs=[C_stop])
     S2A.upon(M_send, enter=S2A, outputs=[queue])
-    S2B.upon(M_lost, enter=S2C, outputs=[])
+    S2B.upon(M_lost, enter=S2A, outputs=[])
     S2B.upon(M_send, enter=S2B, outputs=[queue])
     S2B.upon(M_stop, enter=SrB, outputs=[tx_release])
     S2B.upon(M_rx_claimed, enter=S3B, outputs=[store_mailbox, tx_open,
                                                tx_add_queued])
-    S2C.upon(M_connected, enter=S2B, outputs=[tx_claim])
-    S2C.upon(M_send, enter=S2C, outputs=[queue])
-    S2C.upon(M_stop, enter=SrA, outputs=[])
 
     S3A.upon(M_connected, enter=S3B, outputs=[tx_open, tx_add_queued])
     S3A.upon(M_send, enter=S3A, outputs=[queue])
