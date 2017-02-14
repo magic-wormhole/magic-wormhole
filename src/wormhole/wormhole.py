@@ -919,3 +919,42 @@ def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None,
 #    timing = timing or DebugTiming()
 #    w = _Wormhole.from_serialized(data, reactor, timing)
 #    return w
+
+
+# considerations for activity management:
+# * websocket to server wants to be a t.a.i.ClientService
+# * if Wormhole is a MultiService:
+#   * makes it easier to chain the ClientService to it
+#   * implies that nothing will happen before w.startService()
+#   * implies everything stops upon d=w.stopService()
+# * if not:
+#   * 
+
+class _JournaledWormhole(service.MultiService):
+    def __init__(self, reactor, journal_manager, event_dispatcher,
+                 event_dispatcher_args=()):
+        pass
+
+class ImmediateJM(object):
+    def queue_outbound(self, fn, *args, **kwargs):
+        fn(*args, **kwargs)
+    @contextlib.contextmanager
+    def process(self):
+        yield
+
+class _Wormhole(_JournaledWormhole):
+    # send events to self, deliver them via Deferreds
+    def __init__(self, reactor):
+        _JournaledWormhole.__init__(self, reactor, ImmediateJM(), self)
+
+def wormhole(reactor):
+    w = _Wormhole(reactor)
+    w.startService()
+    return w
+
+def journaled_from_data(state, reactor, journal,
+                        event_handler, event_handler_args=()):
+    pass
+
+def journaled(reactor, journal, event_handler, event_handler_args()):
+    pass

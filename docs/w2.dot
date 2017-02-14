@@ -32,17 +32,19 @@ digraph {
         M_P1A_queue -> M_S1A [style="dotted"]
 
         {rank=same; M_S2B M_S2A M_P2_claim}
-        M_S1A -> M_S2A [style="invis"]
-        M_S2A -> M_S3A [style="invis"]
         M_S2A [label="S2A:\nmaybe claimed"]
         M_S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
-        M_S2B -> M_SrB [label="M_close()" style="dashed"]
-        M_SrB [label="SrB" style="dashed"]
-        M_S2A -> M_SrA [label="M_close()" style="dashed"]
-        M_SrA [label="SrA" style="dashed"]
+        #M_S2B -> M_SrB [label="M_close()" style="dashed"]
+        #M_SrB [label="SrB" style="dashed"]
+        #M_S2A -> M_SrA [label="M_close()" style="dashed"]
+        #M_SrA [label="SrA" style="dashed"]
 
         M_S2A -> M_P2_claim [label="M_connected()"]
-        M_S2B -> M_S2A [label="M_lost()"]
+        #M_S2B -> M_S2A [label="M_lost()"] # causes bad layout
+        M_S2B -> foo [label="M_lost()"]
+        foo [label="" style="dashed"]
+        foo -> M_S2A
+
         M_P2_claim [shape="box" label="tx claim" color="orange"]
         M_P2_claim -> M_S2B [color="orange"]
         M_S2A -> M_P2C_queue [label="M_send(msg)" style="dotted"]
