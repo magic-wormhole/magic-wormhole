@@ -1,0 +1,82 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        WM_start [label="Wormhole\nMachine" style="dotted"]
+        WM_start -> WM_S_nothing [style="invis"]
+
+        WM_S_nothing [label="know\nnothing"]
+        WM_S_nothing -> WM_P_queue1 [label="API_send" style="dotted"]
+        WM_P_queue1 [shape="box" style="dotted" label="queue\noutbound msg"]
+        WM_P_queue1 -> WM_S_nothing [style="dotted"]
+        WM_S_nothing -> WM_P_build_pake [label="WM_set_code()"]
+
+        WM_P_build_pake [shape="box" label="build_pake()"]
+        WM_P_build_pake -> WM_S_save_pake
+        WM_S_save_pake [label="checkpoint"]
+        WM_S_save_pake -> WM_P_post_pake [label="saved"]
+
+        WM_P_post_pake [label="M_set_nameplate()\nM_send(pake)" shape="box"]
+        WM_P_post_pake -> WM_S_know_code
+
+        WM_S_know_code [label="know code\n"]
+        WM_S_know_code -> WM_P_queue2 [label="API_send" style="dotted"]
+        WM_P_queue2 [shape="box" style="dotted" label="queue\noutbound msg"]
+        WM_P_queue2 -> WM_S_know_code [style="dotted"]
+        WM_S_know_code -> WM_P_compute_key [label="WM_rx_pake"]
+        WM_S_know_code -> WM_P_mood_lonely [label="close"]
+
+        WM_P_compute_key [label="compute_key()" shape="box"]
+        WM_P_compute_key -> WM_P_save_key [label="pake ok"]
+        WM_P_save_key [label="checkpoint"]
+        WM_P_save_key -> WM_P_post_version [label="saved"]
+        WM_P_compute_key -> WM_P_mood_scary [label="pake bad"]
+
+        WM_P_mood_scary [shape="box" label="M_close()\nmood=scary"]
+        WM_P_mood_scary -> WM_P_notify_failure
+
+        WM_P_notify_failure [shape="box" label="notify_failure()" color="red"]
+        WM_P_notify_failure -> WM_S_closed
+
+        WM_P_post_version [label="M_send(version)\nnotify_verifier()" shape="box"]
+        WM_P_post_version -> WM_S_know_key
+
+        WM_S_know_key [label="know_key\nunverified" color="orange"]
+        WM_S_know_key -> WM_P_queue3 [label="API_send" style="dotted"]
+        WM_P_queue3 [shape="box" style="dotted" label="queue\noutbound msg"]
+        WM_P_queue3 -> WM_S_know_key [style="dotted"]
+        WM_S_know_key -> WM_P_verify [label="WM_rx_msg()"] /* version or phase */
+        WM_S_know_key -> WM_P_mood_lonely [label="close"] /* more like impatient */
+
+        WM_P_verify [label="verify(msg)" shape="box"]
+        WM_P_verify -> WM_P_accept_msg [label="verify good"]
+        WM_P_verify -> WM_P_mood_scary [label="verify bad"]
+
+        WM_P_accept_msg [label="deliver\ninbound\nmsg()" shape="box"]
+        WM_P_accept_msg -> WM_P_send_queued
+
+        WM_P_send_queued [shape="box" label="M_send()\nqueued"]
+        WM_P_send_queued -> WM_S_verified_key
+
+        WM_S_verified_key [color="green"]
+        WM_S_verified_key -> WM_P_verify [label="WM_rx_msg()"] /* probably phase */
+        WM_S_verified_key -> WM_P_mood_happy [label="close"]
+        WM_S_verified_key -> WM_P_send [label="API_send"]
+
+        WM_P_mood_happy [shape="box" label="M_close()\nmood=happy"]
+        WM_P_mood_happy -> WM_S_closed
+
+        WM_P_mood_lonely [shape="box" label="M_close()\nmood=lonely"]
+        WM_P_mood_lonely -> WM_S_closed
+
+        WM_P_send [shape="box" label="M_send(msg)"]
+        WM_P_send -> WM_S_verified_key
+
+        WM_S_closed [label="closed"]
+}

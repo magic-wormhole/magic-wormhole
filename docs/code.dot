@@ -1,0 +1,41 @@
+digraph {
+
+        WCM_start [label="Wormhole Code\nMachine" style="dotted"]
+        WCM_start -> WCM_S_unknown [style="invis"]
+        WCM_S_unknown [label="unknown"]
+        WCM_S_unknown -> WCM_P_set_code [label="set"]
+        WCM_P_set_code [shape="box" label="WM_set_code()"]
+        WCM_P_set_code -> WCM_S_known
+        WCM_S_known [label="known" color="green"]
+
+        WCM_S_unknown -> WCM_P_list_nameplates [label="input"]
+        WCM_S_typing_nameplate [label="typing\nnameplate"]
+
+        WCM_S_typing_nameplate -> WCM_P_nameplate_completion [label="<tab>"]
+        WCM_P_nameplate_completion [shape="box" label="completion?"]
+        WCM_P_nameplate_completion -> WCM_P_list_nameplates
+        WCM_P_list_nameplates [shape="box" label="NLM_update_nameplates()"]
+        WCM_P_list_nameplates -> WCM_S_typing_nameplate
+
+        WCM_S_typing_nameplate -> WCM_P_got_nameplates [label="C_rx_nameplates()"]
+        WCM_P_got_nameplates [shape="box" label="stash nameplates\nfor completion"]
+        WCM_P_got_nameplates -> WCM_S_typing_nameplate
+        WCM_S_typing_nameplate -> WCM_P_finish_nameplate [label="finished\nnameplate"]
+        WCM_P_finish_nameplate [shape="box" label="lookup wordlist\nfor completion"]
+        WCM_P_finish_nameplate -> WCM_S_typing_code
+        WCM_S_typing_code [label="typing\ncode"]
+        WCM_S_typing_code -> WCM_P_code_completion [label="<tab>"]
+        WCM_P_code_completion [shape="box" label="completion"]
+        WCM_P_code_completion -> WCM_S_typing_code
+
+        WCM_S_typing_code -> WCM_P_set_code [label="finished\ncode"]
+
+        WCM_S_unknown -> WCM_P_allocate [label="allocate"]
+        WCM_P_allocate [shape="box" label="C_allocate_nameplate()"]
+        WCM_P_allocate -> WCM_S_allocate_waiting
+        WCM_S_allocate_waiting [label="waiting"]
+        WCM_S_allocate_waiting -> WCM_P_allocate_generate [label="WCM_rx_allocation()"]
+        WCM_P_allocate_generate [shape="box" label="generate\nrandom code"]
+        WCM_P_allocate_generate -> WCM_P_set_code
+        
+}
