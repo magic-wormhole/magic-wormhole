@@ -3,6 +3,7 @@ from automat import MethodicalMachine
 
 @attrs
 class _Mailbox_Machine(object):
+    _connection_machine = attrib()
     _m = attrib()
     m = MethodicalMachine()
 
@@ -120,12 +121,17 @@ class _Mailbox_Machine(object):
     @m.output()
     def tx_close(self): pass
     @m.output()
+    def process_first_msg_from_them(self, msg):
+        self.tx_release()
+        self.process_msg_from_them(msg)
+    @m.output()
     def process_msg_from_them(self, msg): pass
     @m.output()
     def dequeue(self, msg): pass
     @m.output()
     def C_stop(self): pass
-    
+    @m.output()
+    def WM_stopped(self): pass
 
     initial.upon(M_start_unconnected, enter=S0A, outputs=[])
     initial.upon(M_start_connected, enter=S0B, outputs=[])
@@ -138,10 +144,10 @@ class _Mailbox_Machine(object):
 
     S1A.upon(M_connected, enter=S2B, outputs=[tx_claim])
     S1A.upon(M_send, enter=S1A, outputs=[queue])
-    S1A.upon(M_stop, enter=SrA, outputs=[])
+    S1A.upon(M_stop, enter=SsB, outputs=[C_stop])
 
     S2A.upon(M_connected, enter=S2B, outputs=[tx_claim])
-    S2A.upon(M_stop, enter=SsB, outputs=[C_stop])
+    S2A.upon(M_stop, enter=SrA, outputs=[])
     S2A.upon(M_send, enter=S2A, outputs=[queue])
     S2B.upon(M_lost, enter=S2A, outputs=[])
     S2B.upon(M_send, enter=S2B, outputs=[queue])
@@ -153,14 +159,15 @@ class _Mailbox_Machine(object):
     S3A.upon(M_send, enter=S3A, outputs=[queue])
     S3A.upon(M_stop, enter=SrcA, outputs=[])
     S3B.upon(M_lost, enter=S3A, outputs=[])
-    S3B.upon(M_rx_msg_from_them, enter=S4B, outputs=[#tx_release, # trouble
-                                                     process_msg_from_them])
+    S3B.upon(M_rx_msg_from_them, enter=S4B,
+             outputs=[process_first_msg_from_them])
     S3B.upon(M_rx_msg_from_me, enter=S3B, outputs=[dequeue])
     S3B.upon(M_rx_claimed, enter=S3B, outputs=[])
     S3B.upon(M_send, enter=S3B, outputs=[queue, tx_add])
     S3B.upon(M_stop, enter=SrcB, outputs=[tx_release, tx_close])
 
-    S4A.upon(M_connected, enter=S4B, outputs=[tx_open, tx_add_queued, tx_release])
+    S4A.upon(M_connected, enter=S4B,
+             outputs=[tx_open, tx_add_queued, tx_release])
     S4A.upon(M_send, enter=S4A, outputs=[queue])
     S4A.upon(M_stop, enter=SrcA, outputs=[])
     S4B.upon(M_lost, enter=S4A, outputs=[])
@@ -192,5 +199,5 @@ class _Mailbox_Machine(object):
     ScB.upon(M_rx_closed, enter=SsB, outputs=[C_stop])
     ScA.upon(M_connected, enter=ScB, outputs=[tx_close])
 
-    SsB.upon(M_stopped, enter=Ss, outputs=[])
+    SsB.upon(M_stopped, enter=Ss, outputs=[WM_stopped])
 
