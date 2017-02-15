@@ -60,3 +60,5 @@ target/
 /misc/node_modules/
 /docs/events.png
 /docs/states-code.png
+/docs/*.png
+/.automat_visualize/
