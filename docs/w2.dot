@@ -1,11 +1,11 @@
 digraph {
         /* new idea */
 
-        {rank=same; M_entry_whole_code M_title M_entry_allocation M_entry_interactive}
+        {rank=same; M_title M_entry_whole_code M_entry_allocation M_entry_interactive}
         M_entry_whole_code [label="whole\ncode"]
         M_entry_whole_code -> M_S0A
         M_title [label="Message\nMachine" style="dotted"]
-        M_entry_whole_code -> M_title [style="invis"]
+
         M_entry_allocation [label="allocation" color="orange"]
         M_entry_allocation -> M_S0B [label="already\nconnected" color="orange" fontcolor="orange"]
         M_entry_interactive [label="interactive" color="orange"]
@@ -20,13 +20,11 @@ digraph {
         M_S0A -> M_S1A [label="M_set_nameplate()"]
         M_S0B -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
 
-        {rank=same; M_S1A M_C_stop M_P1A_queue}
+        {rank=same; M_S1A M_P1A_queue}
         M_S0B -> M_S2B [style="invis"]
         M_S1A -> M_S2A [style="invis"]
         M_S1A [label="S1A:\nnot claimed"]
         M_S1A -> M_P2_claim [label="M_connected()"]
-        M_S1A -> M_C_stop [label="M_close()" style="dashed"]
-        M_C_stop [shape="box" label="C_stop()" style="dashed"]
         M_S1A -> M_P1A_queue [label="M_send(msg)" style="dotted"]
         M_P1A_queue [shape="box" label="queue" style="dotted"]
         M_P1A_queue -> M_S1A [style="dotted"]
@@ -60,8 +58,8 @@ digraph {
         M_P_open -> M_S3B [color="orange"]
 
         {rank=same; M_S3A M_S3B M_P3_open M_P3_send}
-        M_S3A [label="S3A:\nclaimed\nmaybe open"]
-        M_S3B [label="S3B:\nclaimed\nmaybe open\n(bound)" color="orange"]
+        M_S3A [label="S3A:\nclaimed\nopened >=once"]
+        M_S3B [label="S3B:\nclaimed\nmaybe open now\n(bound)" color="orange"]
         M_S3A -> M_P3_open [label="M_connected()"]
         M_S3B -> M_S3A [label="M_lost()"]
         M_P3_open [shape="box" label="tx open\ntx add(queued)"]
@@ -92,9 +90,9 @@ digraph {
         M_P3_process_theirs2 -> M_S4B [color="orange"]
 
         {rank=same; M_S4A M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
-        M_S4A [label="S4A:\nmaybe released\nmaybe open\n"]
+        M_S4A [label="S4A:\nmaybe released\nopened >=once\n"]
 
-        M_S4B [label="S4B:\nmaybe released\nmaybe open\n(bound)" color="orange"]
+        M_S4B [label="S4B:\nmaybe released\nmaybe open now\n(bound)" color="orange"]
         M_S4A -> M_P4_release [label="M_connected()"]
         M_P4_release [shape="box" label="tx open\ntx add(queued)\ntx release"]
         M_S4B -> M_P4_send [label="M_send(msg)"]
@@ -118,8 +116,8 @@ digraph {
         M_S4A -> seed [style="invis"]
         seed -> M_S5A
         {rank=same; seed M_S5A M_S5B M_P5_open M_process}
-        M_S5A [label="S5A:\nreleased\nmaybe open"]
-        M_S5B [label="S5B:\nreleased\nmaybe open\n(bound)" color="green"]
+        M_S5A [label="S5A:\nreleased\nopened >=once"]
+        M_S5B [label="S5B:\nreleased\nmaybe open now\n(bound)" color="green"]
         M_S5A -> M_P5_open [label="M_connected()"]
         M_P5_open [shape="box" label="tx open\ntx add(queued)"]
         M_P5_open -> M_S5B

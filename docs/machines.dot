@@ -1,0 +1,36 @@
+digraph {
+        Wormhole [shape="box" label="Wormhole\n(manager)"]
+        Wormhole -> Mailbox [style="dashed"
+                             label="M_set_nameplate()\nM_send()\nM_close()"
+                             ]
+        Wormhole -> Mailbox
+        Mailbox -> Wormhole [style="dashed"
+                             label="W_rx_pake()\nW_rx_msg()\nW_closed()"
+                             ]
+        Mailbox [shape="box"]
+        Mailbox -> Connection [style="dashed"
+                               label="C_tx_add()\nC_stop()"
+                               ]
+        Mailbox -> Connection
+        Connection -> Mailbox [style="dashed"
+                               label="M_connected()\nM_lost()\nM_rx_claimed()\nM_rx_message()\nM_rx_released()\nM_stopped()"]
+        
+        Connection -> websocket
+
+        Nameplates [shape="box" label="Nameplate\nLister"]
+        Wormhole -> Nameplates [style="dashed"
+                                label="NL_refresh_nameplates()"
+                                ]
+        Nameplates -> Wormhole [style="dashed"
+                                label="W_got_nameplates()"
+                                ]
+        Connection -> Nameplates [style="dashed"
+                                  label="NL_connected()\nNL_lost()\nNL_rx_nameplates()"
+                                  ]
+        Nameplates -> Connection [style="dashed"
+                                  label="C_tx_list()"
+                                  ]
+
+
+
+}
