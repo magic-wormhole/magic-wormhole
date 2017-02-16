@@ -8,75 +8,82 @@ digraph {
         compute the key, send VERSION. Starting from the Return, this saves
         two round trips. OTOH it adds consequences to hitting Tab. */
 
-        WM_start [label="Wormhole\nMachine" style="dotted"]
-        WM_start -> WM_S_nothing [style="invis"]
+        start [label="Wormhole\nMachine" style="dotted"]
 
-        WM_S_nothing [label="know\nnothing"]
-        WM_S_nothing -> WM_P_queue1 [label="API_send" style="dotted"]
-        WM_P_queue1 [shape="box" style="dotted" label="queue\noutbound msg"]
-        WM_P_queue1 -> WM_S_nothing [style="dotted"]
-        WM_S_nothing -> WM_P_build_pake [label="WM_set_code()"]
+        S0 [label="S0: know\nnothing"]
+        S0 -> P0_queue [label="send" style="dotted"]
+        P0_queue [shape="box" style="dotted" label="queue"]
+        P0_queue -> S0 [style="dotted"]
+        S0 -> P0_build [label="set_code"]
 
-        WM_P_build_pake [shape="box" label="build_pake()"]
-        WM_P_build_pake -> WM_S_save_pake
-        WM_S_save_pake [label="checkpoint"]
-        WM_S_save_pake -> WM_P_post_pake [label="saved"]
+        P0_build [shape="box" label="build_pake\nM.set_nameplate\nM.add_message(pake)"]
+        P0_build -> S1
+        S1 [label="S1: know\ncode"]
+        S1 -> P1_queue [label="send" style="dotted"]
+        P1_queue [shape="box" style="dotted" label="queue"]
+        P1_queue -> S1 [style="dotted"]
 
-        WM_P_post_pake [label="M_set_nameplate()\nM_send(pake)" shape="box"]
-        WM_P_post_pake -> WM_S_know_code
+        /* the Mailbox will deliver each message exactly once, but doesn't
+        guarantee ordering: if Alice starts the process, then disconnects,
+        then Bob starts (reading PAKE, sending both his PAKE and his VERSION
+        phase), then Alice will see both PAKE and VERSION on her next
+        connect, and might get the VERSION first.
 
-        WM_S_know_code [label="know code\n"]
-        WM_S_know_code -> WM_P_queue2 [label="API_send" style="dotted"]
-        WM_P_queue2 [shape="box" style="dotted" label="queue\noutbound msg"]
-        WM_P_queue2 -> WM_S_know_code [style="dotted"]
-        WM_S_know_code -> WM_P_compute_key [label="WM_rx_pake"]
-        WM_S_know_code -> WM_P_mood_lonely [label="close"]
+        The Wormhole will queue inbound messages that it isn't ready for. The
+        wormhole shim that lets applications do w.get(phase=) must do
+        something similar, queueing inbound messages until it sees one for
+        the phase it currently cares about.*/
 
-        WM_P_compute_key [label="compute_key()" shape="box"]
-        WM_P_compute_key -> WM_P_save_key [label="pake ok"]
-        WM_P_save_key [label="checkpoint"]
-        WM_P_save_key -> WM_P_post_version [label="saved"]
-        WM_P_compute_key -> WM_P_mood_scary [label="pake bad"]
+        S1 -> P_mood_scary [label="got_message(pake)\npake bad"]
+        S1 -> P1_compute [label="got_message(pake)\npake good"]
+        S1 -> P1_queue_inbound [label="got_message(other)"]
+        P1_queue_inbound [shape="box" style="dotted" label="queue\ninbound"]
+        P1_queue_inbound -> S1
+        S1 -> P_mood_lonely [label="close"]
 
-        WM_P_mood_scary [shape="box" label="M_close()\nmood=scary"]
-        WM_P_mood_scary -> WM_P_notify_failure
+        P1_compute [label="compute_key\nM.add_message(version)\nA.got_verifier\nschedule process inbound queue?" shape="box"]
+        P1_compute -> S2
 
-        WM_P_notify_failure [shape="box" label="notify_failure()" color="red"]
-        WM_P_notify_failure -> WM_S_closed
+        P_mood_scary [shape="box" label="M.close\nmood=scary"]
+        P_mood_scary -> P_notify_failure
 
-        WM_P_post_version [label="M_send(version)\nnotify_verifier()" shape="box"]
-        WM_P_post_version -> WM_S_know_key
+        P_notify_failure [shape="box" label="(record failure)" color="red"]
+        P_notify_failure -> S_closing
 
-        WM_S_know_key [label="know_key\nunverified" color="orange"]
-        WM_S_know_key -> WM_P_queue3 [label="API_send" style="dotted"]
-        WM_P_queue3 [shape="box" style="dotted" label="queue\noutbound msg"]
-        WM_P_queue3 -> WM_S_know_key [style="dotted"]
-        WM_S_know_key -> WM_P_verify [label="WM_rx_msg()"] /* version or phase */
-        WM_S_know_key -> WM_P_mood_lonely [label="close"] /* more like impatient */
+        S2 [label="S2: know_key\n(unverified)" color="orange"]
+        S2 -> P_queue3 [label="send" style="dotted"]
+        P_queue3 [shape="box" style="dotted" label="queue"]
+        P_queue3 -> S2 [style="dotted"]
+        S2 -> P_verify [label="got_message"] /* version or phase */
+        S2 -> P_mood_lonely [label="close"] /* more like impatient */
 
-        WM_P_verify [label="verify(msg)" shape="box"]
-        WM_P_verify -> WM_P_accept_msg [label="verify good"]
-        WM_P_verify -> WM_P_mood_scary [label="verify bad"]
+        P_verify [label="verify(msg)" shape="box"]
+        P_verify -> P_accept_msg [label="(good)"]
+        P_verify -> P_mood_scary [label="(bad)"]
 
-        WM_P_accept_msg [label="deliver\ninbound\nmsg()" shape="box"]
-        WM_P_accept_msg -> WM_P_send_queued
+        P_accept_msg [label="A.received(msg)\nencrypt queued\nM.add_message(queued)"
+                      shape="box"]
+        P_accept_msg -> S3
 
-        WM_P_send_queued [shape="box" label="M_send()\nqueued"]
-        WM_P_send_queued -> WM_S_verified_key
+        S3 [label="S3: know_key\n(verified)" color="green"]
+        S3 -> P_verify [label="got_message"] /* probably phase */
+        S3 -> P_mood_happy [label="close"]
+        S3 -> P_send [label="send"]
 
-        WM_S_verified_key [color="green"]
-        WM_S_verified_key -> WM_P_verify [label="WM_rx_msg()"] /* probably phase */
-        WM_S_verified_key -> WM_P_mood_happy [label="close"]
-        WM_S_verified_key -> WM_P_send [label="API_send"]
+        P_mood_happy [shape="box" label="M.close\nmood=happy"]
+        P_mood_happy -> S_closing
 
-        WM_P_mood_happy [shape="box" label="M_close()\nmood=happy"]
-        WM_P_mood_happy -> WM_S_closed
+        P_mood_lonely [shape="box" label="M.close\nmood=lonely"]
+        P_mood_lonely -> S_closing
 
-        WM_P_mood_lonely [shape="box" label="M_close()\nmood=lonely"]
-        WM_P_mood_lonely -> WM_S_closed
+        P_send [shape="box" label="encrypt\nM.add_message(msg)"]
+        P_send -> S3
 
-        WM_P_send [shape="box" label="M_send(msg)"]
-        WM_P_send -> WM_S_verified_key
+        S_closing [label="closing"]
+        S_closing -> P_closed [label="closed"]
+        S_closing -> S_closing [label="got_message"]
 
-        WM_S_closed [label="closed"]
+        P_closed [shape="box" label="A.closed"]
+        P_closed -> S_closed
+        S_closed [label="closed"]
 }
