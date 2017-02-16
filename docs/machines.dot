@@ -1,34 +1,40 @@
 digraph {
-        Wormhole [shape="box" label="Wormhole\n(manager)"]
-        Wormhole -> Mailbox [style="dashed"
-                             label="M_set_nameplate()\nM_send()\nM_close()"
-                             ]
-        Wormhole -> Mailbox
-        Mailbox -> Wormhole [style="dashed"
-                             label="W_rx_pake()\nW_rx_msg()\nW_closed()"
-                             ]
-        Mailbox [shape="box"]
-        Mailbox -> Connection [style="dashed"
-                               label="C_tx_add()\nC_stop()"
-                               ]
-        Mailbox -> Connection
-        Connection -> Mailbox [style="dashed"
-                               label="M_connected()\nM_lost()\nM_rx_claimed()\nM_rx_message()\nM_rx_released()\nM_stopped()"]
-        
-        Connection -> websocket
+        Wormhole [shape="box" label="Wormhole\n(manager)"
+                  color="blue" fontcolor="blue"]
+        Mailbox [shape="box" color="blue" fontcolor="blue"]
+        Connection [shape="oval" color="blue" fontcolor="blue"]
+        websocket [shape="oval" color="blue" fontcolor="blue"]
+        Nameplates [shape="box" label="Nameplate\nLister"
+                    color="blue" fontcolor="blue"]
 
-        Nameplates [shape="box" label="Nameplate\nLister"]
+        Connection -> websocket [color="blue"]
+
+        Wormhole -> Mailbox [style="dashed"
+                             label="set_nameplate\nadd_message\nclose"
+                             ]
+        Wormhole -> Mailbox [color="blue"]
+        Mailbox -> Wormhole [style="dashed"
+                             label="got_message\nclosed"
+                             ]
+        Mailbox -> Connection [style="dashed"
+                               label="tx_claim\ntx_open\ntx_add\ntx_release\ntx_close\nstop"
+                               ]
+        Mailbox -> Connection [color="blue"]
+        Connection -> Mailbox [style="dashed"
+                               label="connected\nlost\nrx_claimed\nrx_message\nrx_released\nrx_closed\nstopped"]
+
         Wormhole -> Nameplates [style="dashed"
-                                label="NL_refresh_nameplates()"
+                                label="refresh_nameplates"
                                 ]
+        Wormhole -> Nameplates [color="blue"]
         Nameplates -> Wormhole [style="dashed"
-                                label="W_got_nameplates()"
+                                label="got_nameplates"
                                 ]
         Connection -> Nameplates [style="dashed"
-                                  label="NL_connected()\nNL_lost()\nNL_rx_nameplates()"
+                                  label="connected\nlost\nrx_nameplates"
                                   ]
         Nameplates -> Connection [style="dashed"
-                                  label="C_tx_list()"
+                                  label="tx_list"
                                   ]
 
 

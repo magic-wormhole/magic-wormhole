@@ -1,147 +1,157 @@
 digraph {
         /* new idea */
 
-        {rank=same; M_title M_entry_whole_code M_entry_allocation M_entry_interactive}
-        M_entry_whole_code [label="whole\ncode"]
-        M_entry_whole_code -> M_S0A
-        M_title [label="Message\nMachine" style="dotted"]
+        {rank=same; title entry_whole_code entry_allocation entry_interactive}
+        entry_whole_code [label="whole\ncode"]
+        entry_whole_code -> S0A
+        title [label="Message\nMachine" style="dotted"]
 
-        M_entry_allocation [label="allocation" color="orange"]
-        M_entry_allocation -> M_S0B [label="already\nconnected" color="orange" fontcolor="orange"]
-        M_entry_interactive [label="interactive" color="orange"]
-        M_entry_interactive -> M_S0B [color="orange"]
+        entry_allocation [label="allocation" color="orange"]
+        entry_allocation -> S0B [label="(already\nconnected)"
+                                     color="orange" fontcolor="orange"]
+        entry_interactive [label="interactive" color="orange"]
+        entry_interactive -> S0B [color="orange"]
 
-        {rank=same; M_S0A M_S0B}
-        M_S0A [label="S0A:\nknow nothing"]
-        M_S0B [label="S0B:\nknow nothing\n(bound)" color="orange"]
-        M_S0A -> M_S0B [label="M_connected()"]
-        M_S0B -> M_S0A [label="M_lost()"]
+        {rank=same; S0A P0_connected S0B}
+        S0A [label="S0A:\nknow nothing"]
+        S0B [label="S0B:\nknow nothing\n(bound)" color="orange"]
+        S0A -> P0_connected [label="connected"]
+        P0_connected [label="(nothing)" shape="box" style="dashed"]
+        P0_connected -> S0B
+        S0B -> S0A [label="lost"]
 
-        M_S0A -> M_S1A [label="M_set_nameplate()"]
-        M_S0B -> M_P2_claim [label="M_set_nameplate()" color="orange" fontcolor="orange"]
+        S0A -> S1A [label="set_nameplate"]
+        S0B -> P2_connected [label="set_nameplate" color="orange" fontcolor="orange"]
+        P0A_queue [shape="box" label="queue" style="dotted"]
+        S0A -> P0A_queue [label="add_message" style="dotted"]
+        P0A_queue -> S0A [style="dotted"]
 
-        {rank=same; M_S1A M_P1A_queue}
-        M_S0B -> M_S2B [style="invis"]
-        M_S1A -> M_S2A [style="invis"]
-        M_S1A [label="S1A:\nnot claimed"]
-        M_S1A -> M_P2_claim [label="M_connected()"]
-        M_S1A -> M_P1A_queue [label="M_send(msg)" style="dotted"]
-        M_P1A_queue [shape="box" label="queue" style="dotted"]
-        M_P1A_queue -> M_S1A [style="dotted"]
+        {rank=same; S1A P1A_queue}
+        S1A [label="S1A:\nnot claimed"]
+        S1A -> P2_connected [label="connected"]
+        S1A -> P1A_queue [label="add_message" style="dotted"]
+        P1A_queue [shape="box" label="queue" style="dotted"]
+        P1A_queue -> S1A [style="dotted"]
 
-        {rank=same; M_S2B M_S2A M_P2_claim}
-        M_S2A [label="S2A:\nmaybe claimed"]
-        M_S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
-        #M_S2B -> M_SrB [label="M_close()" style="dashed"]
-        #M_SrB [label="SrB" style="dashed"]
-        #M_S2A -> M_SrA [label="M_close()" style="dashed"]
-        #M_SrA [label="SrA" style="dashed"]
+        {rank=same; S2A P2_connected S2B}
+        S2A [label="S2A:\nmaybe claimed"]
+        S2A -> P2_connected [label="connected"]
+        P2_connected [shape="box" label="C.tx_claim" color="orange"]
+        P2_connected -> S2B [color="orange"]
+        S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
+        #S2B -> SrB [label="close()" style="dashed"]
+        #SrB [label="SrB" style="dashed"]
+        #S2A -> SrA [label="close()" style="dashed"]
+        #SrA [label="SrA" style="dashed"]
 
-        M_S2A -> M_P2_claim [label="M_connected()"]
-        #M_S2B -> M_S2A [label="M_lost()"] # causes bad layout
-        M_S2B -> foo [label="M_lost()"]
+        #S2B -> S2A [label="lost"] # causes bad layout
+        S2B -> foo [label="lost"]
         foo [label="" style="dashed"]
-        foo -> M_S2A
+        foo -> S2A
 
-        M_P2_claim [shape="box" label="tx claim" color="orange"]
-        M_P2_claim -> M_S2B [color="orange"]
-        M_S2A -> M_P2C_queue [label="M_send(msg)" style="dotted"]
-        M_P2C_queue [shape="box" label="queue" style="dotted"]
-        M_P2C_queue -> M_S2A [style="dotted"]
-        M_S2B -> M_P2B_queue [label="M_send(msg)" style="dotted"]
-        M_P2B_queue [shape="box" label="queue" style="dotted"]
-        M_P2B_queue -> M_S2B [style="dotted"]
+        S2A -> P2C_queue [label="add_message" style="dotted"]
+        P2C_queue [shape="box" label="queue" style="dotted"]
+        P2C_queue -> S2A [style="dotted"]
+        S2B -> P2B_queue [label="add_message" style="dotted"]
+        P2B_queue [shape="box" label="queue" style="dotted"]
+        P2B_queue -> S2B [style="dotted"]
 
-        M_S1A -> M_S3A [label="(none)" style="invis"]
-        M_S2B -> M_P_open [label="rx claimed" color="orange" fontcolor="orange"]
-        M_P_open [shape="box" label="store mailbox\ntx open\ntx add(queued)" color="orange"]
-        M_P_open -> M_S3B [color="orange"]
+        S1A -> S3A [label="(none)" style="invis"]
+        S2B -> P_open [label="rx_claimed" color="orange" fontcolor="orange"]
+        P_open [shape="box" label="store mailbox\nC.tx_open\nC.tx_add(queued)" color="orange"]
+        P_open -> S3B [color="orange"]
 
-        {rank=same; M_S3A M_S3B M_P3_open M_P3_send}
-        M_S3A [label="S3A:\nclaimed\nopened >=once"]
-        M_S3B [label="S3B:\nclaimed\nmaybe open now\n(bound)" color="orange"]
-        M_S3A -> M_P3_open [label="M_connected()"]
-        M_S3B -> M_S3A [label="M_lost()"]
-        M_P3_open [shape="box" label="tx open\ntx add(queued)"]
-        M_P3_open -> M_S3B
-        M_S3B -> M_S3B [label="rx claimed"]
-        M_S3B -> M_P3_send [label="M_send(msg)"]
-        M_P3_send [shape="box" label="queue\ntx add(msg)"]
-        M_P3_send -> M_S3B
-        M_S3A -> M_P3_queue [label="M_send(msg)" style="dotted"]
-        M_P3_queue [shape="box" label="queue" style="dotted"]
-        M_P3_queue -> M_S3A [style="dotted"]
+        subgraph {rank=same; S3A S3B P3_connected}
+        S3A [label="S3A:\nclaimed\nopened >=once"]
+        S3B [label="S3B:\nclaimed\nmaybe open now\n(bound)" color="orange"]
+        S3A -> P3_connected [label="connected"]
+        S3B -> S3A [label="lost"]
 
-        M_S3A -> M_S4A [label="(none)" style="invis"]
-        M_S3B -> M_P3_process_ours [label="rx message(side=me)"]
-        M_P3_process_ours [shape="box" label="dequeue"]
-        M_P3_process_ours -> M_S3B
-        M_S3B -> M_P3_process_theirs1 [label="rx message(side!=me)" color="orange" fontcolor="orange"]
-        M_P3_process_theirs1 [shape="box" label="tx release" color="orange"]
-        M_P3_process_theirs1 -> M_P3_process_theirs2 [color="orange"]
-        M_P3_process_theirs2 [shape="octagon" label="process message" color="orange"]
+        P3_connected [shape="box" label="C.tx_open\nC.tx_add(queued)"]
+        P3_connected -> S3B
+
+        S3A -> P3_queue [label="add_message" style="dotted"]
+        P3_queue [shape="box" label="queue" style="dotted"]
+        P3_queue -> S3A [style="dotted"]
+
+        S3B -> S3B [label="rx_claimed"]
+
+        S3B -> P3_send [label="add_message"]
+        P3_send [shape="box" label="queue\nC.tx_add(msg)"]
+        P3_send -> S3B
+
+        S3A -> S4A [label="(none)" style="invis"]
+        S3B -> P3_process_ours [label="rx_message\n(ours)"]
+        P3_process_ours [shape="box" label="dequeue"]
+        P3_process_ours -> S3B
+        S3B -> P3_process_theirs [label="rx_message\n(theirs)"
+                                      color="orange" fontcolor="orange"]
+        P3_process_theirs [shape="box" label="C.tx_release\nW.got_message"
+                              color="orange"]
         /* pay attention to the race here: this process_message() will
         deliver msg_pake to the WormholeMachine, which will compute_key() and
-        M_send(version), and we're in between M_S1A (where M_send gets
-        queued) and M_S3A (where M_send gets sent and queued), and we're no
-        longer passing through the M_P3_open phase (which drains the queue).
+        send(version), and we're in between S1A (where send gets
+        queued) and S3A (where send gets sent and queued), and we're no
+        longer passing through the P3_connected phase (which drains the queue).
         So there's a real possibility of the outbound msg_version getting
         dropped on the floor, or put in a queue but never delivered. */
-        M_P3_process_theirs2 -> M_S4B [color="orange"]
+        P3_process_theirs -> S4B [color="orange"]
 
-        {rank=same; M_S4A M_P4_release M_S4B M_P4_process M_P4_send M_P4_queue}
-        M_S4A [label="S4A:\nmaybe released\nopened >=once\n"]
+        subgraph {rank=same; S4A P4_connected S4B}
+        S4A [label="S4A:\nmaybe released\nopened >=once\n"]
 
-        M_S4B [label="S4B:\nmaybe released\nmaybe open now\n(bound)" color="orange"]
-        M_S4A -> M_P4_release [label="M_connected()"]
-        M_P4_release [shape="box" label="tx open\ntx add(queued)\ntx release"]
-        M_S4B -> M_P4_send [label="M_send(msg)"]
-        M_P4_send [shape="box" label="queue\ntx add(msg)"]
-        M_P4_send -> M_S4B
-        M_S4A -> M_P4_queue [label="M_send(msg)" style="dotted"]
-        M_P4_queue [shape="box" label="queue" style="dotted"]
-        M_P4_queue -> M_S4A [style="dotted"]
+        S4B [label="S4B:\nmaybe released\nmaybe open now\n(bound)" color="orange"]
+        S4A -> P4_connected [label="connected"]
+        P4_connected [shape="box" label="C.tx_open\nC.tx_add(queued)\nC.tx_release"]
+        S4B -> P4_send [label="add_message"]
+        P4_send [shape="box" label="queue\nC.tx_add(msg)"]
+        P4_send -> S4B
+        S4A -> P4_queue [label="add_message" style="dotted"]
+        P4_queue [shape="box" label="queue" style="dotted"]
+        P4_queue -> S4A [style="dotted"]
 
-        M_P4_release -> M_S4B
-        M_S4B -> M_S4A [label="M_lost()"]
-        M_S4B -> M_P4_process [label="rx message"]
-        M_P4_process [shape="octagon" label="process message"]
-        M_P4_process -> M_S4B
+        P4_connected -> S4B
+        S4B -> S4A [label="lost"]
+        S4B -> P4_process_ours [label="rx_message\n(ours)"]
+        P4_process_ours [shape="box" label="dequeue"]
+        P4_process_ours -> S4B
+        S4B -> P4_process_theirs [label="rx_message\n(theirs)"]
+        P4_process_theirs [shape="box" label="W.got_message"]
+        P4_process_theirs -> S4B
 
-        M_S4A -> M_S5A [label="(none)" style="invis"]
-        M_S4B -> M_S5B [label="rx released" color="orange" fontcolor="orange"]
+        S4A -> S5A [label="(none)" style="invis"]
+        S4B -> S5B [label="rx released" color="orange" fontcolor="orange"]
 
-        seed [label="from Seed?"]
-        M_S3A -> seed [style="invis"]
-        M_S4A -> seed [style="invis"]
-        seed -> M_S5A
-        {rank=same; seed M_S5A M_S5B M_P5_open M_process}
-        M_S5A [label="S5A:\nreleased\nopened >=once"]
-        M_S5B [label="S5B:\nreleased\nmaybe open now\n(bound)" color="green"]
-        M_S5A -> M_P5_open [label="M_connected()"]
-        M_P5_open [shape="box" label="tx open\ntx add(queued)"]
-        M_P5_open -> M_S5B
-        M_S5B -> M_S5A [label="M_lost()"]
-        M_S5B -> M_process [label="rx message" color="green" fontcolor="green"]
-        M_process [shape="octagon" label="process message" color="green"]
-        M_process -> M_S5B [color="green"]
-        M_S5B -> M_P5_send [label="M_send(msg)" color="green" fontcolor="green"]
-        M_P5_send [shape="box" label="queue\ntx add(msg)" color="green"]
-        M_P5_send -> M_S5B [color="green"]
-        M_S5A -> M_P5_queue [label="M_send(msg)" style="dotted"]
-        M_P5_queue [shape="box" label="queue" style="dotted"]
-        M_P5_queue -> M_S5A [style="dotted"]
-        M_S5B -> M_CcB_P_close [label="M_close()" style="dashed" color="orange" fontcolor="orange"]
-        M_CcB_P_close [label="tx close" style="dashed" color="orange"]
+        P4_queue -> S5A [style="invis"]
+        subgraph {S5A P5_connected S5B}
+        {rank=same; S5A P5_connected S5B}
 
-        M_process [shape="octagon" label="process message"]
-        M_process_me [shape="box" label="dequeue"]
-        M_process -> M_process_me [label="side == me"]
-        M_process_them [shape="box" label="" style="dotted"]
-        M_process -> M_process_them [label="side != me"]
-        M_process_them -> M_process_pake [label="phase == pake"]
-        M_process_pake [shape="box" label="WM_rx_pake()"]
-        M_process_them -> M_process_other [label="phase in (version,numbered)"]
-        M_process_other [shape="box" label="WM_rx_msg()"]
+        S5A [label="S5A:\nreleased\nopened >=once"]
+        S5A -> P5_connected [label="connected"]
+        P5_connected [shape="box" label="C.tx_open\nC.tx_add(queued)"]
+
+        S5B -> P5_send [label="add_message" color="green" fontcolor="green"]
+        P5_send [shape="box" label="queue\nC.tx_add(msg)" color="green"]
+        P5_send -> S5B [color="green"]
+        S5A -> P5_queue [label="add_message" style="dotted"]
+        P5_queue [shape="box" label="queue" style="dotted"]
+        P5_queue -> S5A [style="dotted"]
+
+        P5_connected -> S5B
+        S5B [label="S5B:\nreleased\nmaybe open now\n(bound)" color="green"]
+        S5B -> S5A [label="lost"]
+
+        S5B -> P5_process_ours [label="rx_message\n(ours)"]
+        P5_process_ours [shape="box" label="dequeue"]
+        P5_process_ours -> S5B
+        S5B -> P5_process_theirs [label="rx_message\n(theirs)"]
+        P5_process_theirs [shape="box" label="W.got_message"]
+        P5_process_theirs -> S5B
+
+        foo5 [label="" style="invis"]
+        S5A -> foo5 [style="invis"]
+        foo5 -> P5_close [style="invis"]
+        S5B -> P5_close [label="close" style="dashed" color="orange" fontcolor="orange"]
+        P5_close [shape="box" label="tx_close" style="dashed" color="orange"]
 
 }
