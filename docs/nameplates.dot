@@ -1,47 +1,42 @@
 digraph {
-        /*
-        "connected": NL_connected
-        "rx": NL_rx_nameplates
-        "refresh": NL_refresh_nameplates
-        */
-        {rank=same; NL_title NL_S0A NL_S0B}
-        NL_title [label="Nameplate\nLister" style="dotted"]
+        {rank=same; title S0A S0B}
+        title [label="Nameplate\nLister" style="dotted"]
 
-        NL_S0A [label="S0A:\nnot wanting\nunconnected"]
-        NL_S0B [label="S0B:\nnot wanting\nconnected" color="orange"]
+        S0A [label="S0A:\nnot wanting\nunconnected"]
+        S0B [label="S0B:\nnot wanting\nconnected" color="orange"]
 
-        NL_S0A -> NL_S0B [label="connected"]
-        NL_S0B -> NL_S0A [label="lost"]
+        S0A -> S0B [label="connected"]
+        S0B -> S0A [label="lost"]
 
-        NL_S0A -> NL_S1A [label="refresh"]
-        NL_S0B -> NL_P_tx [label="refresh" color="orange"]
+        S0A -> S1A [label="refresh"]
+        S0B -> P_tx [label="refresh" color="orange" fontcolor="orange"]
 
-        NL_S0A -> NL_P_tx [style="invis"]
+        S0A -> P_tx [style="invis"]
 
-        {rank=same; NL_S1A NL_P_tx NL_S1B NL_C_notify}
+        {rank=same; S1A P_tx S1B P_notify}
 
-        NL_S1A [label="S1A:\nwant list\nunconnected"]
-        NL_S1B [label="S1B:\nwant list\nconnected" color="orange"]
+        S1A [label="S1A:\nwant list\nunconnected"]
+        S1B [label="S1B:\nwant list\nconnected" color="orange"]
 
-        NL_S1A -> NL_P_tx [label="connected"]
-        NL_P_tx [shape="box" label="C.tx_list()" color="orange"]
-        NL_P_tx -> NL_S1B [color="orange"]
-        NL_S1B -> NL_S1A [label="lost"]
+        S1A -> P_tx [label="connected"]
+        P_tx [shape="box" label="C.tx_list()" color="orange"]
+        P_tx -> S1B [color="orange"]
+        S1B -> S1A [label="lost"]
 
-        NL_S1A -> foo [label="refresh"]
+        S1A -> foo [label="refresh"]
         foo [label="" style="dashed"]
-        foo -> NL_S1A
+        foo -> S1A
 
-        NL_S1B -> foo2 [label="refresh"]
+        S1B -> foo2 [label="refresh"]
         foo2 [label="" style="dashed"]
-        foo2 -> NL_P_tx
+        foo2 -> P_tx
 
-        NL_S0B -> NL_C_notify [label="rx"]
-        NL_S1B -> NL_C_notify [label="rx"]
-        NL_C_notify [shape="box" label="W.got_nameplates()"]
-        NL_C_notify -> NL_S0B
+        S0B -> P_notify [label="rx"]
+        S1B -> P_notify [label="rx" color="orange" fontcolor="orange"]
+        P_notify [shape="box" label="W.got_nameplates()"]
+        P_notify -> S0B
 
         {rank=same; foo foo2 legend}
         legend [shape="box" style="dotted"
-                label="connected: NL_connected()\nlost: NL_lost()\nrefresh: NL_refresh_nameplates()\nrx: NL_rx_nameplates()"]
+                label="refresh: NL.refresh_nameplates()\nrx: NL.got_nameplates()"]
 }
