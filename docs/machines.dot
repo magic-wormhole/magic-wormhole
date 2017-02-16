@@ -1,25 +1,34 @@
 digraph {
+        App [shape="box" color="blue" fontcolor="blue"]
         Wormhole [shape="box" label="Wormhole\n(manager)"
                   color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
-        Connection [shape="oval" color="blue" fontcolor="blue"]
+        Connection [label="Rendezvous\nConnector"
+                    shape="oval" color="blue" fontcolor="blue"]
         websocket [shape="oval" color="blue" fontcolor="blue"]
         Nameplates [shape="box" label="Nameplate\nLister"
-                    color="blue" fontcolor="blue"]
+                    color="blue" fontcolor="blue"
+                    ]
 
         Connection -> websocket [color="blue"]
 
+        App -> Wormhole [style="dashed" label="set_code\nsend\nclose\n(once)"]
+        App -> Wormhole [color="blue"]
+        Wormhole -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
+
+        Wormhole -> Connection [color="blue"]
+
         Wormhole -> Mailbox [style="dashed"
-                             label="set_nameplate\nadd_message\nclose"
+                             label="set_nameplate\nadd_message\nclose\n(once)"
                              ]
         Wormhole -> Mailbox [color="blue"]
         Mailbox -> Wormhole [style="dashed"
-                             label="got_message\nclosed"
+                             label="got_message\nclosed\n(once)"
                              ]
+
         Mailbox -> Connection [style="dashed"
                                label="tx_claim\ntx_open\ntx_add\ntx_release\ntx_close\nstop"
                                ]
-        Mailbox -> Connection [color="blue"]
         Connection -> Mailbox [style="dashed"
                                label="connected\nlost\nrx_claimed\nrx_message\nrx_released\nrx_closed\nstopped"]
 
