@@ -2,47 +2,45 @@ digraph {
 
         start [label="Wormhole Code\nMachine" style="dotted"]
         {rank=same; start S0}
-        {rank=same; P_list_nameplates P_allocate}
+        {rank=same; P0_list_nameplates P0_allocate}
         {rank=same; S1 S2}
-        {rank=same; S3 P_allocate_generate}
+        {rank=same; S3 P1_generate}
         start -> S0 [style="invis"]
         S0 [label="S0:\nunknown"]
-        S0 -> P_set_code [label="set"]
-        P_set_code [shape="box" label="W.set_code"]
-        P_set_code -> S_known
-        S_known [label="known" color="green"]
+        S0 -> P0_set_code [label="set"]
+        P0_set_code [shape="box" label="W.set_code"]
+        P0_set_code -> S4
+        S4 [label="S4: known" color="green"]
 
-        S0 -> P_list_nameplates [label="input"]
+        S0 -> P0_list_nameplates [label="input"]
         S2 [label="S2: typing\nnameplate"]
 
-        S2 -> P_nameplate_completion [label="<tab>"]
-        P_nameplate_completion [shape="box" label="do completion"]
-        P_nameplate_completion -> P_list_nameplates
-        P_list_nameplates [shape="box" label="NL.refresh_nameplates"]
-        P_list_nameplates -> S2
+        S2 -> P2_completion [label="<tab>"]
+        P2_completion [shape="box" label="do completion"]
+        P2_completion -> P0_list_nameplates
+        P0_list_nameplates [shape="box" label="NL.refresh_nameplates"]
+        P0_list_nameplates -> S2
 
-        S2 -> P_got_nameplates [label="got_nameplates"]
-        P_got_nameplates [shape="box" label="stash nameplates\nfor completion"]
-        P_got_nameplates -> S2
-        S2 -> P_finish_nameplate [label="<return>"
-                                                  color="orange"
-                                                  fontcolor="orange"]
-        P_finish_nameplate [shape="box" label="lookup wordlist\nfor completion"]
-        P_finish_nameplate -> S3
+        S2 -> P2_got_nameplates [label="got_nameplates"]
+        P2_got_nameplates [shape="box" label="stash nameplates\nfor completion"]
+        P2_got_nameplates -> S2
+        S2 -> P2_finish [label="<return>" color="orange" fontcolor="orange"]
+        P2_finish [shape="box" label="lookup wordlist\nfor completion"]
+        P2_finish -> S3
         S3 [label="S3: typing\ncode"]
-        S3 -> P_code_completion [label="<tab>"]
-        P_code_completion [shape="box" label="do completion"]
-        P_code_completion -> S3
+        S3 -> P3_completion [label="<tab>"]
+        P3_completion [shape="box" label="do completion"]
+        P3_completion -> S3
 
-        S3 -> P_set_code [label="<return>"
+        S3 -> P0_set_code [label="<return>"
                                      color="orange" fontcolor="orange"]
 
-        S0 -> P_allocate [label="allocate"]
-        P_allocate [shape="box" label="C.tx_allocate"]
-        P_allocate -> S1
+        S0 -> P0_allocate [label="allocate"]
+        P0_allocate [shape="box" label="C.tx_allocate"]
+        P0_allocate -> S1
         S1 [label="S1:\nallocating"]
-        S1 -> P_allocate_generate [label="rx_allocated"]
-        P_allocate_generate [shape="box" label="generate\nrandom code"]
-        P_allocate_generate -> P_set_code
+        S1 -> P1_generate [label="rx_allocated"]
+        P1_generate [shape="box" label="generate\nrandom code"]
+        P1_generate -> P0_set_code
         
 }
