@@ -6,9 +6,11 @@ digraph {
         Connection [label="Rendezvous\nConnector"
                     shape="oval" color="blue" fontcolor="blue"]
         websocket [shape="oval" color="blue" fontcolor="blue"]
+        Code [shape="box" label="Code" color="blue" fontcolor="blue"]
         Nameplates [shape="box" label="Nameplate\nLister"
                     color="blue" fontcolor="blue"
                     ]
+        {rank=same; Nameplates Code}
 
         Connection -> websocket [color="blue"]
 
@@ -32,13 +34,6 @@ digraph {
         Connection -> Mailbox [style="dashed"
                                label="connected\nlost\nrx_claimed\nrx_message\nrx_released\nrx_closed\nstopped"]
 
-        Wormhole -> Nameplates [style="dashed"
-                                label="refresh_nameplates"
-                                ]
-        Wormhole -> Nameplates [color="blue"]
-        Nameplates -> Wormhole [style="dashed"
-                                label="got_nameplates"
-                                ]
         Connection -> Nameplates [style="dashed"
                                   label="connected\nlost\nrx_nameplates"
                                   ]
@@ -46,6 +41,21 @@ digraph {
                                   label="tx_list"
                                   ]
 
+        Wormhole -> Code [color="blue"]
+        Code -> Connection [style="dashed"
+                            label="tx_allocate"
+                            ]
+        Connection -> Code [style="dashed"
+                            label="rx_allocated"]
+        Nameplates -> Code [style="dashed"
+                            label="got_nameplates"
+                            ]
+        Code -> Nameplates [color="blue"]
+        Code -> Nameplates [style="dashed"
+                            label="refresh_nameplates"
+                            ]
+        
+        
 
 
 }
