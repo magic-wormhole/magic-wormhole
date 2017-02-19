@@ -1,0 +1,82 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        start [label="Key\nMachine" style="dotted"]
+
+        S0 [label="S0: know\nnothing"]
+        S0 -> P0_build [label="set_code"]
+
+        P0_build [shape="box" label="build_pake\nM.set_nameplate\nM.add_message(pake)"]
+        P0_build -> S1
+        S1 [label="S1: know\ncode"]
+
+        /* the Mailbox will deliver each message exactly once, but doesn't
+        guarantee ordering: if Alice starts the process, then disconnects,
+        then Bob starts (reading PAKE, sending both his PAKE and his VERSION
+        phase), then Alice will see both PAKE and VERSION on her next
+        connect, and might get the VERSION first.
+
+        The Wormhole will queue inbound messages that it isn't ready for. The
+        wormhole shim that lets applications do w.get(phase=) must do
+        something similar, queueing inbound messages until it sees one for
+        the phase it currently cares about.*/
+
+        S1 -> P_mood_scary [label="got_message(pake)\npake bad"]
+        S1 -> P1_compute [label="got_message(pake)\npake good"]
+        S1 -> P1_queue_inbound [label="got_message(data)" style="dashed"]
+        P1_queue_inbound [shape="box" style="dotted" label="queue"]
+        P1_queue_inbound -> S1 [style="dashed"]
+        S1 -> P1_queue_version [label="got_message(version)"]
+        P1_queue_version [label="queue\nversion??"]
+        P1_queue_version -> S1
+        S1 -> P_mood_lonely [label="close"]
+
+        P1_compute [label="compute_key\nM.add_message(version)\nA.got_verifier" shape="box"]
+        P1_compute -> S2
+
+        P_mood_scary [shape="box" label="M.close\nmood=scary"]
+        P_mood_scary -> P_notify_failure
+
+        P_notify_failure [shape="box" label="(record failure)" color="red"]
+        P_notify_failure -> S_closing
+
+        S2 [label="S2: know_key\n(unverified)" color="orange"]
+        S2 -> P2_queue_inbound [label="got_message(data)" style="dashed"]
+        P2_queue_inbound [shape="box" style="dotted" label="queue"]
+        P2_queue_inbound -> S2
+        S2 -> P2_verified [label="got_message(version)\ngood"]
+        S2 -> P_mood_scary [label="got_message(version)\nbad"]
+        S2 -> P_mood_lonely [label="close"] /* more like impatient */
+
+        P2_verified [label="D.got_message(queued)\nA.received(msg)\nencrypt queued\nM.add_message(queued)"
+                      shape="box"]
+        P2_verified -> S3
+
+        S3 [label="S3: know_key\n(verified)" color="green"]
+        S3 -> P3_accept [label="got_message(data)"] /* probably phase */
+        S3 -> P_mood_happy [label="close"]
+        S3 -> P_notify_failure [label="scary"]
+
+        P3_accept [shape="box" label="decrypt\nR.got_message(good,bad)"]
+        P3_accept -> S3
+        P_mood_happy [shape="box" label="M.close\nmood=happy"]
+        P_mood_happy -> S_closing
+
+        P_mood_lonely [shape="box" label="M.close\nmood=lonely"]
+        P_mood_lonely -> S_closing
+
+        S_closing [label="closing"]
+        S_closing -> P_closed [label="closed"]
+        S_closing -> S_closing [label="got_message"]
+
+        P_closed [shape="box" label="A.closed"]
+        P_closed -> S_closed
+        S_closed [label="closed"]
+}
