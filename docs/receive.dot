@@ -1,0 +1,49 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        start [label="Receive\nMachine" style="dotted"]
+
+        S0 [label="S0: unknown\ncode"]
+        S0 -> P0_got_key [label="got_verified_key"]
+
+        P0_got_key [shape="box" label="record key"]
+        P0_got_key -> S1
+
+        S0 -> P_mood_lonely [label="close"]
+
+        S1 [label="S1: verified\nkey" color="green"]
+
+        S1 -> P_mood_scary [label="got_message(bad)"]
+        S1 -> P1_accept_msg [label="got_message(good)"]
+        S1 -> P_mood_happy [label="close"]
+
+        P1_accept_msg [label="A.received(msg)" shape="box"]
+        P1_accept_msg -> S1
+
+        P_mood_scary [shape="box" label="K.scary"]
+        P_mood_scary -> S_closed
+
+        P_notify_failure [shape="box" label="(record failure)" color="red"]
+        P_notify_failure -> S_closing
+
+        P_mood_happy [shape="box" label="M.close\nmood=happy"]
+        P_mood_happy -> S_closing
+
+        P_mood_lonely [shape="box" label="M.close\nmood=lonely"]
+        P_mood_lonely -> S_closing
+
+        S_closing [label="closing"]
+        S_closing -> P_closed [label="closed"]
+        S_closing -> S_closing [label="got_message"]
+
+        P_closed [shape="box" label="A.closed"]
+        P_closed -> S_closed
+        S_closed [label="closed"]
+}
