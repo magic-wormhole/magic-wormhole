@@ -36,7 +36,7 @@ digraph {
         {rank=same; S2A P2_connected S2B}
         S2A [label="S2A:\nmaybe claimed"]
         S2A -> P2_connected [label="connected"]
-        P2_connected [shape="box" label="C.tx_claim" color="orange"]
+        P2_connected [shape="box" label="RC.tx_claim" color="orange"]
         P2_connected -> S2B [color="orange"]
         S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
         #S2B -> SrB [label="close()" style="dashed"]
@@ -58,7 +58,7 @@ digraph {
 
         S1A -> S3A [label="(none)" style="invis"]
         S2B -> P_open [label="rx_claimed" color="orange" fontcolor="orange"]
-        P_open [shape="box" label="store mailbox\nC.tx_open\nC.tx_add(queued)" color="orange"]
+        P_open [shape="box" label="store mailbox\nRC.tx_open\nRC.tx_add(queued)" color="orange"]
         P_open -> S3B [color="orange"]
 
         subgraph {rank=same; S3A S3B P3_connected}
@@ -67,7 +67,7 @@ digraph {
         S3A -> P3_connected [label="connected"]
         S3B -> S3A [label="lost"]
 
-        P3_connected [shape="box" label="C.tx_open\nC.tx_add(queued)"]
+        P3_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
         P3_connected -> S3B
 
         S3A -> P3_queue [label="add_message" style="dotted"]
@@ -77,7 +77,7 @@ digraph {
         S3B -> S3B [label="rx_claimed"]
 
         S3B -> P3_send [label="add_message"]
-        P3_send [shape="box" label="queue\nC.tx_add(msg)"]
+        P3_send [shape="box" label="queue\nRC.tx_add(msg)"]
         P3_send -> S3B
 
         S3A -> S4A [label="(none)" style="invis"]
@@ -87,7 +87,7 @@ digraph {
         S3B -> P3_process_theirs [label="rx_message\n(theirs)"
                                       color="orange" fontcolor="orange"]
         P3_process_theirs [shape="box" color="orange"
-                           label="C.tx_release\nO.got_message if new\nrecord"
+                           label="RC.tx_release\nO.got_message if new\nrecord"
                            ]
         /* pay attention to the race here: this process_message() will
         deliver msg_pake to the WormholeMachine, which will compute_key() and
@@ -103,9 +103,9 @@ digraph {
 
         S4B [label="S4B:\nmaybe released\nmaybe open now\n(bound)" color="orange"]
         S4A -> P4_connected [label="connected"]
-        P4_connected [shape="box" label="C.tx_open\nC.tx_add(queued)\nC.tx_release"]
+        P4_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)\nRC.tx_release"]
         S4B -> P4_send [label="add_message"]
-        P4_send [shape="box" label="queue\nC.tx_add(msg)"]
+        P4_send [shape="box" label="queue\nRC.tx_add(msg)"]
         P4_send -> S4B
         S4A -> P4_queue [label="add_message" style="dotted"]
         P4_queue [shape="box" label="queue" style="dotted"]
@@ -129,10 +129,10 @@ digraph {
 
         S5A [label="S5A:\nreleased\nopened >=once"]
         S5A -> P5_connected [label="connected"]
-        P5_connected [shape="box" label="C.tx_open\nC.tx_add(queued)"]
+        P5_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
 
         S5B -> P5_send [label="add_message" color="green" fontcolor="green"]
-        P5_send [shape="box" label="queue\nC.tx_add(msg)" color="green"]
+        P5_send [shape="box" label="queue\nRC.tx_add(msg)" color="green"]
         P5_send -> S5B [color="green"]
         S5A -> P5_queue [label="add_message" style="dotted"]
         P5_queue [shape="box" label="queue" style="dotted"]

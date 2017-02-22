@@ -4,7 +4,7 @@ digraph {
                   color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
         Connection [label="Rendezvous\nConnector"
-                    shape="box" color="blue" fontcolor="blue"]
+                    shape="oval" color="blue" fontcolor="blue"]
         websocket [color="blue" fontcolor="blue"]
         Order [shape="box" label="Ordering" color="blue" fontcolor="blue"]
         Key [shape="box" label="Key" color="blue" fontcolor="blue"]
