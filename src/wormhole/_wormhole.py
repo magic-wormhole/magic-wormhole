@@ -1,14 +1,39 @@
+from zope.interface import implementer
+from automat import MethodicalMachine
+from . import _interfaces
+from ._mailbox import Mailbox
+from ._send import Send
+from ._order import Order
+from ._key import Key
+from ._receive import Receive
+from ._rendezvous import RendezvousConnector
+from ._nameplate import NameplateListing
+from ._code import Code
 
+@implementer(_interfaces.IWormhole)
 class Wormhole:
     m = MethodicalMachine()
 
-    def __init__(self, ws_url, reactor):
-        self._relay_client = WSRelayClient(self, ws_url, reactor)
-        # This records all the messages we want the relay to have. Each time
-        # we establish a connection, we'll send them all (and the relay
-        # server will filter out duplicates). If we add any while a
-        # connection is established, we'll send the new ones.
-        self._outbound_messages = []
+    def __init__(self, side, reactor, timing):
+        self._reactor = reactor
+
+        self._M = Mailbox(side)
+        self._S = Send(side, timing)
+        self._O = Order(side, timing)
+        self._K = Key(timing)
+        self._R = Receive(side, timing)
+        self._RC = RendezvousConnector(side, timing, reactor)
+        self._NL = NameplateListing()
+        self._C = Code(timing)
+
+        self._M.wire(self, self._RC, self._O)
+        self._S.wire(self._M)
+        self._O.wire(self._K, self._R)
+        self._K.wire(self, self._M, self._R)
+        self._R.wire(self, self._K, self._S)
+        self._RC.wire(self._M, self._C, self._NL)
+        self._NL.wire(self._RC, self._C)
+        self._C.wire(self, self._RC, self._NL)
 
     # these methods are called from outside
     def start(self):
@@ -16,130 +41,110 @@ class Wormhole:
 
     # and these are the state-machine transition functions, which don't take
     # args
+    @m.state(initial=True)
+    def S0_empty(self): pass
     @m.state()
-    def closed(initial=True): pass
+    def S1_lonely(self): pass
     @m.state()
-    def know_code_not_mailbox(): pass
+    def S2_happy(self): pass
     @m.state()
-    def know_code_and_mailbox(): pass # no longer need nameplate
-    @m.state()
-    def waiting_first_msg(): pass # key is established, want any message
-    @m.state()
-    def processing_version(): pass
-    @m.state()
-    def processing_phase(): pass
-    @m.state()
-    def open(): pass # key is verified, can post app messages
+    def S3_closing(self): pass
     @m.state(terminal=True)
-    def failed(): pass
+    def S4_closed(self): pass
 
+    # from the Application, or some sort of top-level shim
     @m.input()
-    def deliver_message(self, message): pass
+    def send(self, phase, message): pass
+    @m.input()
+    def close(self): pass
 
-    def w_set_seed(self, code, mailbox):
-        """Call w_set_seed when we sprout a Wormhole Seed, which
-        contains both the code and the mailbox"""
-        self.w_set_code(code)
-        self.w_set_mailbox(mailbox)
+    # from Code (which may be provoked by the Application)
+    @m.input()
+    def set_code(self, code): pass
 
+    # Key sends (got_verifier, scared)
+    # Receive sends (got_message, happy, scared)
     @m.input()
-    def w_set_code(self, code):
-        """Call w_set_code when you learn the code, probably because the user
-        typed it in."""
+    def happy(self): pass
     @m.input()
-    def w_set_mailbox(self, mailbox):
-        """Call w_set_mailbox() when you learn the mailbox id, from the
-        response to claim_nameplate"""
-        pass
+    def scared(self): pass
+    def got_message(self, phase, plaintext):
+        if phase == "version":
+            self.got_version(plaintext)
+        else:
+            self.got_phase(phase, plaintext)
+    @m.input()
+    def got_version(self, version): pass
+    @m.input()
+    def got_phase(self, phase, plaintext): pass
+    @m.input()
+    def got_verifier(self, verifier): pass
 
+    # Mailbox sends closed
+    @m.input()
+    def closed(self): pass
 
-    @m.input()
-    def rx_pake(self, pake): pass # reponse["message"][phase=pake]
-
-    @m.input()
-    def rx_version(self, version): # response["message"][phase=version]
-        pass
-    @m.input()
-    def verify_good(self, verifier): pass
-    @m.input()
-    def verify_bad(self, f): pass
-
-    @m.input()
-    def rx_phase(self, message): pass
-    @m.input()
-    def phase_good(self, message): pass
-    @m.input()
-    def phase_bad(self, f): pass
 
     @m.output()
-    def compute_and_post_pake(self, code):
-        self._code = code
-        self._pake = compute(code)
-        self._post(pake=self._pake)
-        self._ws_send_command("add", phase="pake", body=XXX(pake))
-    @m.output()
-    def set_mailbox(self, mailbox):
-        self._mailbox = mailbox
-    @m.output()
-    def set_seed(self, code, mailbox):
-        self._code = code
-        self._mailbox = mailbox
-
+    def got_code(self, code):
+        nameplate = code.split("-")[0]
+        self._M.set_nameplate(nameplate)
+        self._K.set_code(code)
     @m.output()
     def process_version(self, version): # response["message"][phase=version]
-        their_verifier = com
-        if OK:
-            self.verify_good(verifier)
-        else:
-            self.verify_bad(f)
         pass
 
     @m.output()
-    def notify_verified(self, verifier):
-        for d in self._verify_waiters:
-            d.callback(verifier)
-    @m.output()
-    def notify_failed(self, f):
-        for d in self._verify_waiters:
-            d.errback(f)
+    def S_send(self, phase, message):
+        self._S.send(phase, message)
 
     @m.output()
-    def process_phase(self, message): # response["message"][phase=version]
-        their_verifier = com
-        if OK:
-            self.verify_good(verifier)
-        else:
-            self.verify_bad(f)
-        pass
+    def close_scared(self):
+        self._M.close("scary")
+    @m.output()
+    def close_lonely(self):
+        self._M.close("lonely")
+    @m.output()
+    def close_happy(self):
+        self._M.close("happy")
 
     @m.output()
-    def post_inbound(self, message):
-        pass
+    def A_received(self, phase, plaintext):
+        self._A.received(phase, plaintext)
+    @m.output()
+    def A_got_verifier(self, verifier):
+        self._A.got_verifier(verifier)
 
     @m.output()
-    def deliver_message(self, message):
-        self._qc.deliver_message(message)
+    def A_closed(self):
+        result = "???"
+        self._A.closed(result)
 
-    @m.output()
-    def compute_key_and_post_version(self, pake):
-        self._key = x
-        self._verifier = x
-        plaintext = dict_to_bytes(self._my_versions)
-        phase = "version"
-        data_key = self._derive_phase_key(self._side, phase)
-        encrypted = self._encrypt_data(data_key, plaintext)
-        self._msg_send(phase, encrypted)
+    S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
+    S0_empty.upon(set_code, enter=S1_lonely, outputs=[got_code])
+    S1_lonely.upon(happy, enter=S2_happy, outputs=[])
+    S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
+    S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
+    S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
+    S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[A_got_verifier])
+    S2_happy.upon(got_phase, enter=S2_happy, outputs=[A_received])
+    S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
+    S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
+    S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
+    S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
 
-    closed.upon(w_set_code, enter=know_code_not_mailbox,
-                outputs=[compute_and_post_pake])
-    know_code_not_mailbox.upon(w_set_mailbox, enter=know_code_and_mailbox,
-                               outputs=[set_mailbox])
-    know_code_and_mailbox.upon(rx_pake, enter=waiting_first_msg,
-                               outputs=[compute_key_and_post_version])
-    waiting_first_msg.upon(rx_version, enter=processing_version,
-                           outputs=[process_version])
-    processing_version.upon(verify_good, enter=open, outputs=[notify_verified])
-    processing_version.upon(verify_bad, enter=failed, outputs=[notify_failed])
-    open.upon(rx_phase, enter=processing_phase, outputs=[process_phase])
-    processing_phase.upon(phase_good, enter=open, outputs=[post_inbound])
-    processing_phase.upon(phase_bad, enter=failed, outputs=[notify_failed])
+    S3_closing.upon(got_phase, enter=S3_closing, outputs=[])
+    S3_closing.upon(got_version, enter=S3_closing, outputs=[])
+    S3_closing.upon(happy, enter=S3_closing, outputs=[])
+    S3_closing.upon(scared, enter=S3_closing, outputs=[])
+    S3_closing.upon(close, enter=S3_closing, outputs=[])
+    S3_closing.upon(send, enter=S3_closing, outputs=[])
+    S3_closing.upon(closed, enter=S4_closed, outputs=[A_closed])
+
+    S4_closed.upon(got_phase, enter=S4_closed, outputs=[])
+    S4_closed.upon(got_version, enter=S4_closed, outputs=[])
+    S4_closed.upon(happy, enter=S4_closed, outputs=[])
+    S4_closed.upon(scared, enter=S4_closed, outputs=[])
+    S4_closed.upon(close, enter=S4_closed, outputs=[])
+    S4_closed.upon(send, enter=S4_closed, outputs=[])
+

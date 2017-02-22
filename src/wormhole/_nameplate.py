@@ -1,8 +1,15 @@
+from zope.interface import implementer
+from automat import MethodicalMachine
+from . import _interfaces
 
-class NameplateListingMachine(object):
+@implementer(_interfaces.INameplateListing)
+class NameplateListing(object):
     m = MethodicalMachine()
     def __init__(self):
-        self._list_nameplate_waiters = []
+        pass
+    def wire(self, rendezvous_connector, code):
+        self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
+        self._C = _interfaces.ICode(code)
 
     # Ideally, each API request would spawn a new "list_nameplates" message
     # to the server, so the response would be maximally fresh, but that would
@@ -14,40 +21,45 @@ class NameplateListingMachine(object):
     # request arrives, both requests will be satisfied by the same response.
 
     @m.state(initial=True)
-    def idle(self): pass
+    def S0A_idle_disconnected(self): pass
     @m.state()
-    def requesting(self): pass
+    def S1A_wanting_disconnected(self): pass
+    @m.state()
+    def S0B_idle_connected(self): pass
+    @m.state()
+    def S1B_wanting_connected(self): pass
 
     @m.input()
-    def list_nameplates(self): pass # returns Deferred
+    def connected(self): pass
     @m.input()
-    def response(self, message): pass
+    def lost(self): pass
+    @m.input()
+    def refresh_nameplates(self): pass
+    @m.input()
+    def rx_nameplates(self, message): pass
 
     @m.output()
-    def add_deferred(self):
-        d = defer.Deferred()
-        self._list_nameplate_waiters.append(d)
-        return d
+    def RC_tx_list(self):
+        self._RC.tx_list()
     @m.output()
-    def send_request(self):
-        self._connection.send_command("list")
-    @m.output()
-    def distribute_response(self, message):
-        nameplates = parse(message)
-        waiters = self._list_nameplate_waiters
-        self._list_nameplate_waiters = []
-        for d in waiters:
-            d.callback(nameplates)
+    def C_got_nameplates(self, message):
+        self._C.got_nameplates(message["nameplates"])
 
-    idle.upon(list_nameplates, enter=requesting,
-              outputs=[add_deferred, send_request],
-              collector=lambda outs: outs[0])
-    idle.upon(response, enter=idle, outputs=[])
-    requesting.upon(list_nameplates, enter=requesting,
-                    outputs=[add_deferred],
-                    collector=lambda outs: outs[0])
-    requesting.upon(response, enter=idle, outputs=[distribute_response])
+    S0A_idle_disconnected.upon(connected, enter=S0B_idle_connected, outputs=[])
+    S0B_idle_connected.upon(lost, enter=S0A_idle_disconnected, outputs=[])
 
-    # nlm._connection = c = Connection(ws)
-    # nlm.list_nameplates().addCallback(display_completions)
-    # c.register_dispatch("nameplates", nlm.response)
+    S0A_idle_disconnected.upon(refresh_nameplates,
+                               enter=S1A_wanting_disconnected, outputs=[])
+    S1A_wanting_disconnected.upon(refresh_nameplates,
+                                  enter=S1A_wanting_disconnected, outputs=[])
+    S1A_wanting_disconnected.upon(connected, enter=S1B_wanting_connected,
+                                  outputs=[RC_tx_list])
+    S0B_idle_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
+                            outputs=[RC_tx_list])
+    S0B_idle_connected.upon(rx_nameplates, enter=S0B_idle_connected,
+                            outputs=[C_got_nameplates])
+    S1B_wanting_connected.upon(lost, enter=S1A_wanting_disconnected, outputs=[])
+    S1B_wanting_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
+                               outputs=[RC_tx_list])
+    S1B_wanting_connected.upon(rx_nameplates, enter=S0B_idle_connected,
+                               outputs=[C_got_nameplates])

@@ -73,6 +73,8 @@ digraph {
                             ]
         Code -> Wormhole [style="dashed"
                           label="set_code"]
+        App -> Code [style="dashed"
+                     label="allocate\ninput\nset"]
         
         
 
