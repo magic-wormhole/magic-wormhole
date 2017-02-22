@@ -40,6 +40,8 @@ digraph {
         P2_got_message [shape="box" label="A.received"]
         P2_got_message -> S2
 
+        S2 -> P_close_scary [label="scared" color="red"]
+
         S_closing [label="closing"]
         S_closing -> P_closed [label="closed"]
         S_closing -> S_closing [label="got_message\nhappy\nscared\nclose"]

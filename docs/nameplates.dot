@@ -38,5 +38,5 @@ digraph {
 
         {rank=same; foo foo2 legend}
         legend [shape="box" style="dotted"
-                label="refresh: NL.refresh_nameplates()\nrx: NL.got_nameplates()"]
+                label="refresh: NL.refresh_nameplates()\nrx: NL.rx_nameplates()"]
 }
