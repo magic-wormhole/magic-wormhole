@@ -2,7 +2,7 @@ from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
 
-@implementer(_interfaces.INameplateListing)
+@implementer(_interfaces.INameplateLister)
 class NameplateListing(object):
     m = MethodicalMachine()
     def __init__(self):

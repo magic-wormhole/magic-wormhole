@@ -14,7 +14,7 @@ class IReceive(Interface):
     pass
 class IRendezvousConnector(Interface):
     pass
-class INameplateListing(Interface):
+class INameplateLister(Interface):
     pass
 class ICode(Interface):
     pass
