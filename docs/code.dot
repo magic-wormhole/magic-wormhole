@@ -8,7 +8,7 @@ digraph {
         start -> S0 [style="invis"]
         S0 [label="S0:\nunknown"]
         S0 -> P0_set_code [label="set"]
-        P0_set_code [shape="box" label="W.set_code"]
+        P0_set_code [shape="box" label="B.set_code"]
         P0_set_code -> S4
         S4 [label="S4: known" color="green"]
 

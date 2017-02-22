@@ -17,8 +17,10 @@ class Send(object):
     @m.state(terminal=True)
     def S1_verified_key(self): pass
 
+    # from Receive
     @m.input()
     def got_verified_key(self, key): pass
+    # from Boss
     @m.input()
     def send(self, phase, plaintext): pass
 

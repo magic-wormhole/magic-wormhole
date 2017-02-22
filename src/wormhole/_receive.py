@@ -10,8 +10,8 @@ class Receive(object):
         self._side = side
         self._timing = timing
         self._key = None
-    def wire(self, wormhole, key, send):
-        self._W = _interfaces.IWormhole(wormhole)
+    def wire(self, boss, key, send):
+        self._B = _interfaces.IBoss(boss)
         self._K = _interfaces.IKey(key)
         self._S = _interfaces.ISend(send)
 
@@ -24,6 +24,7 @@ class Receive(object):
     @m.state(terminal=True)
     def S3_scared(self): pass
 
+    # from Ordering
     def got_message(self, phase, body):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
@@ -35,13 +36,14 @@ class Receive(object):
             self.got_message_bad()
             return
         self.got_message_good(phase, plaintext)
-
-    @m.input()
-    def got_key(self, key): pass
     @m.input()
     def got_message_good(self, phase, plaintext): pass
     @m.input()
     def got_message_bad(self): pass
+
+    # from Key
+    @m.input()
+    def got_key(self, key): pass
 
     @m.output()
     def record_key(self, key):
@@ -52,15 +54,15 @@ class Receive(object):
         self._S.got_verified_key(self._key)
     @m.output()
     def W_happy(self, phase, plaintext):
-        self._W.happy()
+        self._B.happy()
     @m.output()
     def W_got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
-        self._W.got_message(phase, plaintext)
+        self._B.got_message(phase, plaintext)
     @m.output()
     def W_scared(self):
-        self._W.scared()
+        self._B.scared()
 
     S0_unknown_key.upon(got_key, enter=S1_unverified_key, outputs=[record_key])
     S1_unverified_key.upon(got_message_good, enter=S2_verified_key,

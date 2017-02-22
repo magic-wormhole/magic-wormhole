@@ -36,8 +36,10 @@ digraph {
         P_stop [shape="box" label="C.stop"]
         P_stop -> SsB
 
-        SsB -> Ss [label="stopped"]
         SsB [label="SsB: closed\nstopping"]
+        SsB -> Pss [label="stopped"]
+        Pss [shape="box" label="B.closed"]
+        Pss -> Ss
 
         Ss [label="Ss: closed" color="green"]
 

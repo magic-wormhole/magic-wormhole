@@ -19,7 +19,7 @@ digraph {
         S1 [label="S1:\nunverified key" color="orange"]
         S1 -> P_mood_scary [label="got_message\n(bad)"]
         S1 -> P1_accept_msg [label="got_message\n(good)" color="orange"]
-        P1_accept_msg [shape="box" label="S.got_verified_key\nW.happy\nW.got_message"
+        P1_accept_msg [shape="box" label="S.got_verified_key\nB.happy\nB.got_message"
                        color="orange"]
         P1_accept_msg -> S2 [color="orange"]
 
@@ -28,10 +28,10 @@ digraph {
         S2 -> P2_accept_msg [label="got_message\n(good)" color="orange"]
         S2 -> P_mood_scary [label="got_message(bad)"]
 
-        P2_accept_msg [label="W.got_message" shape="box" color="orange"]
+        P2_accept_msg [label="B.got_message" shape="box" color="orange"]
         P2_accept_msg -> S2 [color="orange"]
 
-        P_mood_scary [shape="box" label="W.scared" color="red"]
+        P_mood_scary [shape="box" label="B.scared" color="red"]
         P_mood_scary -> S3 [color="red"]
 
         S3 [label="S3:\nscared" color="red"]

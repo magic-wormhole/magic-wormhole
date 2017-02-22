@@ -8,7 +8,7 @@ digraph {
         compute the key, send VERSION. Starting from the Return, this saves
         two round trips. OTOH it adds consequences to hitting Tab. */
 
-        start [label="Wormhole\nMachine" style="dotted"]
+        start [label="Boss\n(manager)" style="dotted"]
 
         {rank=same; P0_code S0}
         P0_code [shape="box" style="dashed"
