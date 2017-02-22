@@ -11,7 +11,7 @@ class Journal(object):
 
     def queue_outbound(self, fn, *args, **kwargs):
         assert self._processing
-        self._outbound_queue.append((fn, args, kwargs)
+        self._outbound_queue.append((fn, args, kwargs))
 
     @contextlib.contextmanager
     def process(self):
