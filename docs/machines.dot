@@ -4,29 +4,46 @@ digraph {
                   color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
         Connection [label="Rendezvous\nConnector"
-                    shape="oval" color="blue" fontcolor="blue"]
-        websocket [shape="oval" color="blue" fontcolor="blue"]
+                    shape="box" color="blue" fontcolor="blue"]
+        websocket [color="blue" fontcolor="blue"]
+        Order [shape="box" label="Ordering" color="blue" fontcolor="blue"]
+        Key [shape="box" label="Key" color="blue" fontcolor="blue"]
+        Send [shape="box" label="Send" color="blue" fontcolor="blue"]
+        Receive [shape="box" label="Receive" color="blue" fontcolor="blue"]
         Code [shape="box" label="Code" color="blue" fontcolor="blue"]
         Nameplates [shape="box" label="Nameplate\nLister"
                     color="blue" fontcolor="blue"
                     ]
-        {rank=same; Nameplates Code}
 
         Connection -> websocket [color="blue"]
+        #Connection -> Order [color="blue"]
 
         App -> Wormhole [style="dashed" label="set_code\nsend\nclose\n(once)"]
-        App -> Wormhole [color="blue"]
+        #App -> Wormhole [color="blue"]
         Wormhole -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
 
-        Wormhole -> Connection [color="blue"]
+        #Wormhole -> Connection [color="blue"]
+
+        Wormhole -> Send [style="dashed" label="send"]
 
         Wormhole -> Mailbox [style="dashed"
-                             label="set_nameplate\nadd_message\nclose\n(once)"
+                             label="set_nameplate\nclose\n(once)"
                              ]
-        Wormhole -> Mailbox [color="blue"]
-        Mailbox -> Wormhole [style="dashed"
-                             label="got_message\nclosed\n(once)"
-                             ]
+        #Wormhole -> Mailbox [color="blue"]
+        Mailbox -> Wormhole [style="dashed" label="closed\n(once)"]
+        Mailbox -> Order [style="dashed" label="got_message (once)"]
+        Wormhole -> Key [style="dashed" label="set_code"]
+        Key -> Wormhole [style="dashed" label="got_verifier\nscared"]
+        Order -> Key [style="dashed" label="got_pake"]
+        Order -> Receive [style="dashed" label="got_message"]
+        #Wormhole -> Key [color="blue"]
+        Key -> Mailbox [style="dashed" label="add_message (pake)\nadd_message (version)"]
+        Receive -> Send [style="dashed" label="got_verified_key"]
+        Send -> Mailbox [style="dashed" label="add_message (phase)"]
+
+        Key -> Receive [style="dashed" label="got_key"]
+        Receive -> Wormhole [style="dashed"
+                             label="happy\nscared\ngot_message"]
 
         Mailbox -> Connection [style="dashed"
                                label="tx_claim\ntx_open\ntx_add\ntx_release\ntx_close\nstop"
@@ -41,7 +58,7 @@ digraph {
                                   label="tx_list"
                                   ]
 
-        Wormhole -> Code [color="blue"]
+        #Wormhole -> Code [color="blue"]
         Code -> Connection [style="dashed"
                             label="tx_allocate"
                             ]
@@ -50,10 +67,12 @@ digraph {
         Nameplates -> Code [style="dashed"
                             label="got_nameplates"
                             ]
-        Code -> Nameplates [color="blue"]
+        #Code -> Nameplates [color="blue"]
         Code -> Nameplates [style="dashed"
                             label="refresh_nameplates"
                             ]
+        Code -> Wormhole [style="dashed"
+                          label="set_code"]
         
         
 

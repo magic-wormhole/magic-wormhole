@@ -86,8 +86,9 @@ digraph {
         P3_process_ours -> S3B
         S3B -> P3_process_theirs [label="rx_message\n(theirs)"
                                       color="orange" fontcolor="orange"]
-        P3_process_theirs [shape="box" label="C.tx_release\nW.got_message"
-                              color="orange"]
+        P3_process_theirs [shape="box" color="orange"
+                           label="C.tx_release\nO.got_message if new\nrecord"
+                           ]
         /* pay attention to the race here: this process_message() will
         deliver msg_pake to the WormholeMachine, which will compute_key() and
         send(version), and we're in between S1A (where send gets
@@ -116,7 +117,7 @@ digraph {
         P4_process_ours [shape="box" label="dequeue"]
         P4_process_ours -> S4B
         S4B -> P4_process_theirs [label="rx_message\n(theirs)"]
-        P4_process_theirs [shape="box" label="W.got_message"]
+        P4_process_theirs [shape="box" label="O.got_message if new\nrecord"]
         P4_process_theirs -> S4B
 
         S4A -> S5A [label="(none)" style="invis"]
@@ -145,7 +146,7 @@ digraph {
         P5_process_ours [shape="box" label="dequeue"]
         P5_process_ours -> S5B
         S5B -> P5_process_theirs [label="rx_message\n(theirs)"]
-        P5_process_theirs [shape="box" label="W.got_message"]
+        P5_process_theirs [shape="box" label="O.got_message if new\nrecord"]
         P5_process_theirs -> S5B
 
         foo5 [label="" style="invis"]

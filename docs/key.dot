@@ -13,7 +13,7 @@ digraph {
         S0 [label="S0: know\nnothing"]
         S0 -> P0_build [label="set_code"]
 
-        P0_build [shape="box" label="build_pake\nM.set_nameplate\nM.add_message(pake)"]
+        P0_build [shape="box" label="build_pake\nM.add_message(pake)"]
         P0_build -> S1
         S1 [label="S1: know\ncode"]
 
@@ -28,55 +28,16 @@ digraph {
         something similar, queueing inbound messages until it sees one for
         the phase it currently cares about.*/
 
-        S1 -> P_mood_scary [label="got_message(pake)\npake bad"]
-        S1 -> P1_compute [label="got_message(pake)\npake good"]
-        S1 -> P1_queue_inbound [label="got_message(data)" style="dashed"]
-        P1_queue_inbound [shape="box" style="dotted" label="queue"]
-        P1_queue_inbound -> S1 [style="dashed"]
-        S1 -> P1_queue_version [label="got_message(version)"]
-        P1_queue_version [label="queue\nversion??"]
-        P1_queue_version -> S1
-        S1 -> P_mood_lonely [label="close"]
+        S1 -> P_mood_scary [label="got_pake\npake bad"]
+        P_mood_scary [shape="box" color="red" label="W.scared"]
+        P_mood_scary -> S3 [color="red"]
+        S3 [label="S3:\nscared" color="red"]
+        S1 -> P1_compute [label="got_pake\npake good"]
+        #S1 -> P_mood_lonely [label="close"]
 
-        P1_compute [label="compute_key\nM.add_message(version)\nA.got_verifier" shape="box"]
+        P1_compute [label="compute_key\nM.add_message(version)\nW.got_verifier\nR.got_key" shape="box"]
         P1_compute -> S2
 
-        P_mood_scary [shape="box" label="M.close\nmood=scary"]
-        P_mood_scary -> P_notify_failure
+        S2 [label="S2: know_key" color="green"]
 
-        P_notify_failure [shape="box" label="(record failure)" color="red"]
-        P_notify_failure -> S_closing
-
-        S2 [label="S2: know_key\n(unverified)" color="orange"]
-        S2 -> P2_queue_inbound [label="got_message(data)" style="dashed"]
-        P2_queue_inbound [shape="box" style="dotted" label="queue"]
-        P2_queue_inbound -> S2
-        S2 -> P2_verified [label="got_message(version)\ngood"]
-        S2 -> P_mood_scary [label="got_message(version)\nbad"]
-        S2 -> P_mood_lonely [label="close"] /* more like impatient */
-
-        P2_verified [label="D.got_message(queued)\nA.received(msg)\nencrypt queued\nM.add_message(queued)"
-                      shape="box"]
-        P2_verified -> S3
-
-        S3 [label="S3: know_key\n(verified)" color="green"]
-        S3 -> P3_accept [label="got_message(data)"] /* probably phase */
-        S3 -> P_mood_happy [label="close"]
-        S3 -> P_notify_failure [label="scary"]
-
-        P3_accept [shape="box" label="decrypt\nR.got_message(good,bad)"]
-        P3_accept -> S3
-        P_mood_happy [shape="box" label="M.close\nmood=happy"]
-        P_mood_happy -> S_closing
-
-        P_mood_lonely [shape="box" label="M.close\nmood=lonely"]
-        P_mood_lonely -> S_closing
-
-        S_closing [label="closing"]
-        S_closing -> P_closed [label="closed"]
-        S_closing -> S_closing [label="got_message"]
-
-        P_closed [shape="box" label="A.closed"]
-        P_closed -> S_closed
-        S_closed [label="closed"]
 }

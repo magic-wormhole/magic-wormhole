@@ -10,40 +10,30 @@ digraph {
 
         start [label="Receive\nMachine" style="dotted"]
 
-        S0 [label="S0: unknown\ncode"]
-        S0 -> P0_got_key [label="got_verified_key"]
+        S0 [label="S0:\nunknown key" color="orange"]
+        S0 -> P0_got_key [label="got_key" color="orange"]
 
-        P0_got_key [shape="box" label="record key"]
-        P0_got_key -> S1
+        P0_got_key [shape="box" label="record key" color="orange"]
+        P0_got_key -> S1 [color="orange"]
 
-        S0 -> P_mood_lonely [label="close"]
+        S1 [label="S1:\nunverified key" color="orange"]
+        S1 -> P_mood_scary [label="got_message\n(bad)"]
+        S1 -> P1_accept_msg [label="got_message\n(good)" color="orange"]
+        P1_accept_msg [shape="box" label="S.got_verified_key\nW.happy\nW.got_message"
+                       color="orange"]
+        P1_accept_msg -> S2 [color="orange"]
 
-        S1 [label="S1: verified\nkey" color="green"]
+        S2 [label="S2:\nverified key" color="green"]
 
-        S1 -> P_mood_scary [label="got_message(bad)"]
-        S1 -> P1_accept_msg [label="got_message(good)"]
-        S1 -> P_mood_happy [label="close"]
+        S2 -> P2_accept_msg [label="got_message\n(good)" color="orange"]
+        S2 -> P_mood_scary [label="got_message(bad)"]
 
-        P1_accept_msg [label="A.received(msg)" shape="box"]
-        P1_accept_msg -> S1
+        P2_accept_msg [label="W.got_message" shape="box" color="orange"]
+        P2_accept_msg -> S2 [color="orange"]
 
-        P_mood_scary [shape="box" label="K.scary"]
-        P_mood_scary -> S_closed
+        P_mood_scary [shape="box" label="W.scared" color="red"]
+        P_mood_scary -> S3 [color="red"]
 
-        P_notify_failure [shape="box" label="(record failure)" color="red"]
-        P_notify_failure -> S_closing
-
-        P_mood_happy [shape="box" label="M.close\nmood=happy"]
-        P_mood_happy -> S_closing
-
-        P_mood_lonely [shape="box" label="M.close\nmood=lonely"]
-        P_mood_lonely -> S_closing
-
-        S_closing [label="closing"]
-        S_closing -> P_closed [label="closed"]
-        S_closing -> S_closing [label="got_message"]
-
-        P_closed [shape="box" label="A.closed"]
-        P_closed -> S_closed
-        S_closed [label="closed"]
+        S3 [label="S3:\nscared" color="red"]
+        S3 -> S3 [label="got_message"]
 }
