@@ -18,3 +18,9 @@ class INameplateLister(Interface):
     pass
 class ICode(Interface):
     pass
+
+class ITiming(Interface):
+    pass
+
+class IJournal(Interface): # TODO: this needs to be public
+    pass

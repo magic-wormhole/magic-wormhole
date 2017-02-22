@@ -24,7 +24,9 @@ class Receive(object):
     @m.state(terminal=True)
     def S3_scared(self): pass
 
-    def got_message(self, phase, payload):
+    def got_message(self, phase, body):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
         assert self._key
         data_key = derive_phase_key(self._side, phase)
         try:
@@ -53,6 +55,8 @@ class Receive(object):
         self._W.happy()
     @m.output()
     def W_got_message(self, phase, plaintext):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(plaintext, type(b"")), type(plaintext)
         self._W.got_message(phase, plaintext)
     @m.output()
     def W_scared(self):

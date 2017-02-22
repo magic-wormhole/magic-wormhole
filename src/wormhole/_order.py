@@ -19,36 +19,40 @@ class Order(object):
     @m.state(terminal=True)
     def S1_yes_pake(self): pass
 
-    def got_message(self, phase, payload):
+    def got_message(self, phase, body):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
         if phase == "pake":
-            self.got_pake(phase, payload)
+            self.got_pake(phase, body)
         else:
-            self.got_non_pake(phase, payload)
+            self.got_non_pake(phase, body)
 
     @m.input()
-    def got_pake(self, phase, payload): pass
+    def got_pake(self, phase, body): pass
     @m.input()
-    def got_non_pake(self, phase, payload): pass
+    def got_non_pake(self, phase, body): pass
 
     @m.output()
-    def queue(self, phase, payload):
-        self._queue.append((phase, payload))
+    def queue(self, phase, body):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
+        self._queue.append((phase, body))
     @m.output()
-    def notify_key(self, phase, payload):
-        self._K.got_pake(payload)
+    def notify_key(self, phase, body):
+        self._K.got_pake(body)
     @m.output()
-    def drain(self, phase, payload):
+    def drain(self, phase, body):
         del phase
-        del payload
-        for (phase, payload) in self._queue:
-            self._deliver(phase, payload)
+        del body
+        for (phase, body) in self._queue:
+            self._deliver(phase, body)
         self._queue[:] = []
     @m.output()
-    def deliver(self, phase, payload):
-        self._deliver(phase, payload)
+    def deliver(self, phase, body):
+        self._deliver(phase, body)
 
-    def _deliver(self, phase, payload):
-        self._R.got_message(phase, payload)
+    def _deliver(self, phase, body):
+        self._R.got_message(phase, body)
 
     S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
     S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_key, drain])

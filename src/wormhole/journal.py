@@ -1,6 +1,9 @@
+from zope.interface import implementer
 import contextlib
+from _interfaces import IJournal
 
-class JournalManager(object):
+@implementer(IJournal)
+class Journal(object):
     def __init__(self, save_checkpoint):
         self._save_checkpoint = save_checkpoint
         self._outbound_queue = []
@@ -8,7 +11,7 @@ class JournalManager(object):
 
     def queue_outbound(self, fn, *args, **kwargs):
         assert self._processing
-        self._outbound_queue.append((fn, args, kwargs))
+        self._outbound_queue.append((fn, args, kwargs)
 
     @contextlib.contextmanager
     def process(self):
@@ -21,3 +24,12 @@ class JournalManager(object):
             fn(*args, **kwargs)
         self._outbound_queue[:] = []
         self._processing = False
+
+
+@implementer(IJournal)
+class ImmediateJournal(object):
+    def queue_outbound(self, fn, *args, **kwargs):
+        fn(*args, **kwargs)
+    @contextlib.contextmanager
+    def process(self):
+        yield

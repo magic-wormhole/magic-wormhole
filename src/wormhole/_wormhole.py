@@ -9,6 +9,7 @@ from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._nameplate import NameplateListing
 from ._code import Code
+from .util import bytes_to_dict
 
 @implementer(_interfaces.IWormhole)
 class Wormhole:
@@ -31,13 +32,13 @@ class Wormhole:
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
         self._R.wire(self, self._K, self._S)
-        self._RC.wire(self._M, self._C, self._NL)
+        self._RC.wire(self, self._M, self._C, self._NL)
         self._NL.wire(self._RC, self._C)
         self._C.wire(self, self._RC, self._NL)
 
     # these methods are called from outside
     def start(self):
-        self._relay_client.start()
+        self._RC.start()
 
     # and these are the state-machine transition functions, which don't take
     # args
@@ -54,7 +55,7 @@ class Wormhole:
 
     # from the Application, or some sort of top-level shim
     @m.input()
-    def send(self, phase, message): pass
+    def send(self, phase, plaintext): pass
     @m.input()
     def close(self): pass
 
@@ -69,6 +70,8 @@ class Wormhole:
     @m.input()
     def scared(self): pass
     def got_message(self, phase, plaintext):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(plaintext, type(b"")), type(plaintext)
         if phase == "version":
             self.got_version(plaintext)
         else:
@@ -91,12 +94,13 @@ class Wormhole:
         self._M.set_nameplate(nameplate)
         self._K.set_code(code)
     @m.output()
-    def process_version(self, version): # response["message"][phase=version]
-        pass
+    def process_version(self, plaintext):
+        self._their_versions = bytes_to_dict(plaintext)
+        # ignored for now
 
     @m.output()
-    def S_send(self, phase, message):
-        self._S.send(phase, message)
+    def S_send(self, phase, plaintext):
+        self._S.send(phase, plaintext)
 
     @m.output()
     def close_scared(self):
