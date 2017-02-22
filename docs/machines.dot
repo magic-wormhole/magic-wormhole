@@ -1,6 +1,6 @@
 digraph {
         App [shape="box" color="blue" fontcolor="blue"]
-        Wormhole [shape="box" label="Wormhole\n(manager)"
+        Boss [shape="box" label="Boss\n(manager)"
                   color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
         Connection [label="Rendezvous\nConnector"
@@ -18,33 +18,33 @@ digraph {
         Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
 
-        App -> Wormhole [style="dashed" label="start\nset_code\nsend\nclose\n(once)"]
-        #App -> Wormhole [color="blue"]
-        Wormhole -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
+        App -> Boss [style="dashed" label="start\nset_code\nsend\nclose\n(once)"]
+        #App -> Boss [color="blue"]
+        Boss -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
 
-        #Wormhole -> Connection [color="blue"]
-        Wormhole -> Connection [style="dashed" label="start"]
-        Connection -> Wormhole [style="dashed" label="rx_welcome"]
+        #Boss -> Connection [color="blue"]
+        Boss -> Connection [style="dashed" label="start"]
+        Connection -> Boss [style="dashed" label="rx_welcome"]
 
-        Wormhole -> Send [style="dashed" label="send"]
+        Boss -> Send [style="dashed" label="send"]
 
-        Wormhole -> Mailbox [style="dashed"
+        Boss -> Mailbox [style="dashed"
                              label="set_nameplate\nclose\n(once)"
                              ]
-        #Wormhole -> Mailbox [color="blue"]
-        Mailbox -> Wormhole [style="dashed" label="closed\n(once)"]
+        #Boss -> Mailbox [color="blue"]
+        Mailbox -> Boss [style="dashed" label="closed\n(once)"]
         Mailbox -> Order [style="dashed" label="got_message (once)"]
-        Wormhole -> Key [style="dashed" label="set_code"]
-        Key -> Wormhole [style="dashed" label="got_verifier\nscared"]
+        Boss -> Key [style="dashed" label="set_code"]
+        Key -> Boss [style="dashed" label="got_verifier\nscared"]
         Order -> Key [style="dashed" label="got_pake"]
         Order -> Receive [style="dashed" label="got_message"]
-        #Wormhole -> Key [color="blue"]
+        #Boss -> Key [color="blue"]
         Key -> Mailbox [style="dashed" label="add_message (pake)\nadd_message (version)"]
         Receive -> Send [style="dashed" label="got_verified_key"]
         Send -> Mailbox [style="dashed" label="add_message (phase)"]
 
         Key -> Receive [style="dashed" label="got_key"]
-        Receive -> Wormhole [style="dashed"
+        Receive -> Boss [style="dashed"
                              label="happy\nscared\ngot_message"]
 
         Mailbox -> Connection [style="dashed"
@@ -60,7 +60,7 @@ digraph {
                                   label="tx_list"
                                   ]
 
-        #Wormhole -> Code [color="blue"]
+        #Boss -> Code [color="blue"]
         Code -> Connection [style="dashed"
                             label="tx_allocate"
                             ]
@@ -73,7 +73,7 @@ digraph {
         Code -> Nameplates [style="dashed"
                             label="refresh_nameplates"
                             ]
-        Code -> Wormhole [style="dashed"
+        Code -> Boss [style="dashed"
                           label="set_code"]
         App -> Code [style="dashed"
                      label="allocate\ninput\nset"]

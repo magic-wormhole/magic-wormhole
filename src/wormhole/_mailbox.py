@@ -14,8 +14,8 @@ class Mailbox(object):
         self._pending_outbound = {}
         self._processed = set()
 
-    def wire(self, wormhole, rendezvous_connector, ordering):
-        self._W = _interfaces.IWormhole(wormhole)
+    def wire(self, boss, rendezvous_connector, ordering):
+        self._B = _interfaces.IBoss(boss)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._O = _interfaces.IOrder(ordering)
 
@@ -89,7 +89,7 @@ class Mailbox(object):
     @m.input()
     def start_connected(self): pass
 
-    # from Wormhole
+    # from Boss
     @m.input()
     def set_nameplate(self, nameplate): pass
     @m.input()
@@ -210,7 +210,7 @@ class Mailbox(object):
         self._RC_stop()
     @m.output()
     def W_closed(self):
-        self._W.closed()
+        self._B.closed()
 
     initial.upon(start_unconnected, enter=S0A, outputs=[])
     initial.upon(start_connected, enter=S0B, outputs=[])

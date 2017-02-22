@@ -73,13 +73,13 @@ class RendezvousConnector(object):
         # TODO: Tor goes here
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
-    def wire(self, wormhole, mailbox, code, nameplate_lister):
-        self._W = _interfaces.IWormhole(wormhole)
+    def wire(self, boss, mailbox, code, nameplate_lister):
+        self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
         self._C = _interfaces.ICode(code)
         self._NL = _interfaces.INameplateLister(nameplate_lister)
 
-    # from Wormhole
+    # from Boss
     def start(self):
         self._connector.startService()
 
@@ -176,7 +176,7 @@ class RendezvousConnector(object):
         pass
 
     def _response_handle_welcome(self, msg):
-        self._W.rx_welcome(msg["welcome"])
+        self._B.rx_welcome(msg["welcome"])
 
     def _response_handle_claimed(self, msg):
         mailbox = msg["mailbox"]

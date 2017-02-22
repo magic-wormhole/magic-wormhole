@@ -11,8 +11,8 @@ from ._nameplate import NameplateListing
 from ._code import Code
 from .util import bytes_to_dict
 
-@implementer(_interfaces.IWormhole)
-class Wormhole:
+@implementer(_interfaces.IBoss)
+class Boss:
     m = MethodicalMachine()
 
     def __init__(self, side, reactor, timing):

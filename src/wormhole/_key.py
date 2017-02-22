@@ -53,8 +53,8 @@ class Key(object):
     m = MethodicalMachine()
     def __init__(self, timing):
         self._timing = timing
-    def wire(self, wormhole, mailbox, receive):
-        self._W = _interfaces.IWormhole(wormhole)
+    def wire(self, boss, mailbox, receive):
+        self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
         self._R = _interfaces.IReceive(receive)
 
@@ -67,6 +67,11 @@ class Key(object):
     @m.state(terminal=True)
     def S3_scared(self): pass
 
+    # from Boss
+    @m.input()
+    def set_code(self, code): pass
+
+    # from Ordering
     def got_pake(self, body):
         assert isinstance(body, type(b"")), type(body)
         payload = bytes_to_dict(body)
@@ -74,9 +79,6 @@ class Key(object):
             self.got_pake_good(hexstr_to_bytes(payload["pake_v1"]))
         else:
             self.got_pake_bad()
-
-    @m.input()
-    def set_code(self, code): pass
     @m.input()
     def got_pake_good(self, msg2): pass
     @m.input()
@@ -93,7 +95,7 @@ class Key(object):
 
     @m.output()
     def scared(self):
-        self._W.scared()
+        self._B.scared()
     @m.output()
     def compute_key(self, msg2):
         assert isinstance(msg2, type(b""))
@@ -101,7 +103,7 @@ class Key(object):
             key = self._sp.finish(msg2)
         self._my_versions = {}
         self._M.add_message("version", self._my_versions)
-        self._W.got_verifier(derive_key(key, b"wormhole:verifier"))
+        self._B.got_verifier(derive_key(key, b"wormhole:verifier"))
         self._R.got_key(key)
 
     S0_know_nothing.upon(set_code, enter=S1_know_code, outputs=[build_pake])
