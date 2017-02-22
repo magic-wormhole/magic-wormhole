@@ -36,7 +36,7 @@ digraph {
                            color="orange" fontcolor="orange"]
 
         S0 -> P0_allocate [label="allocate"]
-        P0_allocate [shape="box" label="C.tx_allocate"]
+        P0_allocate [shape="box" label="RC.tx_allocate"]
         P0_allocate -> S1
         S1 [label="S1:\nallocating"]
         S1 -> P1_generate [label="rx_allocated"]

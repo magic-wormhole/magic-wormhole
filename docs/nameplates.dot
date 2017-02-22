@@ -19,7 +19,7 @@ digraph {
         S1B [label="S1B:\nwant list\nconnected" color="orange"]
 
         S1A -> P_tx [label="connected"]
-        P_tx [shape="box" label="C.tx_list()" color="orange"]
+        P_tx [shape="box" label="RC.tx_list()" color="orange"]
         P_tx -> S1B [color="orange"]
         S1B -> S1A [label="lost"]
 
@@ -33,7 +33,7 @@ digraph {
 
         S0B -> P_notify [label="rx"]
         S1B -> P_notify [label="rx" color="orange" fontcolor="orange"]
-        P_notify [shape="box" label="W.got_nameplates()"]
+        P_notify [shape="box" label="C.got_nameplates()"]
         P_notify -> S0B
 
         {rank=same; foo foo2 legend}
