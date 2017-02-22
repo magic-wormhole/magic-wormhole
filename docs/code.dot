@@ -24,7 +24,7 @@ digraph {
         S2 -> P2_got_nameplates [label="got_nameplates"]
         P2_got_nameplates [shape="box" label="stash nameplates\nfor completion"]
         P2_got_nameplates -> S2
-        S2 -> P2_finish [label="<return>" color="orange" fontcolor="orange"]
+        S2 -> P2_finish [label="<hyphen>" color="orange" fontcolor="orange"]
         P2_finish [shape="box" label="lookup wordlist\nfor completion"]
         P2_finish -> S3
         S3 [label="S3: typing\ncode"]
@@ -33,7 +33,7 @@ digraph {
         P3_completion -> S3
 
         S3 -> P0_set_code [label="<return>"
-                                     color="orange" fontcolor="orange"]
+                           color="orange" fontcolor="orange"]
 
         S0 -> P0_allocate [label="allocate"]
         P0_allocate [shape="box" label="C.tx_allocate"]
