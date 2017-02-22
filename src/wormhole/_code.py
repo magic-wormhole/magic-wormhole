@@ -26,7 +26,7 @@ class Code(object):
     def wire(self, wormhole, rendezvous_connector, nameplate_lister):
         self._W = _interfaces.IWormhole(wormhole)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
-        self._NL = _interfaces.INameplateListing(nameplate_lister)
+        self._NL = _interfaces.INameplateLister(nameplate_lister)
 
     @m.state(initial=True)
     def S0_unknown(self): pass

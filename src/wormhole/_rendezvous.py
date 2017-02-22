@@ -11,7 +11,7 @@ class RendezvousConnector(service.MultiService, object):
     def wire(self, mailbox, code, nameplate_lister):
         self._M = _interfaces.IMailbox(mailbox)
         self._C = _interfaces.ICode(code)
-        self._NL = _interfaces.INameplateListing(nameplate_lister)
+        self._NL = _interfaces.INameplateLister(nameplate_lister)
 
 
     # from Mailbox
