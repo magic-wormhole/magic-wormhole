@@ -18,11 +18,13 @@ digraph {
         Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
 
-        App -> Wormhole [style="dashed" label="set_code\nsend\nclose\n(once)"]
+        App -> Wormhole [style="dashed" label="start\nset_code\nsend\nclose\n(once)"]
         #App -> Wormhole [color="blue"]
         Wormhole -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
 
         #Wormhole -> Connection [color="blue"]
+        Wormhole -> Connection [style="dashed" label="start"]
+        Connection -> Wormhole [style="dashed" label="rx_welcome"]
 
         Wormhole -> Send [style="dashed" label="send"]
 
@@ -75,8 +77,6 @@ digraph {
                           label="set_code"]
         App -> Code [style="dashed"
                      label="allocate\ninput\nset"]
-        
-        
 
 
 }

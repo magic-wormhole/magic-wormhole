@@ -4,8 +4,10 @@ from spake2 import SPAKE2_Symmetric
 from hkdf import Hkdf
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
+from nacl import utils
 from automat import MethodicalMachine
-from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes)
+from .util import (to_bytes, bytes_to_hexstr, hexstr_to_bytes,
+                   bytes_to_dict, dict_to_bytes)
 from . import _interfaces
 CryptoError
 __all__ = ["derive_key", "derive_phase_key", "CryptoError",
@@ -38,6 +40,14 @@ def decrypt_data(key, encrypted):
     data = box.decrypt(encrypted)
     return data
 
+def encrypt_data(key, plaintext):
+    assert isinstance(key, type(b"")), type(key)
+    assert isinstance(plaintext, type(b"")), type(plaintext)
+    assert len(key) == SecretBox.KEY_SIZE, len(key)
+    box = SecretBox(key)
+    nonce = utils.random(SecretBox.NONCE_SIZE)
+    return box.encrypt(plaintext, nonce)
+
 @implementer(_interfaces.IKey)
 class Key(object):
     m = MethodicalMachine()
@@ -57,7 +67,9 @@ class Key(object):
     @m.state(terminal=True)
     def S3_scared(self): pass
 
-    def got_pake(self, payload):
+    def got_pake(self, body):
+        assert isinstance(body, type(b"")), type(body)
+        payload = bytes_to_dict(body)
         if "pake_v1" in payload:
             self.got_pake_good(hexstr_to_bytes(payload["pake_v1"]))
         else:
@@ -76,7 +88,8 @@ class Key(object):
             self._sp = SPAKE2_Symmetric(to_bytes(code),
                                         idSymmetric=to_bytes(self._appid))
             msg1 = self._sp.start()
-        self._M.add_message("pake", {"pake_v1": bytes_to_hexstr(msg1)})
+        body = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg1)})
+        self._M.add_message("pake", body)
 
     @m.output()
     def scared(self):

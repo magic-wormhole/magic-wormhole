@@ -10,6 +10,9 @@ class Mailbox(object):
         self._side = side
         self._mood = None
         self._nameplate = None
+        self._mailbox = None
+        self._pending_outbound = {}
+        self._processed = set()
 
     def wire(self, wormhole, rendezvous_connector, ordering):
         self._W = _interfaces.IWormhole(wormhole)
@@ -101,15 +104,18 @@ class Mailbox(object):
     @m.input()
     def rx_claimed(self, mailbox): pass
 
-    def rx_message(self, side, phase, msg):
+    def rx_message(self, side, phase, body):
+        assert isinstance(side, type("")), type(side)
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
         if side == self._side:
-            self.rx_message_ours(phase, msg)
+            self.rx_message_ours(phase, body)
         else:
-            self.rx_message_theirs(phase, msg)
+            self.rx_message_theirs(phase, body)
     @m.input()
-    def rx_message_ours(self, phase, msg): pass
+    def rx_message_ours(self, phase, body): pass
     @m.input()
-    def rx_message_theirs(self, phase, msg): pass
+    def rx_message_theirs(self, phase, body): pass
     @m.input()
     def rx_released(self): pass
     @m.input()
@@ -119,7 +125,7 @@ class Mailbox(object):
 
     # from Send or Key
     @m.input()
-    def add_message(self, phase, msg): pass
+    def add_message(self, phase, body): pass
 
 
     @m.output()
@@ -138,8 +144,10 @@ class Mailbox(object):
         assert self._mailbox
         self._RC.tx_open(self._mailbox)
     @m.output()
-    def queue(self, phase, msg):
-        self._pending_outbound[phase] = msg
+    def queue(self, phase, body):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
+        self._pending_outbound[phase] = body
     @m.output()
     def store_mailbox_and_RC_tx_open_and_drain(self, mailbox):
         self._mailbox = mailbox
@@ -149,18 +157,20 @@ class Mailbox(object):
     def drain(self):
         self._drain()
     def _drain(self):
-        for phase, msg in self._pending_outbound.items():
-            self._RC.tx_add(phase, msg)
+        for phase, body in self._pending_outbound.items():
+            self._RC.tx_add(phase, body)
     @m.output()
-    def RC_tx_add(self, phase, msg):
-        self._RC.tx_add(phase, msg)
+    def RC_tx_add(self, phase, body):
+        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(body, type(b"")), type(body)
+        self._RC.tx_add(phase, body)
     @m.output()
     def RC_tx_release(self):
         self._RC.tx_release()
     @m.output()
-    def RC_tx_release_and_accept(self, phase, msg):
+    def RC_tx_release_and_accept(self, phase, body):
         self._RC.tx_release()
-        self._accept(phase, msg)
+        self._accept(phase, body)
     @m.output()
     def record_mood_and_RC_tx_release(self, mood):
         self._mood = mood
@@ -179,14 +189,14 @@ class Mailbox(object):
         self._mood = mood
         self._RC.tx_close(self._mood)
     @m.output()
-    def accept(self, phase, msg):
-        self._accept(phase, msg)
-    def _accept(self, phase, msg):
+    def accept(self, phase, body):
+        self._accept(phase, body)
+    def _accept(self, phase, body):
         if phase not in self._processed:
-            self._O.got_message(phase, msg)
+            self._O.got_message(phase, body)
             self._processed.add(phase)
     @m.output()
-    def dequeue(self, phase, msg):
+    def dequeue(self, phase, body):
         self._pending_outbound.pop(phase)
     @m.output()
     def record_mood(self, mood):
