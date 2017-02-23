@@ -1,4 +1,6 @@
 from zope.interface import implementer
+from attr import attrs, attrib
+from attr.validators import provides, instance_of
 from automat import MethodicalMachine
 from . import _interfaces
 from ._mailbox import Mailbox
@@ -13,7 +15,7 @@ from .util import bytes_to_dict
 
 @attrs
 @implementer(_interfaces.IBoss)
-class Boss:
+class Boss(object):
     _side = attrib(validator=instance_of(type(u"")))
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
