@@ -11,21 +11,27 @@ from ._nameplate import NameplateListing
 from ._code import Code
 from .util import bytes_to_dict
 
+@attrs
 @implementer(_interfaces.IBoss)
 class Boss:
+    _side = attrib(validator=instance_of(type(u"")))
+    _url = attrib(validator=instance_of(type(u"")))
+    _appid = attrib(validator=instance_of(type(u"")))
+    _reactor = attrib()
+    _journal = attrib(validator=provides(_interfaces.IJournal))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
-    def __init__(self, side, reactor, timing):
-        self._reactor = reactor
-
-        self._M = Mailbox(side)
-        self._S = Send(side, timing)
-        self._O = Order(side, timing)
-        self._K = Key(timing)
-        self._R = Receive(side, timing)
-        self._RC = RendezvousConnector(side, timing, reactor)
+    def __init__(self, wormhole):
+        self._W = wormhole
+        self._M = Mailbox(self._side)
+        self._S = Send(self._side, self._timing)
+        self._O = Order(self._side, self._timing)
+        self._K = Key(self._timing)
+        self._R = Receive(self._side, self._timing)
+        self._RC = RendezvousConnector(self._side, self._timing, self._reactor)
         self._NL = NameplateListing()
-        self._C = Code(timing)
+        self._C = Code(self._timing)
 
         self._M.wire(self, self._RC, self._O)
         self._S.wire(self._M)
@@ -112,6 +118,7 @@ class Boss:
         nameplate = code.split("-")[0]
         self._M.set_nameplate(nameplate)
         self._K.got_code(code)
+        self._W.got_code(code)
     @m.output()
     def process_version(self, plaintext):
         self._their_versions = bytes_to_dict(plaintext)
@@ -132,16 +139,16 @@ class Boss:
         self._M.close("happy")
 
     @m.output()
-    def A_received(self, phase, plaintext):
-        self._A.received(phase, plaintext)
+    def W_got_verifier(self, verifier):
+        self._W.got_verifier(verifier)
     @m.output()
-    def A_got_verifier(self, verifier):
-        self._A.got_verifier(verifier)
+    def W_received(self, phase, plaintext):
+        self._W.received(phase, plaintext)
 
     @m.output()
-    def A_closed(self):
+    def W_closed(self):
         result = "???"
-        self._A.closed(result)
+        self._W.closed(result)
 
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
@@ -149,8 +156,8 @@ class Boss:
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
-    S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[A_got_verifier])
-    S2_happy.upon(got_phase, enter=S2_happy, outputs=[A_received])
+    S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
+    S2_happy.upon(got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
@@ -162,7 +169,7 @@ class Boss:
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
-    S3_closing.upon(closed, enter=S4_closed, outputs=[A_closed])
+    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
 
     S4_closed.upon(got_phase, enter=S4_closed, outputs=[])
     S4_closed.upon(got_version, enter=S4_closed, outputs=[])
