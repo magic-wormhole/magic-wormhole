@@ -7,9 +7,9 @@ digraph {
         {rank=same; S3 P1_generate}
         start -> S0 [style="invis"]
         S0 [label="S0:\nunknown"]
-        S0 -> P0_set_code [label="set"]
-        P0_set_code [shape="box" label="B.set_code"]
-        P0_set_code -> S4
+        S0 -> P0_got_code [label="set"]
+        P0_got_code [shape="box" label="B.got_code"]
+        P0_got_code -> S4
         S4 [label="S4: known" color="green"]
 
         S0 -> P0_list_nameplates [label="input"]
@@ -32,7 +32,7 @@ digraph {
         P3_completion [shape="box" label="do completion"]
         P3_completion -> S3
 
-        S3 -> P0_set_code [label="<return>"
+        S3 -> P0_got_code [label="<return>"
                            color="orange" fontcolor="orange"]
 
         S0 -> P0_allocate [label="allocate"]
@@ -41,6 +41,6 @@ digraph {
         S1 [label="S1:\nallocating"]
         S1 -> P1_generate [label="rx_allocated"]
         P1_generate [shape="box" label="generate\nrandom code"]
-        P1_generate -> P0_set_code
+        P1_generate -> P0_got_code
         
 }

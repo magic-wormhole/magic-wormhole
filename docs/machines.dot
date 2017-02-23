@@ -1,5 +1,5 @@
 digraph {
-        App [shape="box" color="blue" fontcolor="blue"]
+        Wormhole [shape="oval" color="blue" fontcolor="blue"]
         Boss [shape="box" label="Boss\n(manager)"
                   color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
@@ -18,9 +18,9 @@ digraph {
         Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
 
-        App -> Boss [style="dashed" label="start\nset_code\nsend\nclose\n(once)"]
-        #App -> Boss [color="blue"]
-        Boss -> App [style="dashed" label="got_verifier\nreceived\nclosed\n(once)"]
+        Wormhole -> Boss [style="dashed" label="allocate\ninput\nset_code\nsend\nclose\n(once)"]
+        #Wormhole -> Boss [color="blue"]
+        Boss -> Wormhole [style="dashed" label="got_code\ngot_verifier\nreceived\nclosed\n(once)"]
 
         #Boss -> Connection [color="blue"]
         Boss -> Connection [style="dashed" label="start"]
@@ -34,7 +34,7 @@ digraph {
         #Boss -> Mailbox [color="blue"]
         Mailbox -> Boss [style="dashed" label="closed\n(once)"]
         Mailbox -> Order [style="dashed" label="got_message (once)"]
-        Boss -> Key [style="dashed" label="set_code"]
+        Boss -> Key [style="dashed" label="got_code"]
         Key -> Boss [style="dashed" label="got_verifier\nscared"]
         Order -> Key [style="dashed" label="got_pake"]
         Order -> Receive [style="dashed" label="got_message"]
@@ -73,10 +73,10 @@ digraph {
         Code -> Nameplates [style="dashed"
                             label="refresh_nameplates"
                             ]
+        Boss -> Code [style="dashed"
+                      label="allocate\ninput\nset_code"]
         Code -> Boss [style="dashed"
-                          label="set_code"]
-        App -> Code [style="dashed"
-                     label="allocate\ninput\nset"]
+                      label="got_code"]
 
 
 }

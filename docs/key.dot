@@ -11,7 +11,7 @@ digraph {
         start [label="Key\nMachine" style="dotted"]
 
         S0 [label="S0: know\nnothing"]
-        S0 -> P0_build [label="set_code"]
+        S0 -> P0_build [label="got_code"]
 
         P0_build [shape="box" label="build_pake\nM.add_message(pake)"]
         P0_build -> S1

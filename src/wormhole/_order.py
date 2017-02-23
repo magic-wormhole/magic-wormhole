@@ -1,13 +1,17 @@
 from zope.interface import implementer
+from attr import attrs, attrib
+from attr.validators import provides, instance_of
 from automat import MethodicalMachine
 from . import _interfaces
 
+@attrs
 @implementer(_interfaces.IOrder)
 class Order(object):
+    _side = attrib(validator=instance_of(type(u"")))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    def __init__(self, side, timing):
-        self._side = side
-        self._timing = timing
+
+    def __init__(self):
         self._key = None
         self._queue = []
     def wire(self, key, receive):

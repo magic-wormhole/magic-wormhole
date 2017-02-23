@@ -156,3 +156,30 @@ digraph {
         P5_close [shape="box" label="tx_close" style="dashed" color="orange"]
 
 }
+
+/*
+
+Can this be split into one machine for the Nameplate, and a second for the
+Mailbox?
+
+Nameplate:
+
+* 0: know nothing (connected, not connected)
+* 1: know nameplate, never claimed, need to claim
+* 2: maybe claimed, need to claim
+* 3: definitely claimed, need to claim
+* 4: definitely claimed, need to release
+* 5: maybe released
+* 6: definitely released
+
+Mailbox:
+* 0: unknown
+* 1: know mailbox, need open, not open
+* 2: know mailbox, need open, maybe open
+* 3: definitely open, need open
+* 4: need closed, maybe open
+* 5: need closed, maybe closed ?
+* 6: definitely closed
+
+
+*/
