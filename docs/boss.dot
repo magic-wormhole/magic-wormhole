@@ -12,12 +12,12 @@ digraph {
 
         {rank=same; P0_code S0}
         P0_code [shape="box" style="dashed"
-                 label="Code.input\n or Code.allocate\n or Code.set"]
+                 label="input -> Code.input\n or allocate -> Code.allocate\n or set_code -> Code.set_code"]
         P0_code -> S0
         S0 [label="S0: empty"]
         S0 -> P0_build [label="set_code"]
 
-        P0_build [shape="box" label="M.set_nameplate\nK.set_code"]
+        P0_build [shape="box" label="W.got_code\nM.set_nameplate\nK.got_code"]
         P0_build -> S1
         S1 [label="S1: lonely" color="orange"]
 
@@ -52,7 +52,7 @@ digraph {
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"
-               label="send -> S.send\ngot_verifier -> A.got_verifier"
+               label="send -> S.send\ngot_verifier -> A.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
                ]
 
 

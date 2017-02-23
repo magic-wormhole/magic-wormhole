@@ -53,15 +53,34 @@ class Boss:
     @m.state(terminal=True)
     def S4_closed(self): pass
 
-    # from the Application, or some sort of top-level shim
+    # from the Wormhole
+
+    # input/allocate/set_code are regular methods, not state-transition
+    # inputs. We expect them to be called just after initialization, while
+    # we're in the S0_empty state. You must call exactly one of them, and the
+    # call must happen while we're in S0_empty, which makes them good
+    # candiates for being a proper @m.input, but set_code() will immediately
+    # (reentrantly) cause self.got_code() to be fired, which is messy. These
+    # are all passthroughs to the Code machine, so one alternative would be
+    # to have Wormhole call Code.{input,allocate,set_code} instead, but that
+    # would require the Wormhole to be aware of Code (whereas right now
+    # Wormhole only knows about this Boss instance, and everything else is
+    # hidden away).
+    def input(self, stdio):
+        self._C.input(stdio)
+    def allocate(self, code_length):
+        self._C.allocate(code_length)
+    def set_code(self, code):
+        self._C.set_code(code)
+
     @m.input()
     def send(self, phase, plaintext): pass
     @m.input()
     def close(self): pass
 
-    # from Code (which may be provoked by the Application)
+    # from Code (provoked by input/allocate/set_code)
     @m.input()
-    def set_code(self, code): pass
+    def got_code(self, code): pass
 
     # Key sends (got_verifier, scared)
     # Receive sends (got_message, happy, scared)
@@ -77,7 +96,7 @@ class Boss:
         else:
             self.got_phase(phase, plaintext)
     @m.input()
-    def got_version(self, version): pass
+    def got_version(self, plaintext): pass
     @m.input()
     def got_phase(self, phase, plaintext): pass
     @m.input()
@@ -89,10 +108,10 @@ class Boss:
 
 
     @m.output()
-    def got_code(self, code):
+    def do_got_code(self, code):
         nameplate = code.split("-")[0]
         self._M.set_nameplate(nameplate)
-        self._K.set_code(code)
+        self._K.got_code(code)
     @m.output()
     def process_version(self, plaintext):
         self._their_versions = bytes_to_dict(plaintext)
@@ -125,7 +144,7 @@ class Boss:
         self._A.closed(result)
 
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
-    S0_empty.upon(set_code, enter=S1_lonely, outputs=[got_code])
+    S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])

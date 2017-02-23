@@ -1,5 +1,7 @@
 from hashlib import sha256
 from zope.interface import implementer
+from attr import attrs, attrib
+from attr.validators import provides
 from spake2 import SPAKE2_Symmetric
 from hkdf import Hkdf
 from nacl.secret import SecretBox
@@ -48,11 +50,12 @@ def encrypt_data(key, plaintext):
     nonce = utils.random(SecretBox.NONCE_SIZE)
     return box.encrypt(plaintext, nonce)
 
+@attrs
 @implementer(_interfaces.IKey)
 class Key(object):
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    def __init__(self, timing):
-        self._timing = timing
+
     def wire(self, boss, mailbox, receive):
         self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
@@ -69,7 +72,7 @@ class Key(object):
 
     # from Boss
     @m.input()
-    def set_code(self, code): pass
+    def got_code(self, code): pass
 
     # from Ordering
     def got_pake(self, body):
@@ -106,6 +109,6 @@ class Key(object):
         self._B.got_verifier(derive_key(key, b"wormhole:verifier"))
         self._R.got_key(key)
 
-    S0_know_nothing.upon(set_code, enter=S1_know_code, outputs=[build_pake])
+    S0_know_nothing.upon(got_code, enter=S1_know_code, outputs=[build_pake])
     S1_know_code.upon(got_pake_good, enter=S2_know_key, outputs=[compute_key])
     S1_know_code.upon(got_pake_bad, enter=S3_scared, outputs=[scared])

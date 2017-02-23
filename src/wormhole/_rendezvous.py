@@ -54,12 +54,12 @@ class WSFactory(websocket.WebSocketClientFactory):
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
 class RendezvousConnector(object):
-    _url = attrib(instance_of(type(u"")))
-    _appid = attrib(instance_of(type(u"")))
-    _side = attrib(instance_of(type(u"")))
+    _url = attrib(validator=instance_of(type(u"")))
+    _appid = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type(u"")))
     _reactor = attrib()
-    _journal = attrib(provides(_interfaces.IJournal))
-    _timing = attrib(provides(_interfaces.ITiming))
+    _journal = attrib(validator=provides(_interfaces.IJournal))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
 
     def __init__(self):
         self._ws = None

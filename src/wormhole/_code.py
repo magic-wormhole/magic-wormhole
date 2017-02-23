@@ -1,5 +1,7 @@
 import os
 from zope.interface import implementer
+from attr import attrs, attrib
+from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
 from .wordlist import (byte_to_even_word, byte_to_odd_word,
@@ -17,12 +19,12 @@ def make_code(nameplate, code_length):
             words.append(byte_to_even_word[os.urandom(1)].lower())
     return "%s-%s" % (nameplate, "-".join(words))
 
+@attrs
 @implementer(_interfaces.ICode)
 class Code(object):
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    def __init__(self, code_length, timing):
-        self._code_length = code_length
-        self._timing = timing
+
     def wire(self, wormhole, rendezvous_connector, nameplate_lister):
         self._W = _interfaces.IWormhole(wormhole)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
@@ -41,9 +43,9 @@ class Code(object):
 
     # from App
     @m.input()
-    def allocate(self): pass
+    def allocate(self, code_length): pass
     @m.input()
-    def input(self): pass
+    def input(self, stdio): pass
     @m.input()
     def set(self, code): pass
 
@@ -67,7 +69,12 @@ class Code(object):
     def NL_refresh_nameplates(self):
         self._NL.refresh_nameplates()
     @m.output()
-    def RC_tx_allocate(self):
+    def start_input_and_NL_refresh_nameplates(self, stdio):
+        self._stdio = stdio
+        self._NL.refresh_nameplates()
+    @m.output()
+    def RC_tx_allocate(self, code_length):
+        self._code_length = code_length
         self._RC.tx_allocate()
     @m.output()
     def do_completion_nameplates(self):
@@ -85,23 +92,23 @@ class Code(object):
     @m.output()
     def generate_and_set(self, nameplate):
         self._code = make_code(nameplate, self._code_length)
-        self._W_set_code()
+        self._W_got_code()
 
     @m.output()
-    def W_set_code(self, code):
+    def W_got_code(self, code):
         self._code = code
-        self._W_set_code()
+        self._W_got_code()
 
-    def _W_set_code(self):
-        self._W.set_code(self._code)
+    def _W_got_code(self):
+        self._W.got_code(self._code)
 
     S0_unknown.upon(allocate, enter=S1_allocating, outputs=[RC_tx_allocate])
     S1_allocating.upon(rx_allocated, enter=S4_known, outputs=[generate_and_set])
 
-    S0_unknown.upon(set, enter=S4_known, outputs=[W_set_code])
+    S0_unknown.upon(set, enter=S4_known, outputs=[W_got_code])
 
     S0_unknown.upon(input, enter=S2_typing_nameplate,
-                    outputs=[NL_refresh_nameplates])
+                    outputs=[start_input_and_NL_refresh_nameplates])
     S2_typing_nameplate.upon(tab, enter=S2_typing_nameplate,
                              outputs=[do_completion_nameplates])
     S2_typing_nameplate.upon(got_nameplates, enter=S2_typing_nameplate,
@@ -109,4 +116,4 @@ class Code(object):
     S2_typing_nameplate.upon(hyphen, enter=S3_typing_code,
                              outputs=[lookup_wordlist])
     S3_typing_code.upon(tab, enter=S3_typing_code, outputs=[do_completion_code])
-    S3_typing_code.upon(RETURN, enter=S4_known, outputs=[W_set_code])
+    S3_typing_code.upon(RETURN, enter=S4_known, outputs=[W_got_code])

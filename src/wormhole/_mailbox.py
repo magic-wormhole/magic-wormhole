@@ -1,13 +1,16 @@
 from zope.interface import implementer
+from attr import attrs, attrib
+from attr.validators import instance_of
 from automat import MethodicalMachine
 from . import _interfaces
 
+@attrs
 @implementer(_interfaces.IMailbox)
 class Mailbox(object):
+    _side = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
 
-    def __init__(self, side):
-        self._side = side
+    def __init__(self):
         self._mood = None
         self._nameplate = None
         self._mailbox = None

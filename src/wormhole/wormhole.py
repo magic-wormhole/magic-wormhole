@@ -23,7 +23,7 @@ def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None,
 # * if not:
 #   * 
 
-class _JournaledWormhole(service.MultiService):
+class _JournaledWormhole(object):
     def __init__(self, reactor, journal_manager, event_dispatcher,
                  event_dispatcher_args=()):
         pass
