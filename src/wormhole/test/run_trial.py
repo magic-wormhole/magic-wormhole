@@ -11,6 +11,6 @@ from __future__ import unicode_literals
 # So use:
 #  "coverage run -m wormhole.test.run_trial ARGS"
 
-from twisted.scripts.trial import run
-
-run()
+if __name__ == "__main__":
+    from twisted.scripts.trial import run
+    run()
