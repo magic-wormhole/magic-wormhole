@@ -9,7 +9,7 @@ import click
 #@wormhole.group()
 @click.group()
 @click.pass_context
-def server(ctx):
+def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     """
     Control a relay server (most users shouldn't need to worry
     about this and can use the default server).
