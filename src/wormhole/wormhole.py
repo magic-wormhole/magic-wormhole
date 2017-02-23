@@ -1,4 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
+import sys
+from .timing import DebugTiming
 from .journal import ImmediateJournal
 
 def wormhole(appid, relay_url, reactor, tor_manager=None, timing=None,
@@ -33,7 +35,7 @@ class _Wormhole(_JournaledWormhole):
     def __init__(self, reactor):
         _JournaledWormhole.__init__(self, reactor, ImmediateJournal(), self)
 
-def wormhole(reactor):
+def wormhole2(reactor):
     w = _Wormhole(reactor)
     w.startService()
     return w
