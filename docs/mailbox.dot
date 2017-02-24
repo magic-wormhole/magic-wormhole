@@ -1,16 +1,7 @@
 digraph {
         /* new idea */
 
-        {rank=same; title entry_whole_code entry_allocation entry_interactive}
-        entry_whole_code [label="whole\ncode"]
-        entry_whole_code -> S0A
         title [label="Message\nMachine" style="dotted"]
-
-        entry_allocation [label="allocation" color="orange"]
-        entry_allocation -> S0B [label="(already\nconnected)"
-                                     color="orange" fontcolor="orange"]
-        entry_interactive [label="interactive" color="orange"]
-        entry_interactive -> S0B [color="orange"]
 
         {rank=same; S0A P0_connected S0B}
         S0A [label="S0A:\nknow nothing"]

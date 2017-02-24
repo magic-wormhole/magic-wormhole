@@ -61,7 +61,7 @@ class RendezvousConnector(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
 
-    def __init__(self):
+    def __attrs_post_init__(self):
         self._ws = None
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)

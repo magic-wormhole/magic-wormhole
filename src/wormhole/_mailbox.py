@@ -22,15 +22,12 @@ class Mailbox(object):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._O = _interfaces.IOrder(ordering)
 
-    @m.state(initial=True)
-    def initial(self): pass
-
     # all -A states: not connected
     # all -B states: yes connected
     # B states serialize as A, so they deserialize as unconnected
 
     # S0: know nothing
-    @m.state()
+    @m.state(initial=True)
     def S0A(self): pass
     @m.state()
     def S0B(self): pass
@@ -86,11 +83,6 @@ class Mailbox(object):
     @m.state(terminal=True)
     def Ss(self): pass
 
-
-    @m.input()
-    def start_unconnected(self): pass
-    @m.input()
-    def start_connected(self): pass
 
     # from Boss
     @m.input()
@@ -211,12 +203,12 @@ class Mailbox(object):
     @m.output()
     def RC_stop(self):
         self._RC_stop()
+    def _RC_stop(self):
+        self._RC.stop()
     @m.output()
     def W_closed(self):
         self._B.closed()
 
-    initial.upon(start_unconnected, enter=S0A, outputs=[])
-    initial.upon(start_connected, enter=S0B, outputs=[])
     S0A.upon(connected, enter=S0B, outputs=[])
     S0A.upon(set_nameplate, enter=S1A, outputs=[record_nameplate])
     S0A.upon(add_message, enter=S0A, outputs=[queue])

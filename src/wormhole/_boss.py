@@ -16,6 +16,7 @@ from .util import bytes_to_dict
 @attrs
 @implementer(_interfaces.IBoss)
 class Boss(object):
+    _W = attrib()
     _side = attrib(validator=instance_of(type(u"")))
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
@@ -24,14 +25,15 @@ class Boss(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
-    def __init__(self, wormhole):
-        self._W = wormhole
+    def __attrs_post_init__(self):
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
         self._K = Key(self._timing)
         self._R = Receive(self._side, self._timing)
-        self._RC = RendezvousConnector(self._side, self._timing, self._reactor)
+        self._RC = RendezvousConnector(self._url, self._appid, self._side,
+                                       self._reactor, self._journal,
+                                       self._timing)
         self._NL = NameplateListing()
         self._C = Code(self._timing)
 
@@ -43,6 +45,10 @@ class Boss(object):
         self._RC.wire(self, self._M, self._C, self._NL)
         self._NL.wire(self._RC, self._C)
         self._C.wire(self, self._RC, self._NL)
+
+        self._next_tx_phase = 0
+        self._next_rx_phase = 0
+        self._rx_phases = {} # phase -> plaintext
 
     # these methods are called from outside
     def start(self):
@@ -82,7 +88,7 @@ class Boss(object):
         self._C.set_code(code)
 
     @m.input()
-    def send(self, phase, plaintext): pass
+    def send(self, plaintext): pass
     @m.input()
     def close(self): pass
 
@@ -127,7 +133,9 @@ class Boss(object):
         # ignored for now
 
     @m.output()
-    def S_send(self, phase, plaintext):
+    def S_send(self, plaintext):
+        phase = self._next_tx_phase
+        self._next_tx_phase += 1
         self._S.send(phase, plaintext)
 
     @m.output()
@@ -145,13 +153,19 @@ class Boss(object):
         self._W.got_verifier(verifier)
     @m.output()
     def W_received(self, phase, plaintext):
-        self._W.received(phase, plaintext)
+        # we call Wormhole.received() in strict phase order, with no gaps
+        self._rx_phases[phase] = plaintext
+        while self._next_rx_phase in self._rx_phases:
+            self._W.received(self._next_rx_phase,
+                             self._rx_phases.pop(self._next_rx_phase))
+            self._next_rx_phase += 1
 
     @m.output()
     def W_closed(self):
         result = "???"
         self._W.closed(result)
 
+    S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
