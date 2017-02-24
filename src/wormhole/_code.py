@@ -25,15 +25,17 @@ class Code(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
-    def wire(self, wormhole, rendezvous_connector, nameplate_lister):
-        self._W = _interfaces.IWormhole(wormhole)
+    def wire(self, boss, rendezvous_connector, nameplate_lister):
+        self._B = _interfaces.IBoss(boss)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._NL = _interfaces.INameplateLister(nameplate_lister)
 
     @m.state(initial=True)
     def S0_unknown(self): pass
     @m.state()
-    def S1_allocating(self): pass
+    def S1A_connecting(self): pass
+    @m.state()
+    def S1B_allocating(self): pass
     @m.state()
     def S2_typing_nameplate(self): pass
     @m.state()
@@ -50,6 +52,10 @@ class Code(object):
     def set(self, code): pass
 
     # from RendezvousConnector
+    @m.input()
+    def connected(self): pass
+    @m.input()
+    def lost(self): pass
     @m.input()
     def rx_allocated(self, nameplate): pass
 
@@ -73,8 +79,10 @@ class Code(object):
         self._stdio = stdio
         self._NL.refresh_nameplates()
     @m.output()
-    def RC_tx_allocate(self, code_length):
+    def stash_code_length(self, code_length):
         self._code_length = code_length
+    @m.output()
+    def RC_tx_allocate(self):
         self._RC.tx_allocate()
     @m.output()
     def do_completion_nameplates(self):
@@ -90,22 +98,26 @@ class Code(object):
     def do_completion_code(self):
         pass
     @m.output()
-    def generate_and_set(self, nameplate):
+    def generate_and_B_got_code(self, nameplate):
         self._code = make_code(nameplate, self._code_length)
-        self._W_got_code()
+        self._B_got_code()
 
     @m.output()
-    def W_got_code(self, code):
+    def B_got_code(self, code):
         self._code = code
-        self._W_got_code()
+        self._B_got_code()
 
-    def _W_got_code(self):
-        self._W.got_code(self._code)
+    def _B_got_code(self):
+        self._B.got_code(self._code)
 
-    S0_unknown.upon(allocate, enter=S1_allocating, outputs=[RC_tx_allocate])
-    S1_allocating.upon(rx_allocated, enter=S4_known, outputs=[generate_and_set])
+    S0_unknown.upon(set, enter=S4_known, outputs=[B_got_code])
 
-    S0_unknown.upon(set, enter=S4_known, outputs=[W_got_code])
+    S0_unknown.upon(allocate, enter=S1A_connecting, outputs=[stash_code_length])
+    S1A_connecting.upon(connected, enter=S1B_allocating,
+                        outputs=[RC_tx_allocate])
+    S1B_allocating.upon(lost, enter=S1A_connecting, outputs=[])
+    S1B_allocating.upon(rx_allocated, enter=S4_known,
+                        outputs=[generate_and_B_got_code])
 
     S0_unknown.upon(input, enter=S2_typing_nameplate,
                     outputs=[start_input_and_NL_refresh_nameplates])
@@ -116,4 +128,4 @@ class Code(object):
     S2_typing_nameplate.upon(hyphen, enter=S3_typing_code,
                              outputs=[lookup_wordlist])
     S3_typing_code.upon(tab, enter=S3_typing_code, outputs=[do_completion_code])
-    S3_typing_code.upon(RETURN, enter=S4_known, outputs=[W_got_code])
+    S3_typing_code.upon(RETURN, enter=S4_known, outputs=[B_got_code])

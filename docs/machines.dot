@@ -20,7 +20,7 @@ digraph {
 
         Wormhole -> Boss [style="dashed" label="allocate\ninput\nset_code\nsend\nclose\n(once)"]
         #Wormhole -> Boss [color="blue"]
-        Boss -> Wormhole [style="dashed" label="got_code\ngot_verifier\nreceived\nclosed\n(once)"]
+        Boss -> Wormhole [style="dashed" label="got_code\ngot_verifier\nreceived (seq)\nclosed\n(once)"]
 
         #Boss -> Connection [color="blue"]
         Boss -> Connection [style="dashed" label="start"]
@@ -61,11 +61,11 @@ digraph {
                                   ]
 
         #Boss -> Code [color="blue"]
+        Connection -> Code [style="dashed"
+                            label="connected\nlost\nrx_allocated"]
         Code -> Connection [style="dashed"
                             label="tx_allocate"
                             ]
-        Connection -> Code [style="dashed"
-                            label="rx_allocated"]
         Nameplates -> Code [style="dashed"
                             label="got_nameplates"
                             ]
