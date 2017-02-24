@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 import os
 from six.moves.urllib_parse import urlparse
 from attr import attrs, attrib
@@ -27,7 +28,12 @@ class WSClient(websocket.WebSocketClientProtocol):
     def onMessage(self, payload, isBinary):
         #print("onMessage")
         assert not isBinary
-        self._RC.ws_message(payload)
+        try:
+            self._RC.ws_message(payload)
+        except:
+            print("LOGGING")
+            log.err()
+            raise
 
     def onClose(self, wasClean, code, reason):
         #print("onClose")
@@ -60,6 +66,7 @@ class RendezvousConnector(object):
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    DEBUG = False
 
     def __attrs_post_init__(self):
         self._ws = None

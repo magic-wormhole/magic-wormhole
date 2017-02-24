@@ -1,14 +1,18 @@
+from __future__ import print_function, absolute_import, unicode_literals
+from attr import attrs, attrib
+from attr.validators import provides, instance_of
 from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
 from ._key import derive_phase_key, encrypt_data
 
+@attrs
 @implementer(_interfaces.ISend)
 class Send(object):
+    _side = attrib(validator=instance_of(type(u"")))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    def __init__(self, side, timing):
-        self._side = side
-        self._timing = timing
+
     def wire(self, mailbox):
         self._M = _interfaces.IMailbox(mailbox)
 

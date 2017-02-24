@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 import os
 from zope.interface import implementer
 from attr import attrs, attrib
@@ -127,5 +128,14 @@ class Code(object):
                              outputs=[stash_nameplates])
     S2_typing_nameplate.upon(hyphen, enter=S3_typing_code,
                              outputs=[lookup_wordlist])
+    # TODO: need a proper pair of connected/lost states around S2
+    S2_typing_nameplate.upon(connected, enter=S2_typing_nameplate, outputs=[])
+    S2_typing_nameplate.upon(lost, enter=S2_typing_nameplate, outputs=[])
+
     S3_typing_code.upon(tab, enter=S3_typing_code, outputs=[do_completion_code])
     S3_typing_code.upon(RETURN, enter=S4_known, outputs=[B_got_code])
+    S3_typing_code.upon(connected, enter=S3_typing_code, outputs=[])
+    S3_typing_code.upon(lost, enter=S3_typing_code, outputs=[])
+
+    S4_known.upon(connected, enter=S4_known, outputs=[])
+    S4_known.upon(lost, enter=S4_known, outputs=[])
