@@ -38,6 +38,14 @@ class _DelegatedWormhole(object):
         self._boss = boss
 
     # from above
+
+    def allocate_code(self, code_length=2):
+        self._boss.allocate_code(code_length)
+    def input_code(self, stdio):
+        self._boss.input_code(stdio)
+    def set_code(self, code):
+        self._boss.set_code(code)
+
     def send(self, plaintext):
         self._boss.send(plaintext)
     def close(self):
@@ -48,9 +56,8 @@ class _DelegatedWormhole(object):
         self._delegate.wormhole_got_code(code)
     def got_verifier(self, verifier):
         self._delegate.wormhole_got_verifier(verifier)
-    def received(self, phase, plaintext):
-        # TODO: deliver phases in order
-        self._delegate.wormhole_received(phase, plaintext)
+    def received(self, plaintext):
+        self._delegate.wormhole_received(plaintext)
     def closed(self, result):
         self._delegate.wormhole_closed(result)
 
@@ -61,6 +68,8 @@ class _DeferredWormhole(object):
         self._code_observers = []
         self._verifier = None
         self._verifier_observers = []
+        self._received_data = []
+        self._received_observers = []
 
     def _set_boss(self, boss):
         self._boss = boss
@@ -80,6 +89,20 @@ class _DeferredWormhole(object):
         self._verifier_observers.append(d)
         return d
 
+    def when_received(self):
+        if self._received_data:
+            return defer.succeed(self._received_data.pop(0))
+        d = defer.Deferred()
+        self._received_observers.append(d)
+        return d
+
+    def allocate_code(self, code_length=2):
+        self._boss.allocate_code(code_length)
+    def input_code(self, stdio):
+        self._boss.input_code(stdio)
+    def set_code(self, code):
+        self._boss.set_code(code)
+
     def send(self, plaintext):
         self._boss.send(plaintext)
     def close(self):
@@ -97,8 +120,11 @@ class _DeferredWormhole(object):
             d.callback(verifier)
         self._verifier_observers[:] = []
 
-    def received(self, phase, plaintext):
-        print(phase, plaintext)
+    def received(self, plaintext):
+        if self._received_observers:
+            self._received_observers.pop(0).callback(plaintext)
+            return
+        self._received_data.append(plaintext)
 
     def closed(self, result):
         print("closed", result)
@@ -109,7 +135,6 @@ def _wormhole(appid, relay_url, reactor, delegate=None,
               stderr=sys.stderr,
               ):
     timing = timing or DebugTiming()
-    code_length = 2
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     if delegate:
@@ -120,7 +145,6 @@ def _wormhole(appid, relay_url, reactor, delegate=None,
     w._set_boss(b)
     # force allocate for now
     b.start()
-    b.allocate(code_length)
     return w
 
 def delegated_wormhole(appid, relay_url, reactor, delegate,

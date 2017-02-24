@@ -46,11 +46,11 @@ class Code(object):
 
     # from App
     @m.input()
-    def allocate(self, code_length): pass
+    def allocate_code(self, code_length): pass
     @m.input()
-    def input(self, stdio): pass
+    def input_code(self, stdio): pass
     @m.input()
-    def set(self, code): pass
+    def set_code(self, code): pass
 
     # from RendezvousConnector
     @m.input()
@@ -111,16 +111,17 @@ class Code(object):
     def _B_got_code(self):
         self._B.got_code(self._code)
 
-    S0_unknown.upon(set, enter=S4_known, outputs=[B_got_code])
+    S0_unknown.upon(set_code, enter=S4_known, outputs=[B_got_code])
 
-    S0_unknown.upon(allocate, enter=S1A_connecting, outputs=[stash_code_length])
+    S0_unknown.upon(allocate_code, enter=S1A_connecting,
+                    outputs=[stash_code_length])
     S1A_connecting.upon(connected, enter=S1B_allocating,
                         outputs=[RC_tx_allocate])
     S1B_allocating.upon(lost, enter=S1A_connecting, outputs=[])
     S1B_allocating.upon(rx_allocated, enter=S4_known,
                         outputs=[generate_and_B_got_code])
 
-    S0_unknown.upon(input, enter=S2_typing_nameplate,
+    S0_unknown.upon(input_code, enter=S2_typing_nameplate,
                     outputs=[start_input_and_NL_refresh_nameplates])
     S2_typing_nameplate.upon(tab, enter=S2_typing_nameplate,
                              outputs=[do_completion_nameplates])

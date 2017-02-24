@@ -4,12 +4,12 @@ digraph {
         {rank=same; start S0}
         start -> S0 [style="invis"]
         S0 [label="S0:\nunknown\ndisconnected"]
-        S0 -> P0_got_code [label="set"]
+        S0 -> P0_got_code [label="set_code"]
         P0_got_code [shape="box" label="B.got_code"]
         P0_got_code -> S4
         S4 [label="S4: known" color="green"]
 
-        S0 -> P0_list_nameplates [label="input"]
+        S0 -> P0_list_nameplates [label="input_code"]
         S2 [label="S2: typing\nnameplate"]
 
         S2 -> P2_completion [label="<tab>"]
@@ -32,7 +32,7 @@ digraph {
         S3 -> P0_got_code [label="<return>"
                            color="orange" fontcolor="orange"]
 
-        S0 -> S1A [label="allocate"]
+        S0 -> S1A [label="allocate_code"]
         S1A [label="S1A:\nconnecting"]
         S1A -> P1_allocate [label="connected"]
         P1_allocate [shape="box" label="RC.tx_allocate"]

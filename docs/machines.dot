@@ -18,7 +18,7 @@ digraph {
         Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
 
-        Wormhole -> Boss [style="dashed" label="allocate\ninput\nset_code\nsend\nclose\n(once)"]
+        Wormhole -> Boss [style="dashed" label="allocate_code\ninput_code\nset_code\nsend\nclose\n(once)"]
         #Wormhole -> Boss [color="blue"]
         Boss -> Wormhole [style="dashed" label="got_code\ngot_verifier\nreceived (seq)\nclosed\n(once)"]
 
@@ -74,7 +74,7 @@ digraph {
                             label="refresh_nameplates"
                             ]
         Boss -> Code [style="dashed"
-                      label="allocate\ninput\nset_code"]
+                      label="allocate_code\ninput_code\nset_code_code"]
         Code -> Boss [style="dashed"
                       label="got_code"]
 
