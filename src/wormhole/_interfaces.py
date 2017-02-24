@@ -1,5 +1,7 @@
 from zope.interface import Interface
 
+class IWormhole(Interface):
+    pass
 class IBoss(Interface):
     pass
 class IMailbox(Interface):

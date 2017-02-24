@@ -1,6 +1,10 @@
 from __future__ import print_function, absolute_import, unicode_literals
-import sys
+import os, sys
 from attr import attrs, attrib
+from zope.interface import implementer
+from twisted.internet import defer
+from ._interfaces import IWormhole
+from .util import bytes_to_hexstr
 from .timing import DebugTiming
 from .journal import ImmediateJournal
 from ._boss import Boss
@@ -16,6 +20,7 @@ from ._boss import Boss
 #   w = wormhole(delegate=app)
 #   w.send(data)
 #   app.wormhole_got_code(code)
+#   app.wormhole_got_verifier(verifier)
 #   app.wormhole_receive(data)
 #   w.close()
 #   app.wormhole_closed()
@@ -25,6 +30,7 @@ from ._boss import Boss
 #            delegate_args=(args, kwargs))
 
 @attrs
+@implementer(IWormhole)
 class _DelegatedWormhole(object):
     _delegate = attrib()
 
@@ -32,8 +38,8 @@ class _DelegatedWormhole(object):
         self._boss = boss
 
     # from above
-    def send(self, phase, plaintext):
-        self._boss.send(phase, plaintext)
+    def send(self, plaintext):
+        self._boss.send(plaintext)
     def close(self):
         self._boss.close()
 
@@ -48,6 +54,7 @@ class _DelegatedWormhole(object):
     def closed(self, result):
         self._delegate.wormhole_closed(result)
 
+@implementer(IWormhole)
 class _DeferredWormhole(object):
     def __init__(self):
         self._code = None
@@ -73,8 +80,8 @@ class _DeferredWormhole(object):
         self._verifier_observers.append(d)
         return d
 
-    def send(self, phase, plaintext):
-        self._boss.send(phase, plaintext)
+    def send(self, plaintext):
+        self._boss.send(plaintext)
     def close(self):
         self._boss.close()
 
@@ -130,5 +137,5 @@ def deferred_wormhole(appid, relay_url, reactor,
                        journal=None,
                        stderr=sys.stderr,
                        ):
-    return _wormhole(appid, relay_url, reactor, delegate=None,
+    return _wormhole(appid, relay_url, reactor, None,
                      tor_manager, timing, journal, stderr)

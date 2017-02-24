@@ -17,6 +17,8 @@ digraph {
         S0 [label="S0: empty"]
         S0 -> P0_build [label="set_code"]
 
+        S0 -> P_close_lonely [label="close"]
+
         P0_build [shape="box" label="W.got_code\nM.set_nameplate\nK.got_code"]
         P0_build -> S1
         S1 [label="S1: lonely" color="orange"]
