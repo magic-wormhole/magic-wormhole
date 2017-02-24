@@ -119,6 +119,7 @@ class RendezvousConnector(object):
     def ws_open(self, proto):
         self._ws = proto
         self._tx("bind", appid=self._appid, side=self._side)
+        self._C.connected()
         self._M.connected()
         self._NL.connected()
 
@@ -136,6 +137,7 @@ class RendezvousConnector(object):
 
     def ws_close(self, wasClean, code, reason):
         self._ws = None
+        self._C.lost()
         self._M.lost()
         self._NL.lost()
 
