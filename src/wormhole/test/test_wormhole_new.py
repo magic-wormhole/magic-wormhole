@@ -23,15 +23,36 @@ class Delegate:
         self.closed = result
 
 class New(ServerBase, unittest.TestCase):
-    def test_basic(self):
+    @inlineCallbacks
+    def test_allocate(self):
+        w = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w.allocate_code(2)
+        code = yield w.when_code()
+        print("code:", code)
+        yield w.close()
+    test_allocate.timeout = 2
+
+    def test_delegated(self):
         dg = Delegate()
         w = wormhole.delegated_wormhole(APPID, self.relayurl, reactor, dg)
         w.close()
 
     @inlineCallbacks
-    def test_allocate(self):
-        w = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
-        code = yield w.when_code()
+    def test_basic(self):
+        w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w1.allocate_code(2)
+        code = yield w1.when_code()
         print("code:", code)
-        yield w.close()
-    test_allocate.timeout = 2
+        w2 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w2.set_code(code)
+        code2 = yield w2.when_code()
+        self.assertEqual(code, code2)
+
+        w1.send(b"data")
+
+        data = yield w2.when_received()
+        self.assertEqual(data, b"data")
+
+        yield w1.close()
+        yield w2.close()
+    test_basic.timeout = 2

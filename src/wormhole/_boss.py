@@ -81,10 +81,10 @@ class Boss(object):
     # would require the Wormhole to be aware of Code (whereas right now
     # Wormhole only knows about this Boss instance, and everything else is
     # hidden away).
-    def input(self, stdio):
-        self._C.input(stdio)
-    def allocate(self, code_length):
-        self._C.allocate(code_length)
+    def input_code(self, stdio):
+        self._C.input_code(stdio)
+    def allocate_code(self, code_length):
+        self._C.allocate_code(code_length)
     def set_code(self, code):
         self._C.set_code(code)
 
@@ -165,8 +165,7 @@ class Boss(object):
         # we call Wormhole.received() in strict phase order, with no gaps
         self._rx_phases[phase] = plaintext
         while self._next_rx_phase in self._rx_phases:
-            self._W.received(self._next_rx_phase,
-                             self._rx_phases.pop(self._next_rx_phase))
+            self._W.received(self._rx_phases.pop(self._next_rx_phase))
             self._next_rx_phase += 1
 
     @m.output()
