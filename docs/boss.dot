@@ -54,7 +54,7 @@ digraph {
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"
-               label="send -> S.send\ngot_verifier -> A.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
+               label="rx_welcome -> process\nsend -> S.send\ngot_verifier -> A.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
                ]
 
 

@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides, instance_of
@@ -29,7 +30,7 @@ class Boss(object):
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
-        self._K = Key(self._timing)
+        self._K = Key(self._appid, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
@@ -92,6 +93,10 @@ class Boss(object):
     @m.input()
     def close(self): pass
 
+    # from RendezvousConnector
+    @m.input()
+    def rx_welcome(self, welcome): pass
+
     # from Code (provoked by input/allocate/set_code)
     @m.input()
     def got_code(self, code): pass
@@ -120,6 +125,10 @@ class Boss(object):
     @m.input()
     def closed(self): pass
 
+
+    @m.output()
+    def process_welcome(self, welcome):
+        pass # TODO: ignored for now
 
     @m.output()
     def do_got_code(self, code):
@@ -167,18 +176,22 @@ class Boss(object):
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
+    S0_empty.upon(rx_welcome, enter=S0_empty, outputs=[process_welcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
+    S1_lonely.upon(rx_welcome, enter=S1_lonely, outputs=[process_welcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
+    S2_happy.upon(rx_welcome, enter=S2_happy, outputs=[process_welcome])
     S2_happy.upon(got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
 
+    S3_closing.upon(rx_welcome, enter=S3_closing, outputs=[])
     S3_closing.upon(got_phase, enter=S3_closing, outputs=[])
     S3_closing.upon(got_version, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
@@ -187,6 +200,7 @@ class Boss(object):
     S3_closing.upon(send, enter=S3_closing, outputs=[])
     S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
 
+    S4_closed.upon(rx_welcome, enter=S4_closed, outputs=[])
     S4_closed.upon(got_phase, enter=S4_closed, outputs=[])
     S4_closed.upon(got_version, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])

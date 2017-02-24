@@ -1,6 +1,7 @@
 from __future__ import print_function, unicode_literals
 from twisted.trial import unittest
 from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks
 from .common import ServerBase
 from .. import wormhole
 
@@ -26,3 +27,11 @@ class New(ServerBase, unittest.TestCase):
         dg = Delegate()
         w = wormhole.delegated_wormhole(APPID, self.relayurl, reactor, dg)
         w.close()
+
+    @inlineCallbacks
+    def test_allocate(self):
+        w = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        code = yield w.when_code()
+        print("code:", code)
+        yield w.close()
+    test_allocate.timeout = 2

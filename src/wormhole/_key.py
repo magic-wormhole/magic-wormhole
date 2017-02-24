@@ -1,7 +1,8 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from hashlib import sha256
 from zope.interface import implementer
 from attr import attrs, attrib
-from attr.validators import provides
+from attr.validators import provides, instance_of
 from spake2 import SPAKE2_Symmetric
 from hkdf import Hkdf
 from nacl.secret import SecretBox
@@ -53,6 +54,7 @@ def encrypt_data(key, plaintext):
 @attrs
 @implementer(_interfaces.IKey)
 class Key(object):
+    _appid = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 

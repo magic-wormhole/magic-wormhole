@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides, instance_of
@@ -12,7 +13,7 @@ class Receive(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
-    def __init__(self):
+    def __attrs_post_init__(self):
         self._key = None
 
     def wire(self, boss, key, send):

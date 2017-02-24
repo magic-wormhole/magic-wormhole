@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import instance_of
@@ -10,7 +11,7 @@ class Mailbox(object):
     _side = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
 
-    def __init__(self):
+    def __attrs_post_init__(self):
         self._mood = None
         self._nameplate = None
         self._mailbox = None
@@ -129,7 +130,7 @@ class Mailbox(object):
     @m.output()
     def record_nameplate_and_RC_tx_claim(self, nameplate):
         self._nameplate = nameplate
-        self._RX.tx_claim(self._nameplate)
+        self._RC.tx_claim(self._nameplate)
     @m.output()
     def RC_tx_claim(self):
         # when invoked via M.connected(), we must use the stored nameplate
@@ -278,5 +279,19 @@ class Mailbox(object):
         ScB.upon(rx_closed, enter=SsB, outputs=[RC_stop])
         ScA.upon(connected, enter=ScB, outputs=[RC_tx_close])
 
+        SsB.upon(lost, enter=SsB, outputs=[])
         SsB.upon(stopped, enter=Ss, outputs=[W_closed])
+
+        SrcB.upon(rx_claimed, enter=SrcB, outputs=[])
+        SrcB.upon(rx_message_theirs, enter=SrcB, outputs=[])
+        SrcB.upon(rx_message_ours, enter=SrcB, outputs=[])
+        SrB.upon(rx_claimed, enter=SrB, outputs=[])
+        SrB.upon(rx_message_theirs, enter=SrB, outputs=[])
+        SrB.upon(rx_message_ours, enter=SrB, outputs=[])
+        ScB.upon(rx_claimed, enter=ScB, outputs=[])
+        ScB.upon(rx_message_theirs, enter=ScB, outputs=[])
+        ScB.upon(rx_message_ours, enter=ScB, outputs=[])
+        SsB.upon(rx_claimed, enter=SsB, outputs=[])
+        SsB.upon(rx_message_theirs, enter=SsB, outputs=[])
+        SsB.upon(rx_message_ours, enter=SsB, outputs=[])
 

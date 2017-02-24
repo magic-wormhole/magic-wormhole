@@ -1,3 +1,4 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
@@ -5,8 +6,7 @@ from . import _interfaces
 @implementer(_interfaces.INameplateLister)
 class NameplateListing(object):
     m = MethodicalMachine()
-    def __init__(self):
-        pass
+
     def wire(self, rendezvous_connector, code):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._C = _interfaces.ICode(code)
