@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
 import sys, re
+import six
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 from twisted.internet.endpoints import clientFromString
@@ -153,7 +154,7 @@ class TorManager:
         return False
 
     def get_endpoint_for(self, host, port):
-        assert isinstance(port, int)
+        assert isinstance(port, six.integer_types)
         if self.is_non_public_numeric_address(host):
             return None
 
