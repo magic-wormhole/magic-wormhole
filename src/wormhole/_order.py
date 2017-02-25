@@ -25,6 +25,7 @@ class Order(object):
     def S1_yes_pake(self): pass
 
     def got_message(self, phase, body):
+        #print("ORDER[%s].got_message(%s)" % (self._side, phase))
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
         if phase == "pake":

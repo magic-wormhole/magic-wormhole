@@ -13,6 +13,9 @@ class Send(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
+    def __attrs_post_init__(self):
+        self._queue = []
+
     def wire(self, mailbox):
         self._M = _interfaces.IMailbox(mailbox)
 
@@ -49,7 +52,8 @@ class Send(object):
         self._encrypt_and_send(phase, plaintext)
 
     def _encrypt_and_send(self, phase, plaintext):
-        data_key = derive_phase_key(self._side, phase)
+        assert self._key
+        data_key = derive_phase_key(self._key, self._side, phase)
         encrypted = encrypt_data(data_key, plaintext)
         self._M.add_message(phase, encrypted)
 

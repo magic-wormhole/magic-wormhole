@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 from hashlib import sha256
+import six
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides, instance_of
@@ -22,10 +23,10 @@ def HKDF(skm, outlen, salt=None, CTXinfo=b""):
 def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
     if not isinstance(key, type(b"")): raise TypeError(type(key))
     if not isinstance(purpose, type(b"")): raise TypeError(type(purpose))
-    if not isinstance(length, int): raise TypeError(type(length))
+    if not isinstance(length, six.integer_types): raise TypeError(type(length))
     return HKDF(key, length, CTXinfo=purpose)
 
-def derive_phase_key(side, phase):
+def derive_phase_key(key, side, phase):
     assert isinstance(side, type("")), type(side)
     assert isinstance(phase, type("")), type(phase)
     side_bytes = side.encode("ascii")
@@ -33,7 +34,7 @@ def derive_phase_key(side, phase):
     purpose = (b"wormhole:phase:"
                + sha256(side_bytes).digest()
                + sha256(phase_bytes).digest())
-    return derive_key(purpose)
+    return derive_key(key, purpose)
 
 def decrypt_data(key, encrypted):
     assert isinstance(key, type(b"")), type(key)
@@ -55,6 +56,7 @@ def encrypt_data(key, plaintext):
 @implementer(_interfaces.IKey)
 class Key(object):
     _appid = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
 
@@ -106,9 +108,13 @@ class Key(object):
         assert isinstance(msg2, type(b""))
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
-        self._my_versions = {}
-        self._M.add_message("version", self._my_versions)
         self._B.got_verifier(derive_key(key, b"wormhole:verifier"))
+        phase = "version"
+        data_key = derive_phase_key(key, self._side, phase)
+        my_versions = {} # TODO: get from Wormhole?
+        plaintext = dict_to_bytes(my_versions)
+        encrypted = encrypt_data(data_key, plaintext)
+        self._M.add_message(phase, encrypted)
         self._R.got_key(key)
 
     S0_know_nothing.upon(got_code, enter=S1_know_code, outputs=[build_pake])

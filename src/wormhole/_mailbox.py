@@ -121,7 +121,10 @@ class Mailbox(object):
 
     # from Send or Key
     @m.input()
-    def add_message(self, phase, body): pass
+    def add_message(self, phase, body):
+        assert isinstance(body, type(b"")), type(body)
+        #print("ADD_MESSAGE", phase, len(body))
+        pass
 
 
     @m.output()
@@ -142,7 +145,7 @@ class Mailbox(object):
     @m.output()
     def queue(self, phase, body):
         assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(body, type(b"")), (type(body), phase, body)
         self._pending_outbound[phase] = body
     @m.output()
     def store_mailbox_and_RC_tx_open_and_drain(self, mailbox):
@@ -189,11 +192,11 @@ class Mailbox(object):
         self._accept(phase, body)
     def _accept(self, phase, body):
         if phase not in self._processed:
-            self._O.got_message(phase, body)
             self._processed.add(phase)
+            self._O.got_message(phase, body)
     @m.output()
     def dequeue(self, phase, body):
-        self._pending_outbound.pop(phase)
+        self._pending_outbound.pop(phase, None)
     @m.output()
     def record_mood(self, mood):
         self._mood = mood
@@ -235,8 +238,7 @@ class Mailbox(object):
     S3B.upon(rx_claimed, enter=S3B, outputs=[])
     S3B.upon(add_message, enter=S3B, outputs=[queue, RC_tx_add])
 
-    S4A.upon(connected, enter=S4B,
-             outputs=[RC_tx_open, drain, RC_tx_release])
+    S4A.upon(connected, enter=S4B, outputs=[RC_tx_open, drain, RC_tx_release])
     S4A.upon(add_message, enter=S4A, outputs=[queue])
     S4B.upon(lost, enter=S4A, outputs=[])
     S4B.upon(add_message, enter=S4B, outputs=[queue, RC_tx_add])
