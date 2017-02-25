@@ -7,7 +7,7 @@ from ._interfaces import IWormhole
 from .util import bytes_to_hexstr
 from .timing import DebugTiming
 from .journal import ImmediateJournal
-from ._boss import Boss
+from ._boss import Boss, WormholeError
 
 # We can provide different APIs to different apps:
 # * Deferreds
@@ -61,6 +61,9 @@ class _DelegatedWormhole(object):
     def closed(self, result):
         self._delegate.wormhole_closed(result)
 
+class WormholeClosed(Exception):
+    pass
+
 @implementer(IWormhole)
 class _DeferredWormhole(object):
     def __init__(self):
@@ -70,6 +73,7 @@ class _DeferredWormhole(object):
         self._verifier_observers = []
         self._received_data = []
         self._received_observers = []
+        self._closed_observers = []
 
     def _set_boss(self, boss):
         self._boss = boss
@@ -107,6 +111,9 @@ class _DeferredWormhole(object):
         self._boss.send(plaintext)
     def close(self):
         self._boss.close()
+        d = defer.Deferred()
+        self._closed_observers.append(d)
+        return d
 
     # from below
     def got_code(self, code):
@@ -127,7 +134,17 @@ class _DeferredWormhole(object):
         self._received_data.append(plaintext)
 
     def closed(self, result):
-        print("closed", result)
+        print("closed", result, type(result))
+        if isinstance(result, WormholeError):
+            e = result
+        else:
+            e = WormholeClosed(result)
+        for d in self._verifier_observers:
+            d.errback(e)
+        for d in self._received_observers:
+            d.errback(e)
+        for d in self._closed_observers:
+            d.callback(result)
 
 def _wormhole(appid, relay_url, reactor, delegate=None,
               tor_manager=None, timing=None,

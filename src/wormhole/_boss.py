@@ -1,7 +1,10 @@
 from __future__ import print_function, absolute_import, unicode_literals
+import re
+import six
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides, instance_of
+from twisted.python import log
 from automat import MethodicalMachine
 from . import _interfaces
 from ._mailbox import Mailbox
@@ -12,7 +15,11 @@ from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._nameplate import NameplateListing
 from ._code import Code
+from .errors import WrongPasswordError
 from .util import bytes_to_dict
+
+class WormholeError(Exception):
+    pass
 
 @attrs
 @implementer(_interfaces.IBoss)
@@ -30,7 +37,7 @@ class Boss(object):
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
-        self._K = Key(self._appid, self._timing)
+        self._K = Key(self._appid, self._side, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
@@ -50,6 +57,8 @@ class Boss(object):
         self._next_tx_phase = 0
         self._next_rx_phase = 0
         self._rx_phases = {} # phase -> plaintext
+
+        self._result = "empty"
 
     # these methods are called from outside
     def start(self):
@@ -107,13 +116,20 @@ class Boss(object):
     def happy(self): pass
     @m.input()
     def scared(self): pass
+    @m.input()
+    def rx_error(self, err, orig): pass
+
     def got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
         if phase == "version":
             self.got_version(plaintext)
+        elif re.search(r'^\d+$', phase):
+            self.got_phase(int(phase), plaintext)
         else:
-            self.got_phase(phase, plaintext)
+            # Ignore unrecognized phases, for forwards-compatibility. Use
+            # log.err so tests will catch surprises.
+            log.err("received unknown phase '%s'" % phase)
     @m.input()
     def got_version(self, plaintext): pass
     @m.input()
@@ -143,18 +159,26 @@ class Boss(object):
 
     @m.output()
     def S_send(self, plaintext):
+        assert isinstance(plaintext, type(b"")), type(plaintext)
         phase = self._next_tx_phase
         self._next_tx_phase += 1
-        self._S.send(phase, plaintext)
+        self._S.send("%d" % phase, plaintext)
 
     @m.output()
+    def close_error(self, err, orig):
+        self._result = WormholeError(err)
+        self._M.close("errory")
+    @m.output()
     def close_scared(self):
+        self._result = WrongPasswordError()
         self._M.close("scary")
     @m.output()
     def close_lonely(self):
+        self._result = WormholeError("lonely")
         self._M.close("lonely")
     @m.output()
     def close_happy(self):
+        self._result = "happy"
         self._M.close("happy")
 
     @m.output()
@@ -162,6 +186,7 @@ class Boss(object):
         self._W.got_verifier(verifier)
     @m.output()
     def W_received(self, phase, plaintext):
+        assert isinstance(phase, six.integer_types), type(phase)
         # we call Wormhole.received() in strict phase order, with no gaps
         self._rx_phases[phase] = plaintext
         while self._next_rx_phase in self._rx_phases:
@@ -170,27 +195,30 @@ class Boss(object):
 
     @m.output()
     def W_closed(self):
-        result = "???"
-        self._W.closed(result)
+        self._W.closed(self._result)
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
     S0_empty.upon(rx_welcome, enter=S0_empty, outputs=[process_welcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
+    S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(rx_welcome, enter=S1_lonely, outputs=[process_welcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
+    S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S2_happy.upon(rx_welcome, enter=S2_happy, outputs=[process_welcome])
     S2_happy.upon(got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
+    S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
 
     S3_closing.upon(rx_welcome, enter=S3_closing, outputs=[])
+    S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
     S3_closing.upon(got_phase, enter=S3_closing, outputs=[])
     S3_closing.upon(got_version, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])

@@ -26,12 +26,12 @@ class WSClient(websocket.WebSocketClientProtocol):
         self._RC.ws_open(self)
 
     def onMessage(self, payload, isBinary):
-        #print("onMessage")
         assert not isBinary
         try:
             self._RC.ws_message(payload)
         except:
-            print("LOGGING")
+            from twisted.python.failure import Failure
+            print("LOGGING", Failure())
             log.err()
             raise
 
@@ -57,6 +57,10 @@ class WSFactory(websocket.WebSocketClientFactory):
         #proto.wormhole_open = False
         return proto
 
+def dmsg(side, text):
+    offset = int(side, 16) % 20
+    print(" "*offset, text)
+
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
 class RendezvousConnector(object):
@@ -66,7 +70,7 @@ class RendezvousConnector(object):
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
-    DEBUG = False
+    DEBUG = True
 
     def __attrs_post_init__(self):
         self._ws = None
@@ -124,6 +128,8 @@ class RendezvousConnector(object):
 
     # from our WSClient (the WebSocket protocol)
     def ws_open(self, proto):
+        if self.DEBUG:
+            dmsg(self._side, "R.connected")
         self._ws = proto
         self._tx("bind", appid=self._appid, side=self._side)
         self._C.connected()
@@ -132,7 +138,11 @@ class RendezvousConnector(object):
 
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
-        if self.DEBUG and msg["type"]!="ack": print("DIS", msg["type"], msg)
+        if self.DEBUG and msg["type"]!="ack":
+            dmsg(self._side, "R.rx(%s %s%s)" %
+                 (msg["type"], msg.get("phase",""),
+                  "[mine]" if msg.get("side","") == self._side else "",
+                  ))
         self._timing.add("ws_receive", _side=self._side, message=msg)
         mtype = msg["type"]
         meth = getattr(self, "_response_handle_"+mtype, None)
@@ -143,6 +153,8 @@ class RendezvousConnector(object):
         return meth(msg)
 
     def ws_close(self, wasClean, code, reason):
+        if self.DEBUG:
+            dmsg(self._side, "R.lost")
         self._ws = None
         self._C.lost()
         self._M.lost()
@@ -158,9 +170,10 @@ class RendezvousConnector(object):
         # their receives, and vice versa. They are also correlated with the
         # ACKs we get back from the server (which we otherwise ignore). There
         # are so few messages, 16 bits is enough to be mostly-unique.
-        if self.DEBUG: print("SEND", mtype)
         kwargs["id"] = bytes_to_hexstr(os.urandom(2))
         kwargs["type"] = mtype
+        if self.DEBUG:
+            dmsg(self._side, "R.tx(%s %s)" % (mtype.upper(), kwargs.get("phase", "")))
         payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
@@ -183,6 +196,11 @@ class RendezvousConnector(object):
 
     def _response_handle_ack(self, msg):
         pass
+
+    def _response_handle_error(self, msg):
+        err = msg["error"]
+        orig = msg["orig"]
+        self._B.rx_error(err, orig)
 
     def _response_handle_welcome(self, msg):
         self._B.rx_welcome(msg["welcome"])

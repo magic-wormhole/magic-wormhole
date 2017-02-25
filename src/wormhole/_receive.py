@@ -35,7 +35,7 @@ class Receive(object):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
         assert self._key
-        data_key = derive_phase_key(self._side, phase)
+        data_key = derive_phase_key(self._key, self._side, phase)
         try:
             plaintext = decrypt_data(data_key, body)
         except CryptoError:
