@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+import six
 import unicodedata
 from twisted.trial import unittest
 from .. import util
@@ -42,7 +43,8 @@ class Utils(unittest.TestCase):
 class Space(unittest.TestCase):
     def test_free_space(self):
         free = util.estimate_free_space(".")
-        self.assert_(isinstance(free, (int, type(None))), repr(free))
+        self.assert_(isinstance(free, six.integer_types + (type(None),)),
+                     repr(free))
         # some platforms (I think the VMs used by travis are in this
         # category) return 0, and windows will return None, so don't assert
         # anything more specific about the return value
