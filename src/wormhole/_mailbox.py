@@ -263,8 +263,7 @@ class Mailbox(object):
         S3B.upon(close, enter=SrcB,
                  outputs=[record_mood_and_RC_tx_release_and_RC_tx_close])
         S4A.upon(close, enter=SrcA, outputs=[record_mood])
-        S4B.upon(close, enter=SrcB,
-                 outputs=[record_mood_and_RC_tx_release_and_RC_tx_close])
+        S4B.upon(close, enter=SrcB, outputs=[record_mood_and_RC_tx_close])
         S5A.upon(close, enter=ScA, outputs=[record_mood])
         S5B.upon(close, enter=ScB, outputs=[record_mood_and_RC_tx_close])
 

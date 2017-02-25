@@ -27,6 +27,8 @@ digraph {
         SrcA -> Prc [label="connected"]
         Prc [shape="box" label="C.tx_release\nC.tx_close" color="orange"]
         Prc -> SrcB [color="orange"]
+        Prc2 [shape="box" label="C.tx_close" color="orange"]
+        Prc2 -> SrcB [color="orange"]
         SrcB [label="SrcB:\nwaiting for:\nrelease\nclosed" color="orange"]
         SrcB -> SrcA [label="lost"]
         SrcB -> ScB [label="rx_released" color="orange" fontcolor="orange"]
@@ -65,7 +67,7 @@ digraph {
         S4A [label="S4A" style="dashed"]
         S4B [label="S4B" color="orange" style="dashed"]
         S4A -> SrcA [style="dashed"]
-        S4B -> Prc [color="orange" style="dashed"]
+        S4B -> Prc2 [color="orange" style="dashed"]
 
         S5A [label="S5A" style="dashed"]
         S5B [label="S5B" color="green" style="dashed"]
