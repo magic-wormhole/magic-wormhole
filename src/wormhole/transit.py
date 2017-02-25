@@ -701,7 +701,8 @@ class Common:
                and isinstance(hint[u"hostname"], type(u""))):
             log.msg("invalid hostname in hint: %r" % (hint,))
             return None
-        if not(u"port" in hint and isinstance(hint[u"port"], int)):
+        if not(u"port" in hint
+               and isinstance(hint[u"port"], six.integer_types)):
             log.msg("invalid port in hint: %r" % (hint,))
             return None
         priority = hint.get(u"priority", 0.0)
