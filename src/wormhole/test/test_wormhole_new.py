@@ -40,6 +40,9 @@ class New(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_basic(self):
         w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        def trace(old_state, input, new_state):
+            print("W1._M[%s].%s -> [%s]" % (old_state, input, new_state))
+        w1._boss._M.setTrace(trace)
         w1.allocate_code(2)
         code = yield w1.when_code()
         print("code:", code)
