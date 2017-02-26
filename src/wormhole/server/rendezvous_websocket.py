@@ -38,6 +38,17 @@ from ..util import dict_to_bytes, bytes_to_dict
 # has claimed the nameplate has also released it, the nameplate is
 # deallocated (but they will probably keep the underlying mailbox open).
 
+# "claim" and "release" may only be called once per connection, however calls
+# across connections (assuming a consistent "side") are idempotent. [connect,
+# claim, disconnect, connect, claim] is legal, but not useful, as is a
+# "release" for a nameplate that nobody is currently claiming.
+
+# "open" and "close" may only be called once per connection. They are
+# basically idempotent, however "open" doubles as a subscribe action. So
+# [connect, open, disconnect, connect, open] is legal *and* useful (without
+# the second "open", the second connection would not be subscribed to hear
+# about new messages).
+
 # Inbound (client to server) commands are marked as "->" below. Unrecognized
 # inbound keys will be ignored. Outbound (server to client) responses use
 # "<-". There is no guaranteed correlation between requests and responses. In
