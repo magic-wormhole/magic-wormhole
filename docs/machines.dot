@@ -2,6 +2,7 @@ digraph {
         Wormhole [shape="oval" color="blue" fontcolor="blue"]
         Boss [shape="box" label="Boss\n(manager)"
                   color="blue" fontcolor="blue"]
+        Nameplate [shape="box" color="blue" fontcolor="blue"]
         Mailbox [shape="box" color="blue" fontcolor="blue"]
         Connection [label="Rendezvous\nConnector"
                     shape="oval" color="blue" fontcolor="blue"]
@@ -11,9 +12,9 @@ digraph {
         Send [shape="box" label="Send" color="blue" fontcolor="blue"]
         Receive [shape="box" label="Receive" color="blue" fontcolor="blue"]
         Code [shape="box" label="Code" color="blue" fontcolor="blue"]
-        Nameplates [shape="box" label="Nameplate\nLister"
-                    color="blue" fontcolor="blue"
-                    ]
+        NameplateLister [shape="box" label="Nameplate\nLister"
+                         color="blue" fontcolor="blue"]
+        Terminator [shape="box" color="blue" fontcolor="blue"]
 
         Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
@@ -28,37 +29,41 @@ digraph {
 
         Boss -> Send [style="dashed" label="send"]
 
-        Boss -> Mailbox [style="dashed"
-                             label="set_nameplate\nclose\n(once)"
-                             ]
+        Boss -> Nameplate [style="dashed" label="set_nameplate"]
         #Boss -> Mailbox [color="blue"]
-        Mailbox -> Boss [style="dashed" label="closed\n(once)"]
         Mailbox -> Order [style="dashed" label="got_message (once)"]
         Boss -> Key [style="dashed" label="got_code"]
         Key -> Boss [style="dashed" label="got_verifier\nscared"]
         Order -> Key [style="dashed" label="got_pake"]
         Order -> Receive [style="dashed" label="got_message"]
         #Boss -> Key [color="blue"]
-        Key -> Mailbox [style="dashed" label="add_message (pake)\nadd_message (version)"]
+        Key -> Mailbox [style="dashed"
+                        label="add_message (pake)\nadd_message (version)"]
         Receive -> Send [style="dashed" label="got_verified_key"]
         Send -> Mailbox [style="dashed" label="add_message (phase)"]
 
         Key -> Receive [style="dashed" label="got_key"]
         Receive -> Boss [style="dashed"
-                             label="happy\nscared\ngot_message"]
+                         label="happy\nscared\ngot_message"]
+        Nameplate -> Connection [style="dashed"
+                                 label="tx_claim\ntx_release"]
+        Connection -> Nameplate [style="dashed"
+                                 label="connected\nlost\nrx_claimed\nrx_released"]
+        Mailbox -> Nameplate [style="dashed" label="release"]
+        Nameplate -> Mailbox [style="dashed" label="got_mailbox"]
 
         Mailbox -> Connection [style="dashed"
-                               label="tx_claim\ntx_open\ntx_add\ntx_release\ntx_close\nstop"
+                               label="tx_open\ntx_add\ntx_close"
                                ]
         Connection -> Mailbox [style="dashed"
-                               label="connected\nlost\nrx_claimed\nrx_message\nrx_released\nrx_closed\nstopped"]
+                               label="connected\nlost\nrx_message\nrx_closed\nstopped"]
 
-        Connection -> Nameplates [style="dashed"
-                                  label="connected\nlost\nrx_nameplates"
-                                  ]
-        Nameplates -> Connection [style="dashed"
-                                  label="tx_list"
-                                  ]
+        Connection -> NameplateLister [style="dashed"
+                                       label="connected\nlost\nrx_nameplates"
+                                       ]
+        NameplateLister -> Connection [style="dashed"
+                                       label="tx_list"
+                                       ]
 
         #Boss -> Code [color="blue"]
         Connection -> Code [style="dashed"
@@ -66,17 +71,24 @@ digraph {
         Code -> Connection [style="dashed"
                             label="tx_allocate"
                             ]
-        Nameplates -> Code [style="dashed"
-                            label="got_nameplates"
-                            ]
-        #Code -> Nameplates [color="blue"]
-        Code -> Nameplates [style="dashed"
-                            label="refresh_nameplates"
-                            ]
+        NameplateLister -> Code [style="dashed"
+                                 label="got_nameplates"
+                                 ]
+        #Code -> NameplateLister [color="blue"]
+        Code -> NameplateLister [style="dashed"
+                                 label="refresh_nameplates"
+                                 ]
         Boss -> Code [style="dashed"
                       label="allocate_code\ninput_code\nset_code_code"]
         Code -> Boss [style="dashed"
                       label="got_code"]
 
-
+        Nameplate -> Terminator [style="dashed" label="nameplate_done"]
+        Mailbox -> Terminator [style="dashed" label="mailbox_done"]
+        Terminator -> Nameplate [style="dashed" label="close"]
+        Terminator -> Mailbox [style="dashed" label="close"]
+        Terminator -> Connection [style="dashed" label="stop"]
+        Connection -> Terminator [style="dashed" label="stopped"]
+        Terminator -> Boss [style="dashed" label="closed\n(once)"]
+        Boss -> Terminator [style="dashed" label="close"]
 }
