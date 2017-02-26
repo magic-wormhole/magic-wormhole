@@ -3,174 +3,93 @@ digraph {
 
         title [label="Message\nMachine" style="dotted"]
 
-        {rank=same; S0A P0_connected S0B}
-        S0A [label="S0A:\nknow nothing"]
-        S0B [label="S0B:\nknow nothing\n(bound)" color="orange"]
-        S0A -> P0_connected [label="connected"]
-        P0_connected [label="(nothing)" shape="box" style="dashed"]
-        P0_connected -> S0B
+        {rank=same; S0A S0B}
+        S0A [label="S0A:\nunknown"]
+        S0A -> S0B [label="connected"]
+        S0B [label="S0B:\nunknown\n(bound)" color="orange"]
+
         S0B -> S0A [label="lost"]
 
-        S0A -> S1A [label="set_nameplate"]
-        S0B -> P2_connected [label="set_nameplate" color="orange" fontcolor="orange"]
-        P0A_queue [shape="box" label="queue" style="dotted"]
         S0A -> P0A_queue [label="add_message" style="dotted"]
+        P0A_queue [shape="box" label="queue" style="dotted"]
         P0A_queue -> S0A [style="dotted"]
+        S0B -> P0B_queue [label="add_message" style="dotted"]
+        P0B_queue [shape="box" label="queue" style="dotted"]
+        P0B_queue -> S0B [style="dotted"]
 
-        {rank=same; S1A P1A_queue}
-        S1A [label="S1A:\nnot claimed"]
-        S1A -> P2_connected [label="connected"]
-        S1A -> P1A_queue [label="add_message" style="dotted"]
-        P1A_queue [shape="box" label="queue" style="dotted"]
-        P1A_queue -> S1A [style="dotted"]
+        subgraph {rank=same; S1A P_open}
+        S0A -> S1A [label="got_mailbox"]
+        S1A [label="S1A:\nknown"]
+        S1A -> P_open [label="connected"]
+        S1A -> S2A [style="invis"]
+        P_open -> P2_connected [style="invis"]
 
-        {rank=same; S2A P2_connected S2B}
-        S2A [label="S2A:\nmaybe claimed"]
+        S0A -> S2A [style="invis"]
+        S0B -> P_open [label="got_mailbox" color="orange" fontcolor="orange"]
+        P_open [shape="box"
+                label="store mailbox\nRC.tx_open\nRC.tx_add(queued)" color="orange"]
+        P_open -> S2B [color="orange"]
+
+        subgraph {rank=same; S2A S2B P2_connected}
+        S2A [label="S2A:\nknown\nmaybe opened"]
+        S2B [label="S2B:\nopened\n(bound)" color="green"]
         S2A -> P2_connected [label="connected"]
-        P2_connected [shape="box" label="RC.tx_claim" color="orange"]
-        P2_connected -> S2B [color="orange"]
-        S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
-        #S2B -> SrB [label="close()" style="dashed"]
-        #SrB [label="SrB" style="dashed"]
-        #S2A -> SrA [label="close()" style="dashed"]
-        #SrA [label="SrA" style="dashed"]
+        S2B -> S2A [label="lost"]
 
-        #S2B -> S2A [label="lost"] # causes bad layout
-        S2B -> foo [label="lost"]
-        foo [label="" style="dashed"]
-        foo -> S2A
+        P2_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
+        P2_connected -> S2B
 
-        S2A -> P2C_queue [label="add_message" style="dotted"]
-        P2C_queue [shape="box" label="queue" style="dotted"]
-        P2C_queue -> S2A [style="dotted"]
-        S2B -> P2B_queue [label="add_message" style="dotted"]
-        P2B_queue [shape="box" label="queue" style="dotted"]
-        P2B_queue -> S2B [style="dotted"]
+        S2A -> P2_queue [label="add_message" style="dotted"]
+        P2_queue [shape="box" label="queue" style="dotted"]
+        P2_queue -> S2A [style="dotted"]
 
-        S1A -> S3A [label="(none)" style="invis"]
-        S2B -> P_open [label="rx_claimed" color="orange" fontcolor="orange"]
-        P_open [shape="box" label="store mailbox\nRC.tx_open\nRC.tx_add(queued)" color="orange"]
-        P_open -> S3B [color="orange"]
+        S2B -> P2_send [label="add_message"]
+        P2_send [shape="box" label="queue\nRC.tx_add(msg)"]
+        P2_send -> S2B
 
-        subgraph {rank=same; S3A S3B P3_connected}
-        S3A [label="S3A:\nclaimed\nopened >=once"]
-        S3B [label="S3B:\nclaimed\nmaybe open now\n(bound)" color="orange"]
+        {rank=same; P2_send P2_close P2_process_theirs}
+        P2_process_theirs -> P2_close [style="invis"]
+        S2B -> P2_process_ours [label="rx_message\n(ours)"]
+        P2_process_ours [shape="box" label="dequeue"]
+        P2_process_ours -> S2B
+        S2B -> P2_process_theirs [label="rx_message\n(theirs)"
+                                  color="orange" fontcolor="orange"]
+        P2_process_theirs [shape="box" color="orange"
+                           label="N.release\nO.got_message if new\nrecord"
+                           ]
+        P2_process_theirs -> S2B [color="orange"]
+
+        S2B -> P2_close [label="close" color="red"]
+        P2_close [shape="box" label="RC.tx_close" color="red"]
+        P2_close -> S3B [color="red"]
+
+        subgraph {rank=same; S3A P3_connected S3B}
+        S3A [label="S3A:\nclosing"]
         S3A -> P3_connected [label="connected"]
+        P3_connected [shape="box" label="RC.tx_close"]
+        P3_connected -> S3B
+        #S3A -> S3A [label="add_message"] # implicit
+        S3B [label="S3B:\nclosing\n(bound)" color="red"]
+        S3B -> S3B [label="add_message\nrx_message\nclose"]
         S3B -> S3A [label="lost"]
 
-        P3_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
-        P3_connected -> S3B
+        subgraph {rank=same; P3A_done P3B_done}
+        P3A_done [shape="box" label="T.mailbox_done" color="red"]
+        P3A_done -> S4A
+        S3B -> P3B_done [label="rx_closed" color="red"]
+        P3B_done [shape="box" label="T.mailbox_done" color="red"]
+        P3B_done -> S4B
 
-        S3A -> P3_queue [label="add_message" style="dotted"]
-        P3_queue [shape="box" label="queue" style="dotted"]
-        P3_queue -> S3A [style="dotted"]
-
-        S3B -> S3B [label="rx_claimed"]
-
-        S3B -> P3_send [label="add_message"]
-        P3_send [shape="box" label="queue\nRC.tx_add(msg)"]
-        P3_send -> S3B
-
-        S3A -> S4A [label="(none)" style="invis"]
-        S3B -> P3_process_ours [label="rx_message\n(ours)"]
-        P3_process_ours [shape="box" label="dequeue"]
-        P3_process_ours -> S3B
-        S3B -> P3_process_theirs [label="rx_message\n(theirs)"
-                                      color="orange" fontcolor="orange"]
-        P3_process_theirs [shape="box" color="orange"
-                           label="RC.tx_release\nO.got_message if new\nrecord"
-                           ]
-        /* pay attention to the race here: this process_message() will
-        deliver msg_pake to the WormholeMachine, which will compute_key() and
-        send(version), and we're in between S1A (where send gets
-        queued) and S3A (where send gets sent and queued), and we're no
-        longer passing through the P3_connected phase (which drains the queue).
-        So there's a real possibility of the outbound msg_version getting
-        dropped on the floor, or put in a queue but never delivered. */
-        P3_process_theirs -> S4B [color="orange"]
-
-        subgraph {rank=same; S4A P4_connected S4B}
-        S4A [label="S4A:\nmaybe released\nopened >=once\n"]
-
-        S4B [label="S4B:\nmaybe released\nmaybe open now\n(bound)" color="orange"]
-        S4A -> P4_connected [label="connected"]
-        P4_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)\nRC.tx_release"]
-        S4B -> P4_send [label="add_message"]
-        P4_send [shape="box" label="queue\nRC.tx_add(msg)"]
-        P4_send -> S4B
-        S4A -> P4_queue [label="add_message" style="dotted"]
-        P4_queue [shape="box" label="queue" style="dotted"]
-        P4_queue -> S4A [style="dotted"]
-
-        P4_connected -> S4B
+        subgraph {rank=same; S4A S4B}
+        S4A [label="S4A:\nclosed"]
+        S4B [label="S4B:\nclosed"]
+        S4A -> S4B [label="connected"]
         S4B -> S4A [label="lost"]
-        S4B -> P4_process_ours [label="rx_message\n(ours)"]
-        P4_process_ours [shape="box" label="dequeue"]
-        P4_process_ours -> S4B
-        S4B -> P4_process_theirs [label="rx_message\n(theirs)"]
-        P4_process_theirs [shape="box" label="O.got_message if new\nrecord"]
-        P4_process_theirs -> S4B
+        S4B -> S4B [label="add_message\nrx_message\nclose"]
 
-        S4A -> S5A [label="(none)" style="invis"]
-        S4B -> S5B [label="rx released" color="orange" fontcolor="orange"]
-
-        P4_queue -> S5A [style="invis"]
-        subgraph {S5A P5_connected S5B}
-        {rank=same; S5A P5_connected S5B}
-
-        S5A [label="S5A:\nreleased\nopened >=once"]
-        S5A -> P5_connected [label="connected"]
-        P5_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
-
-        S5B -> P5_send [label="add_message" color="green" fontcolor="green"]
-        P5_send [shape="box" label="queue\nRC.tx_add(msg)" color="green"]
-        P5_send -> S5B [color="green"]
-        S5A -> P5_queue [label="add_message" style="dotted"]
-        P5_queue [shape="box" label="queue" style="dotted"]
-        P5_queue -> S5A [style="dotted"]
-
-        P5_connected -> S5B
-        S5B [label="S5B:\nreleased\nmaybe open now\n(bound)" color="green"]
-        S5B -> S5A [label="lost"]
-
-        S5B -> P5_process_ours [label="rx_message\n(ours)"]
-        P5_process_ours [shape="box" label="dequeue"]
-        P5_process_ours -> S5B
-        S5B -> P5_process_theirs [label="rx_message\n(theirs)"]
-        P5_process_theirs [shape="box" label="O.got_message if new\nrecord"]
-        P5_process_theirs -> S5B
-
-        foo5 [label="" style="invis"]
-        S5A -> foo5 [style="invis"]
-        foo5 -> P5_close [style="invis"]
-        S5B -> P5_close [label="close" style="dashed" color="orange" fontcolor="orange"]
-        P5_close [shape="box" label="tx_close" style="dashed" color="orange"]
-
+        S0A -> P3A_done [label="close" color="red"]
+        S0B -> P3B_done [label="close" color="red"]
+        S1A -> P3A_done [label="close" color="red"]
+        S2A -> S3A [label="close" color="red"]
+        
 }
-
-/*
-
-Can this be split into one machine for the Nameplate, and a second for the
-Mailbox?
-
-Nameplate:
-
-* 0: know nothing (connected, not connected)
-* 1: know nameplate, never claimed, need to claim
-* 2: maybe claimed, need to claim
-* 3: definitely claimed, need to claim
-* 4: definitely claimed, need to release
-* 5: maybe released
-* 6: definitely released
-
-Mailbox:
-* 0: unknown
-* 1: know mailbox, need open, not open
-* 2: know mailbox, need open, maybe open
-* 3: definitely open, need open
-* 4: need closed, maybe open
-* 5: need closed, maybe closed ?
-* 6: definitely closed
-
-
-*/

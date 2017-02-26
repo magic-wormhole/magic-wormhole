@@ -1,0 +1,50 @@
+digraph {
+        /* M_close pathways */
+        title [label="Terminator\nMachine" style="dotted"]
+
+        initial [style="invis"]
+        initial -> Snm [style="dashed"]
+
+        Snm [label="Snm:\nnameplate active\nmailbox active" color="orange"]
+        Sn [label="Sn:\nnameplate active\nmailbox done"]
+        Sm [label="Sm:\nnameplate done\nmailbox active" color="green"]
+        S0 [label="S0:\nnameplate done\nmailbox done"]
+
+        Snm -> Sn [label="mailbox_done"]
+        Snm -> Sm [label="nameplate_done" color="orange"]
+        Sn -> S0 [label="nameplate_done"]
+        Sm -> S0 [label="mailbox_done"]
+
+        Snm -> Snm_closing [label="close"]
+        Sn -> Sn_closing [label="close"]
+        Sm -> Sm_closing [label="close" color="red"]
+        S0 -> P_stop [label="close"]
+        
+        Snm_closing [label="Snm_closing:\nnameplate active\nmailbox active"
+                     style="dashed"]
+        Sn_closing [label="Sn_closing:\nnameplate active\nmailbox done"
+                    style="dashed"]
+        Sm_closing [label="Sm_closing:\nnameplate done\nmailbox active"
+                    style="dashed" color="red"]
+
+        Snm_closing -> Sn_closing [label="mailbox_done"]
+        Snm_closing -> Sm_closing [label="nameplate_done"]
+        Sn_closing -> P_stop [label="nameplate_done"]
+        Sm_closing -> P_stop [label="mailbox_done" color="red"]
+
+        {rank=same; S_stopping Pss S_stopped}
+        P_stop [shape="box" label="C.stop" color="red"]
+        P_stop -> S_stopping [color="red"]
+
+        S_stopping [label="S_stopping" color="red"]
+        S_stopping -> Pss [label="stopped"]
+        Pss [shape="box" label="B.closed"]
+        Pss -> S_stopped
+
+        S_stopped [label="S_stopped"]
+
+        other [shape="box" style="dashed"
+               label="close -> N.close, M.close"]
+               
+
+}
