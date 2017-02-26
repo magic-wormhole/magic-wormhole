@@ -3,63 +3,142 @@ from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
 
-@implementer(_interfaces.INameplateLister)
-class NameplateListing(object):
+@implementer(_interfaces.INameplate)
+class Nameplate(object):
     m = MethodicalMachine()
+    @m.setTrace()
+    def setTrace(): pass
 
-    def wire(self, rendezvous_connector, code):
+    def __init__(self):
+        self._nameplate = None
+
+    def wire(self, mailbox, rendezvous_connector, terminator):
+        self._M = _interfaces.IMailbox(mailbox)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
-        self._C = _interfaces.ICode(code)
+        self._T = _interfaces.ITerminator(terminator)
 
-    # Ideally, each API request would spawn a new "list_nameplates" message
-    # to the server, so the response would be maximally fresh, but that would
-    # require correlating server request+response messages, and the protocol
-    # is intended to be less stateful than that. So we offer a weaker
-    # freshness property: if no server requests are in flight, then a new API
-    # request will provoke a new server request, and the result will be
-    # fresh. But if a server request is already in flight when a second API
-    # request arrives, both requests will be satisfied by the same response.
+    # all -A states: not connected
+    # all -B states: yes connected
+    # B states serialize as A, so they deserialize as unconnected
 
+    # S0: know nothing
     @m.state(initial=True)
-    def S0A_idle_disconnected(self): pass
+    def S0A(self): pass
     @m.state()
-    def S1A_wanting_disconnected(self): pass
-    @m.state()
-    def S0B_idle_connected(self): pass
-    @m.state()
-    def S1B_wanting_connected(self): pass
+    def S0B(self): pass
 
+    # S1: nameplate known, never claimed
+    @m.state()
+    def S1A(self): pass
+
+    # S2: nameplate known, maybe claimed
+    @m.state()
+    def S2A(self): pass
+    @m.state()
+    def S2B(self): pass
+
+    # S3: nameplate claimed
+    @m.state()
+    def S3A(self): pass
+    @m.state()
+    def S3B(self): pass
+
+    # S4: maybe released
+    @m.state()
+    def S4A(self): pass
+    @m.state()
+    def S4B(self): pass
+
+    # S5: released
+    # we no longer care whether we're connected or not
+    #@m.state()
+    #def S5A(self): pass
+    #@m.state()
+    #def S5B(self): pass
+    @m.state()
+    def S5(self): pass
+    S5A = S5
+    S5B = S5
+
+    # from Boss
+    @m.input()
+    def set_nameplate(self, nameplate): pass
+
+    # from Mailbox
+    @m.input()
+    def release(self): pass
+
+    # from Terminator
+    @m.input()
+    def close(self): pass
+
+    # from RendezvousConnector
     @m.input()
     def connected(self): pass
     @m.input()
     def lost(self): pass
+
     @m.input()
-    def refresh_nameplates(self): pass
+    def rx_claimed(self, mailbox): pass
     @m.input()
-    def rx_nameplates(self, message): pass
+    def rx_released(self): pass
+
 
     @m.output()
-    def RC_tx_list(self):
-        self._RC.tx_list()
+    def record_nameplate(self, nameplate):
+        self._nameplate = nameplate
     @m.output()
-    def C_got_nameplates(self, message):
-        self._C.got_nameplates(message["nameplates"])
+    def record_nameplate_and_RC_tx_claim(self, nameplate):
+        self._nameplate = nameplate
+        self._RC.tx_claim(self._nameplate)
+    @m.output()
+    def RC_tx_claim(self):
+        # when invoked via M.connected(), we must use the stored nameplate
+        self._RC.tx_claim(self._nameplate)
+    @m.output()
+    def M_got_mailbox(self, mailbox):
+        self._M.got_mailbox(mailbox)
+    @m.output()
+    def RC_tx_release(self):
+        assert self._nameplate
+        self._RC.tx_release(self._nameplate)
+    @m.output()
+    def T_nameplate_done(self):
+        self._T.nameplate_done()
 
-    S0A_idle_disconnected.upon(connected, enter=S0B_idle_connected, outputs=[])
-    S0B_idle_connected.upon(lost, enter=S0A_idle_disconnected, outputs=[])
+    S0A.upon(set_nameplate, enter=S1A, outputs=[record_nameplate])
+    S0A.upon(connected, enter=S0B, outputs=[])
+    S0A.upon(close, enter=S5A, outputs=[T_nameplate_done])
+    S0B.upon(set_nameplate, enter=S2B,
+             outputs=[record_nameplate_and_RC_tx_claim])
+    S0B.upon(lost, enter=S0A, outputs=[])
+    S0B.upon(close, enter=S5A, outputs=[T_nameplate_done])
 
-    S0A_idle_disconnected.upon(refresh_nameplates,
-                               enter=S1A_wanting_disconnected, outputs=[])
-    S1A_wanting_disconnected.upon(refresh_nameplates,
-                                  enter=S1A_wanting_disconnected, outputs=[])
-    S1A_wanting_disconnected.upon(connected, enter=S1B_wanting_connected,
-                                  outputs=[RC_tx_list])
-    S0B_idle_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
-                            outputs=[RC_tx_list])
-    S0B_idle_connected.upon(rx_nameplates, enter=S0B_idle_connected,
-                            outputs=[C_got_nameplates])
-    S1B_wanting_connected.upon(lost, enter=S1A_wanting_disconnected, outputs=[])
-    S1B_wanting_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
-                               outputs=[RC_tx_list])
-    S1B_wanting_connected.upon(rx_nameplates, enter=S0B_idle_connected,
-                               outputs=[C_got_nameplates])
+    S1A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
+    S1A.upon(close, enter=S5A, outputs=[T_nameplate_done])
+
+    S2A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
+    S2A.upon(close, enter=S4A, outputs=[])
+    S2B.upon(lost, enter=S2A, outputs=[])
+    S2B.upon(rx_claimed, enter=S3B, outputs=[M_got_mailbox])
+    S2B.upon(close, enter=S4B, outputs=[RC_tx_release])
+
+    S3A.upon(connected, enter=S3B, outputs=[])
+    S3A.upon(close, enter=S4A, outputs=[])
+    S3B.upon(lost, enter=S3A, outputs=[])
+    #S3B.upon(rx_claimed, enter=S3B, outputs=[]) # shouldn't happen
+    S3B.upon(release, enter=S4B, outputs=[RC_tx_release])
+    S3B.upon(close, enter=S4B, outputs=[RC_tx_release])
+
+    S4A.upon(connected, enter=S4B, outputs=[RC_tx_release])
+    S4A.upon(close, enter=S4A, outputs=[])
+    S4B.upon(lost, enter=S4A, outputs=[])
+    S4B.upon(rx_released, enter=S5B, outputs=[T_nameplate_done])
+    S4B.upon(release, enter=S4B, outputs=[]) # mailbox is lazy
+    # Mailbox doesn't remember how many times it's sent a release, and will
+    # re-send a new one for each peer message it receives. Ignoring it here
+    # is easier than adding a new pair of states to Mailbox.
+    S4B.upon(close, enter=S4B, outputs=[])
+
+    S5A.upon(connected, enter=S5B, outputs=[])
+    S5B.upon(lost, enter=S5A, outputs=[])

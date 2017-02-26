@@ -18,11 +18,11 @@ digraph {
         S0 -> P0_build [label="set_code"]
 
         S0 -> P_close_error [label="rx_error"]
-        P_close_error [shape="box" label="M.close(errory)"]
+        P_close_error [shape="box" label="T.close(errory)"]
         P_close_error -> S_closing
         S0 -> P_close_lonely [label="close"]
 
-        P0_build [shape="box" label="W.got_code\nM.set_nameplate\nK.got_code"]
+        P0_build [shape="box" label="W.got_code\nN.set_nameplate\nK.got_code"]
         P0_build -> S1
         S1 [label="S1: lonely" color="orange"]
 
@@ -31,15 +31,15 @@ digraph {
         S1 -> P_close_error [label="rx_error"]
         S1 -> P_close_scary [label="scared" color="red"]
         S1 -> P_close_lonely [label="close"]
-        P_close_lonely [shape="box" label="M.close(lonely)"]
+        P_close_lonely [shape="box" label="T.close(lonely)"]
         P_close_lonely -> S_closing
 
-        P_close_scary [shape="box" label="M.close(scary)" color="red"]
+        P_close_scary [shape="box" label="T.close(scary)" color="red"]
         P_close_scary -> S_closing [color="red"]
 
         S2 [label="S2: happy" color="green"]
         S2 -> P2_close [label="close"]
-        P2_close [shape="box" label="M.close(happy)"]
+        P2_close [shape="box" label="T.close(happy)"]
         P2_close -> S_closing
 
         S2 -> P2_got_message [label="got_message"]

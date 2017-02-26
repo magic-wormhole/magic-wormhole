@@ -7,14 +7,16 @@ from attr.validators import provides, instance_of
 from twisted.python import log
 from automat import MethodicalMachine
 from . import _interfaces
+from ._nameplate import Nameplate
 from ._mailbox import Mailbox
 from ._send import Send
 from ._order import Order
 from ._key import Key
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
-from ._nameplate import NameplateListing
+from ._nameplate_lister import NameplateListing
 from ._code import Code
+from ._terminator import Terminator
 from .errors import WrongPasswordError
 from .util import bytes_to_dict
 
@@ -34,6 +36,7 @@ class Boss(object):
     m = MethodicalMachine()
 
     def __attrs_post_init__(self):
+        self._N = Nameplate()
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
@@ -44,8 +47,10 @@ class Boss(object):
                                        self._timing)
         self._NL = NameplateListing()
         self._C = Code(self._timing)
+        self._T = Terminator()
 
-        self._M.wire(self, self._RC, self._O)
+        self._N.wire(self._M, self._RC, self._T)
+        self._M.wire(self._N, self._RC, self._O, self._T)
         self._S.wire(self._M)
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
@@ -53,6 +58,7 @@ class Boss(object):
         self._RC.wire(self, self._M, self._C, self._NL)
         self._NL.wire(self._RC, self._C)
         self._C.wire(self, self._RC, self._NL)
+        self._T.wire(self, self._RC, self._N, self._M)
 
         self._next_tx_phase = 0
         self._next_rx_phase = 0
@@ -137,7 +143,7 @@ class Boss(object):
     @m.input()
     def got_verifier(self, verifier): pass
 
-    # Mailbox sends closed
+    # Terminator sends closed
     @m.input()
     def closed(self): pass
 
@@ -149,7 +155,7 @@ class Boss(object):
     @m.output()
     def do_got_code(self, code):
         nameplate = code.split("-")[0]
-        self._M.set_nameplate(nameplate)
+        self._N.set_nameplate(nameplate)
         self._K.got_code(code)
         self._W.got_code(code)
     @m.output()
@@ -167,19 +173,19 @@ class Boss(object):
     @m.output()
     def close_error(self, err, orig):
         self._result = WormholeError(err)
-        self._M.close("errory")
+        self._T.close("errory")
     @m.output()
     def close_scared(self):
         self._result = WrongPasswordError()
-        self._M.close("scary")
+        self._T.close("scary")
     @m.output()
     def close_lonely(self):
         self._result = WormholeError("lonely")
-        self._M.close("lonely")
+        self._T.close("lonely")
     @m.output()
     def close_happy(self):
         self._result = "happy"
-        self._M.close("happy")
+        self._T.close("happy")
 
     @m.output()
     def W_got_verifier(self, verifier):
