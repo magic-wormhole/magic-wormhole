@@ -4,6 +4,8 @@ class IWormhole(Interface):
     pass
 class IBoss(Interface):
     pass
+class INameplate(Interface):
+    pass
 class IMailbox(Interface):
     pass
 class ISend(Interface):
@@ -19,6 +21,8 @@ class IRendezvousConnector(Interface):
 class INameplateLister(Interface):
     pass
 class ICode(Interface):
+    pass
+class ITerminator(Interface):
     pass
 
 class ITiming(Interface):

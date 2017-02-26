@@ -14,16 +14,15 @@ class Mailbox(object):
     def setTrace(): pass
 
     def __attrs_post_init__(self):
-        self._mood = None
-        self._nameplate = None
         self._mailbox = None
         self._pending_outbound = {}
         self._processed = set()
 
-    def wire(self, boss, rendezvous_connector, ordering):
-        self._B = _interfaces.IBoss(boss)
+    def wire(self, nameplate, rendezvous_connector, ordering, terminator):
+        self._N = _interfaces.INameplate(nameplate)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._O = _interfaces.IOrder(ordering)
+        self._T = _interfaces.ITerminator(terminator)
 
     # all -A states: not connected
     # all -B states: yes connected
@@ -35,72 +34,48 @@ class Mailbox(object):
     @m.state()
     def S0B(self): pass
 
-    # S1: nameplate known, not claimed
+    # S1: mailbox known, not opened
     @m.state()
     def S1A(self): pass
 
-    # S2: nameplate known, maybe claimed
+    # S2: mailbox known, opened
+    # We've definitely tried to open the mailbox at least once, but it must
+    # be re-opened with each connection, because open() is also subscribe()
     @m.state()
     def S2A(self): pass
     @m.state()
     def S2B(self): pass
 
-    # S3: nameplate claimed, mailbox known, maybe open
+    # S3: closing
     @m.state()
     def S3A(self): pass
     @m.state()
     def S3B(self): pass
 
-    # S4: mailbox maybe open, nameplate maybe released
-    # We've definitely opened the mailbox at least once, but it must be
-    # re-opened with each connection, because open() is also subscribe()
-    @m.state()
-    def S4A(self): pass
-    @m.state()
-    def S4B(self): pass
-
-    # S5: mailbox maybe open, nameplate released
-    @m.state()
-    def S5A(self): pass
-    @m.state()
-    def S5B(self): pass
-
-    # Src: waiting for release+close
-    @m.state()
-    def SrcA(self): pass
-    @m.state()
-    def SrcB(self): pass
-    # Sr: closed (or never opened), waiting for release
-    @m.state()
-    def SrA(self): pass
-    @m.state()
-    def SrB(self): pass
-    # Sc: released (or never claimed), waiting for close
-    @m.state()
-    def ScA(self): pass
-    @m.state()
-    def ScB(self): pass
-    # Ss: closed and released, waiting for stop
-    @m.state()
-    def SsB(self): pass
+    # S4: closed. We no longer care whether we're connected or not
+    #@m.state()
+    #def S4A(self): pass
+    #@m.state()
+    #def S4B(self): pass
     @m.state(terminal=True)
-    def Ss(self): pass
+    def S4(self): pass
+    S4A = S4
+    S4B = S4
 
 
-    # from Boss
-    @m.input()
-    def set_nameplate(self, nameplate): pass
+    # from Terminator
     @m.input()
     def close(self, mood): pass
+
+    # from Nameplate
+    @m.input()
+    def got_mailbox(self, mailbox): pass
 
     # from RendezvousConnector
     @m.input()
     def connected(self): pass
     @m.input()
     def lost(self): pass
-
-    @m.input()
-    def rx_claimed(self, mailbox): pass
 
     def rx_message(self, side, phase, body):
         assert isinstance(side, type("")), type(side)
@@ -115,11 +90,7 @@ class Mailbox(object):
     @m.input()
     def rx_message_theirs(self, phase, body): pass
     @m.input()
-    def rx_released(self): pass
-    @m.input()
     def rx_closed(self): pass
-    @m.input()
-    def stopped(self): pass
 
     # from Send or Key
     @m.input()
@@ -130,16 +101,8 @@ class Mailbox(object):
 
 
     @m.output()
-    def record_nameplate(self, nameplate):
-        self._nameplate = nameplate
-    @m.output()
-    def record_nameplate_and_RC_tx_claim(self, nameplate):
-        self._nameplate = nameplate
-        self._RC.tx_claim(self._nameplate)
-    @m.output()
-    def RC_tx_claim(self):
-        # when invoked via M.connected(), we must use the stored nameplate
-        self._RC.tx_claim(self._nameplate)
+    def record_mailbox(self, mailbox):
+        self._mailbox = mailbox
     @m.output()
     def RC_tx_open(self):
         assert self._mailbox
@@ -150,7 +113,7 @@ class Mailbox(object):
         assert isinstance(body, type(b"")), (type(body), phase, body)
         self._pending_outbound[phase] = body
     @m.output()
-    def store_mailbox_and_RC_tx_open_and_drain(self, mailbox):
+    def record_mailbox_and_RC_tx_open_and_drain(self, mailbox):
         self._mailbox = mailbox
         self._RC.tx_open(mailbox)
         self._drain()
@@ -166,29 +129,15 @@ class Mailbox(object):
         assert isinstance(body, type(b"")), type(body)
         self._RC.tx_add(phase, body)
     @m.output()
-    def RC_tx_release(self):
-        self._RC.tx_release()
-    @m.output()
-    def RC_tx_release_and_accept(self, phase, body):
-        self._RC.tx_release()
+    def N_release_and_accept(self, phase, body):
+        self._N.release()
         self._accept(phase, body)
-    @m.output()
-    def record_mood_and_RC_tx_release(self, mood):
-        self._mood = mood
-        self._RC.tx_release()
-    @m.output()
-    def record_mood_and_RC_tx_release_and_RC_tx_close(self, mood):
-        self._mood = mood
-        self._RC.tx_release()
-        self._RC.tx_close(self._mood)
     @m.output()
     def RC_tx_close(self):
         assert self._mood
-        self._RC.tx_close(self._mood)
-    @m.output()
-    def record_mood_and_RC_tx_close(self, mood):
-        self._mood = mood
-        self._RC.tx_close(self._mood)
+        self._RC_tx_close()
+    def _RC_tx_close(self):
+        self._RC.tx_close(self._mailbox, self._mood)
     @m.output()
     def accept(self, phase, body):
         self._accept(phase, body)
@@ -203,98 +152,49 @@ class Mailbox(object):
     def record_mood(self, mood):
         self._mood = mood
     @m.output()
-    def record_mood_and_RC_stop(self, mood):
+    def record_mood_and_RC_tx_close(self, mood):
         self._mood = mood
-        self._RC_stop()
+        self._RC_rx_close()
     @m.output()
-    def RC_stop(self):
-        self._RC_stop()
-    def _RC_stop(self):
-        self._RC.stop()
+    def ignore_mood_and_T_mailbox_done(self, mood):
+        self._T.mailbox_done()
     @m.output()
-    def W_closed(self):
-        self._B.closed()
+    def T_mailbox_done(self):
+        self._T.mailbox_done()
 
     S0A.upon(connected, enter=S0B, outputs=[])
-    S0A.upon(set_nameplate, enter=S1A, outputs=[record_nameplate])
+    S0A.upon(got_mailbox, enter=S1A, outputs=[record_mailbox])
     S0A.upon(add_message, enter=S0A, outputs=[queue])
+    S0A.upon(close, enter=S4A, outputs=[ignore_mood_and_T_mailbox_done])
     S0B.upon(lost, enter=S0A, outputs=[])
-    S0B.upon(set_nameplate, enter=S2B, outputs=[record_nameplate_and_RC_tx_claim])
     S0B.upon(add_message, enter=S0B, outputs=[queue])
+    S0B.upon(close, enter=S4B, outputs=[ignore_mood_and_T_mailbox_done])
+    S0B.upon(got_mailbox, enter=S2B,
+             outputs=[record_mailbox_and_RC_tx_open_and_drain])
 
-    S1A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
+    S1A.upon(connected, enter=S2B, outputs=[RC_tx_open, drain])
     S1A.upon(add_message, enter=S1A, outputs=[queue])
+    S1A.upon(close, enter=S4A, outputs=[ignore_mood_and_T_mailbox_done])
 
-    S2A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
+    S2A.upon(connected, enter=S2B, outputs=[RC_tx_open, drain])
     S2A.upon(add_message, enter=S2A, outputs=[queue])
+    S2A.upon(close, enter=S3A, outputs=[record_mood])
     S2B.upon(lost, enter=S2A, outputs=[])
-    S2B.upon(add_message, enter=S2B, outputs=[queue])
-    S2B.upon(rx_claimed, enter=S3B,
-             outputs=[store_mailbox_and_RC_tx_open_and_drain])
+    S2B.upon(add_message, enter=S2B, outputs=[queue, RC_tx_add])
+    S2B.upon(rx_message_theirs, enter=S2B, outputs=[N_release_and_accept])
+    S2B.upon(rx_message_ours, enter=S2B, outputs=[dequeue])
+    S2B.upon(close, enter=S3B, outputs=[record_mood_and_RC_tx_close])
 
-    S3A.upon(connected, enter=S3B, outputs=[RC_tx_open, drain])
-    S3A.upon(add_message, enter=S3A, outputs=[queue])
+    S3A.upon(connected, enter=S3B, outputs=[RC_tx_close])
     S3B.upon(lost, enter=S3A, outputs=[])
-    S3B.upon(rx_message_theirs, enter=S4B, outputs=[RC_tx_release_and_accept])
-    S3B.upon(rx_message_ours, enter=S3B, outputs=[dequeue])
-    S3B.upon(rx_claimed, enter=S3B, outputs=[])
-    S3B.upon(add_message, enter=S3B, outputs=[queue, RC_tx_add])
+    S3B.upon(rx_closed, enter=S4B, outputs=[T_mailbox_done])
+    S3B.upon(add_message, enter=S3B, outputs=[])
+    S3B.upon(rx_message_theirs, enter=S3B, outputs=[])
+    S3B.upon(rx_message_ours, enter=S3B, outputs=[])
 
-    S4A.upon(connected, enter=S4B, outputs=[RC_tx_open, drain, RC_tx_release])
-    S4A.upon(add_message, enter=S4A, outputs=[queue])
+    S4A.upon(connected, enter=S4B, outputs=[])
     S4B.upon(lost, enter=S4A, outputs=[])
-    S4B.upon(add_message, enter=S4B, outputs=[queue, RC_tx_add])
-    S4B.upon(rx_message_theirs, enter=S4B, outputs=[accept])
-    S4B.upon(rx_message_ours, enter=S4B, outputs=[dequeue])
-    S4B.upon(rx_released, enter=S5B, outputs=[])
-
-    S5A.upon(connected, enter=S5B, outputs=[RC_tx_open, drain])
-    S5A.upon(add_message, enter=S5A, outputs=[queue])
-    S5B.upon(lost, enter=S5A, outputs=[])
-    S5B.upon(add_message, enter=S5B, outputs=[queue, RC_tx_add])
-    S5B.upon(rx_message_theirs, enter=S5B, outputs=[accept])
-    S5B.upon(rx_message_ours, enter=S5B, outputs=[dequeue])
-
-    if True:
-        S0A.upon(close, enter=SsB, outputs=[record_mood_and_RC_stop])
-        S0B.upon(close, enter=SsB, outputs=[record_mood_and_RC_stop])
-        S1A.upon(close, enter=SsB, outputs=[record_mood_and_RC_stop])
-        S2A.upon(close, enter=SrA, outputs=[record_mood])
-        S2B.upon(close, enter=SrB, outputs=[record_mood_and_RC_tx_release])
-        S3A.upon(close, enter=SrcA, outputs=[record_mood])
-        S3B.upon(close, enter=SrcB,
-                 outputs=[record_mood_and_RC_tx_release_and_RC_tx_close])
-        S4A.upon(close, enter=SrcA, outputs=[record_mood])
-        S4B.upon(close, enter=SrcB, outputs=[record_mood_and_RC_tx_close])
-        S5A.upon(close, enter=ScA, outputs=[record_mood])
-        S5B.upon(close, enter=ScB, outputs=[record_mood_and_RC_tx_close])
-
-        SrcA.upon(connected, enter=SrcB, outputs=[RC_tx_release, RC_tx_close])
-        SrcB.upon(lost, enter=SrcA, outputs=[])
-        SrcB.upon(rx_closed, enter=SrB, outputs=[])
-        SrcB.upon(rx_released, enter=ScB, outputs=[])
-
-        SrB.upon(lost, enter=SrA, outputs=[])
-        SrA.upon(connected, enter=SrB, outputs=[RC_tx_release])
-        SrB.upon(rx_released, enter=SsB, outputs=[RC_stop])
-
-        ScB.upon(lost, enter=ScA, outputs=[])
-        ScB.upon(rx_closed, enter=SsB, outputs=[RC_stop])
-        ScA.upon(connected, enter=ScB, outputs=[RC_tx_close])
-
-        SsB.upon(lost, enter=SsB, outputs=[])
-        SsB.upon(stopped, enter=Ss, outputs=[W_closed])
-
-        SrcB.upon(rx_claimed, enter=SrcB, outputs=[])
-        SrcB.upon(rx_message_theirs, enter=SrcB, outputs=[])
-        SrcB.upon(rx_message_ours, enter=SrcB, outputs=[])
-        SrB.upon(rx_claimed, enter=SrB, outputs=[])
-        SrB.upon(rx_message_theirs, enter=SrB, outputs=[])
-        SrB.upon(rx_message_ours, enter=SrB, outputs=[])
-        ScB.upon(rx_claimed, enter=ScB, outputs=[])
-        ScB.upon(rx_message_theirs, enter=ScB, outputs=[])
-        ScB.upon(rx_message_ours, enter=ScB, outputs=[])
-        SsB.upon(rx_claimed, enter=SsB, outputs=[])
-        SsB.upon(rx_message_theirs, enter=SsB, outputs=[])
-        SsB.upon(rx_message_ours, enter=SsB, outputs=[])
+    S4.upon(add_message, enter=S4, outputs=[])
+    S4.upon(rx_message_theirs, enter=S4, outputs=[])
+    S4.upon(rx_message_ours, enter=S4, outputs=[])
 

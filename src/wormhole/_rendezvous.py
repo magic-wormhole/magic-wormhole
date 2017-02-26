@@ -106,11 +106,11 @@ class RendezvousConnector(object):
         assert isinstance(body, type(b"")), type(body)
         self._tx("add", phase=phase, body=bytes_to_hexstr(body))
 
-    def tx_release(self):
-        self._tx("release")
+    def tx_release(self, nameplate):
+        self._tx("release", nameplate=nameplate)
 
-    def tx_close(self, mood):
-        self._tx("close", mood=mood)
+    def tx_close(self, mailbox, mood):
+        self._tx("close", mailbox=mailbox, mood=mood)
 
     def stop(self):
         d = defer.maybeDeferred(self._connector.stopService)
