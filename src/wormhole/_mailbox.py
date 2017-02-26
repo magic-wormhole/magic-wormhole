@@ -154,7 +154,7 @@ class Mailbox(object):
     @m.output()
     def record_mood_and_RC_tx_close(self, mood):
         self._mood = mood
-        self._RC_rx_close()
+        self._RC_tx_close()
     @m.output()
     def ignore_mood_and_T_mailbox_done(self, mood):
         self._T.mailbox_done()

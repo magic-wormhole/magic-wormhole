@@ -84,11 +84,13 @@ class RendezvousConnector(object):
         # TODO: Tor goes here
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
-    def wire(self, boss, mailbox, code, nameplate_lister):
+    def wire(self, boss, nameplate, mailbox, code, nameplate_lister, terminator):
         self._B = _interfaces.IBoss(boss)
+        self._N = _interfaces.INameplate(nameplate)
         self._M = _interfaces.IMailbox(mailbox)
         self._C = _interfaces.ICode(code)
         self._NL = _interfaces.INameplateLister(nameplate_lister)
+        self._T = _interfaces.ITerminator(terminator)
 
     # from Boss
     def start(self):
@@ -133,6 +135,7 @@ class RendezvousConnector(object):
         self._ws = proto
         self._tx("bind", appid=self._appid, side=self._side)
         self._C.connected()
+        self._N.connected()
         self._M.connected()
         self._NL.connected()
 
@@ -157,12 +160,13 @@ class RendezvousConnector(object):
             dmsg(self._side, "R.lost")
         self._ws = None
         self._C.lost()
+        self._N.lost()
         self._M.lost()
         self._NL.lost()
 
     # internal
     def _stopped(self, res):
-        self._M.stopped()
+        self._T.stopped()
 
     def _tx(self, mtype, **kwargs):
         assert self._ws
@@ -208,7 +212,7 @@ class RendezvousConnector(object):
     def _response_handle_claimed(self, msg):
         mailbox = msg["mailbox"]
         assert isinstance(mailbox, type("")), type(mailbox)
-        self._M.rx_claimed(mailbox)
+        self._N.rx_claimed(mailbox)
 
     def _response_handle_message(self, msg):
         side = msg["side"]
@@ -218,7 +222,7 @@ class RendezvousConnector(object):
         self._M.rx_message(side, phase, body)
 
     def _response_handle_released(self, msg):
-        self._M.rx_released()
+        self._N.rx_released()
 
     def _response_handle_closed(self, msg):
         self._M.rx_closed()

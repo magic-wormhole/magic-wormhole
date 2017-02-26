@@ -142,3 +142,5 @@ class Nameplate(object):
 
     S5A.upon(connected, enter=S5B, outputs=[])
     S5B.upon(lost, enter=S5A, outputs=[])
+    S5.upon(release, enter=S5, outputs=[]) # mailbox is lazy
+    S5.upon(close, enter=S5, outputs=[])
