@@ -24,41 +24,43 @@ class Order(object):
     @m.state(terminal=True)
     def S1_yes_pake(self): pass
 
-    def got_message(self, phase, body):
+    def got_message(self, side, phase, body):
         #print("ORDER[%s].got_message(%s)" % (self._side, phase))
+        assert isinstance(side, type("")), type(phase)
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
         if phase == "pake":
-            self.got_pake(phase, body)
+            self.got_pake(side, phase, body)
         else:
-            self.got_non_pake(phase, body)
+            self.got_non_pake(side, phase, body)
 
     @m.input()
-    def got_pake(self, phase, body): pass
+    def got_pake(self, side, phase, body): pass
     @m.input()
-    def got_non_pake(self, phase, body): pass
+    def got_non_pake(self, side, phase, body): pass
 
     @m.output()
-    def queue(self, phase, body):
+    def queue(self, side, phase, body):
+        assert isinstance(side, type("")), type(phase)
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
-        self._queue.append((phase, body))
+        self._queue.append((side, phase, body))
     @m.output()
-    def notify_key(self, phase, body):
+    def notify_key(self, side, phase, body):
         self._K.got_pake(body)
     @m.output()
-    def drain(self, phase, body):
+    def drain(self, side, phase, body):
         del phase
         del body
-        for (phase, body) in self._queue:
-            self._deliver(phase, body)
+        for (side, phase, body) in self._queue:
+            self._deliver(side, phase, body)
         self._queue[:] = []
     @m.output()
-    def deliver(self, phase, body):
-        self._deliver(phase, body)
+    def deliver(self, side, phase, body):
+        self._deliver(side, phase, body)
 
-    def _deliver(self, phase, body):
-        self._R.got_message(phase, body)
+    def _deliver(self, side, phase, body):
+        self._R.got_message(side, phase, body)
 
     S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
     S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_key, drain])

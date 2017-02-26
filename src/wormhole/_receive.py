@@ -31,11 +31,12 @@ class Receive(object):
     def S3_scared(self): pass
 
     # from Ordering
-    def got_message(self, phase, body):
+    def got_message(self, side, phase, body):
+        assert isinstance(side, type("")), type(phase)
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
         assert self._key
-        data_key = derive_phase_key(self._key, self._side, phase)
+        data_key = derive_phase_key(self._key, side, phase)
         try:
             plaintext = decrypt_data(data_key, body)
         except CryptoError:
