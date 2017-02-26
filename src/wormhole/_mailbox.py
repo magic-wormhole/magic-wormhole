@@ -84,11 +84,11 @@ class Mailbox(object):
         if side == self._side:
             self.rx_message_ours(phase, body)
         else:
-            self.rx_message_theirs(phase, body)
+            self.rx_message_theirs(side, phase, body)
     @m.input()
     def rx_message_ours(self, phase, body): pass
     @m.input()
-    def rx_message_theirs(self, phase, body): pass
+    def rx_message_theirs(self, side, phase, body): pass
     @m.input()
     def rx_closed(self): pass
 
@@ -129,9 +129,9 @@ class Mailbox(object):
         assert isinstance(body, type(b"")), type(body)
         self._RC.tx_add(phase, body)
     @m.output()
-    def N_release_and_accept(self, phase, body):
+    def N_release_and_accept(self, side, phase, body):
         self._N.release()
-        self._accept(phase, body)
+        self._accept(side, phase, body)
     @m.output()
     def RC_tx_close(self):
         assert self._mood
@@ -139,12 +139,12 @@ class Mailbox(object):
     def _RC_tx_close(self):
         self._RC.tx_close(self._mailbox, self._mood)
     @m.output()
-    def accept(self, phase, body):
-        self._accept(phase, body)
-    def _accept(self, phase, body):
+    def accept(self, side, phase, body):
+        self._accept(side, phase, body)
+    def _accept(self, side, phase, body):
         if phase not in self._processed:
             self._processed.add(phase)
-            self._O.got_message(phase, body)
+            self._O.got_message(side, phase, body)
     @m.output()
     def dequeue(self, phase, body):
         self._pending_outbound.pop(phase, None)
