@@ -70,15 +70,21 @@ class RendezvousConnector(object):
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
-    DEBUG = True
 
     def __attrs_post_init__(self):
+        self._trace = None
         self._ws = None
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         p = urlparse(self._url)
         ep = self._make_endpoint(p.hostname, p.port or 80)
         self._connector = internet.ClientService(ep, f)
+
+    def set_trace(self, f):
+        self._trace = f
+    def _debug(self, what):
+        if self._trace:
+            self._trace(old_state="", input=what, new_state="")
 
     def _make_endpoint(self, hostname, port):
         # TODO: Tor goes here
@@ -130,8 +136,7 @@ class RendezvousConnector(object):
 
     # from our WSClient (the WebSocket protocol)
     def ws_open(self, proto):
-        if self.DEBUG:
-            dmsg(self._side, "R.connected")
+        self._debug("R.connected")
         self._ws = proto
         self._tx("bind", appid=self._appid, side=self._side)
         self._C.connected()
@@ -141,11 +146,17 @@ class RendezvousConnector(object):
 
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
-        if self.DEBUG and msg["type"]!="ack":
-            dmsg(self._side, "R.rx(%s %s%s)" %
-                 (msg["type"], msg.get("phase",""),
-                  "[mine]" if msg.get("side","") == self._side else "",
-                  ))
+        #if self.DEBUG and msg["type"]!="ack":
+        #    dmsg(self._side, "R.rx(%s %s%s)" %
+        #         (msg["type"], msg.get("phase",""),
+        #          "[mine]" if msg.get("side","") == self._side else "",
+        #          ))
+        if msg["type"] != "ack":
+                self._debug("R.rx(%s %s%s)" %
+                            (msg["type"], msg.get("phase",""),
+                        "[mine]" if msg.get("side","") == self._side else "",
+                             ))
+
         self._timing.add("ws_receive", _side=self._side, message=msg)
         mtype = msg["type"]
         meth = getattr(self, "_response_handle_"+mtype, None)
@@ -156,8 +167,7 @@ class RendezvousConnector(object):
         return meth(msg)
 
     def ws_close(self, wasClean, code, reason):
-        if self.DEBUG:
-            dmsg(self._side, "R.lost")
+        self._debug("R.lost")
         self._ws = None
         self._C.lost()
         self._N.lost()
@@ -176,8 +186,7 @@ class RendezvousConnector(object):
         # are so few messages, 16 bits is enough to be mostly-unique.
         kwargs["id"] = bytes_to_hexstr(os.urandom(2))
         kwargs["type"] = mtype
-        if self.DEBUG:
-            dmsg(self._side, "R.tx(%s %s)" % (mtype.upper(), kwargs.get("phase", "")))
+        self._debug("R.tx(%s %s)" % (mtype.upper(), kwargs.get("phase", "")))
         payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)

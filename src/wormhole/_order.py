@@ -11,6 +11,8 @@ class Order(object):
     _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
+    @m.setTrace()
+    def set_trace(): pass
 
     def __attrs_post_init__(self):
         self._key = None

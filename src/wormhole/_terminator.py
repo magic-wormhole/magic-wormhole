@@ -7,7 +7,7 @@ from . import _interfaces
 class Terminator(object):
     m = MethodicalMachine()
     @m.setTrace()
-    def setTrace(): pass
+    def set_trace(): pass
 
     def __attrs_post_init__(self):
         self._mood = None

@@ -59,6 +59,8 @@ class Key(object):
     _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
+    @m.setTrace()
+    def set_trace(): pass
 
     def wire(self, boss, mailbox, receive):
         self._B = _interfaces.IBoss(boss)

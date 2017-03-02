@@ -34,6 +34,8 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
+    @m.setTrace()
+    def set_trace(): pass
 
     def __attrs_post_init__(self):
         self._N = Nameplate()
@@ -69,6 +71,17 @@ class Boss(object):
     # these methods are called from outside
     def start(self):
         self._RC.start()
+
+    def _set_trace(self, client_name, which, logger):
+        names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
+                 "O": self._O, "K": self._K, "R": self._R,
+                 "RC": self._RC, "NL": self._NL, "C": self._C,
+                 "T": self._T}
+        for machine in which.split():
+            def tracer(old_state, input, new_state, machine=machine):
+                print("%s.%s[%s].%s -> [%s]" % (client_name, machine,
+                                                old_state, input, new_state))
+            names[machine].set_trace(tracer)
 
     # and these are the state-machine transition functions, which don't take
     # args
