@@ -7,7 +7,7 @@ from . import _interfaces
 class Nameplate(object):
     m = MethodicalMachine()
     @m.setTrace()
-    def setTrace(): pass
+    def set_trace(): pass
 
     def __init__(self):
         self._nameplate = None

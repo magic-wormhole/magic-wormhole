@@ -29,6 +29,10 @@ from ._boss import Boss, WormholeError
 #   wormhole(delegate=app, delegate_prefix="wormhole_",
 #            delegate_args=(args, kwargs))
 
+def _log(client_name, machine_name, old_state, input, new_state):
+    print("%s.%s[%s].%s -> [%s]" % (client_name, machine_name,
+                                    old_state, input, new_state))
+
 @attrs
 @implementer(IWormhole)
 class _DelegatedWormhole(object):
@@ -50,6 +54,10 @@ class _DelegatedWormhole(object):
         self._boss.send(plaintext)
     def close(self):
         self._boss.close()
+
+    def debug_set_trace(self, client_name, which="B N M S O K R RC NL C T",
+                           logger=_log):
+        self._boss.set_trace(client_name, which, logger)
 
     # from below
     def got_code(self, code):
@@ -114,6 +122,10 @@ class _DeferredWormhole(object):
         d = defer.Deferred()
         self._closed_observers.append(d)
         return d
+
+    def debug_set_trace(self, client_name, which="B N M S O K R RC NL C T",
+                           logger=_log):
+        self._boss._set_trace(client_name, which, logger)
 
     # from below
     def got_code(self, code):

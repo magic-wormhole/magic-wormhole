@@ -25,6 +25,8 @@ def make_code(nameplate, code_length):
 class Code(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
+    @m.setTrace()
+    def set_trace(): pass
 
     def wire(self, boss, rendezvous_connector, nameplate_lister):
         self._B = _interfaces.IBoss(boss)

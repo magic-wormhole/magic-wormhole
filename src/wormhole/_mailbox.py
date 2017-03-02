@@ -11,7 +11,7 @@ class Mailbox(object):
     _side = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
     @m.setTrace()
-    def setTrace(): pass
+    def set_trace(): pass
 
     def __attrs_post_init__(self):
         self._mailbox = None

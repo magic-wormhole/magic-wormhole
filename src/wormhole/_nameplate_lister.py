@@ -6,6 +6,8 @@ from . import _interfaces
 @implementer(_interfaces.INameplateLister)
 class NameplateListing(object):
     m = MethodicalMachine()
+    @m.setTrace()
+    def set_trace(): pass
 
     def wire(self, rendezvous_connector, code):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
