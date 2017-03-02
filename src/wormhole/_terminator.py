@@ -23,6 +23,9 @@ class Terminator(object):
     # (o, ""): open (not-yet-closing), or trying to close
     # S0 is special: we don't hang out in it
 
+    # TODO: rename o to 0, "" to 1. "S1" is special/terminal
+    # so S0nm/S0n/S0m/S0, S1nm/S1n/S1m/(S1)
+    
     # We start in Snmo (non-closing). When both nameplate and mailboxes are
     # done, and we're closing, then we stop the RendezvousConnector
 
