@@ -133,6 +133,7 @@ class Nameplate(object):
     S4A.upon(connected, enter=S4B, outputs=[RC_tx_release])
     S4A.upon(close, enter=S4A, outputs=[])
     S4B.upon(lost, enter=S4A, outputs=[])
+    S4B.upon(rx_claimed, enter=S4B, outputs=[])
     S4B.upon(rx_released, enter=S5B, outputs=[T_nameplate_done])
     S4B.upon(release, enter=S4B, outputs=[]) # mailbox is lazy
     # Mailbox doesn't remember how many times it's sent a release, and will
