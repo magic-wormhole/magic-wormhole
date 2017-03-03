@@ -12,7 +12,7 @@ class Order(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._key = None
@@ -22,9 +22,9 @@ class Order(object):
         self._R = _interfaces.IReceive(receive)
 
     @m.state(initial=True)
-    def S0_no_pake(self): pass
+    def S0_no_pake(self): pass # pragma: no cover
     @m.state(terminal=True)
-    def S1_yes_pake(self): pass
+    def S1_yes_pake(self): pass # pragma: no cover
 
     def got_message(self, side, phase, body):
         #print("ORDER[%s].got_message(%s)" % (self._side, phase))

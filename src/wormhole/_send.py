@@ -13,7 +13,7 @@ class Send(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._queue = []
@@ -22,9 +22,9 @@ class Send(object):
         self._M = _interfaces.IMailbox(mailbox)
 
     @m.state(initial=True)
-    def S0_no_key(self): pass
+    def S0_no_key(self): pass # pragma: no cover
     @m.state(terminal=True)
-    def S1_verified_key(self): pass
+    def S1_verified_key(self): pass # pragma: no cover
 
     # from Receive
     @m.input()

@@ -7,7 +7,7 @@ from . import _interfaces
 class Nameplate(object):
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __init__(self):
         self._nameplate = None
@@ -23,31 +23,31 @@ class Nameplate(object):
 
     # S0: know nothing
     @m.state(initial=True)
-    def S0A(self): pass
+    def S0A(self): pass # pragma: no cover
     @m.state()
-    def S0B(self): pass
+    def S0B(self): pass # pragma: no cover
 
     # S1: nameplate known, never claimed
     @m.state()
-    def S1A(self): pass
+    def S1A(self): pass # pragma: no cover
 
     # S2: nameplate known, maybe claimed
     @m.state()
-    def S2A(self): pass
+    def S2A(self): pass # pragma: no cover
     @m.state()
-    def S2B(self): pass
+    def S2B(self): pass # pragma: no cover
 
     # S3: nameplate claimed
     @m.state()
-    def S3A(self): pass
+    def S3A(self): pass # pragma: no cover
     @m.state()
-    def S3B(self): pass
+    def S3B(self): pass # pragma: no cover
 
     # S4: maybe released
     @m.state()
-    def S4A(self): pass
+    def S4A(self): pass # pragma: no cover
     @m.state()
-    def S4B(self): pass
+    def S4B(self): pass # pragma: no cover
 
     # S5: released
     # we no longer care whether we're connected or not
@@ -56,7 +56,7 @@ class Nameplate(object):
     #@m.state()
     #def S5B(self): pass
     @m.state()
-    def S5(self): pass
+    def S5(self): pass # pragma: no cover
     S5A = S5
     S5B = S5
 
