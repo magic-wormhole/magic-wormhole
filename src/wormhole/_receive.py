@@ -18,9 +18,8 @@ class Receive(object):
     def __attrs_post_init__(self):
         self._key = None
 
-    def wire(self, boss, key, send):
+    def wire(self, boss, send):
         self._B = _interfaces.IBoss(boss)
-        self._K = _interfaces.IKey(key)
         self._S = _interfaces.ISend(send)
 
     @m.state(initial=True)
