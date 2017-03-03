@@ -53,7 +53,7 @@ class Boss(object):
         self._S.wire(self._M)
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
-        self._R.wire(self, self._K, self._S)
+        self._R.wire(self, self._S)
         self._RC.wire(self, self._N, self._M, self._C, self._NL, self._T)
         self._NL.wire(self._RC, self._C)
         self._C.wire(self, self._RC, self._NL)
