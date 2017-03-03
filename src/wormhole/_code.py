@@ -26,7 +26,7 @@ class Code(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def wire(self, boss, rendezvous_connector, nameplate_lister):
         self._B = _interfaces.IBoss(boss)
@@ -34,17 +34,17 @@ class Code(object):
         self._NL = _interfaces.INameplateLister(nameplate_lister)
 
     @m.state(initial=True)
-    def S0_unknown(self): pass
+    def S0_unknown(self): pass # pragma: no cover
     @m.state()
-    def S1A_connecting(self): pass
+    def S1A_connecting(self): pass # pragma: no cover
     @m.state()
-    def S1B_allocating(self): pass
+    def S1B_allocating(self): pass # pragma: no cover
     @m.state()
-    def S2_typing_nameplate(self): pass
+    def S2_typing_nameplate(self): pass # pragma: no cover
     @m.state()
-    def S3_typing_code(self): pass
+    def S3_typing_code(self): pass # pragma: no cover
     @m.state()
-    def S4_known(self): pass
+    def S4_known(self): pass # pragma: no cover
 
     # from App
     @m.input()

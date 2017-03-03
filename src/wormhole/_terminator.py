@@ -7,7 +7,7 @@ from . import _interfaces
 class Terminator(object):
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._mood = None
@@ -30,27 +30,27 @@ class Terminator(object):
     # done, and we're closing, then we stop the RendezvousConnector
 
     @m.state(initial=True)
-    def Snmo(self): pass
+    def Snmo(self): pass # pragma: no cover
     @m.state()
-    def Smo(self): pass
+    def Smo(self): pass # pragma: no cover
     @m.state()
-    def Sno(self): pass
+    def Sno(self): pass # pragma: no cover
     @m.state()
-    def S0o(self): pass
+    def S0o(self): pass # pragma: no cover
 
     @m.state()
-    def Snm(self): pass
+    def Snm(self): pass # pragma: no cover
     @m.state()
-    def Sm(self): pass
+    def Sm(self): pass # pragma: no cover
     @m.state()
-    def Sn(self): pass
+    def Sn(self): pass # pragma: no cover
     #@m.state()
     #def S0(self): pass # unused
 
     @m.state()
-    def S_stopping(self): pass
+    def S_stopping(self): pass # pragma: no cover
     @m.state()
-    def S_stopped(self, terminal=True): pass
+    def S_stopped(self, terminal=True): pass # pragma: no cover
 
     # from Boss
     @m.input()

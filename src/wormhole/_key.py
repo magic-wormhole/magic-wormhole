@@ -60,7 +60,7 @@ class Key(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def wire(self, boss, mailbox, receive):
         self._B = _interfaces.IBoss(boss)
@@ -68,13 +68,13 @@ class Key(object):
         self._R = _interfaces.IReceive(receive)
 
     @m.state(initial=True)
-    def S0_know_nothing(self): pass
+    def S0_know_nothing(self): pass # pragma: no cover
     @m.state()
-    def S1_know_code(self): pass
+    def S1_know_code(self): pass # pragma: no cover
     @m.state()
-    def S2_know_key(self): pass
+    def S2_know_key(self): pass # pragma: no cover
     @m.state(terminal=True)
-    def S3_scared(self): pass
+    def S3_scared(self): pass # pragma: no cover
 
     # from Boss
     @m.input()

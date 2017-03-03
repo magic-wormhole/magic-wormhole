@@ -32,7 +32,7 @@ class Boss(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._N = Nameplate()
@@ -83,15 +83,15 @@ class Boss(object):
     # and these are the state-machine transition functions, which don't take
     # args
     @m.state(initial=True)
-    def S0_empty(self): pass
+    def S0_empty(self): pass # pragma: no cover
     @m.state()
-    def S1_lonely(self): pass
+    def S1_lonely(self): pass # pragma: no cover
     @m.state()
-    def S2_happy(self): pass
+    def S2_happy(self): pass # pragma: no cover
     @m.state()
-    def S3_closing(self): pass
+    def S3_closing(self): pass # pragma: no cover
     @m.state(terminal=True)
-    def S4_closed(self): pass
+    def S4_closed(self): pass # pragma: no cover
 
     # from the Wormhole
 

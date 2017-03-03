@@ -7,7 +7,7 @@ from . import _interfaces
 class NameplateListing(object):
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def wire(self, rendezvous_connector, code):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
@@ -23,13 +23,13 @@ class NameplateListing(object):
     # request arrives, both requests will be satisfied by the same response.
 
     @m.state(initial=True)
-    def S0A_idle_disconnected(self): pass
+    def S0A_idle_disconnected(self): pass # pragma: no cover
     @m.state()
-    def S1A_wanting_disconnected(self): pass
+    def S1A_wanting_disconnected(self): pass # pragma: no cover
     @m.state()
-    def S0B_idle_connected(self): pass
+    def S0B_idle_connected(self): pass # pragma: no cover
     @m.state()
-    def S1B_wanting_connected(self): pass
+    def S1B_wanting_connected(self): pass # pragma: no cover
 
     @m.input()
     def connected(self): pass

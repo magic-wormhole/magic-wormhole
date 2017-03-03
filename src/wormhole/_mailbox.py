@@ -11,7 +11,7 @@ class Mailbox(object):
     _side = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._mailbox = None
@@ -30,27 +30,27 @@ class Mailbox(object):
 
     # S0: know nothing
     @m.state(initial=True)
-    def S0A(self): pass
+    def S0A(self): pass # pragma: no cover
     @m.state()
-    def S0B(self): pass
+    def S0B(self): pass # pragma: no cover
 
     # S1: mailbox known, not opened
     @m.state()
-    def S1A(self): pass
+    def S1A(self): pass # pragma: no cover
 
     # S2: mailbox known, opened
     # We've definitely tried to open the mailbox at least once, but it must
     # be re-opened with each connection, because open() is also subscribe()
     @m.state()
-    def S2A(self): pass
+    def S2A(self): pass # pragma: no cover
     @m.state()
-    def S2B(self): pass
+    def S2B(self): pass # pragma: no cover
 
     # S3: closing
     @m.state()
-    def S3A(self): pass
+    def S3A(self): pass # pragma: no cover
     @m.state()
-    def S3B(self): pass
+    def S3B(self): pass # pragma: no cover
 
     # S4: closed. We no longer care whether we're connected or not
     #@m.state()
@@ -58,7 +58,7 @@ class Mailbox(object):
     #@m.state()
     #def S4B(self): pass
     @m.state(terminal=True)
-    def S4(self): pass
+    def S4(self): pass # pragma: no cover
     S4A = S4
     S4B = S4
 

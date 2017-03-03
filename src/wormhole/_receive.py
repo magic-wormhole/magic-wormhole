@@ -13,7 +13,7 @@ class Receive(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
-    def set_trace(): pass
+    def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
         self._key = None
@@ -24,13 +24,13 @@ class Receive(object):
         self._S = _interfaces.ISend(send)
 
     @m.state(initial=True)
-    def S0_unknown_key(self): pass
+    def S0_unknown_key(self): pass # pragma: no cover
     @m.state()
-    def S1_unverified_key(self): pass
+    def S1_unverified_key(self): pass # pragma: no cover
     @m.state()
-    def S2_verified_key(self): pass
+    def S2_verified_key(self): pass # pragma: no cover
     @m.state(terminal=True)
-    def S3_scared(self): pass
+    def S3_scared(self): pass # pragma: no cover
 
     # from Ordering
     def got_message(self, side, phase, body):
