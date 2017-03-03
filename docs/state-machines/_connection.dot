@@ -1,4 +1,19 @@
 digraph {
+        /* note: this is nominally what we want from the machine that
+         establishes the WebSocket connection (and re-establishes it when it
+         is lost). We aren't using this yet; for now we're relying upon
+         twisted.application.internet.ClientService, which does reconnection
+         and random exponential backoff.
+
+         The one thing it doesn't do is fail entirely when the first
+         connection attempt fails, which I think would be good for usability.
+         If the first attempt fails, it's probably because you don't have a
+         network connection, or the hostname is wrong, or the service has
+         been retired entirely. And retrying silently forever is not being
+         honest with the user.
+
+         So I'm keeping this diagram around, as a reminder of how we'd like
+         to modify ClientService. */
 
 
         /* ConnectionMachine */
