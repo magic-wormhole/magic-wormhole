@@ -78,6 +78,7 @@ class RendezvousConnector(object):
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         p = urlparse(self._url)
         ep = self._make_endpoint(p.hostname, p.port or 80)
+        # TODO: change/wrap ClientService to fail if the first attempt fails
         self._connector = internet.ClientService(ep, f)
 
     def set_trace(self, f):
