@@ -3,8 +3,8 @@ from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
 
-@implementer(_interfaces.INameplateLister)
-class NameplateListing(object):
+@implementer(_interfaces.ILister)
+class Lister(object):
     m = MethodicalMachine()
     @m.setTrace()
     def set_trace(): pass # pragma: no cover

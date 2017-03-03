@@ -1,6 +1,6 @@
 digraph {
         {rank=same; title S0A S0B}
-        title [label="Nameplate\nLister" style="dotted"]
+        title [label="(Nameplate)\nLister" style="dotted"]
 
         S0A [label="S0A:\nnot wanting\nunconnected"]
         S0B [label="S0B:\nnot wanting\nconnected" color="orange"]
@@ -38,5 +38,5 @@ digraph {
 
         {rank=same; foo foo2 legend}
         legend [shape="box" style="dotted"
-                label="refresh: NL.refresh_nameplates()\nrx: NL.rx_nameplates()"]
+                label="refresh: L.refresh_nameplates()\nrx: L.rx_nameplates()"]
 }

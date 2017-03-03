@@ -14,7 +14,7 @@ from ._order import Order
 from ._key import Key
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
-from ._nameplate_lister import NameplateListing
+from ._lister import Lister
 from ._code import Code
 from ._terminator import Terminator
 from .errors import ServerError, LonelyError, WrongPasswordError
@@ -44,7 +44,7 @@ class Boss(object):
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
                                        self._timing)
-        self._NL = NameplateListing()
+        self._L = Lister()
         self._C = Code(self._timing)
         self._T = Terminator()
 
@@ -54,9 +54,9 @@ class Boss(object):
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
         self._R.wire(self, self._S)
-        self._RC.wire(self, self._N, self._M, self._C, self._NL, self._T)
-        self._NL.wire(self._RC, self._C)
-        self._C.wire(self, self._RC, self._NL)
+        self._RC.wire(self, self._N, self._M, self._C, self._L, self._T)
+        self._L.wire(self._RC, self._C)
+        self._C.wire(self, self._RC, self._L)
         self._T.wire(self, self._RC, self._N, self._M)
 
         self._next_tx_phase = 0
@@ -72,7 +72,7 @@ class Boss(object):
     def _set_trace(self, client_name, which, logger):
         names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
                  "O": self._O, "K": self._K, "R": self._R,
-                 "RC": self._RC, "NL": self._NL, "C": self._C,
+                 "RC": self._RC, "L": self._L, "C": self._C,
                  "T": self._T}
         for machine in which.split():
             def tracer(old_state, input, new_state, machine=machine):

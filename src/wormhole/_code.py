@@ -28,10 +28,10 @@ class Code(object):
     @m.setTrace()
     def set_trace(): pass # pragma: no cover
 
-    def wire(self, boss, rendezvous_connector, nameplate_lister):
+    def wire(self, boss, rendezvous_connector, lister):
         self._B = _interfaces.IBoss(boss)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
-        self._NL = _interfaces.INameplateLister(nameplate_lister)
+        self._L = _interfaces.ILister(lister)
 
     @m.state(initial=True)
     def S0_unknown(self): pass # pragma: no cover
@@ -62,7 +62,7 @@ class Code(object):
     @m.input()
     def rx_allocated(self, nameplate): pass
 
-    # from NameplateLister
+    # from Lister
     @m.input()
     def got_nameplates(self, nameplates): pass
 
@@ -75,12 +75,12 @@ class Code(object):
     def RETURN(self, code): pass
 
     @m.output()
-    def NL_refresh_nameplates(self):
-        self._NL.refresh_nameplates()
+    def L_refresh_nameplates(self):
+        self._L.refresh_nameplates()
     @m.output()
-    def start_input_and_NL_refresh_nameplates(self, stdio):
+    def start_input_and_L_refresh_nameplates(self, stdio):
         self._stdio = stdio
-        self._NL.refresh_nameplates()
+        self._L.refresh_nameplates()
     @m.output()
     def stash_code_length(self, code_length):
         self._code_length = code_length
@@ -124,7 +124,7 @@ class Code(object):
                         outputs=[generate_and_B_got_code])
 
     S0_unknown.upon(input_code, enter=S2_typing_nameplate,
-                    outputs=[start_input_and_NL_refresh_nameplates])
+                    outputs=[start_input_and_L_refresh_nameplates])
     S2_typing_nameplate.upon(tab, enter=S2_typing_nameplate,
                              outputs=[do_completion_nameplates])
     S2_typing_nameplate.upon(got_nameplates, enter=S2_typing_nameplate,

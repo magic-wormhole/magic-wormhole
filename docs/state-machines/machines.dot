@@ -12,8 +12,8 @@ digraph {
         Send [shape="box" label="Send" color="blue" fontcolor="blue"]
         Receive [shape="box" label="Receive" color="blue" fontcolor="blue"]
         Code [shape="box" label="Code" color="blue" fontcolor="blue"]
-        NameplateLister [shape="box" label="Nameplate\nLister"
-                         color="blue" fontcolor="blue"]
+        Lister [shape="box" label="(Nameplate)\nLister"
+                color="blue" fontcolor="blue"]
         Terminator [shape="box" color="blue" fontcolor="blue"]
 
         Connection -> websocket [color="blue"]
@@ -58,12 +58,12 @@ digraph {
         Connection -> Mailbox [style="dashed"
                                label="connected\nlost\nrx_message\nrx_closed\nstopped"]
 
-        Connection -> NameplateLister [style="dashed"
-                                       label="connected\nlost\nrx_nameplates"
-                                       ]
-        NameplateLister -> Connection [style="dashed"
-                                       label="tx_list"
-                                       ]
+        Connection -> Lister [style="dashed"
+                              label="connected\nlost\nrx_nameplates"
+                              ]
+        Lister -> Connection [style="dashed"
+                              label="tx_list"
+                              ]
 
         #Boss -> Code [color="blue"]
         Connection -> Code [style="dashed"
@@ -71,13 +71,13 @@ digraph {
         Code -> Connection [style="dashed"
                             label="tx_allocate"
                             ]
-        NameplateLister -> Code [style="dashed"
-                                 label="got_nameplates"
-                                 ]
-        #Code -> NameplateLister [color="blue"]
-        Code -> NameplateLister [style="dashed"
-                                 label="refresh_nameplates"
-                                 ]
+        Lister -> Code [style="dashed"
+                        label="got_nameplates"
+                        ]
+        #Code -> Lister [color="blue"]
+        Code -> Lister [style="dashed"
+                        label="refresh_nameplates"
+                        ]
         Boss -> Code [style="dashed"
                       label="allocate_code\ninput_code\nset_code_code"]
         Code -> Boss [style="dashed"
