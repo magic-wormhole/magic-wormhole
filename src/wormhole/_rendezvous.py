@@ -164,7 +164,11 @@ class RendezvousConnector(object):
             # make tests fail, but real application will ignore it
             log.err(ValueError("Unknown inbound message type %r" % (msg,)))
             return
-        return meth(msg)
+        try:
+            return meth(msg)
+        except Exception as e:
+            self._B.error(e)
+            raise
 
     def ws_close(self, wasClean, code, reason):
         self._debug("R.lost")
@@ -211,6 +215,10 @@ class RendezvousConnector(object):
         pass
 
     def _response_handle_error(self, msg):
+        # the server sent us a type=error. Most cases are due to our mistakes
+        # (malformed protocol messages, sending things in the wrong order),
+        # but it can also result from CrowdedError (more than two clients
+        # using the same channel).
         err = msg["error"]
         orig = msg["orig"]
         self._B.rx_error(err, orig)

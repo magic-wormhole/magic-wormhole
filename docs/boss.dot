@@ -50,12 +50,16 @@ digraph {
         S2 -> P_close_scary [label="scared" color="red"]
 
         S_closing [label="closing"]
-        S_closing -> P_closed [label="closed"]
+        S_closing -> P_closed [label="closed\nerror"]
         S_closing -> S_closing [label="got_message\nhappy\nscared\nclose"]
 
         P_closed [shape="box" label="W.closed(reason)"]
         P_closed -> S_closed
         S_closed [label="closed"]
+
+        S0 -> P_closed [label="error"]
+        S1 -> P_closed [label="error"]
+        S2 -> P_closed [label="error"]
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"

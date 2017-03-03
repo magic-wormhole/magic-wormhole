@@ -17,11 +17,8 @@ from ._rendezvous import RendezvousConnector
 from ._nameplate_lister import NameplateListing
 from ._code import Code
 from ._terminator import Terminator
-from .errors import WrongPasswordError
+from .errors import ServerError, LonelyError, WrongPasswordError
 from .util import bytes_to_dict
-
-class WormholeError(Exception):
-    pass
 
 @attrs
 @implementer(_interfaces.IBoss)
@@ -121,9 +118,15 @@ class Boss(object):
     @m.input()
     def close(self): pass
 
-    # from RendezvousConnector
+    # from RendezvousConnector. rx_error an error message from the server
+    # (probably because of something we did, or due to CrowdedError). error
+    # is when an exception happened while it tried to deliver something else
     @m.input()
     def rx_welcome(self, welcome): pass
+    @m.input()
+    def rx_error(self, errmsg, orig): pass
+    @m.input()
+    def error(self, err): pass
 
     # from Code (provoked by input/allocate/set_code)
     @m.input()
@@ -135,8 +138,6 @@ class Boss(object):
     def happy(self): pass
     @m.input()
     def scared(self): pass
-    @m.input()
-    def rx_error(self, err, orig): pass
 
     def got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
@@ -184,8 +185,8 @@ class Boss(object):
         self._S.send("%d" % phase, plaintext)
 
     @m.output()
-    def close_error(self, err, orig):
-        self._result = WormholeError(err)
+    def close_error(self, errmsg, orig):
+        self._result = ServerError(errmsg)
         self._T.close("errory")
     @m.output()
     def close_scared(self):
@@ -193,7 +194,7 @@ class Boss(object):
         self._T.close("scary")
     @m.output()
     def close_lonely(self):
-        self._result = WormholeError("lonely")
+        self._result = LonelyError()
         self._T.close("lonely")
     @m.output()
     def close_happy(self):
@@ -213,7 +214,13 @@ class Boss(object):
             self._next_rx_phase += 1
 
     @m.output()
+    def W_close_with_error(self, err):
+        self._result = err # exception
+        self._W.closed(self._result)
+
+    @m.output()
     def W_closed(self):
+        # result is either "happy" or a WormholeError of some sort
         self._W.closed(self._result)
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
@@ -221,6 +228,8 @@ class Boss(object):
     S0_empty.upon(rx_welcome, enter=S0_empty, outputs=[process_welcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
+    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+
     S1_lonely.upon(rx_welcome, enter=S1_lonely, outputs=[process_welcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
@@ -228,6 +237,8 @@ class Boss(object):
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
+    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+
     S2_happy.upon(rx_welcome, enter=S2_happy, outputs=[process_welcome])
     S2_happy.upon(got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
@@ -235,6 +246,7 @@ class Boss(object):
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
+    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S3_closing.upon(rx_welcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
@@ -245,6 +257,7 @@ class Boss(object):
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
     S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
+    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S4_closed.upon(rx_welcome, enter=S4_closed, outputs=[])
     S4_closed.upon(got_phase, enter=S4_closed, outputs=[])
@@ -253,4 +266,4 @@ class Boss(object):
     S4_closed.upon(scared, enter=S4_closed, outputs=[])
     S4_closed.upon(close, enter=S4_closed, outputs=[])
     S4_closed.upon(send, enter=S4_closed, outputs=[])
-
+    S4_closed.upon(error, enter=S4_closed, outputs=[])
