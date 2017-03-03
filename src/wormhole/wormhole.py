@@ -51,6 +51,12 @@ class _DelegatedWormhole(object):
     def set_code(self, code):
         self._boss.set_code(code)
 
+    def serialize(self):
+        s = {"serialized_wormhole_version": 1,
+             "boss": self._boss.serialize(),
+             }
+        return s
+
     def send(self, plaintext):
         self._boss.send(plaintext)
     def close(self):
@@ -116,6 +122,7 @@ class _DeferredWormhole(object):
     def set_code(self, code):
         self._boss.set_code(code)
 
+    # no .serialize in Deferred-mode
     def send(self, plaintext):
         self._boss.send(plaintext)
     def close(self):
@@ -165,11 +172,8 @@ class _DeferredWormhole(object):
         for d in self._closed_observers:
             d.callback(close_result)
 
-def _wormhole(appid, relay_url, reactor, delegate=None,
-              tor_manager=None, timing=None,
-              journal=None,
-              stderr=sys.stderr,
-              ):
+def create(appid, relay_url, reactor, delegate=None, journal=None,
+           tor_manager=None, timing=None, stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
@@ -179,23 +183,30 @@ def _wormhole(appid, relay_url, reactor, delegate=None,
         w = _DeferredWormhole()
     b = Boss(w, side, relay_url, appid, reactor, journal, timing)
     w._set_boss(b)
-    # force allocate for now
     b.start()
     return w
 
-def delegated_wormhole(appid, relay_url, reactor, delegate,
-                       tor_manager=None, timing=None,
-                       journal=None,
-                       stderr=sys.stderr,
-                       ):
-    assert delegate
-    return _wormhole(appid, relay_url, reactor, delegate,
-                     tor_manager, timing, journal, stderr)
+def from_serialized(serialized, reactor, delegate,
+                    journal=None, tor_manager=None,
+                    timing=None, stderr=sys.stderr):
+    assert serialized["serialized_wormhole_version"] == 1
+    timing = timing or DebugTiming()
+    w = _DelegatedWormhole(delegate)
+    # now unpack state machines, including the SPAKE2 in Key
+    b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
+    w._set_boss(b)
+    b.start() # ??
+    raise NotImplemented
+    # should the new Wormhole call got_code? only if it wasn't called before.
 
-def deferred_wormhole(appid, relay_url, reactor,
-                       tor_manager=None, timing=None,
-                       journal=None,
-                       stderr=sys.stderr,
-                       ):
-    return _wormhole(appid, relay_url, reactor, None,
-                     tor_manager, timing, journal, stderr)
+# after creating the wormhole object, app must call exactly one of:
+# set_code(code), generate_code(), helper=type_code(), and then (if they need
+# to know the code) wait for delegate.got_code() or d=w.when_code()
+
+# the helper for type_code() can be asked for completions:
+# d=helper.get_completions(text_so_far), which will fire with a list of
+# strings that could usefully be appended to text_so_far.
+
+# wormhole.type_code_readline(w) is a wrapper that knows how to use
+# w.type_code() to drive rlcompleter
+
