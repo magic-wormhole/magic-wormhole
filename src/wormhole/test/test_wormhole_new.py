@@ -1,9 +1,10 @@
 from __future__ import print_function, unicode_literals
+import re
 from twisted.trial import unittest
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 from .common import ServerBase
-from .. import wormhole
+from .. import wormhole, errors
 
 APPID = "appid"
 
@@ -23,15 +24,19 @@ class Delegate:
         self.closed = result
 
 class New(ServerBase, unittest.TestCase):
+    timeout = 2
+
     @inlineCallbacks
     def test_allocate(self):
         w = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
-        w.debug_set_trace("W1")
+        #w.debug_set_trace("W1")
         w.allocate_code(2)
         code = yield w.when_code()
-        print("code:", code)
-        yield w.close()
-    test_allocate.timeout = 2
+        self.assertEqual(type(code), type(""))
+        mo = re.search(r"^\d+-\w+-\w+$", code)
+        self.assert_(mo, code)
+        # w.close() fails because we closed before connecting
+        self.assertFailure(w.close(), errors.LonelyError)
 
     def test_delegated(self):
         dg = Delegate()
@@ -41,10 +46,11 @@ class New(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_basic(self):
         w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
-        w1.debug_set_trace("W1")
+        #w1.debug_set_trace("W1")
         w1.allocate_code(2)
         code = yield w1.when_code()
-        print("code:", code)
+        mo = re.search(r"^\d+-\w+-\w+$", code)
+        self.assert_(mo, code)
         w2 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
         w2.set_code(code)
         code2 = yield w2.when_code()
@@ -55,6 +61,28 @@ class New(ServerBase, unittest.TestCase):
         data = yield w2.when_received()
         self.assertEqual(data, b"data")
 
-        yield w1.close()
-        yield w2.close()
-    test_basic.timeout = 2
+        w2.send(b"data2")
+        data2 = yield w1.when_received()
+        self.assertEqual(data2, b"data2")
+
+        c1 = yield w1.close()
+        self.assertEqual(c1, "happy")
+        c2 = yield w2.close()
+        self.assertEqual(c2, "happy")
+
+    @inlineCallbacks
+    def test_wrong_password(self):
+        w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        #w1.debug_set_trace("W1")
+        w1.allocate_code(2)
+        code = yield w1.when_code()
+        w2 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w2.set_code(code+", NOT")
+        code2 = yield w2.when_code()
+        self.assertNotEqual(code, code2)
+
+        w1.send(b"data")
+
+        self.assertFailure(w2.when_received(), errors.WrongPasswordError)
+        self.assertFailure(w1.close(), errors.WrongPasswordError)
+        self.assertFailure(w2.close(), errors.WrongPasswordError)

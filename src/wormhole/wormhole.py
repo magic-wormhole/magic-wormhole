@@ -2,12 +2,13 @@ from __future__ import print_function, absolute_import, unicode_literals
 import os, sys
 from attr import attrs, attrib
 from zope.interface import implementer
+from twisted.python import failure
 from twisted.internet import defer
 from ._interfaces import IWormhole
 from .util import bytes_to_hexstr
 from .timing import DebugTiming
 from .journal import ImmediateJournal
-from ._boss import Boss, WormholeError
+from ._boss import Boss
 
 # We can provide different APIs to different apps:
 # * Deferreds
@@ -118,6 +119,9 @@ class _DeferredWormhole(object):
     def send(self, plaintext):
         self._boss.send(plaintext)
     def close(self):
+        # fails with WormholeError unless we established a connection
+        # (state=="happy"). Fails with WrongPasswordError (a subclass of
+        # WormholeError) if state=="scary".
         self._boss.close()
         d = defer.Deferred()
         self._closed_observers.append(d)
@@ -146,17 +150,20 @@ class _DeferredWormhole(object):
         self._received_data.append(plaintext)
 
     def closed(self, result):
-        print("closed", result, type(result))
-        if isinstance(result, WormholeError):
-            e = result
+        #print("closed", result, type(result))
+        if isinstance(result, Exception):
+            observer_result = close_result = failure.Failure(result)
         else:
-            e = WormholeClosed(result)
+            # pending w.verify() or w.read() get an error
+            observer_result = WormholeClosed(result)
+            # but w.close() only gets error if we're unhappy
+            close_result = result
         for d in self._verifier_observers:
-            d.errback(e)
+            d.errback(observer_result)
         for d in self._received_observers:
-            d.errback(e)
+            d.errback(observer_result)
         for d in self._closed_observers:
-            d.callback(result)
+            d.callback(close_result)
 
 def _wormhole(appid, relay_url, reactor, delegate=None,
               tor_manager=None, timing=None,

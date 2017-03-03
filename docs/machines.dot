@@ -25,7 +25,7 @@ digraph {
 
         #Boss -> Connection [color="blue"]
         Boss -> Connection [style="dashed" label="start"]
-        Connection -> Boss [style="dashed" label="rx_welcome\nrx_error"]
+        Connection -> Boss [style="dashed" label="rx_welcome\nrx_error\nerror"]
 
         Boss -> Send [style="dashed" label="send"]
 
