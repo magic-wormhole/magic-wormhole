@@ -7,7 +7,7 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError, NoTorError
-from ..wormhole import wormhole
+from .. import wormhole
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 
@@ -52,9 +52,10 @@ class Sender:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(self._args.appid or APPID, self._args.relay_url,
-                     self._reactor, self._tor_manager,
-                     timing=self._timing)
+        w = wormhole.create(self._args.appid or APPID, self._args.relay_url,
+                            self._reactor,
+                            tor_manager=self._tor_manager,
+                            timing=self._timing)
         d = self._go(w)
         d.addBoth(w.close) # must wait for ack from close()
         yield d
@@ -83,25 +84,25 @@ class Sender:
 
         if args.code:
             w.set_code(args.code)
-            code = args.code
         else:
-            code = yield w.get_code(args.code_length)
+            w.allocate_code(args.code_length)
 
+        code = yield w.when_code()
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
             # flush stderr so the code is displayed immediately
             args.stderr.flush()
         print(u"", file=args.stderr)
 
-        yield w.establish_key()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
 
-        # TODO: don't stall on w.verify() unless they want it
+        # TODO: maybe don't stall on verifier unless they want it
         try:
-            verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+            # this may raise WrongPasswordError
+            verifier_bytes = yield w.when_verifier()
         finally:
             if not notify.called:
                 notify.cancel()
@@ -146,12 +147,13 @@ class Sender:
 
         while True:
             try:
-                them_d_bytes = yield w.get()
+                them_d_bytes = yield w.when_received()
             except WormholeClosedError:
                 if done:
                     returnValue(None)
                 raise TransferError("unexpected close")
-            # TODO: get() fired, so now it's safe to use w.derive_key()
+            # TODO: when_received() fired, so now it's safe to use
+            # w.derive_key()
             them_d = bytes_to_dict(them_d_bytes)
             #print("GOT", them_d)
             recognized = False

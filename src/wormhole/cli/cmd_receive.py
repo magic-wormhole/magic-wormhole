@@ -5,7 +5,7 @@ from humanize import naturalsize
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
-from ..wormhole import wormhole
+from .. import wormhole
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError, NoTorError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
@@ -61,8 +61,10 @@ class TwistedReceiver:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(self.args.appid or APPID, self.args.relay_url,
-                     self._reactor, self._tor_manager, timing=self.args.timing)
+        w = wormhole.create(self.args.appid or APPID, self.args.relay_url,
+                            self._reactor,
+                            tor_manager=self._tor_manager,
+                            timing=self.args.timing)
         # I wanted to do this instead:
         #
         #    try:
@@ -80,13 +82,12 @@ class TwistedReceiver:
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        yield w.establish_key()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=self.args.stderr)
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
         try:
-            verifier = yield w.verify()
+            verifier = yield w.when_verifier()
         finally:
             if not notify.called:
                 notify.cancel()
@@ -127,7 +128,7 @@ class TwistedReceiver:
     @inlineCallbacks
     def _get_data(self, w):
         # this may raise WrongPasswordError
-        them_bytes = yield w.get()
+        them_bytes = yield w.when_received()
         them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
@@ -142,7 +143,7 @@ class TwistedReceiver:
         if code:
             w.set_code(code)
         else:
-            yield w.input_code("Enter receive wormhole code: ",
+            yield w.input_code("Enter receive wormhole code: ", # TODO
                                self.args.code_length)
 
     def _show_verifier(self, verifier):
