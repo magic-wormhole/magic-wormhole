@@ -127,7 +127,7 @@ class _DeferredWormhole(object):
         self._closed_observers.append(d)
         return d
 
-    def debug_set_trace(self, client_name, which="B N M S O K R RC NL C T",
+    def debug_set_trace(self, client_name, which="B N M S O K R RC L C T",
                            logger=_log):
         self._boss._set_trace(client_name, which, logger)
 

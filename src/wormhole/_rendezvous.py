@@ -91,12 +91,12 @@ class RendezvousConnector(object):
         # TODO: Tor goes here
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
-    def wire(self, boss, nameplate, mailbox, code, nameplate_lister, terminator):
+    def wire(self, boss, nameplate, mailbox, code, lister, terminator):
         self._B = _interfaces.IBoss(boss)
         self._N = _interfaces.INameplate(nameplate)
         self._M = _interfaces.IMailbox(mailbox)
         self._C = _interfaces.ICode(code)
-        self._NL = _interfaces.INameplateLister(nameplate_lister)
+        self._L = _interfaces.ILister(lister)
         self._T = _interfaces.ITerminator(terminator)
 
     # from Boss
@@ -127,7 +127,7 @@ class RendezvousConnector(object):
         d.addBoth(self._stopped)
 
 
-    # from NameplateLister
+    # from Lister
     def tx_list(self):
         self._tx("list")
 
@@ -143,7 +143,7 @@ class RendezvousConnector(object):
         self._C.connected()
         self._N.connected()
         self._M.connected()
-        self._NL.connected()
+        self._L.connected()
 
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
@@ -177,7 +177,7 @@ class RendezvousConnector(object):
         self._C.lost()
         self._N.lost()
         self._M.lost()
-        self._NL.lost()
+        self._L.lost()
 
     # internal
     def _stopped(self, res):
@@ -210,7 +210,7 @@ class RendezvousConnector(object):
             nameplate_id = n["id"]
             assert isinstance(nameplate_id, type("")), type(nameplate_id)
             nids.append(nameplate_id)
-        self._NL.rx_nameplates(nids)
+        self._L.rx_nameplates(nids)
 
     def _response_handle_ack(self, msg):
         pass

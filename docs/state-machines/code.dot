@@ -15,7 +15,7 @@ digraph {
         S2 -> P2_completion [label="<tab>"]
         P2_completion [shape="box" label="do completion"]
         P2_completion -> P0_list_nameplates
-        P0_list_nameplates [shape="box" label="NL.refresh_nameplates"]
+        P0_list_nameplates [shape="box" label="L.refresh_nameplates"]
         P0_list_nameplates -> S2
 
         S2 -> P2_got_nameplates [label="got_nameplates"]
