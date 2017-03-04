@@ -139,11 +139,16 @@ class RendezvousConnector(object):
     def ws_open(self, proto):
         self._debug("R.connected")
         self._ws = proto
-        self._tx("bind", appid=self._appid, side=self._side)
-        self._C.connected()
-        self._N.connected()
-        self._M.connected()
-        self._L.connected()
+        try:
+            self._tx("bind", appid=self._appid, side=self._side)
+            self._C.connected()
+            self._N.connected()
+            self._M.connected()
+            self._L.connected()
+        except Exception as e:
+            self._B.error(e)
+            raise
+        self._debug("R.connected finished notifications")
 
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
