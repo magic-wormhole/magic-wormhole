@@ -27,6 +27,8 @@ class ITerminator(Interface):
 
 class ITiming(Interface):
     pass
+class ITorManager(Interface):
+    pass
 
 class IJournal(Interface): # TODO: this needs to be public
     pass

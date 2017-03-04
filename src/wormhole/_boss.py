@@ -30,6 +30,7 @@ class Boss(object):
     _welcome_handler = attrib() # TODO: validator: callable
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
+    _tor_manager = attrib() # TODO: ITorManager or None
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
@@ -44,7 +45,7 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
-                                       self._timing)
+                                       self._tor_manager, self._timing)
         self._L = Lister()
         self._C = Code(self._timing)
         self._T = Terminator()

@@ -1,6 +1,7 @@
 from __future__ import print_function, unicode_literals
 import sys, re
 import six
+from zope.interface import implementer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.error import ConnectError
 from twisted.internet.endpoints import clientFromString
@@ -14,9 +15,12 @@ except ImportError:
     TorClientEndpoint = None
     DEFAULT_VALUE = "DEFAULT_VALUE"
 import ipaddress
+from . import _interfaces
 from .timing import DebugTiming
 from .transit import allocate_tcp_port
 
+
+@implementer(_interfaces.ITorManager)
 class TorManager:
     def __init__(self, reactor, launch_tor=False, tor_control_port=None,
                  timing=None, stderr=sys.stderr):

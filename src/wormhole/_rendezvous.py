@@ -69,6 +69,7 @@ class RendezvousConnector(object):
     _side = attrib(validator=instance_of(type(u"")))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
+    _tor_manager = attrib() # TODO: ITorManager or None
     _timing = attrib(validator=provides(_interfaces.ITiming))
 
     def __attrs_post_init__(self):
@@ -88,7 +89,8 @@ class RendezvousConnector(object):
             self._trace(old_state="", input=what, new_state="")
 
     def _make_endpoint(self, hostname, port):
-        # TODO: Tor goes here
+        if self._tor_manager:
+            return self._tor_manager.get_endpoint_for(hostname, port)
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
     def wire(self, boss, nameplate, mailbox, code, lister, terminator):
