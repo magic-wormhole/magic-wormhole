@@ -34,7 +34,9 @@ class Code(object):
         self._L = _interfaces.ILister(lister)
 
     @m.state(initial=True)
-    def S0_unknown(self): pass # pragma: no cover
+    def S0A_unknown(self): pass # pragma: no cover
+    @m.state()
+    def S0B_unknown_connected(self): pass # pragma: no cover
     @m.state()
     def S1A_connecting(self): pass # pragma: no cover
     @m.state()
@@ -82,6 +84,10 @@ class Code(object):
         self._stdio = stdio
         self._L.refresh_nameplates()
     @m.output()
+    def stash_code_length_and_RC_tx_allocate(self, code_length):
+        self._code_length = code_length
+        self._RC.tx_allocate()
+    @m.output()
     def stash_code_length(self, code_length):
         self._code_length = code_length
     @m.output()
@@ -113,18 +119,26 @@ class Code(object):
     def _B_got_code(self):
         self._B.got_code(self._code)
 
-    S0_unknown.upon(set_code, enter=S4_known, outputs=[B_got_code])
+    S0A_unknown.upon(connected, enter=S0B_unknown_connected, outputs=[])
+    S0B_unknown_connected.upon(lost, enter=S0A_unknown, outputs=[])
 
-    S0_unknown.upon(allocate_code, enter=S1A_connecting,
-                    outputs=[stash_code_length])
+    S0A_unknown.upon(set_code, enter=S4_known, outputs=[B_got_code])
+    S0B_unknown_connected.upon(set_code, enter=S4_known, outputs=[B_got_code])
+
+    S0A_unknown.upon(allocate_code, enter=S1A_connecting,
+                     outputs=[stash_code_length])
+    S0B_unknown_connected.upon(allocate_code, enter=S1B_allocating,
+                               outputs=[stash_code_length_and_RC_tx_allocate])
     S1A_connecting.upon(connected, enter=S1B_allocating,
                         outputs=[RC_tx_allocate])
     S1B_allocating.upon(lost, enter=S1A_connecting, outputs=[])
     S1B_allocating.upon(rx_allocated, enter=S4_known,
                         outputs=[generate_and_B_got_code])
 
-    S0_unknown.upon(input_code, enter=S2_typing_nameplate,
-                    outputs=[start_input_and_L_refresh_nameplates])
+    S0A_unknown.upon(input_code, enter=S2_typing_nameplate,
+                     outputs=[start_input_and_L_refresh_nameplates])
+    S0B_unknown_connected.upon(input_code, enter=S2_typing_nameplate,
+                               outputs=[start_input_and_L_refresh_nameplates])
     S2_typing_nameplate.upon(tab, enter=S2_typing_nameplate,
                              outputs=[do_completion_nameplates])
     S2_typing_nameplate.upon(got_nameplates, enter=S2_typing_nameplate,

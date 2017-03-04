@@ -2,8 +2,9 @@ from __future__ import print_function, unicode_literals
 import json
 from zope.interface import directlyProvides
 from twisted.trial import unittest
-from .. import timing, _order, _receive, _key
-from .._interfaces import IKey, IReceive, IBoss, ISend, IMailbox
+from .. import timing, _order, _receive, _key, _code
+from .._interfaces import (IKey, IReceive, IBoss, ISend, IMailbox,
+                           IRendezvousConnector, ILister)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..util import dict_to_bytes, hexstr_to_bytes, bytes_to_hexstr, to_bytes
 from spake2 import SPAKE2_Symmetric
@@ -174,7 +175,6 @@ class Key(unittest.TestCase):
         self.assertEqual(events[2][:2], ("m.add_message", "version"))
         self.assertEqual(events[3], ("r.got_key", key2))
 
-
     def test_bad(self):
         k, b, m, r, events = self.build()
         code = u"1-foo"
@@ -188,3 +188,58 @@ class Key(unittest.TestCase):
         bad_pake_d = {"not_pake_v1": "stuff"}
         k.got_pake(dict_to_bytes(bad_pake_d))
         self.assertEqual(events, [("b.scared",)])
+
+class Code(unittest.TestCase):
+    def build(self):
+        events = []
+        c = _code.Code(timing.DebugTiming())
+        b = Dummy("b", events, IBoss, "got_code")
+        rc = Dummy("rc", events, IRendezvousConnector, "tx_allocate")
+        l = Dummy("l", events, ILister, "refresh_nameplates")
+        c.wire(b, rc, l)
+        return c, b, rc, l, events
+
+    def test_set_disconnected(self):
+        c, b, rc, l, events = self.build()
+        c.set_code(u"code")
+        self.assertEqual(events, [("b.got_code", u"code")])
+
+    def test_set_connected(self):
+        c, b, rc, l, events = self.build()
+        c.connected()
+        c.set_code(u"code")
+        self.assertEqual(events, [("b.got_code", u"code")])
+
+    def test_allocate_disconnected(self):
+        c, b, rc, l, events = self.build()
+        c.allocate_code(2)
+        self.assertEqual(events, [])
+        c.connected()
+        self.assertEqual(events, [("rc.tx_allocate",)])
+        events[:] = []
+        c.lost()
+        self.assertEqual(events, [])
+        c.connected()
+        self.assertEqual(events, [("rc.tx_allocate",)])
+        events[:] = []
+        c.rx_allocated("4")
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "b.got_code")
+        code = events[0][1]
+        self.assert_(code.startswith("4-"), code)
+
+    def test_allocate_connected(self):
+        c, b, rc, l, events = self.build()
+        c.connected()
+        c.allocate_code(2)
+        self.assertEqual(events, [("rc.tx_allocate",)])
+        events[:] = []
+        c.rx_allocated("4")
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "b.got_code")
+        code = events[0][1]
+        self.assert_(code.startswith("4-"), code)
+
+    # TODO: input_code
+
+
