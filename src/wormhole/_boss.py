@@ -135,7 +135,7 @@ class Boss(object):
     @m.input()
     def got_code(self, code): pass
 
-    # Key sends (got_verifier, scared)
+    # Key sends (got_key, got_verifier, scared)
     # Receive sends (got_message, happy, scared)
     @m.input()
     def happy(self): pass
@@ -157,6 +157,8 @@ class Boss(object):
     def got_version(self, plaintext): pass
     @m.input()
     def got_phase(self, phase, plaintext): pass
+    @m.input()
+    def got_key(self, key): pass
     @m.input()
     def got_verifier(self, verifier): pass
 
@@ -205,6 +207,9 @@ class Boss(object):
         self._T.close("happy")
 
     @m.output()
+    def W_got_key(self, key):
+        self._W.got_key(key)
+    @m.output()
     def W_got_verifier(self, verifier):
         self._W.got_verifier(verifier)
     @m.output()
@@ -238,6 +243,7 @@ class Boss(object):
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
+    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key])
     S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
