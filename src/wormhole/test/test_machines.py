@@ -147,7 +147,7 @@ class Key(unittest.TestCase):
     def build(self):
         events = []
         k = _key.Key(u"appid", u"side", timing.DebugTiming())
-        b = Dummy("b", events, IBoss, "scared", "got_verifier")
+        b = Dummy("b", events, IBoss, "scared", "got_key", "got_verifier")
         m = Dummy("m", events, IMailbox, "add_message")
         r = Dummy("r", events, IReceive, "got_key")
         k.wire(b, m, r)
@@ -168,10 +168,11 @@ class Key(unittest.TestCase):
         key2 = sp.finish(msg1_bytes)
         msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
         k.got_pake(msg2)
-        self.assertEqual(len(events), 3)
-        self.assertEqual(events[0][0], "b.got_verifier")
-        self.assertEqual(events[1][:2], ("m.add_message", "version"))
-        self.assertEqual(events[2], ("r.got_key", key2))
+        self.assertEqual(len(events), 4, events)
+        self.assertEqual(events[0], ("b.got_key", key2))
+        self.assertEqual(events[1][0], "b.got_verifier")
+        self.assertEqual(events[2][:2], ("m.add_message", "version"))
+        self.assertEqual(events[3], ("r.got_key", key2))
 
 
     def test_bad(self):

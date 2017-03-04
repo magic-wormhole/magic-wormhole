@@ -9,6 +9,9 @@ from .util import bytes_to_hexstr
 from .timing import DebugTiming
 from .journal import ImmediateJournal
 from ._boss import Boss
+from ._key import derive_key
+from .errors import NoKeyError
+from .util import to_bytes
 
 # We can provide different APIs to different apps:
 # * Deferreds
@@ -39,6 +42,9 @@ def _log(client_name, machine_name, old_state, input, new_state):
 class _DelegatedWormhole(object):
     _delegate = attrib()
 
+    def __attrs_post_init__(self):
+        self._key = None
+
     def _set_boss(self, boss):
         self._boss = boss
 
@@ -59,6 +65,18 @@ class _DelegatedWormhole(object):
 
     def send(self, plaintext):
         self._boss.send(plaintext)
+
+    def derive_key(self, purpose, length):
+        """Derive a new key from the established wormhole channel for some
+        other purpose. This is a deterministic randomized function of the
+        session key and the 'purpose' string (unicode/py3-string). This
+        cannot be called until when_verifier() has fired, nor after close()
+        was called.
+        """
+        if not isinstance(purpose, type("")): raise TypeError(type(purpose))
+        if not self._key: raise NoKeyError()
+        return derive_key(self._key, to_bytes(purpose), length)
+
     def close(self):
         self._boss.close()
 
@@ -69,6 +87,8 @@ class _DelegatedWormhole(object):
     # from below
     def got_code(self, code):
         self._delegate.wormhole_got_code(code)
+    def got_key(self, key):
+        self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._delegate.wormhole_got_verifier(verifier)
     def received(self, plaintext):
@@ -84,6 +104,7 @@ class _DeferredWormhole(object):
     def __init__(self):
         self._code = None
         self._code_observers = []
+        self._key = None
         self._verifier = None
         self._verifier_observers = []
         self._received_data = []
@@ -125,6 +146,18 @@ class _DeferredWormhole(object):
     # no .serialize in Deferred-mode
     def send(self, plaintext):
         self._boss.send(plaintext)
+
+    def derive_key(self, purpose, length):
+        """Derive a new key from the established wormhole channel for some
+        other purpose. This is a deterministic randomized function of the
+        session key and the 'purpose' string (unicode/py3-string). This
+        cannot be called until when_verifier() has fired, nor after close()
+        was called.
+        """
+        if not isinstance(purpose, type("")): raise TypeError(type(purpose))
+        if not self._key: raise NoKeyError()
+        return derive_key(self._key, to_bytes(purpose), length)
+
     def close(self):
         # fails with WormholeError unless we established a connection
         # (state=="happy"). Fails with WrongPasswordError (a subclass of
@@ -144,6 +177,8 @@ class _DeferredWormhole(object):
         for d in self._code_observers:
             d.callback(code)
         self._code_observers[:] = []
+    def got_key(self, key):
+        self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._verifier = verifier
         for d in self._verifier_observers:

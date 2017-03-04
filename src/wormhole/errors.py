@@ -50,3 +50,6 @@ class TransferError(WormholeError):
 
 class NoTorError(WormholeError):
     """--tor was requested, but 'txtorcon' is not installed."""
+
+class NoKeyError(WormholeError):
+    """w.derive_key() was called before got_verifier() fired"""

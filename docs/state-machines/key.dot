@@ -35,7 +35,7 @@ digraph {
         S1 -> P1_compute [label="got_pake\npake good"]
         #S1 -> P_mood_lonely [label="close"]
 
-        P1_compute [label="compute_key\nM.add_message(version)\nW.got_verifier\nR.got_key" shape="box"]
+        P1_compute [label="compute_key\nM.add_message(version)\nB.got_key\nB.got_verifier\nR.got_key" shape="box"]
         P1_compute -> S2
 
         S2 [label="S2: know_key" color="green"]
