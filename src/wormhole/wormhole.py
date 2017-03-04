@@ -276,7 +276,8 @@ def create(appid, relay_url, reactor, delegate=None, journal=None,
         w = _DelegatedWormhole(delegate)
     else:
         w = _DeferredWormhole()
-    b = Boss(w, side, relay_url, appid, welcome_handler, reactor, journal, timing)
+    b = Boss(w, side, relay_url, appid, welcome_handler, reactor, journal,
+             tor_manager, timing)
     w._set_boss(b)
     b.start()
     return w
