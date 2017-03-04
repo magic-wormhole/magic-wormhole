@@ -27,6 +27,7 @@ class Boss(object):
     _side = attrib(validator=instance_of(type(u"")))
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
+    _welcome_handler = attrib() # TODO: validator: callable
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _timing = attrib(validator=provides(_interfaces.ITiming))
@@ -169,7 +170,7 @@ class Boss(object):
 
     @m.output()
     def process_welcome(self, welcome):
-        pass # TODO: ignored for now
+        self._welcome_handler(welcome)
 
     @m.output()
     def do_got_code(self, code):
