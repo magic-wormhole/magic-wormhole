@@ -146,6 +146,7 @@ class _DeferredWormhole(object):
         self._version_observers = []
         self._received_data = []
         self._received_observers = []
+        self._closed_result = None
         self._closed_observers = []
 
     def _set_boss(self, boss):
@@ -206,7 +207,9 @@ class _DeferredWormhole(object):
         # fails with WormholeError unless we established a connection
         # (state=="happy"). Fails with WrongPasswordError (a subclass of
         # WormholeError) if state=="scary".
-        self._boss.close()
+        if self._closed_result:
+            return defer.succeed(self._closed_result) # maybe Failure
+        self._boss.close() # only need to close if it wasn't already
         d = defer.Deferred()
         self._closed_observers.append(d)
         return d
@@ -245,12 +248,12 @@ class _DeferredWormhole(object):
     def closed(self, result):
         #print("closed", result, type(result))
         if isinstance(result, Exception):
-            observer_result = close_result = failure.Failure(result)
+            observer_result = self._closed_result = failure.Failure(result)
         else:
             # pending w.verify()/w.version()/w.read() get an error
             observer_result = WormholeClosed(result)
             # but w.close() only gets error if we're unhappy
-            close_result = result
+            self._closed_result = result
         for d in self._verifier_observers:
             d.errback(observer_result)
         for d in self._version_observers:
@@ -258,7 +261,7 @@ class _DeferredWormhole(object):
         for d in self._received_observers:
             d.errback(observer_result)
         for d in self._closed_observers:
-            d.callback(close_result)
+            d.callback(self._closed_result)
 
 
 def create(appid, relay_url, reactor, delegate=None, journal=None,
