@@ -10,14 +10,14 @@ from .timing import DebugTiming
 from .journal import ImmediateJournal
 from ._boss import Boss
 from ._key import derive_key
-from .errors import NoKeyError
+from .errors import WelcomeError, NoKeyError
 from .util import to_bytes
 
 # We can provide different APIs to different apps:
 # * Deferreds
-#   w.when_got_code().addCallback(print_code)
+#   w.when_code().addCallback(print_code)
 #   w.send(data)
-#   w.receive().addCallback(got_data)
+#   w.when_received().addCallback(got_data)
 #   w.close().addCallback(closed)
 
 # * delegate callbacks (better for journaled environments)
@@ -37,6 +37,36 @@ from .util import to_bytes
 def _log(client_name, machine_name, old_state, input, new_state):
     print("%s.%s[%s].%s -> [%s]" % (client_name, machine_name,
                                     old_state, input, new_state))
+
+class _WelcomeHandler:
+    def __init__(self, url, current_version, signal_error):
+        self._ws_url = url
+        self._version_warning_displayed = False
+        self._current_version = current_version
+        self._signal_error = signal_error
+
+    def handle_welcome(self, welcome):
+        if "motd" in welcome:
+            motd_lines = welcome["motd"].splitlines()
+            motd_formatted = "\n ".join(motd_lines)
+            print("Server (at %s) says:\n %s" %
+                  (self._ws_url, motd_formatted), file=sys.stderr)
+
+        # Only warn if we're running a release version (e.g. 0.0.6, not
+        # 0.0.6-DISTANCE-gHASH). Only warn once.
+        if ("current_cli_version" in welcome
+            and "-" not in self._current_version
+            and not self._version_warning_displayed
+            and welcome["current_cli_version"] != self._current_version):
+            print("Warning: errors may occur unless both sides are running the same version", file=sys.stderr)
+            print("Server claims %s is current, but ours is %s"
+                  % (welcome["current_cli_version"], self._current_version),
+                  file=sys.stderr)
+            self._version_warning_displayed = True
+
+        if "error" in welcome:
+            return self._signal_error(WelcomeError(welcome["error"]),
+                                      "unwelcome")
 
 @attrs
 @implementer(IWormhole)
@@ -88,6 +118,8 @@ class _DelegatedWormhole(object):
     # from below
     def got_code(self, code):
         self._delegate.wormhole_got_code(code)
+    def got_welcome(self, welcome):
+        pass # TODO
     def got_key(self, key):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
@@ -189,6 +221,8 @@ class _DeferredWormhole(object):
         for d in self._code_observers:
             d.callback(code)
         self._code_observers[:] = []
+    def got_welcome(self, welcome):
+        pass # TODO
     def got_key(self, key):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
@@ -226,16 +260,23 @@ class _DeferredWormhole(object):
         for d in self._closed_observers:
             d.callback(close_result)
 
+
 def create(appid, relay_url, reactor, delegate=None, journal=None,
-           tor_manager=None, timing=None, stderr=sys.stderr):
+           tor_manager=None, timing=None, welcome_handler=None,
+           stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
+    if not welcome_handler:
+        from . import __version__
+        signal_error = NotImplemented # TODO
+        wh = _WelcomeHandler(relay_url, __version__, signal_error)
+        welcome_handler = wh.handle_welcome
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
         w = _DeferredWormhole()
-    b = Boss(w, side, relay_url, appid, reactor, journal, timing)
+    b = Boss(w, side, relay_url, appid, welcome_handler, reactor, journal, timing)
     w._set_boss(b)
     b.start()
     return w
