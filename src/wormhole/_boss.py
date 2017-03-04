@@ -179,8 +179,12 @@ class Boss(object):
         self._W.got_code(code)
     @m.output()
     def process_version(self, plaintext):
+        # most of this is wormhole-to-wormhole, ignored for now
+        # in the future, this is how Dilation is signalled
         self._their_versions = bytes_to_dict(plaintext)
-        # ignored for now
+        # but this part is app-to-app
+        app_versions = self._their_versions.get("app_versions", {})
+        self._W.got_version(app_versions)
 
     @m.output()
     def S_send(self, plaintext):

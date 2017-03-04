@@ -25,6 +25,7 @@ from .util import to_bytes
 #   w.send(data)
 #   app.wormhole_got_code(code)
 #   app.wormhole_got_verifier(verifier)
+#   app.wormhole_got_version(version)
 #   app.wormhole_receive(data)
 #   w.close()
 #   app.wormhole_closed()
@@ -91,6 +92,8 @@ class _DelegatedWormhole(object):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._delegate.wormhole_got_verifier(verifier)
+    def got_version(self, version):
+        self._delegate.wormhole_got_version(version)
     def received(self, plaintext):
         self._delegate.wormhole_received(plaintext)
     def closed(self, result):
@@ -107,6 +110,8 @@ class _DeferredWormhole(object):
         self._key = None
         self._verifier = None
         self._verifier_observers = []
+        self._version = None
+        self._version_observers = []
         self._received_data = []
         self._received_observers = []
         self._closed_observers = []
@@ -129,6 +134,13 @@ class _DeferredWormhole(object):
         self._verifier_observers.append(d)
         return d
 
+    def when_version(self):
+        if self._version is not None:
+            return defer.succeed(self._version)
+        d = defer.Deferred()
+        self._version_observers.append(d)
+        return d
+
     def when_received(self):
         if self._received_data:
             return defer.succeed(self._received_data.pop(0))
@@ -138,7 +150,7 @@ class _DeferredWormhole(object):
 
     def allocate_code(self, code_length=2):
         self._boss.allocate_code(code_length)
-    def input_code(self, stdio):
+    def input_code(self, stdio): # TODO
         self._boss.input_code(stdio)
     def set_code(self, code):
         self._boss.set_code(code)
@@ -184,6 +196,11 @@ class _DeferredWormhole(object):
         for d in self._verifier_observers:
             d.callback(verifier)
         self._verifier_observers[:] = []
+    def got_version(self, version):
+        self._version = version
+        for d in self._version_observers:
+            d.callback(version)
+        self._version_observers[:] = []
 
     def received(self, plaintext):
         if self._received_observers:
@@ -196,11 +213,13 @@ class _DeferredWormhole(object):
         if isinstance(result, Exception):
             observer_result = close_result = failure.Failure(result)
         else:
-            # pending w.verify() or w.read() get an error
+            # pending w.verify()/w.version()/w.read() get an error
             observer_result = WormholeClosed(result)
             # but w.close() only gets error if we're unhappy
             close_result = result
         for d in self._verifier_observers:
+            d.errback(observer_result)
+        for d in self._version_observers:
             d.errback(observer_result)
         for d in self._received_observers:
             d.errback(observer_result)
