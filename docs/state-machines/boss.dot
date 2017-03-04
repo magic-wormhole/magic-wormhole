@@ -42,16 +42,20 @@ digraph {
         P2_close [shape="box" label="T.close(happy)"]
         P2_close -> S_closing
 
-        S2 -> P2_got_message [label="got_message"]
-        P2_got_message [shape="box" label="W.received"]
-        P2_got_message -> S2
+        S2 -> P2_got_phase [label="got_phase"]
+        P2_got_phase [shape="box" label="W.received"]
+        P2_got_phase -> S2
+
+        S2 -> P2_got_version [label="got_version"]
+        P2_got_version [shape="box" label="W.got_version"]
+        P2_got_version -> S2
 
         S2 -> P_close_error [label="rx_error"]
         S2 -> P_close_scary [label="scared" color="red"]
 
         S_closing [label="closing"]
         S_closing -> P_closed [label="closed\nerror"]
-        S_closing -> S_closing [label="got_message\nhappy\nscared\nclose"]
+        S_closing -> S_closing [label="got_version\ngot_phase\nhappy\nscared\nclose"]
 
         P_closed [shape="box" label="W.closed(reason)"]
         P_closed -> S_closed
@@ -63,7 +67,7 @@ digraph {
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"
-               label="rx_welcome -> process\nsend -> S.send\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
+               label="rx_welcome -> process\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
                ]
 
 

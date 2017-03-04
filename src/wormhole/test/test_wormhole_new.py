@@ -57,6 +57,16 @@ class New(ServerBase, unittest.TestCase):
         code2 = yield w2.when_code()
         self.assertEqual(code, code2)
 
+        verifier1 = yield w1.when_verifier()
+        verifier2 = yield w2.when_verifier()
+        self.assertEqual(verifier1, verifier2)
+
+        version1 = yield w1.when_version()
+        version2 = yield w2.when_version()
+        # TODO: add the ability to set app-versions
+        self.assertEqual(version1, {})
+        self.assertEqual(version2, {})
+
         w1.send(b"data")
 
         data = yield w2.when_received()
