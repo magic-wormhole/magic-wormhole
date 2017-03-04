@@ -1,15 +1,20 @@
 digraph {
 
         start [label="Wormhole Code\nMachine" style="dotted"]
-        {rank=same; start S0}
-        start -> S0 [style="invis"]
-        S0 [label="S0:\nunknown\ndisconnected"]
-        S0 -> P0_got_code [label="set_code"]
+        {rank=same; start S0A S0B}
+        start -> S0A [style="invis"]
+        S0A [label="S0A:\nunknown\ndisconnected"]
+        S0A -> S0B [label="connected"]
+        S0B -> S0A [label="lost"]
+        S0B [label="S0B:\nunknown\nconnected"]
+        S0A -> P0_got_code [label="set_code"]
+        S0B -> P0_got_code [label="set_code"]
         P0_got_code [shape="box" label="B.got_code"]
         P0_got_code -> S4
         S4 [label="S4: known" color="green"]
 
-        S0 -> P0_list_nameplates [label="input_code"]
+        S0A -> P0_list_nameplates [label="input_code"]
+        S0B -> P0_list_nameplates [label="input_code"]
         S2 [label="S2: typing\nnameplate"]
 
         S2 -> P2_completion [label="<tab>"]
@@ -32,7 +37,7 @@ digraph {
         S3 -> P0_got_code [label="<return>"
                            color="orange" fontcolor="orange"]
 
-        S0 -> S1A [label="allocate_code"]
+        S0A -> S1A [label="allocate_code"]
         S1A [label="S1A:\nconnecting"]
         S1A -> P1_allocate [label="connected"]
         P1_allocate [shape="box" label="RC.tx_allocate"]
@@ -42,5 +47,7 @@ digraph {
         S1B -> S1A [label="lost"]
         P1_generate [shape="box" label="generate\nrandom code"]
         P1_generate -> P0_got_code
+
+        S0B -> P1_allocate [label="allocate_code"]
         
 }
