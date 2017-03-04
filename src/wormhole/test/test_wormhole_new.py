@@ -28,7 +28,7 @@ class New(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_allocate(self):
-        w = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w = wormhole.create(APPID, self.relayurl, reactor)
         #w.debug_set_trace("W1")
         w.allocate_code(2)
         code = yield w.when_code()
@@ -40,18 +40,19 @@ class New(ServerBase, unittest.TestCase):
 
     def test_delegated(self):
         dg = Delegate()
-        w = wormhole.delegated_wormhole(APPID, self.relayurl, reactor, dg)
+        w = wormhole.create(APPID, self.relayurl, reactor, delegate=dg)
         w.close()
 
     @inlineCallbacks
     def test_basic(self):
-        w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
         #w1.debug_set_trace("W1")
         w1.allocate_code(2)
         code = yield w1.when_code()
         mo = re.search(r"^\d+-\w+-\w+$", code)
         self.assert_(mo, code)
-        w2 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        #w2.debug_set_trace("  W2")
         w2.set_code(code)
         code2 = yield w2.when_code()
         self.assertEqual(code, code2)
@@ -72,11 +73,11 @@ class New(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_wrong_password(self):
-        w1 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
         #w1.debug_set_trace("W1")
         w1.allocate_code(2)
         code = yield w1.when_code()
-        w2 = wormhole.deferred_wormhole(APPID, self.relayurl, reactor)
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
         w2.set_code(code+", NOT")
         code2 = yield w2.when_code()
         self.assertNotEqual(code, code2)
