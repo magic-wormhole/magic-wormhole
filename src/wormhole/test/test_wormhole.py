@@ -6,7 +6,7 @@ from twisted.trial import unittest
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, gatherResults, inlineCallbacks
 from .common import ServerBase
-from .. import wormhole
+from .. import wormhole, _order
 from ..errors import (WrongPasswordError, WelcomeError, InternalError,
                       KeyFormatError)
 from spake2 import SPAKE2_Symmetric
@@ -924,9 +924,9 @@ class Wormholes(ServerBase, unittest.TestCase):
         # SPAKE2.finish() to be called a second time, which throws an error
         # (which, being somewhat unexpected, caused a hang rather than a
         # clear exception).
-        with mock.patch("wormhole.wormhole._Wormhole", MessageDoublingReceiver):
-            w1 = wormhole.wormhole(APPID, self.relayurl, reactor)
-        w2 = wormhole.wormhole(APPID, self.relayurl, reactor)
+        with mock.patch("wormhole.wormhole._order", MessageDoubler):
+            w1 = wormhole.create(APPID, self.relayurl, reactor)
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
         w1.send(b"data1"), w2.send(b"data2")
@@ -937,16 +937,16 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.close()
         yield w2.close()
 
-class MessageDoublingReceiver(wormhole._Wormhole):
+class MessageDoubler(_order.Order):
     # we could double messages on the sending side, but a future server will
     # strip those duplicates, so to really exercise the receiver, we must
     # double them on the inbound side instead
     #def _msg_send(self, phase, body):
     #    wormhole._Wormhole._msg_send(self, phase, body)
     #    self._ws_send_command("add", phase=phase, body=bytes_to_hexstr(body))
-    def _event_received_peer_message(self, side, phase, body):
-        wormhole._Wormhole._event_received_peer_message(self, side, phase, body)
-        wormhole._Wormhole._event_received_peer_message(self, side, phase, body)
+    def got_message(self, side, phase, body):
+        _order.Order.got_message(self, side, phase, body)
+        _order.Order.got_message(self, side, phase, body)
 
 class Errors(ServerBase, unittest.TestCase):
     @inlineCallbacks
