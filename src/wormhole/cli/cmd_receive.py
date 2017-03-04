@@ -76,18 +76,23 @@ class TwistedReceiver:
         # as coming from the "yield self._go" line, which wasn't very useful
         # for tracking it down.
         d = self._go(w)
-        d.addBoth(w.close)
+        @inlineCallbacks
+        def _close(res):
+            yield w.close()
+            returnValue(res)
+        d.addBoth(_close)
         yield d
 
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
+        verifier = yield w.when_verifier()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=self.args.stderr)
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
         try:
-            verifier = yield w.when_verifier()
+            yield w.when_version()
         finally:
             if not notify.called:
                 notify.cancel()
@@ -143,8 +148,10 @@ class TwistedReceiver:
         if code:
             w.set_code(code)
         else:
+            raise NotImplemented
             yield w.input_code("Enter receive wormhole code: ", # TODO
                                self.args.code_length)
+        yield w.when_code()
 
     def _show_verifier(self, verifier):
         verifier_hex = bytes_to_hexstr(verifier)

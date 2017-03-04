@@ -57,7 +57,11 @@ class Sender:
                             tor_manager=self._tor_manager,
                             timing=self._timing)
         d = self._go(w)
-        d.addBoth(w.close) # must wait for ack from close()
+        @inlineCallbacks
+        def _close(res):
+            yield w.close() # must wait for ack from close()
+            returnValue(res)
+        d.addBoth(_close)
         yield d
 
     def _send_data(self, data, w):
@@ -94,15 +98,20 @@ class Sender:
             args.stderr.flush()
         print(u"", file=args.stderr)
 
+        verifier_bytes = yield w.when_verifier()
+        # we've seen PAKE, but not yet VERSION, so we don't know if they got
+        # the right password or not
+
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
 
-        # TODO: maybe don't stall on verifier unless they want it
+        # TODO: maybe don't stall for VERSION, if they don't want
+        # verification, to save a roundtrip?
         try:
+            yield w.when_version()
             # this may raise WrongPasswordError
-            verifier_bytes = yield w.when_verifier()
         finally:
             if not notify.called:
                 notify.cancel()
