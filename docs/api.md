@@ -1,14 +1,14 @@
 # Magic-Wormhole
 
-This library provides a primitive function to securely transfer small amounts
+This library provides a mechanism to securely transfer small amounts
 of data between two computers. Both machines must be connected to the
 internet, but they do not need to have public IP addresses or know how to
 contact each other ahead of time.
 
-Security and connectivity is provided by means of an "invitation code": a
-short string that is transcribed from one machine to the other by the users
-at the keyboard. This works in conjunction with a baked-in "rendezvous
-server" that relays information from one machine to the other.
+Security and connectivity is provided by means of an "wormhole code": a short
+string that is transcribed from one machine to the other by the users at the
+keyboard. This works in conjunction with a baked-in "rendezvous server" that
+relays information from one machine to the other.
 
 The "Wormhole" object provides a secure record pipe between any two programs
 that use the same wormhole code (and are configured with the same application
@@ -17,140 +17,63 @@ but the encrypted data for all messages must pass through (and be temporarily
 stored on) the rendezvous server, which is a shared resource. For this
 reason, larger data (including bulk file transfers) should use the Transit
 class instead. The Wormhole object has a method to create a Transit object
-for this purpose.
+for this purpose. In the future, Transit will be deprecated, and this
+functionality will be incorporated directly as a "dilated wormhole".
+
+A quick example:
+
+```python
+import wormhole
+from twisted.internet.defer import inlineCallbacks
+
+@inlineCallbacks
+def go():
+    w = wormhole.create(appid, relay_url, reactor)
+    w.generate_code()
+    code = yield w.when_code()
+    print "code:", code
+    w.send(b"outbound data")
+    inbound = yield w.when_received()
+    yield w.close()
+```
 
 ## Modes
 
-This library will eventually offer multiple modes. For now, only "transcribe
-mode" is available.
+The API comes in two flavors: Delegated and Deferred. Controlling the
+Wormhole and sending data is identical in both, but they differ in how
+inbound data and events are delivered to the application.
 
-Transcribe mode has two variants. In the "machine-generated" variant, the
-"initiator" machine creates the invitation code, displays it to the first
-user, they convey it (somehow) to the second user, who transcribes it into
-the second ("receiver") machine. In the "human-generated" variant, the two
-humans come up with the code (possibly without computers), then later
-transcribe it into both machines.
+In Delegated mode, the Wormhole is given a "delegate" object, on which
+certain methods will be called when information is available (e.g. when the
+code is established, or when data messages are received). In Deferred mode,
+the Wormhole object has methods which return Deferreds that will fire at
+these same times.
 
-When the initiator machine generates the invitation code, the initiator
-contacts the rendezvous server and allocates a "channel ID", which is a small
-integer. The initiator then displays the invitation code, which is the
-channel-ID plus a few secret words. The user copies the code to the second
-machine. The receiver machine connects to the rendezvous server, and uses the
-invitation code to contact the initiator. They agree upon an encryption key,
-and exchange a small encrypted+authenticated data message.
-
-When the humans create an invitation code out-of-band, they are responsible
-for choosing an unused channel-ID (simply picking a random 3-or-more digit
-number is probably enough), and some random words. The invitation code uses
-the same format in either variant: channel-ID, a hyphen, and an arbitrary
-string.
-
-The two machines participating in the wormhole setup are not distinguished:
-it doesn't matter which one goes first, and both use the same Wormhole class.
-In the first variant, one side calls `get_code()` while the other calls
-`set_code()`. In the second variant, both sides call `set_code()`. (Note that
-this is not true for the "Transit" protocol used for bulk data-transfer: the
-Transit class currently distinguishes "Sender" from "Receiver", so the
-programs on each side must have some way to decide ahead of time which is
-which).
-
-Each side can then do an arbitrary number of `send()` and `get()` calls.
-`send()` writes a message into the channel. `get()` waits for a new message
-to be available, then returns it. The Wormhole is not meant as a long-term
-communication channel, but some protocols work better if they can exchange an
-initial pair of messages (perhaps offering some set of negotiable
-capabilities), and then follow up with a second pair (to reveal the results
-of the negotiation).
-
-Note: the application developer must be careful to avoid deadlocks (if both
-sides want to `get()`, somebody has to `send()` first).
-
-When both sides are done, they must call `close()`, to flush all pending
-`send()` calls, deallocate the channel, and close the websocket connection.
-
-## Twisted
-
-The Twisted-friendly flow looks like this (note that passing `reactor` is how
-you get a non-blocking Wormhole):
+Delegated mode:
 
 ```python
-from twisted.internet import reactor
-from wormhole.public_relay import RENDEZVOUS_RELAY
-from wormhole import wormhole
-w1 = wormhole(u"appid", RENDEZVOUS_RELAY, reactor)
-d = w1.get_code()
-def _got_code(code):
-    print "Invitation Code:", code
-    return w1.send(b"outbound data")
-d.addCallback(_got_code)
-d.addCallback(lambda _: w1.get())
-def _got(inbound_message):
-    print "Inbound message:", inbound_message
-d.addCallback(_got)
-d.addCallback(w1.close)
-d.addBoth(lambda _: reactor.stop())
-reactor.run()
+class MyDelegate:
+    def wormhole_got_code(self, code):
+        print("code: %s" % code)
+    def wormhole_received(self, data): # called for each message
+        print("got data, %d bytes" % len(data))
+
+w = wormhole.create(appid, relay_url, reactor, delegate=MyDelegate())
+w.generate_code()
 ```
 
-On the other side, you call `set_code()` instead of waiting for `get_code()`:
+Deferred mode:
 
 ```python
-w2 = wormhole(u"appid", RENDEZVOUS_RELAY, reactor)
-w2.set_code(code)
-d = w2.send(my_message)
-...
+w = wormhole.create(appid, relay_url, reactor)
+w.generate_code()
+def print_code(code):
+    print("code: %s" % code)
+w.when_code().addCallback(print_code)
+def received(data):
+    print("got data, %d bytes" % len(data))
+w.when_received().addCallback(received) # gets exactly one message
 ```
-
-Note that the Twisted-form `close()` accepts (and returns) an optional
-argument, so you can use `d.addCallback(w.close)` instead of
-`d.addCallback(lambda _: w.close())`.
-
-## Verifier
-
-For extra protection against guessing attacks, Wormhole can provide a
-"Verifier". This is a moderate-length series of bytes (a SHA256 hash) that is
-derived from the supposedly-shared session key. If desired, both sides can
-display this value, and the humans can manually compare them before allowing
-the rest of the protocol to proceed. If they do not match, then the two
-programs are not talking to each other (they may both be talking to a
-man-in-the-middle attacker), and the protocol should be abandoned.
-
-To retrieve the verifier, you call `d=w.verify()` before any calls to
-`send()/get()`. The Deferred will not fire until internal key-confirmation
-has taken place (meaning the two sides have exchanged their initial PAKE
-messages, and the wormhole codes matched), so `verify()` is also a good way
-to detect typos or mistakes entering the code. The Deferred will errback with
-wormhole.WrongPasswordError if the codes did not match, or it will callback
-with the verifier bytes if they did match.
-
-Once retrieved, you can turn this into hex or Base64 to print it, or render
-it as ASCII-art, etc. Once the users are convinced that `verify()` from both
-sides are the same, call `send()/get()` to continue the protocol. If you call
-`send()/get()` before `verify()`, it will perform the complete protocol
-without pausing.
-
-## Generating the Invitation Code
-
-In most situations, the "sending" or "initiating" side will call `get_code()`
-to generate the invitation code. This returns a string in the form
-`NNN-code-words`. The numeric "NNN" prefix is the "channel id", and is a
-short integer allocated by talking to the rendezvous server. The rest is a
-randomly-generated selection from the PGP wordlist, providing a default of 16
-bits of entropy. The initiating program should display this code to the user,
-who should transcribe it to the receiving user, who gives it to the Receiver
-object by calling `set_code()`. The receiving program can also use
-`input_code()` to use a readline-based input function: this offers tab
-completion of allocated channel-ids and known codewords.
-
-Alternatively, the human users can agree upon an invitation code themselves,
-and provide it to both programs later (both sides call `set_code()`). They
-should choose a channel-id that is unlikely to already be in use (3 or more
-digits are recommended), append a hyphen, and then include randomly-selected
-words or characters. Dice, coin flips, shuffled cards, or repeated sampling
-of a high-resolution stopwatch are all useful techniques.
-
-Note that the code is a human-readable string (the python "unicode" type in
-python2, "str" in python3).
 
 ## Application Identifier
 
@@ -167,18 +90,259 @@ ten Wormholes are active for a given app-id, the connection-id will only need
 to contain a single digit, even if some other app-id is currently using
 thousands of concurrent sessions.
 
-## Rendezvous Relays
+## Rendezvous Servers
 
-The library depends upon a "rendezvous relay", which is a server (with a
+The library depends upon a "rendezvous server", which is a service (on a
 public IP address) that delivers small encrypted messages from one client to
 the other. This must be the same for both clients, and is generally baked-in
 to the application source code or default config.
 
-This library includes the URL of a public relay run by the author.
-Application developers can use this one, or they can run their own (see the
-`wormhole-server` command and the `src/wormhole/server/` directory) and
-configure their clients to use it instead. This URL is passed as a unicode
-string.
+This library includes the URL of a public rendezvous server run by the
+author. Application developers can use this one, or they can run their own
+(see the `wormhole-server` command and the `src/wormhole/server/` directory)
+and configure their clients to use it instead. This URL is passed as a
+unicode string. Note that because the server actually speaks WebSockets, the
+URL starts with `ws:` instead of `http:`.
+
+## Wormhole Parameters
+
+All wormholes must be created with at least three parameters:
+
+* `appid`: a (unicode) string
+* `relay_url`: a (unicode) string
+* `reactor`: the Twisted reactor object
+
+In addition to these three, the `wormhole.create()` function takes several
+optional arguments:
+
+* `delegate`: provide a Delegate object to enable "delegated mode", or pass
+  None (the default) to get "deferred mode"
+* `journal`: provide a Journal object to enable journaled mode. See
+  journal.md for details. Note that journals only work with delegated mode,
+  not with deferred mode.
+* `tor_manager`: to enable Tor support, create a `wormhole.TorManager`
+  instance and pass it here. This will hide the client's IP address by
+  proxying all connections (rendezvous and transit) through Tor. It also
+  enables connecting to Onion-service transit hints, and (in the future) will
+  enable the creation of Onion-services for transit purposes.
+* `timing`: this accepts a DebugTiming instance, mostly for internal
+  diagnostic purposes, to record the transmit/receive timestamps for all
+  messages. The `wormhole --dump-timing=` feature uses this to build a
+  JSON-format data bundle, and the `misc/dump-timing.py` tool can build a
+  scrollable timing diagram from these bundles.
+* `welcome_handler`: this is a function that will be called when the
+  Rendezvous Server's "welcome" message is received. It is used to display
+  important server messages in an application-specific way.
+* `app_versions`: this can accept a dictionary (JSON-encodable) of data that
+  will be made available to the peer via the `got_version` event. This data
+  is delivered before any data messages, and can be used to indicate peer
+  capabilities.
+
+## Code Management
+
+Each wormhole connection is defined by a shared secret "wormhole code". These
+codes can be generated offline (by picking a unique number and some secret
+words), but are more commonly generated by whoever creates the first
+wormhole. In the "bin/wormhole" file-transfer tool, the default behavior is
+for the sender to create the code, and for the receiver to type it in.
+
+The code is a (unicode) string in the form `NNN-code-words`. The numeric
+"NNN" prefix is the "channel id" or "nameplate", and is a short integer
+allocated by talking to the rendezvous server. The rest is a
+randomly-generated selection from the PGP wordlist, providing a default of 16
+bits of entropy. The initiating program should display this code to the user,
+who should transcribe it to the receiving user, who gives it to their local
+Wormhole object by calling `set_code()`. The receiving program can also use
+`type_code()` to use a readline-based input function: this offers tab
+completion of allocated channel-ids and known codewords.
+
+The Wormhole object has three APIs for generating or accepting a code:
+
+* `w.generate_code(length=2)`: this contacts the Rendezvous Server, allocates
+  a short numeric nameplate, chooses a configurable number of random words,
+  then assembles them into the code
+* `w.set_code(code)`: this accepts the code as an argument
+* `helper = w.type_code()`: this facilitates interactive entry of the code,
+  with tab-completion. The helper object has methods to return a list of
+  viable completions for whatever portion of the code has been entered so
+  far. A convenience wrapper is provided to attach this to the `rlcompleter`
+  function of libreadline.
+
+No matter which mode is used, the `w.when_code()` Deferred (or
+`delegate.wormhole_got_code(code)` callback) will fire when the code is
+known. `when_code` is clearly necessary for `generate_code`, since there's no
+other way to learn what code was created, but it may be useful in other modes
+for consistency.
+
+The code-entry Helper object has the following API:
+
+* `d = h.get_nameplates()`: returns a Deferred that fires with a list of
+  (string) nameplates. These form the first portion of the wormhole code
+  (e.g. "4" in "4-purple-sausages"). The list is requested from the server
+  when `w.type_code()` is first called, and if the response arrives before
+  `h.get_nameplates()` is called, it will be used without delay. All
+  subsequent calls to `h.get_nameplates()` will provoke a fresh request to
+  the server, so hitting Tab too early won't condemn the client to using a
+  stale list.
+* `h.set_nameplate(nameplate)`: commit to using a specific nameplate. Once
+  this is called, `h.get_nameplates()` will raise an immediate exception
+* `completions = h.get_completions_for(prefix)`: given a prefix like "su",
+  this returns (synchronously) a list of strings which are appropriate to
+  append to the prefix (e.g. `["pportive", "rrender", "spicious"]`, for
+  expansion into "supportive", "surrender", and "suspicious". The prefix
+  should not include the nameplate, but *should* include whatever words and
+  hyphens have been typed so far (the default wordlist uses alternate lists,
+  where even numbered words have three syllables, and odd numbered words have
+  two, so the completions depend upon how many words are present, not just
+  the partial last word). E.g. `get_completions_for("pr")` will return
+  `["ocessor", "ovincial", "oximate"]`, while
+  `get_completions_for("opulent-pr")` will return `["eclude", "efer",
+  "eshrunk", "inter", "owler"]`.
+* `h.set_words(suffix)`: this accepts a string (e.g. "purple-sausages"), and
+  commits to the code. `h.set_nameplate()` must be called before this, and no
+  other methods may be called afterwards. Calling this causes the
+  `w.when_code()` Deferred or corresponding delegate callback to fire, and
+  triggers the wormhole connection process.
+
+The `rlcompleter` wrapper is a function that knows how to use the code-entry
+helper to do tab completion of wormhole codes:
+
+```python
+from wormhole import create, rlcompleter_helper
+w = create(appid, relay_url, reactor)
+rlcompleter_helper("Wormhole code:", w.type_code())
+d = w.when_code()
+```
+
+This helper runs python's `rawinput()` function inside a thread, since
+`rawinput()` normally blocks.
+
+The two machines participating in the wormhole setup are not distinguished:
+it doesn't matter which one goes first, and both use the same Wormhole
+constructor function. However if `w.generate_code()` is used, only one side
+should use it.
+
+## Offline Codes
+
+In most situations, the "sending" or "initiating" side will call
+`w.generate_code()` and display the resulting code. The sending human reads
+it and speaks, types, performs charades, or otherwise transmits the code to
+the receiving human. The receiving human then types it into the receiving
+computer, where it either calls `w.set_code()` (if the code is passed in via
+argv) or `w.type_code()` (for interactive entry).
+
+Usually one machine generates the code, and a pair of humans transcribes it
+to the second machine (so `w.generate_code()` on one side, and `w.set_code()`
+or `w.type_code()` on the other). But it is also possible for the humans to
+generate the code offline, perhaps at a face-to-face meeting, and then take
+the code back to their computers. In this case, `w.set_code()` will be used
+on both sides. It is unlikely that the humans will restrict themselves to a
+pre-established wordlist when manually generating codes, so the completion
+feature of `w.type_code()` is not helpful.
+
+When the humans create an invitation code out-of-band, they are responsible
+for choosing an unused channel-ID (simply picking a random 3-or-more digit
+number is probably enough), and some random words. Dice, coin flips, shuffled
+cards, or repeated sampling of a high-resolution stopwatch are all useful
+techniques. The invitation code uses the same format either way: channel-ID,
+a hyphen, and an arbitrary string. There is no need to encode the sampled
+random values (e.g. by using the Diceware wordlist) unless that makes it
+easier to transcribe: e.g. rolling 6 dice could result in a code like
+"913-166532", and flipping 16 coins could result in "123-HTTHHHTTHTTHHTHH".
+
+## Verifier
+
+For extra protection against guessing attacks, Wormhole can provide a
+"Verifier". This is a moderate-length series of bytes (a SHA256 hash) that is
+derived from the supposedly-shared session key. If desired, both sides can
+display this value, and the humans can manually compare them before allowing
+the rest of the protocol to proceed. If they do not match, then the two
+programs are not talking to each other (they may both be talking to a
+man-in-the-middle attacker), and the protocol should be abandoned.
+
+Once retrieved, you can turn this into hex or Base64 to print it, or render
+it as ASCII-art, etc. Once the users are convinced that `verify()` from both
+sides are the same, call `send()` to continue the protocol. If you call
+`send()` before `verify()`, it will perform the complete protocol without
+pausing.
+
+## Events
+
+As the wormhole connection is established, several events may be dispatched
+to the application. In Delegated mode, these are dispatched by calling
+functions on the delegate object. In Deferred mode, the application retrieves
+Deferred objects from the wormhole, and event dispatch is performed by firing
+those Deferreds.
+
+* got_code (`yield w.when_code()` / `dg.wormhole_got_code(code)`): fired when the
+  wormhole code is established, either after `w.generate_code()` finishes the
+  generation process, or when the Input Helper returned by `w.type_code()`
+  has been told `h.set_words()`, or immediately after `w.set_code(code)` is
+  called. This is most useful after calling `w.generate_code()`, to show the
+  generated code to the user so they can transcribe it to their peer.
+* got_verifier (`yield w.when_verifier()` / `dg.wormhole_got_verifier(verf)`:
+  fired when the key-exchange process has completed, and this side has
+  learned the shared key. The "verifier" is a byte string with a hash of the
+  shared session key; clients can compare them (probably as hex) to ensure
+  that they're really talking to each other, and not to a man-in-the-middle.
+  When `got_verifier` happens, this side has not yet seen evidence that the
+  peer has used the correct wormhole code.
+* got_version (`yield w.when_version()` / `dg.wormhole_got_version(version)`:
+  fired when the VERSION message arrives from the peer. This serves two
+  purposes. The first is that it provide confirmation that the peer (or a
+  man-in-the-middle) has used the correct wormhole code. The second is
+  delivery of the "app_versions" data (passed into `wormhole.create`).
+* received (`yield w.when_received()` / `dg.wormhole_received(data)`: fired
+  each time a data message arrives from the peer, with the bytestring that
+  the peer passed into `w.send(data)`.
+* closed (`yield w.close()` / `dg.wormhole_closed(result)`: fired when
+  `w.close()` has finished shutting down the wormhole, which means all
+  nameplates and mailboxes have been deallocated, and the WebSocket
+  connection has been closed. This also fires if an internal error occurs
+  (specifically WrongPasswordError, which indicates that an invalid encrypted
+  message was received), which also shuts everything down. The `result` value
+  is an exception (or Failure) object if the wormhole closed badly, or a
+  string like "happy" if it had no problems before shutdown.
+
+## Sending Data
+
+The main purpose of a Wormhole is to send data. At any point after
+construction, callers can invoke `w.send(data)`. This will queue the message
+if necessary, but (if all goes well) will eventually result in the peer
+getting a `received` event and the data being delivered to the application.
+
+Since Wormhole provides an ordered record pipe, each call to `w.send` will
+result in exactly one `received` event on the far side. Records are not
+split, merged, dropped, or reordered.
+
+Each side can do an arbitrary number of `send()` calls. The Wormhole is not
+meant as a long-term communication channel, but some protocols work better if
+they can exchange an initial pair of messages (perhaps offering some set of
+negotiable capabilities), and then follow up with a second pair (to reveal
+the results of the negotiation). The Rendezvous Server does not currently
+enforce any particular limits on number of messages, size of messages, or
+rate of transmission, but in general clients are expected to send fewer than
+a dozen messages, of no more than perhaps 20kB in size (remember that all
+these messages are temporarily stored in a SQLite database on the server). A
+future version of the protocol may make these limits more explicit, and will
+allow clients to ask for greater capacity when they connect (probably by
+passing additional "mailbox attribute" parameters with the
+`allocate`/`claim`/`open` messages).
+
+For bulk data transfer, see "transit.md", or the "Dilation" section below.
+
+## Closing
+
+When the application is done with the wormhole, it should call `w.close()`,
+and wait for a `closed` event. This ensures that all server-side resources
+are released (allowing the nameplate to be re-used by some other client), and
+all network sockets are shut down.
+
+In Deferred mode, this just means waiting for the Deferred returned by
+`w.close()` to fire. In Delegated mode, this means calling `w.close()` (which
+doesn't return anything) and waiting for the delegate's `wormhole_closed()`
+method to be called.
+
 
 ## Bytes, Strings, Unicode, and Python 3
 
