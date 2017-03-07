@@ -17,7 +17,7 @@ from ._rendezvous import RendezvousConnector
 from ._lister import Lister
 from ._code import Code
 from ._terminator import Terminator
-from .errors import ServerError, LonelyError, WrongPasswordError
+from .errors import ServerError, LonelyError, WrongPasswordError, KeyFormatError
 from .util import bytes_to_dict
 
 @attrs
@@ -116,6 +116,8 @@ class Boss(object):
     def allocate_code(self, code_length):
         self._C.allocate_code(code_length)
     def set_code(self, code):
+        if ' ' in code:
+            raise KeyFormatError("code (%s) contains spaces." % code)
         self._C.set_code(code)
 
     @m.input()
