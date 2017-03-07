@@ -56,6 +56,7 @@ def encrypt_data(key, plaintext):
 @implementer(_interfaces.IKey)
 class Key(object):
     _appid = attrib(validator=instance_of(type(u"")))
+    _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
@@ -114,8 +115,7 @@ class Key(object):
         self._B.got_verifier(derive_key(key, b"wormhole:verifier"))
         phase = "version"
         data_key = derive_phase_key(key, self._side, phase)
-        my_versions = {} # TODO: get from Wormhole?
-        plaintext = dict_to_bytes(my_versions)
+        plaintext = dict_to_bytes(self._versions)
         encrypted = encrypt_data(data_key, plaintext)
         self._M.add_message(phase, encrypted)
         self._R.got_key(key)

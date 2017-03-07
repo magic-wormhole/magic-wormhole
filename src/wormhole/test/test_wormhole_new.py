@@ -57,8 +57,8 @@ class New(ServerBase, unittest.TestCase):
         code2 = yield w2.when_code()
         self.assertEqual(code, code2)
 
-        verifier1 = yield w1.when_verifier()
-        verifier2 = yield w2.when_verifier()
+        verifier1 = yield w1.when_verified()
+        verifier2 = yield w2.when_verified()
         self.assertEqual(verifier1, verifier2)
 
         version1 = yield w1.when_version()
@@ -88,7 +88,7 @@ class New(ServerBase, unittest.TestCase):
         w1.allocate_code(2)
         code = yield w1.when_code()
         w2 = wormhole.create(APPID, self.relayurl, reactor)
-        w2.set_code(code+", NOT")
+        w2.set_code(code+"NOT")
         code2 = yield w2.when_code()
         self.assertNotEqual(code, code2)
 

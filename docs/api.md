@@ -274,24 +274,25 @@ functions on the delegate object. In Deferred mode, the application retrieves
 Deferred objects from the wormhole, and event dispatch is performed by firing
 those Deferreds.
 
-* got_code (`yield w.when_code()` / `dg.wormhole_got_code(code)`): fired when the
+* got_code (`yield w.when_code()` / `dg.wormhole_code(code)`): fired when the
   wormhole code is established, either after `w.generate_code()` finishes the
   generation process, or when the Input Helper returned by `w.type_code()`
   has been told `h.set_words()`, or immediately after `w.set_code(code)` is
   called. This is most useful after calling `w.generate_code()`, to show the
   generated code to the user so they can transcribe it to their peer.
-* got_verifier (`yield w.when_verifier()` / `dg.wormhole_got_verifier(verf)`:
-  fired when the key-exchange process has completed, and this side has
-  learned the shared key. The "verifier" is a byte string with a hash of the
-  shared session key; clients can compare them (probably as hex) to ensure
-  that they're really talking to each other, and not to a man-in-the-middle.
-  When `got_verifier` happens, this side has not yet seen evidence that the
-  peer has used the correct wormhole code.
-* got_version (`yield w.when_version()` / `dg.wormhole_got_version(version)`:
-  fired when the VERSION message arrives from the peer. This serves two
-  purposes. The first is that it provide confirmation that the peer (or a
-  man-in-the-middle) has used the correct wormhole code. The second is
-  delivery of the "app_versions" data (passed into `wormhole.create`).
+* verified (`verifier = yield w.when_verified()` /
+  `dg.wormhole_verified(verifier)`: fired when the key-exchange process has
+  completed and a valid VERSION message has arrived. The "verifier" is a byte
+  string with a hash of the shared session key; clients can compare them
+  (probably as hex) to ensure that they're really talking to each other, and
+  not to a man-in-the-middle. When `got_verifier` happens, this side knows
+  that *someone* has used the correct wormhole code; if someone used the
+  wrong code, the VERSION message cannot be decrypted, and the wormhole will
+  be closed instead.
+* version (`yield w.when_version()` / `dg.wormhole_version(version)`:
+  fired when the VERSION message arrives from the peer. This fires at the
+  same time as `verified`, but delivers the "app_versions" data (passed into
+  `wormhole.create`) instead of the verifier string.
 * received (`yield w.when_received()` / `dg.wormhole_received(data)`: fired
   each time a data message arrives from the peer, with the bytestring that
   the peer passed into `w.send(data)`.
@@ -391,19 +392,19 @@ in python3):
 
 ## Full API list
 
-action                     | Deferred-Mode         | Delegated-Mode
--------------------------- | --------------------- | ----------------------------
-w.generate_code(length=2)  |                       |                             
-w.set_code(code)           |                       |                             
-h=w.type_code()            |                       |                             
-                           |  d=w.when_code()      |  dg.wormhole_got_code(code) 
-                           |  d=w.when_verifier()  |  dg.wormhole_got_verifier(verf) 
-                           |  d=w.when_version()   |  dg.wormhole_got_version(version) 
-w.send(data)               |                       |                             
-                           |  d=w.when_received()  |  dg.wormhole_received(data) 
-key=w.derive_key(purpose, length)  |               |                             
-w.close()                  |                       |  dg.wormhole_closed(result) 
-                           |  d=w.close()          |                             
+action                     | Deferred-Mode        | Delegated-Mode
+-------------------------- | -------------------- | --------------
+w.generate_code(length=2)  |                      |
+w.set_code(code)           |                      |
+h=w.type_code()            |                      |
+                           |  d=w.when_code()     | dg.wormhole_code(code)
+                           |  d=w.when_verified() | dg.wormhole_verified(verifier)
+                           |  d=w.when_version()  | dg.wormhole_version(version)
+w.send(data)               |                      |
+                           |  d=w.when_received() | dg.wormhole_received(data)
+key=w.derive_key(purpose, length)  |              |
+w.close()                  |                      | dg.wormhole_closed(result)
+                           |  d=w.close()         |
 
 
 ## Dilation

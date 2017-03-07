@@ -25,7 +25,7 @@ from .util import to_bytes
 #   w.send(data)
 #   app.wormhole_got_code(code)
 #   app.wormhole_got_verifier(verifier)
-#   app.wormhole_got_version(version)
+#   app.wormhole_got_version(versions)
 #   app.wormhole_receive(data)
 #   w.close()
 #   app.wormhole_closed()
@@ -117,15 +117,15 @@ class _DelegatedWormhole(object):
 
     # from below
     def got_code(self, code):
-        self._delegate.wormhole_got_code(code)
+        self._delegate.wormhole_code(code)
     def got_welcome(self, welcome):
         pass # TODO
     def got_key(self, key):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
-        self._delegate.wormhole_got_verifier(verifier)
-    def got_version(self, version):
-        self._delegate.wormhole_got_version(version)
+        self._delegate.wormhole_verified(verifier)
+    def got_versions(self, versions):
+        self._delegate.wormhole_version(versions)
     def received(self, plaintext):
         self._delegate.wormhole_received(plaintext)
     def closed(self, result):
@@ -139,7 +139,7 @@ class _DeferredWormhole(object):
         self._key = None
         self._verifier = None
         self._verifier_observers = []
-        self._version = None
+        self._versions = None
         self._version_observers = []
         self._received_data = []
         self._received_observers = []
@@ -162,7 +162,7 @@ class _DeferredWormhole(object):
         self._code_observers.append(d)
         return d
 
-    def when_verifier(self):
+    def when_verified(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._verifier is not None:
@@ -174,8 +174,8 @@ class _DeferredWormhole(object):
     def when_version(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
-        if self._version is not None:
-            return defer.succeed(self._version)
+        if self._versions is not None:
+            return defer.succeed(self._versions)
         d = defer.Deferred()
         self._version_observers.append(d)
         return d
@@ -241,10 +241,10 @@ class _DeferredWormhole(object):
         for d in self._verifier_observers:
             d.callback(verifier)
         self._verifier_observers[:] = []
-    def got_version(self, version):
-        self._version = version
+    def got_versions(self, versions):
+        self._versions = versions
         for d in self._version_observers:
-            d.callback(version)
+            d.callback(versions)
         self._version_observers[:] = []
 
     def received(self, plaintext):
@@ -272,8 +272,9 @@ class _DeferredWormhole(object):
             d.callback(self._closed_result)
 
 
-def create(appid, relay_url, reactor, delegate=None, journal=None,
-           tor_manager=None, timing=None, welcome_handler=None,
+def create(appid, relay_url, reactor, versions={},
+           delegate=None, journal=None, tor_manager=None,
+           timing=None, welcome_handler=None,
            stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
@@ -287,7 +288,10 @@ def create(appid, relay_url, reactor, delegate=None, journal=None,
         w = _DelegatedWormhole(delegate)
     else:
         w = _DeferredWormhole()
-    b = Boss(w, side, relay_url, appid, welcome_handler, reactor, journal,
+    wormhole_versions = {} # will be used to indicate Wormhole capabilities
+    wormhole_versions["app_versions"] = versions # app-specific capabilities
+    b = Boss(w, side, relay_url, appid, wormhole_versions,
+             welcome_handler, reactor, journal,
              tor_manager, timing)
     w._set_boss(b)
     b.start()
