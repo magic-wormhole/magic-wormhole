@@ -27,6 +27,7 @@ class Boss(object):
     _side = attrib(validator=instance_of(type(u"")))
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
+    _versions = attrib(validator=instance_of(dict))
     _welcome_handler = attrib() # TODO: validator: callable
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
@@ -41,7 +42,7 @@ class Boss(object):
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
-        self._K = Key(self._appid, self._side, self._timing)
+        self._K = Key(self._appid, self._versions, self._side, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
@@ -188,7 +189,7 @@ class Boss(object):
         self._their_versions = bytes_to_dict(plaintext)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
-        self._W.got_version(app_versions)
+        self._W.got_versions(app_versions)
 
     @m.output()
     def S_send(self, plaintext):
