@@ -8,7 +8,8 @@ from twisted.internet.defer import Deferred, gatherResults, inlineCallbacks
 from .common import ServerBase
 from .. import wormhole, _rendezvous
 from ..errors import (WrongPasswordError, WelcomeError, InternalError,
-                      KeyFormatError, WormholeClosed, LonelyError)
+                      KeyFormatError, WormholeClosed, LonelyError,
+                      NoKeyError, OnlyOneCodeError)
 from spake2 import SPAKE2_Symmetric
 from ..timing import DebugTiming
 from ..util import (bytes_to_dict, dict_to_bytes,
@@ -979,23 +980,24 @@ class MessageDoubler(_rendezvous.RendezvousConnector):
 
 class Errors(ServerBase, unittest.TestCase):
     @inlineCallbacks
-    def test_codes_1(self):
+    def test_derive_key_early(self):
         w = wormhole.create(APPID, self.relayurl, reactor)
         # definitely too early
-        self.assertRaises(InternalError, w.derive_key, "purpose", 12)
-
-        w.set_code("123-purple-elephant")
-        # code can only be set once
-        self.assertRaises(InternalError, w.set_code, "123-nope")
-        yield self.assertFailure(w.when_code(), InternalError)
-        yield self.assertFailure(w.input_code(), InternalError)
-        yield w.close()
+        self.assertRaises(NoKeyError, w.derive_key, "purpose", 12)
+        yield self.assertFailure(w.close(), LonelyError)
 
     @inlineCallbacks
-    def test_codes_2(self):
+    def test_multiple_set_code(self):
         w = wormhole.create(APPID, self.relayurl, reactor)
+        w.set_code("123-purple-elephant")
+        # code can only be set once
+        self.assertRaises(OnlyOneCodeError, w.set_code, "123-nope")
+        yield self.assertFailure(w.close(), LonelyError)
+
+    @inlineCallbacks
+    def test_allocate_and_set_code(self):
+        w = wormhole.create(APPID, self.relayurl, reactor)
+        w.allocate_code()
         yield w.when_code()
-        self.assertRaises(InternalError, w.set_code, "123-nope")
-        yield self.assertFailure(w.when_code(), InternalError)
-        yield self.assertFailure(w.input_code(), InternalError)
-        yield w.close()
+        self.assertRaises(OnlyOneCodeError, w.set_code, "123-nope")
+        yield self.assertFailure(w.close(), LonelyError)

@@ -54,6 +54,9 @@ class NoTorError(WormholeError):
 class NoKeyError(WormholeError):
     """w.derive_key() was called before got_verifier() fired"""
 
+class OnlyOneCodeError(WormholeError):
+    """Only one w.generate_code/w.set_code/w.type_code may be called"""
+
 class WormholeClosed(Exception):
     """Deferred-returning API calls errback with WormholeClosed if the
     wormhole was already closed, or if it closes before a real result can be
