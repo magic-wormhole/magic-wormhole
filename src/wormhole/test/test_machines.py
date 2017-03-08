@@ -147,7 +147,7 @@ class Key(unittest.TestCase):
 
     def build(self):
         events = []
-        k = _key.Key(u"appid", u"side", timing.DebugTiming())
+        k = _key.Key(u"appid", {}, u"side", timing.DebugTiming())
         b = Dummy("b", events, IBoss, "scared", "got_key", "got_verifier")
         m = Dummy("m", events, IMailbox, "add_message")
         r = Dummy("r", events, IReceive, "got_key")
