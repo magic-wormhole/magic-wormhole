@@ -57,11 +57,27 @@ class Sender:
                             tor_manager=self._tor_manager,
                             timing=self._timing)
         d = self._go(w)
+
+        # if we succeed, we should close and return the w.close results
+        # (which might be an error)
         @inlineCallbacks
-        def _close(res):
-            yield w.close() # must wait for ack from close()
+        def _good(res):
+            yield w.close() # wait for ack
             returnValue(res)
-        d.addBoth(_close)
+
+        # if we raise an error, we should close and then return the original
+        # error (the close might give us an error, but it isn't as important
+        # as the original one)
+        @inlineCallbacks
+        def _bad(f):
+            log.err(f)
+            try:
+                yield w.close() # might be an error too
+            except:
+                pass
+            returnValue(f)
+
+        d.addCallbacks(_good, _bad)
         yield d
 
     def _send_data(self, data, w):
@@ -98,23 +114,18 @@ class Sender:
             args.stderr.flush()
         print(u"", file=args.stderr)
 
-        verifier_bytes = yield w.when_verifier()
-        # we've seen PAKE, but not yet VERSION, so we don't know if they got
-        # the right password or not
-
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
-        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
+        #notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
 
-        # TODO: maybe don't stall for VERSION, if they don't want
-        # verification, to save a roundtrip?
-        try:
-            yield w.when_version()
-            # this may raise WrongPasswordError
-        finally:
-            if not notify.called:
-                notify.cancel()
+        # TODO: don't stall on w.verify() unless they want it
+        #try:
+        #    verifier_bytes = yield w.when_verified() # might WrongPasswordError
+        #finally:
+        #    if not notify.called:
+        #        notify.cancel()
+        yield w.when_verified()
 
         if args.verify:
             verifier = bytes_to_hexstr(verifier_bytes)
