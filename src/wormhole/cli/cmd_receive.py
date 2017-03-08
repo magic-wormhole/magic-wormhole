@@ -76,17 +76,33 @@ class TwistedReceiver:
         # as coming from the "yield self._go" line, which wasn't very useful
         # for tracking it down.
         d = self._go(w)
+
+        # if we succeed, we should close and return the w.close results
+        # (which might be an error)
         @inlineCallbacks
-        def _close(res):
-            yield w.close()
+        def _good(res):
+            yield w.close() # wait for ack
             returnValue(res)
-        d.addBoth(_close)
+
+        # if we raise an error, we should close and then return the original
+        # error (the close might give us an error, but it isn't as important
+        # as the original one)
+        @inlineCallbacks
+        def _bad(f):
+            log.err(f)
+            try:
+                yield w.close() # might be an error too
+            except:
+                pass
+            returnValue(f)
+
+        d.addCallbacks(_good, _bad)
         yield d
 
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        verifier = yield w.when_verifier()
+        verifier = yield w.when_verified()
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=self.args.stderr)
