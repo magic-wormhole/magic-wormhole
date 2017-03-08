@@ -175,6 +175,7 @@ class RendezvousConnector(object):
         try:
             return meth(msg)
         except Exception as e:
+            log.err(e)
             self._B.error(e)
             raise
 
