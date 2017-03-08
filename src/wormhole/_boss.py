@@ -17,7 +17,8 @@ from ._rendezvous import RendezvousConnector
 from ._lister import Lister
 from ._code import Code
 from ._terminator import Terminator
-from .errors import ServerError, LonelyError, WrongPasswordError, KeyFormatError
+from .errors import (ServerError, LonelyError, WrongPasswordError,
+                     KeyFormatError, OnlyOneCodeError)
 from .util import bytes_to_dict
 
 @attrs
@@ -62,6 +63,7 @@ class Boss(object):
         self._C.wire(self, self._RC, self._L)
         self._T.wire(self, self._RC, self._N, self._M)
 
+        self._did_start_code = False
         self._next_tx_phase = 0
         self._next_rx_phase = 0
         self._rx_phases = {} # phase -> plaintext
@@ -113,12 +115,21 @@ class Boss(object):
     # Wormhole only knows about this Boss instance, and everything else is
     # hidden away).
     def input_code(self, stdio):
+        if self._did_start_code:
+            raise OnlyOneCodeError()
+        self._did_start_code = True
         self._C.input_code(stdio)
     def allocate_code(self, code_length):
+        if self._did_start_code:
+            raise OnlyOneCodeError()
+        self._did_start_code = True
         self._C.allocate_code(code_length)
     def set_code(self, code):
         if ' ' in code:
             raise KeyFormatError("code (%s) contains spaces." % code)
+        if self._did_start_code:
+            raise OnlyOneCodeError()
+        self._did_start_code = True
         self._C.set_code(code)
 
     @m.input()
