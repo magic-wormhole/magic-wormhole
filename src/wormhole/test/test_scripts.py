@@ -682,6 +682,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check server stats
         self._rendezvous.get_stats()
+        self.flushLoggedErrors(TransferError)
 
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
