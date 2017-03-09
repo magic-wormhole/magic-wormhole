@@ -153,7 +153,7 @@ randomly-generated selection from the PGP wordlist, providing a default of 16
 bits of entropy. The initiating program should display this code to the user,
 who should transcribe it to the receiving user, who gives it to their local
 Wormhole object by calling `set_code()`. The receiving program can also use
-`type_code()` to use a readline-based input function: this offers tab
+`input_code()` to use a readline-based input function: this offers tab
 completion of allocated channel-ids and known codewords.
 
 The Wormhole object has three APIs for generating or accepting a code:
@@ -162,7 +162,7 @@ The Wormhole object has three APIs for generating or accepting a code:
   a short numeric nameplate, chooses a configurable number of random words,
   then assembles them into the code
 * `w.set_code(code)`: this accepts the code as an argument
-* `helper = w.type_code()`: this facilitates interactive entry of the code,
+* `helper = w.input_code()`: this facilitates interactive entry of the code,
   with tab-completion. The helper object has methods to return a list of
   viable completions for whatever portion of the code has been entered so
   far. A convenience wrapper is provided to attach this to the `rlcompleter`
@@ -179,7 +179,7 @@ The code-entry Helper object has the following API:
 * `d = h.get_nameplates()`: returns a Deferred that fires with a list of
   (string) nameplates. These form the first portion of the wormhole code
   (e.g. "4" in "4-purple-sausages"). The list is requested from the server
-  when `w.type_code()` is first called, and if the response arrives before
+  when `w.input_code()` is first called, and if the response arrives before
   `h.get_nameplates()` is called, it will be used without delay. All
   subsequent calls to `h.get_nameplates()` will provoke a fresh request to
   the server, so hitting Tab too early won't condemn the client to using a
@@ -210,7 +210,7 @@ helper to do tab completion of wormhole codes:
 ```python
 from wormhole import create, rlcompleter_helper
 w = create(appid, relay_url, reactor)
-rlcompleter_helper("Wormhole code:", w.type_code())
+rlcompleter_helper("Wormhole code:", w.input_code())
 d = w.when_code()
 ```
 
@@ -229,16 +229,16 @@ In most situations, the "sending" or "initiating" side will call
 it and speaks, types, performs charades, or otherwise transmits the code to
 the receiving human. The receiving human then types it into the receiving
 computer, where it either calls `w.set_code()` (if the code is passed in via
-argv) or `w.type_code()` (for interactive entry).
+argv) or `w.input_code()` (for interactive entry).
 
 Usually one machine generates the code, and a pair of humans transcribes it
 to the second machine (so `w.generate_code()` on one side, and `w.set_code()`
-or `w.type_code()` on the other). But it is also possible for the humans to
+or `w.input_code()` on the other). But it is also possible for the humans to
 generate the code offline, perhaps at a face-to-face meeting, and then take
 the code back to their computers. In this case, `w.set_code()` will be used
 on both sides. It is unlikely that the humans will restrict themselves to a
 pre-established wordlist when manually generating codes, so the completion
-feature of `w.type_code()` is not helpful.
+feature of `w.input_code()` is not helpful.
 
 When the humans create an invitation code out-of-band, they are responsible
 for choosing an unused channel-ID (simply picking a random 3-or-more digit
@@ -276,7 +276,7 @@ those Deferreds.
 
 * got_code (`yield w.when_code()` / `dg.wormhole_code(code)`): fired when the
   wormhole code is established, either after `w.generate_code()` finishes the
-  generation process, or when the Input Helper returned by `w.type_code()`
+  generation process, or when the Input Helper returned by `w.input_code()`
   has been told `h.set_words()`, or immediately after `w.set_code(code)` is
   called. This is most useful after calling `w.generate_code()`, to show the
   generated code to the user so they can transcribe it to their peer.
@@ -396,7 +396,7 @@ action                     | Deferred-Mode        | Delegated-Mode
 -------------------------- | -------------------- | --------------
 w.generate_code(length=2)  |                      |
 w.set_code(code)           |                      |
-h=w.type_code()            |                      |
+h=w.input_code()           |                      |
                            |  d=w.when_code()     | dg.wormhole_code(code)
                            |  d=w.when_verified() | dg.wormhole_verified(verifier)
                            |  d=w.when_version()  | dg.wormhole_version(version)
