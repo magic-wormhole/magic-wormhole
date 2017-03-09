@@ -311,13 +311,13 @@ def from_serialized(serialized, reactor, delegate,
     # should the new Wormhole call got_code? only if it wasn't called before.
 
 # after creating the wormhole object, app must call exactly one of:
-# set_code(code), generate_code(), helper=type_code(), and then (if they need
+# set_code(code), generate_code(), helper=input_code(), and then (if they need
 # to know the code) wait for delegate.got_code() or d=w.when_code()
 
-# the helper for type_code() can be asked for completions:
+# the helper for input_code() can be asked for completions:
 # d=helper.get_completions(text_so_far), which will fire with a list of
 # strings that could usefully be appended to text_so_far.
 
-# wormhole.type_code_readline(w) is a wrapper that knows how to use
-# w.type_code() to drive rlcompleter
+# wormhole.input_code_readline(w) is a wrapper that knows how to use
+# w.input_code() to drive rlcompleter
 
