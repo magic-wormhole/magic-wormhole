@@ -52,7 +52,7 @@ class Code(object):
     @m.input()
     def allocate_code(self, code_length): pass
     @m.input()
-    def input_code(self, stdio): pass
+    def input_code(self, input_helper): pass
     @m.input()
     def set_code(self, code): pass
 
@@ -80,8 +80,8 @@ class Code(object):
     def L_refresh_nameplates(self):
         self._L.refresh_nameplates()
     @m.output()
-    def start_input_and_L_refresh_nameplates(self, stdio):
-        self._stdio = stdio
+    def start_input_and_L_refresh_nameplates(self, input_helper):
+        self._input_helper = input_helper
         self._L.refresh_nameplates()
     @m.output()
     def stash_code_length_and_RC_tx_allocate(self, code_length):

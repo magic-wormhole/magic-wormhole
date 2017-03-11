@@ -114,11 +114,11 @@ class Boss(object):
     # would require the Wormhole to be aware of Code (whereas right now
     # Wormhole only knows about this Boss instance, and everything else is
     # hidden away).
-    def input_code(self, stdio):
+    def input_code(self, helper):
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True
-        self._C.input_code(stdio)
+        self._C.input_code(helper)
     def allocate_code(self, code_length):
         if self._did_start_code:
             raise OnlyOneCodeError()
