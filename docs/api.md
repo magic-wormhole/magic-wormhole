@@ -176,33 +176,47 @@ for consistency.
 
 The code-entry Helper object has the following API:
 
-* `d = h.get_nameplates()`: returns a Deferred that fires with a list of
-  (string) nameplates. These form the first portion of the wormhole code
-  (e.g. "4" in "4-purple-sausages"). The list is requested from the server
-  when `w.input_code()` is first called, and if the response arrives before
-  `h.get_nameplates()` is called, it will be used without delay. All
-  subsequent calls to `h.get_nameplates()` will provoke a fresh request to
-  the server, so hitting Tab too early won't condemn the client to using a
-  stale list.
-* `h.set_nameplate(nameplate)`: commit to using a specific nameplate. Once
-  this is called, `h.get_nameplates()` will raise an immediate exception
-* `completions = h.get_completions_for(prefix)`: given a prefix like "su",
-  this returns (synchronously) a list of strings which are appropriate to
+* `update_nameplates()`: requests an updated list of nameplates from the
+  Rendezvous Server. These form the first portion of the wormhole code (e.g.
+  "4" in "4-purple-sausages"). Note that they are unicode strings (so "4",
+  not 4). The Helper will get the response in the background, and calls to
+  `complete_nameplate()` after the response will use the new list.
+* `completions = h.complete_nameplate(prefix)`: returns (synchronously) a
+  list of suffixes for the given nameplate prefix. For example, if the server
+  reports nameplates 1, 12, 13, 24, and 170 are in use,
+  `complete_nameplate("1")` will return `["", "2", "3", "70"]`. Raises
+  `AlreadyClaimedNameplateError` if called after `h.claim_nameplate`.
+* `d = h.claim_nameplate(nameplate)`: accepts a string with the chosen
+  nameplate. May only be called once, after which `OnlyOneNameplateError` is
+  raised. Returns a Deferred that fires (with None) when the nameplate's
+  wordlist is known (which happens after the nameplate is claimed, requiring
+  a roundtrip to the server).
+* `completions = h.complete_words(prefix)`: return (synchronously) a list of
+  suffixes for the given words prefix. The possible completions depend upon
+  the wordlist in use for the previously-claimed nameplate, so calling this
+  before `claim_nameplate` will raise `MustClaimNameplateFirstError`. Given a
+  prefix like "su", this returns a list of strings which are appropriate to
   append to the prefix (e.g. `["pportive", "rrender", "spicious"]`, for
   expansion into "supportive", "surrender", and "suspicious". The prefix
   should not include the nameplate, but *should* include whatever words and
   hyphens have been typed so far (the default wordlist uses alternate lists,
   where even numbered words have three syllables, and odd numbered words have
   two, so the completions depend upon how many words are present, not just
-  the partial last word). E.g. `get_completions_for("pr")` will return
-  `["ocessor", "ovincial", "oximate"]`, while
-  `get_completions_for("opulent-pr")` will return `["eclude", "efer",
-  "eshrunk", "inter", "owler"]`.
-* `h.set_words(suffix)`: this accepts a string (e.g. "purple-sausages"), and
-  commits to the code. `h.set_nameplate()` must be called before this, and no
-  other methods may be called afterwards. Calling this causes the
-  `w.when_code()` Deferred or corresponding delegate callback to fire, and
-  triggers the wormhole connection process.
+  the partial last word). E.g. `complete_words("pr")` will return
+  `["ocessor", "ovincial", "oximate"]`, while `complete_words("opulent-pr")`
+  will return `["eclude", "efer", "eshrunk", "inter", "owler"]`.
+  If the wordlist is not yet known (i.e. the Deferred from `claim_nameplate`
+  has not yet fired), this returns an empty list. It will also return an
+  empty list if the prefix is complete (the last word matches something in
+  the completion list, and there are no longer extension words), although the
+  code may not yet be complete if there are additional words. The completions
+  will never include a hyphen: the UI frontend must supply these if desired.
+* `h.submit_words(words)`: call this when the user is finished typing in the
+  code. It does not return anything, but will cause the Wormhole's
+  `w.when_code()` (or corresponding delegate) to fire, and triggers the
+  wormhole connection process. This accepts a string like "purple-sausages",
+  without the nameplate. It must be called after `h.claim_nameplate()` or
+  `MustClaimNameplateFirstError` will be raised.
 
 The `rlcompleter` wrapper is a function that knows how to use the code-entry
 helper to do tab completion of wormhole codes:
