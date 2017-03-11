@@ -44,9 +44,11 @@ class Code(object):
     @m.state()
     def S2_typing_nameplate(self): pass # pragma: no cover
     @m.state()
-    def S3_typing_code(self): pass # pragma: no cover
+    def S3_typing_code_no_wordlist(self): pass # pragma: no cover
     @m.state()
-    def S4_known(self): pass # pragma: no cover
+    def S4_typing_code_wordlist(self): pass # pragma: no cover
+    @m.state()
+    def S5_known(self): pass # pragma: no cover
 
     # from App
     @m.input()
@@ -68,13 +70,17 @@ class Code(object):
     @m.input()
     def got_nameplates(self, nameplates): pass
 
-    # from stdin/readline/???
+    # from Nameplate
     @m.input()
-    def tab(self): pass
+    def got_wordlist(self, wordlist): pass
+
+    # from CodeInputHelper
     @m.input()
-    def hyphen(self): pass
+    def update_nameplates(self): pass
     @m.input()
-    def RETURN(self, code): pass
+    def claim_nameplate(self, nameplate): pass
+    @m.input()
+    def submit_words(self, words): pass
 
     @m.output()
     def L_refresh_nameplates(self):
@@ -94,7 +100,8 @@ class Code(object):
     def RC_tx_allocate(self):
         self._RC.tx_allocate()
     @m.output()
-    def do_completion_nameplates(self):
+    def stash_wordlist(self, wordlist):
+        # TODO
         pass
     @m.output()
     def stash_nameplates(self, nameplates):
@@ -107,8 +114,21 @@ class Code(object):
     def do_completion_code(self):
         pass
     @m.output()
+    def record_nameplate(self, nameplate):
+        self._nameplate = nameplate
+    @m.output()
+    def N_set_nameplate(self, nameplate):
+        self._N.set_nameplate(nameplate)
+
+    @m.output()
     def generate_and_B_got_code(self, nameplate):
         self._code = make_code(nameplate, self._code_length)
+        self._B_got_code()
+
+    @m.output()
+    def submit_words_and_B_got_code(self, words):
+        assert self._nameplate
+        self._code = self._nameplate + "-" + words
         self._B_got_code()
 
     @m.output()
@@ -122,8 +142,8 @@ class Code(object):
     S0A_unknown.upon(connected, enter=S0B_unknown_connected, outputs=[])
     S0B_unknown_connected.upon(lost, enter=S0A_unknown, outputs=[])
 
-    S0A_unknown.upon(set_code, enter=S4_known, outputs=[B_got_code])
-    S0B_unknown_connected.upon(set_code, enter=S4_known, outputs=[B_got_code])
+    S0A_unknown.upon(set_code, enter=S5_known, outputs=[B_got_code])
+    S0B_unknown_connected.upon(set_code, enter=S5_known, outputs=[B_got_code])
 
     S0A_unknown.upon(allocate_code, enter=S1A_connecting,
                      outputs=[stash_code_length])
@@ -132,27 +152,39 @@ class Code(object):
     S1A_connecting.upon(connected, enter=S1B_allocating,
                         outputs=[RC_tx_allocate])
     S1B_allocating.upon(lost, enter=S1A_connecting, outputs=[])
-    S1B_allocating.upon(rx_allocated, enter=S4_known,
+    S1B_allocating.upon(rx_allocated, enter=S5_known,
                         outputs=[generate_and_B_got_code])
 
     S0A_unknown.upon(input_code, enter=S2_typing_nameplate,
                      outputs=[start_input_and_L_refresh_nameplates])
     S0B_unknown_connected.upon(input_code, enter=S2_typing_nameplate,
                                outputs=[start_input_and_L_refresh_nameplates])
-    S2_typing_nameplate.upon(tab, enter=S2_typing_nameplate,
-                             outputs=[do_completion_nameplates])
-    S2_typing_nameplate.upon(got_nameplates, enter=S2_typing_nameplate,
+    S2_typing_nameplate.upon(update_nameplates, enter=S2_typing_nameplate,
+                             outputs=[L_refresh_nameplates])
+    S2_typing_nameplate.upon(got_nameplates,
+                             enter=S2_typing_nameplate,
                              outputs=[stash_nameplates])
-    S2_typing_nameplate.upon(hyphen, enter=S3_typing_code,
-                             outputs=[lookup_wordlist])
-    # TODO: need a proper pair of connected/lost states around S2
+    S2_typing_nameplate.upon(claim_nameplate, enter=S3_typing_code_no_wordlist,
+                             outputs=[record_nameplate, N_set_nameplate])
     S2_typing_nameplate.upon(connected, enter=S2_typing_nameplate, outputs=[])
     S2_typing_nameplate.upon(lost, enter=S2_typing_nameplate, outputs=[])
 
-    S3_typing_code.upon(tab, enter=S3_typing_code, outputs=[do_completion_code])
-    S3_typing_code.upon(RETURN, enter=S4_known, outputs=[B_got_code])
-    S3_typing_code.upon(connected, enter=S3_typing_code, outputs=[])
-    S3_typing_code.upon(lost, enter=S3_typing_code, outputs=[])
+    S3_typing_code_no_wordlist.upon(got_wordlist,
+                                    enter=S4_typing_code_wordlist,
+                                    outputs=[stash_wordlist])
+    S3_typing_code_no_wordlist.upon(submit_words, enter=S5_known,
+                                    outputs=[submit_words_and_B_got_code])
+    S3_typing_code_no_wordlist.upon(connected, enter=S3_typing_code_no_wordlist,
+                                    outputs=[])
+    S3_typing_code_no_wordlist.upon(lost, enter=S3_typing_code_no_wordlist,
+                                    outputs=[])
 
-    S4_known.upon(connected, enter=S4_known, outputs=[])
-    S4_known.upon(lost, enter=S4_known, outputs=[])
+    S4_typing_code_wordlist.upon(submit_words, enter=S5_known,
+                                 outputs=[submit_words_and_B_got_code])
+    S4_typing_code_wordlist.upon(connected, enter=S4_typing_code_wordlist,
+                                 outputs=[])
+    S4_typing_code_wordlist.upon(lost, enter=S4_typing_code_wordlist,
+                                 outputs=[])
+
+    S5_known.upon(connected, enter=S5_known, outputs=[])
+    S5_known.upon(lost, enter=S5_known, outputs=[])
