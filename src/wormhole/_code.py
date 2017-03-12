@@ -74,13 +74,11 @@ class Code(object):
     @m.input()
     def got_wordlist(self, wordlist): pass
 
-    # from CodeInputHelper
+    # from Input
     @m.input()
-    def update_nameplates(self): pass
+    def got_nameplate(self, nameplate): pass
     @m.input()
-    def claim_nameplate(self, nameplate): pass
-    @m.input()
-    def submit_words(self, words): pass
+    def finished_input(self, code): pass
 
     @m.output()
     def L_refresh_nameplates(self):
@@ -137,6 +135,7 @@ class Code(object):
         self._B_got_code()
 
     def _B_got_code(self):
+        self._N.set_nameplate(nameplate) XXX
         self._B.got_code(self._code)
 
     S0A_unknown.upon(connected, enter=S0B_unknown_connected, outputs=[])

@@ -12,7 +12,7 @@ digraph {
 
         {rank=same; P0_code S0}
         P0_code [shape="box" style="dashed"
-                 label="input -> Code.input\n or allocate -> Code.allocate\n or set_code -> Code.set_code"]
+                 label="C.input_code\n or C.allocate_code\n or C.set_code"]
         P0_code -> S0
         S0 [label="S0: empty"]
         S0 -> P0_build [label="set_code"]
@@ -22,7 +22,7 @@ digraph {
         P_close_error -> S_closing
         S0 -> P_close_lonely [label="close"]
 
-        P0_build [shape="box" label="W.got_code\nN.set_nameplate\nK.got_code"]
+        P0_build [shape="box" label="W.got_code"]
         P0_build -> S1
         S1 [label="S1: lonely" color="orange"]
 
@@ -67,7 +67,7 @@ digraph {
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"
-               label="rx_welcome -> process\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate -> C.allocate\ninput -> C.input\nset_code -> C.set_code"
+               label="rx_welcome -> process\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate_Code -> C.allocate_code\ninput_code -> C.input_code\nset_code -> C.set_code"
                ]
 
 

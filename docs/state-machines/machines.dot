@@ -2,8 +2,10 @@ digraph {
         Wormhole [shape="oval" color="blue" fontcolor="blue"]
         Boss [shape="box" label="Boss\n(manager)"
                   color="blue" fontcolor="blue"]
-        Nameplate [shape="box" color="blue" fontcolor="blue"]
-        Mailbox [shape="box" color="blue" fontcolor="blue"]
+        Nameplate [label="Nameplate\n(claimer)"
+                   shape="box" color="blue" fontcolor="blue"]
+        Mailbox [label="Mailbox\n(opener)"
+                 shape="box" color="blue" fontcolor="blue"]
         Connection [label="Rendezvous\nConnector"
                     shape="oval" color="blue" fontcolor="blue"]
         #websocket [color="blue" fontcolor="blue"]
@@ -16,9 +18,11 @@ digraph {
                 color="blue" fontcolor="blue"]
         Allocator [shape="box" label="(nameplate)\nAllocator"
                    color="blue" fontcolor="blue"]
-        Input [shape="box" label="(code)\nInput helper"
+        Input [shape="box" label="(interactive\ncode)\nInput"
                color="blue" fontcolor="blue"]
         Terminator [shape="box" color="blue" fontcolor="blue"]
+        InputHelperAPI [shape="oval" label="input\nhelper\nAPI"
+                        color="blue" fontcolor="blue"]
 
         #Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
@@ -36,11 +40,8 @@ digraph {
 
         Boss -> Send [style="dashed" color="red" fontcolor="red" label="send"]
 
-        Boss -> Nameplate [style="dashed" color="red" fontcolor="red"
-                           label="set_nameplate"]
         #Boss -> Mailbox [color="blue"]
         Mailbox -> Order [style="dashed" label="got_message (once)"]
-        Boss -> Key [style="dashed" label="got_code"]
         Key -> Boss [style="dashed" label="got_key\ngot_verifier\nscared"]
         Order -> Key [style="dashed" label="got_pake"]
         Order -> Receive [style="dashed" label="got_message"]
@@ -85,15 +86,18 @@ digraph {
                          ]
         #Code -> Lister [color="blue"]
         Input -> Lister [style="dashed" color="red" fontcolor="red"
-                         label="refresh_nameplates"
+                         label="refresh"
                          ]
         Boss -> Code [style="dashed" color="red" fontcolor="red"
                       label="allocate_code\ninput_code\nset_code"]
-        Code -> Boss [style="dashed"
-                      label="got_code"]
+        Code -> Boss [style="dashed" label="got_code"]
+        Code -> Key [style="dashed" label="got_code"]
+        Code -> Nameplate [style="dashed" label="set_nameplate"]
 
         Code -> Input [style="dashed" color="red" fontcolor="red" label="start"]
-        Input -> Code [style="dashed" label="finished_input"]
+        Input -> Code [style="dashed" label="got_nameplate\nfinished_input"]
+        InputHelperAPI -> Input [label="refresh_nameplates\nget_nameplate_completions\nchoose_nameplate\nget_word_completions\nchoose_words" color="orange" fontcolor="orange"]
+
         Code -> Allocator [style="dashed" color="red" fontcolor="red"
                            label="allocate"]
         Allocator -> Code [style="dashed" label="allocated"]

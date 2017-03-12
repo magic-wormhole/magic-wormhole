@@ -15,6 +15,8 @@ from ._key import Key
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._lister import Lister
+from ._allocator import Allocator
+from ._input import Input
 from ._code import Code
 from ._terminator import Terminator
 from .errors import (ServerError, LonelyError, WrongPasswordError,
@@ -49,6 +51,8 @@ class Boss(object):
                                        self._reactor, self._journal,
                                        self._tor_manager, self._timing)
         self._L = Lister()
+        self._A = Allocator(self._timing)
+        self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
 
@@ -59,7 +63,9 @@ class Boss(object):
         self._K.wire(self, self._M, self._R)
         self._R.wire(self, self._S)
         self._RC.wire(self, self._N, self._M, self._C, self._L, self._T)
-        self._L.wire(self._RC, self._C)
+        self._L.wire(self._RC, self._I)
+        self._A.wire(self._RC, self._C)
+        self._I.wire(self._C, self._L)
         self._C.wire(self, self._RC, self._L)
         self._T.wire(self, self._RC, self._N, self._M)
 
@@ -189,8 +195,6 @@ class Boss(object):
 
     @m.output()
     def do_got_code(self, code):
-        nameplate = code.split("-")[0]
-        self._N.set_nameplate(nameplate)
         self._K.got_code(code)
         self._W.got_code(code)
     @m.output()
