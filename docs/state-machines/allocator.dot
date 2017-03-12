@@ -11,8 +11,12 @@ digraph {
         S0B -> P_allocate [label="allocate"]
         P_allocate [shape="box" label="RC.tx_allocate" color="orange"]
         P_allocate -> S1B [color="orange"]
-        S1B [label="S1B:\nallocating" color="orange"]
-        S1B -> S1A [label="lost"]
+        {rank=same; S1A P_allocate S1B}
+        S0B -> S1B [style="invis"]
+        S1B [label="S1B:\nallocating\nconnected" color="orange"]
+        S1B -> foo [label="lost"]
+        foo [style="dotted" label=""]
+        foo -> S1A
         S1A [label="S1A:\nallocating\ndisconnected" color="orange"]
         S1A -> P_allocate [label="connected" color="orange"]
 

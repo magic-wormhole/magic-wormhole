@@ -31,12 +31,9 @@ digraph {
         foo2 [label="" style="dashed"]
         foo2 -> P_tx
 
-        S0B -> P_notify [label="rx"]
-        S1B -> P_notify [label="rx" color="orange" fontcolor="orange"]
-        P_notify [shape="box" label="C.got_nameplates()"]
+        S0B -> P_notify [label="rx_nameplates"]
+        S1B -> P_notify [label="rx_nameplates" color="orange" fontcolor="orange"]
+        P_notify [shape="box" label="I.got_nameplates()"]
         P_notify -> S0B
 
-        {rank=same; foo foo2 legend}
-        legend [shape="box" style="dotted"
-                label="refresh: L.refresh_nameplates()\nrx: L.rx_nameplates()"]
 }

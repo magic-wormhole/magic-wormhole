@@ -22,6 +22,10 @@ class ILister(Interface):
     pass
 class ICode(Interface):
     pass
+class IInput(Interface):
+    pass
+class IAllocator(Interface):
+    pass
 class ITerminator(Interface):
     pass
 
