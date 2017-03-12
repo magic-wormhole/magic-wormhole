@@ -1,0 +1,32 @@
+digraph {
+
+        start [label="I:\nCode\nInput" style="dotted"]
+        {rank=same; start S0}
+        start -> S0 [style="invis"]
+        S0 [label="S0:\nidle"]
+
+        S0 -> P0_list_nameplates [label="start" color="orange"]
+        P0_list_nameplates [shape="box" label="L.refresh_nameplates" color="orange"]
+        P0_list_nameplates -> S1 [color="orange"]
+        S1 [label="S1: typing\nnameplate" color="orange"]
+
+        {rank=same; foo P0_list_nameplates}
+        S1 -> foo [label="update_nameplates"]
+        foo [style="dashed" label=""]
+        foo -> P0_list_nameplates
+
+        S1 -> P1_claim [label="claim_nameplate" color="orange" fontcolor="orange"]
+        P1_claim [shape="box" label="N.set_nameplate" color="orange"]
+        P1_claim -> S2 [color="orange"]
+        S2 [label="S2: typing\ncode\n(no wordlist)" color="orange"]
+        S2 -> P2_stash_wordlist [label="got_nameplates" color="orange"]
+        P2_stash_wordlist [shape="box" label="stash\nwordlist" color="orange"]
+        P2_stash_wordlist -> S3 [color="orange"]
+        S2 -> P_done [label="submit_words"]
+        S3 [label="S3: typing\ncode\n(yes wordlist)" color="orange"]
+        S3 -> P_done [label="submit_words" color="orange" fontcolor="orange"]
+        P_done [shape="box" label="C.finished_input" color="orange"]
+        P_done -> S4 [color="orange"]
+        S4 [label="S4: known" color="green"]
+
+}
