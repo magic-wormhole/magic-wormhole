@@ -1,48 +1,27 @@
 digraph {
 
-        start [label="Wormhole Code\nMachine" style="dotted"]
-        {rank=same; start S0A S0B}
-        start -> S0A [style="invis"]
-        S0A [label="S0A:\nunknown\ndisconnected"]
-        S0A -> S0B [label="connected"]
-        S0B -> S0A [label="lost"]
-        S0B [label="S0B:\nunknown\nconnected"]
-        S0A -> P0_got_code [label="set_code"]
-        S0B -> P0_got_code [label="set_code"]
+        start [label="C:\nCode\nManagement" style="dotted"]
+        {rank=same; start S0}
+        start -> S0 [style="invis"]
+        S0 [label="S0:\nidle"]
+        S0 -> P0_got_code [label="set_code"]
         P0_got_code [shape="box" label="B.got_code"]
-        P0_got_code -> S5
-        S5 [label="S5: known" color="green"]
+        P0_got_code -> S3
+        S3 [label="S3: known" color="green"]
 
-        S0A -> P0_list_nameplates [label="input_code"]
-        S0B -> P0_list_nameplates [label="input_code"]
-        S2 [label="S2: typing\nnameplate"]
+        {rank=same; S1_inputting S2_allocating}
+        S0 -> P_input [label="input_code"]
+        P_input [shape="box" label="I.start"]
+        P_input -> S1_inputting
+        S1_inputting [label="S1:\ninputting"]
+        S1_inputting -> P0_got_code [label="finished_input"]
 
-        S2 -> P0_list_nameplates [label="update_nameplates"]
-        P0_list_nameplates [shape="box" label="L.refresh_nameplates"]
-        P0_list_nameplates -> S2
-
-        S2 -> P2_claim [label="claim_nameplate" color="orange" fontcolor="orange"]
-        P2_claim [shape="box" label="N.set_nameplate"]
-        P2_claim -> S3
-        S3 [label="S3: typing\ncode\n(no wordlist)"]
-        S3 -> P3_stash_wordlist [label="got_nameplates" color="orange"]
-        P3_stash_wordlist [shape="box" label="stash\nwordlist" color="orange"]
-        P3_stash_wordlist -> S4 [color="orange"]
-        S3 -> P0_got_code [label="submit_words"]
-        S4 [label="S4: typing\ncode\n(yes wordlist)" color="orange"]
-        S4 -> P0_got_code [label="submit_words" color="orange" fontcolor="orange"]
-
-        S0A -> S1A [label="allocate_code"]
-        S1A [label="S1A:\nconnecting"]
-        S1A -> P1_allocate [label="connected"]
-        P1_allocate [shape="box" label="RC.tx_allocate"]
-        P1_allocate -> S1B
-        S1B [label="S1B:\nallocating"]
-        S1B -> P1_generate [label="rx_allocated"]
-        S1B -> S1A [label="lost"]
-        P1_generate [shape="box" label="generate\nrandom code"]
+        S0 -> P_allocate [label="allocate_code"]
+        P_allocate [shape="box" label="A.allocate"]
+        P_allocate -> S2_allocating
+        S2_allocating [label="S2:\nallocating"]
+        S2_allocating -> P1_generate [label="allocated_nameplate"]
+        P1_generate [shape="box" label="generate\nrandom words"]
         P1_generate -> P0_got_code
 
-        S0B -> P1_allocate [label="allocate_code"]
-        
 }
