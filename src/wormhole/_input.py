@@ -45,7 +45,7 @@ class Input(object):
     @m.input()
     def got_wordlist(self, wordlist): pass
 
-    # from CodeInputHelper
+    # API provided to app as ICodeInputHelper
     @m.input()
     def refresh_nameplates(self): pass
     @m.input()

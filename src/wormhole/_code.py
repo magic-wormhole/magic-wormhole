@@ -30,8 +30,10 @@ class Code(object):
 
     def wire(self, boss, rendezvous_connector, lister):
         self._B = _interfaces.IBoss(boss)
-        self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
-        self._L = _interfaces.ILister(lister)
+        self._A = _interfaces.IAllocator(allocator)
+        self._N = _interfaces.INameplate(nameplate)
+        self._K = _interfaces.IKey(key)
+        self._I = _interfaces.IInput(input)
 
     @m.state(initial=True)
     def S0A_unknown(self): pass # pragma: no cover
@@ -57,14 +59,6 @@ class Code(object):
     def input_code(self, input_helper): pass
     @m.input()
     def set_code(self, code): pass
-
-    # from RendezvousConnector
-    @m.input()
-    def connected(self): pass
-    @m.input()
-    def lost(self): pass
-    @m.input()
-    def rx_allocated(self, nameplate): pass
 
     # from Lister
     @m.input()
