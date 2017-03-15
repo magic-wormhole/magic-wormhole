@@ -44,8 +44,8 @@ class Allocator(object):
     def RC_tx_allocate(self):
         self._RC.tx_allocate()
     @m.output()
-    def C_allocated(self, nameplate):
-        self._C.allocated(nameplate)
+    def C_allocated_nameplate(self, nameplate):
+        self._C.allocated_nameplate(nameplate)
 
     S0A_idle.upon(connected, enter=S0B_idle_connected, outputs=[])
     S0B_idle_connected.upon(lost, enter=S0A_idle, outputs=[])
@@ -59,7 +59,7 @@ class Allocator(object):
     S1B_allocating_connected.upon(lost, enter=S1A_allocating, outputs=[])
 
     S1B_allocating_connected.upon(rx_allocated, enter=S2_done,
-                                  outputs=[C_allocated])
+                                  outputs=[C_allocated_nameplate])
 
     S2_done.upon(connected, enter=S2_done, outputs=[])
     S2_done.upon(lost, enter=S2_done, outputs=[])

@@ -62,11 +62,11 @@ class Boss(object):
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
         self._R.wire(self, self._S)
-        self._RC.wire(self, self._N, self._M, self._C, self._L, self._T)
+        self._RC.wire(self, self._N, self._M, self._A, self._L, self._T)
         self._L.wire(self._RC, self._I)
         self._A.wire(self._RC, self._C)
         self._I.wire(self._C, self._L)
-        self._C.wire(self, self._RC, self._L)
+        self._C.wire(self, self._A, self._N, self._K, self._I)
         self._T.wire(self, self._RC, self._N, self._M)
 
         self._did_start_code = False
@@ -195,7 +195,6 @@ class Boss(object):
 
     @m.output()
     def do_got_code(self, code):
-        self._K.got_code(code)
         self._W.got_code(code)
     @m.output()
     def process_version(self, plaintext):

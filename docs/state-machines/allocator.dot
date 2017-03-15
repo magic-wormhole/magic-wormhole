@@ -21,7 +21,7 @@ digraph {
         S1A -> P_allocate [label="connected" color="orange"]
 
         S1B -> P_allocated [label="rx_allocated" color="orange"]
-        P_allocated [shape="box" label="C.allocated" color="orange"]
+        P_allocated [shape="box" label="C.allocated_nameplate" color="orange"]
         P_allocated -> S2 [color="orange"]
 
         S2 [label="S2:\ndone" color="orange"]

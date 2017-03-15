@@ -93,11 +93,11 @@ class RendezvousConnector(object):
             return self._tor_manager.get_endpoint_for(hostname, port)
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
-    def wire(self, boss, nameplate, mailbox, code, lister, terminator):
+    def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):
         self._B = _interfaces.IBoss(boss)
         self._N = _interfaces.INameplate(nameplate)
         self._M = _interfaces.IMailbox(mailbox)
-        self._C = _interfaces.ICode(code)
+        self._A = _interfaces.IAllocator(allocator)
         self._L = _interfaces.ILister(lister)
         self._T = _interfaces.ITerminator(terminator)
 

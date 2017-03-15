@@ -15,7 +15,7 @@ digraph {
                  label="C.input_code\n or C.allocate_code\n or C.set_code"]
         P0_code -> S0
         S0 [label="S0: empty"]
-        S0 -> P0_build [label="set_code"]
+        S0 -> P0_build [label="got_code"]
 
         S0 -> P_close_error [label="rx_error"]
         P_close_error [shape="box" label="T.close(errory)"]
