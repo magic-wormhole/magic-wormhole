@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
+from ._wordlist import PGPWordList
 
 @implementer(_interfaces.INameplate)
 class Nameplate(object):
@@ -12,8 +13,9 @@ class Nameplate(object):
     def __init__(self):
         self._nameplate = None
 
-    def wire(self, mailbox, rendezvous_connector, terminator):
+    def wire(self, mailbox, input, rendezvous_connector, terminator):
         self._M = _interfaces.IMailbox(mailbox)
+        self._I = _interfaces.IInput(input)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._T = _interfaces.ITerminator(terminator)
 
@@ -96,6 +98,11 @@ class Nameplate(object):
         # when invoked via M.connected(), we must use the stored nameplate
         self._RC.tx_claim(self._nameplate)
     @m.output()
+    def I_got_wordlist(self, mailbox):
+        # TODO select wordlist based on nameplate properties, in rx_claimed
+        wordlist = PGPWordList()
+        self._I.got_wordlist(wordlist)
+    @m.output()
     def M_got_mailbox(self, mailbox):
         self._M.got_mailbox(mailbox)
     @m.output()
@@ -120,7 +127,7 @@ class Nameplate(object):
     S2A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
     S2A.upon(close, enter=S4A, outputs=[])
     S2B.upon(lost, enter=S2A, outputs=[])
-    S2B.upon(rx_claimed, enter=S3B, outputs=[M_got_mailbox])
+    S2B.upon(rx_claimed, enter=S3B, outputs=[I_got_wordlist, M_got_mailbox])
     S2B.upon(close, enter=S4B, outputs=[RC_tx_release])
 
     S3A.upon(connected, enter=S3B, outputs=[])

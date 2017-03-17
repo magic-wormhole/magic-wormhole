@@ -7,8 +7,8 @@ digraph {
         S0A -> S0B [label="connected"]
         S0B -> S0A [label="lost"]
         S0B [label="S0B:\nidle\nconnected"]
-        S0A -> S1A [label="allocate" color="orange"]
-        S0B -> P_allocate [label="allocate"]
+        S0A -> S1A [label="allocate(length, wordlist)" color="orange"]
+        S0B -> P_allocate [label="allocate(length, wordlist)"]
         P_allocate [shape="box" label="RC.tx_allocate" color="orange"]
         P_allocate -> S1B [color="orange"]
         {rank=same; S1A P_allocate S1B}
@@ -21,7 +21,7 @@ digraph {
         S1A -> P_allocate [label="connected" color="orange"]
 
         S1B -> P_allocated [label="rx_allocated" color="orange"]
-        P_allocated [shape="box" label="C.allocated_nameplate" color="orange"]
+        P_allocated [shape="box" label="choose words\nC.allocated(nameplate,code)" color="orange"]
         P_allocated -> S2 [color="orange"]
 
         S2 [label="S2:\ndone" color="orange"]

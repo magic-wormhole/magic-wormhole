@@ -1,10 +1,13 @@
 from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
+from attr import attrib
+from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
 
 @implementer(_interfaces.ILister)
 class Lister(object):
+    _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     @m.setTrace()
     def set_trace(): pass # pragma: no cover

@@ -33,6 +33,13 @@ class ITiming(Interface):
     pass
 class ITorManager(Interface):
     pass
+class IWordlist(Interface):
+    def choose_words(length):
+        """Randomly select LENGTH words, join them with hyphens, return the
+        result."""
+    def get_completions(prefix):
+        """Return a list of all suffixes that could complete the given
+        prefix."""
 
 class IJournal(Interface): # TODO: this needs to be public
     pass

@@ -61,6 +61,7 @@ digraph {
                                  label="connected\nlost\nrx_claimed\nrx_released"]
         Mailbox -> Nameplate [style="dashed" label="release"]
         Nameplate -> Mailbox [style="dashed" label="got_mailbox"]
+        Nameplate -> Input [style="dashed" label="got_wordlist"]
 
         Mailbox -> Connection [style="dashed" color="red" fontcolor="red"
                                label="tx_open\ntx_add\ntx_close"
