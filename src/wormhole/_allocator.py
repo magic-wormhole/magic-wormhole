@@ -30,7 +30,7 @@ class Allocator(object):
 
     # from Code
     @m.input()
-    def allocate(self): pass
+    def allocate(self, length, wordlist): pass
 
     # from RendezvousConnector
     @m.input()
@@ -41,25 +41,36 @@ class Allocator(object):
     def rx_allocated(self, nameplate): pass
 
     @m.output()
+    def stash(self, length, wordlist):
+        self._length = length
+        self._wordlist = _interfaces.IWordlist(wordlist)
+    @m.output()
+    def stash_and_RC_rx_allocate(self, length, wordlist):
+        self._length = length
+        self._wordlist = _interfaces.IWordlist(wordlist)
+        self._RC.tx_allocate()
+    @m.output()
     def RC_tx_allocate(self):
         self._RC.tx_allocate()
     @m.output()
-    def C_allocated_nameplate(self, nameplate):
-        self._C.allocated_nameplate(nameplate)
+    def build_and_notify(self, nameplate):
+        words = self._wordlist.choose_words(self._length)
+        code = nameplate + "-" + words
+        self._C.allocated(nameplate, code)
 
     S0A_idle.upon(connected, enter=S0B_idle_connected, outputs=[])
     S0B_idle_connected.upon(lost, enter=S0A_idle, outputs=[])
 
-    S0A_idle.upon(allocate, enter=S1A_allocating, outputs=[])
+    S0A_idle.upon(allocate, enter=S1A_allocating, outputs=[stash])
     S0B_idle_connected.upon(allocate, enter=S1B_allocating_connected,
-                            outputs=[RC_tx_allocate])
+                            outputs=[stash_and_RC_rx_allocate])
 
     S1A_allocating.upon(connected, enter=S1B_allocating_connected,
                         outputs=[RC_tx_allocate])
     S1B_allocating_connected.upon(lost, enter=S1A_allocating, outputs=[])
 
     S1B_allocating_connected.upon(rx_allocated, enter=S2_done,
-                                  outputs=[C_allocated_nameplate])
+                                  outputs=[build_and_notify])
 
     S2_done.upon(connected, enter=S2_done, outputs=[])
     S2_done.upon(lost, enter=S2_done, outputs=[])

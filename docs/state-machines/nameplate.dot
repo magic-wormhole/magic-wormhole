@@ -38,7 +38,7 @@ digraph {
 
         S2A -> S3A [label="(none)" style="invis"]
         S2B -> P_open [label="rx_claimed" color="orange" fontcolor="orange"]
-        P_open [shape="box" label="M.got_mailbox" color="orange"]
+        P_open [shape="box" label="I.got_wordlist\nM.got_mailbox" color="orange"]
         P_open -> S3B [color="orange"]
 
         subgraph {rank=same; S3A S3B}

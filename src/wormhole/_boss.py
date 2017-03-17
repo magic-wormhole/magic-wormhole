@@ -19,6 +19,7 @@ from ._allocator import Allocator
 from ._input import Input
 from ._code import Code
 from ._terminator import Terminator
+from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
                      KeyFormatError, OnlyOneCodeError)
 from .util import bytes_to_dict
@@ -50,13 +51,13 @@ class Boss(object):
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
                                        self._tor_manager, self._timing)
-        self._L = Lister()
+        self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
 
-        self._N.wire(self._M, self._RC, self._T)
+        self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
         self._S.wire(self._M)
         self._O.wire(self._K, self._R)
@@ -129,7 +130,8 @@ class Boss(object):
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True
-        self._C.allocate_code(code_length)
+        wl = PGPWordList()
+        self._C.allocate_code(code_length, wl)
     def set_code(self, code):
         if ' ' in code:
             raise KeyFormatError("code (%s) contains spaces." % code)
