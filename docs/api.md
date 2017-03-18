@@ -70,7 +70,7 @@ When both sides are done, they must call `close()`, to flush all pending
 
 ## Twisted
 
-The Twisted-friendly flow looks like this (note that passing reactor= is how
+The Twisted-friendly flow looks like this (note that passing reactor is how
 you get a non-blocking Wormhole):
 
 ```python
