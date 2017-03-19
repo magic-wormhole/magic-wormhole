@@ -232,7 +232,7 @@ helper to do tab completion of wormhole codes:
 ```python
 from wormhole import create, rlcompleter_helper
 w = create(appid, relay_url, reactor)
-rlcompleter_helper("Wormhole code:", w.input_code())
+rlcompleter_helper("Wormhole code:", w.input_code(), reactor)
 d = w.when_code()
 ```
 

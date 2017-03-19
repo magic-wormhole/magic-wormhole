@@ -164,9 +164,13 @@ class TwistedReceiver:
         if code:
             w.set_code(code)
         else:
-            raise NotImplemented
-            yield w.input_code("Enter receive wormhole code: ", # TODO
-                               self.args.code_length)
+            from .._rlcompleter import rlcompleter_helper
+            used_completion = yield rlcompleter_helper("Enter receive wormhole code: ",
+                                                       w.input_code(),
+                                                       self._reactor)
+            if not used_completion:
+                print(" (note: you can use <Tab> to complete words)",
+                      file=self.args.stderr)
         yield w.when_code()
 
     def _show_verifier(self, verifier):
