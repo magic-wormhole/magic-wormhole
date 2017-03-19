@@ -131,20 +131,16 @@ class Mailbox(object):
     @m.output()
     def N_release_and_accept(self, side, phase, body):
         self._N.release()
-        self._accept(side, phase, body)
+        if phase not in self._processed:
+            self._processed.add(phase)
+            self._O.got_message(side, phase, body)
     @m.output()
     def RC_tx_close(self):
         assert self._mood
         self._RC_tx_close()
     def _RC_tx_close(self):
         self._RC.tx_close(self._mailbox, self._mood)
-    @m.output()
-    def accept(self, side, phase, body):
-        self._accept(side, phase, body)
-    def _accept(self, side, phase, body):
-        if phase not in self._processed:
-            self._processed.add(phase)
-            self._O.got_message(side, phase, body)
+
     @m.output()
     def dequeue(self, phase, body):
         self._pending_outbound.pop(phase, None)
@@ -191,10 +187,12 @@ class Mailbox(object):
     S3B.upon(add_message, enter=S3B, outputs=[])
     S3B.upon(rx_message_theirs, enter=S3B, outputs=[])
     S3B.upon(rx_message_ours, enter=S3B, outputs=[])
+    S3B.upon(close, enter=S3B, outputs=[])
 
     S4A.upon(connected, enter=S4B, outputs=[])
     S4B.upon(lost, enter=S4A, outputs=[])
     S4.upon(add_message, enter=S4, outputs=[])
     S4.upon(rx_message_theirs, enter=S4, outputs=[])
     S4.upon(rx_message_ours, enter=S4, outputs=[])
+    S4.upon(close, enter=S4, outputs=[])
 

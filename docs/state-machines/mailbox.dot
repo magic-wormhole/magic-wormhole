@@ -1,7 +1,7 @@
 digraph {
         /* new idea */
 
-        title [label="Message\nMachine" style="dotted"]
+        title [label="Mailbox\nMachine" style="dotted"]
 
         {rank=same; S0A S0B}
         S0A [label="S0A:\nunknown"]
@@ -21,6 +21,9 @@ digraph {
         S0A -> S1A [label="got_mailbox"]
         S1A [label="S1A:\nknown"]
         S1A -> P_open [label="connected"]
+        S1A -> P1A_queue [label="add_message" style="dotted"]
+        P1A_queue [shape="box" label="queue" style="dotted"]
+        P1A_queue -> S1A [style="dotted"]
         S1A -> S2A [style="invis"]
         P_open -> P2_connected [style="invis"]
 
@@ -85,7 +88,7 @@ digraph {
         S4B [label="S4B:\nclosed"]
         S4A -> S4B [label="connected"]
         S4B -> S4A [label="lost"]
-        S4B -> S4B [label="add_message\nrx_message\nclose"]
+        S4B -> S4B [label="add_message\nrx_message\nclose"] # is "close" needed?
 
         S0A -> P3A_done [label="close" color="red"]
         S0B -> P3B_done [label="close" color="red"]
