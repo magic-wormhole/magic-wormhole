@@ -1,10 +1,11 @@
 from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
-from attr import attrib
+from attr import attrs, attrib
 from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
 
+@attrs
 @implementer(_interfaces.ILister)
 class Lister(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
@@ -39,32 +40,35 @@ class Lister(object):
     @m.input()
     def lost(self): pass
     @m.input()
-    def refresh_nameplates(self): pass
+    def refresh(self): pass
     @m.input()
-    def rx_nameplates(self, message): pass
+    def rx_nameplates(self, all_nameplates): pass
 
     @m.output()
     def RC_tx_list(self):
         self._RC.tx_list()
     @m.output()
-    def I_got_nameplates(self, message):
-        self._I.got_nameplates(message["nameplates"])
+    def I_got_nameplates(self, all_nameplates):
+        # We get a set of nameplate ids. There may be more attributes in the
+        # future: change RendezvousConnector._response_handle_nameplates to
+        # get them
+        self._I.got_nameplates(all_nameplates)
 
     S0A_idle_disconnected.upon(connected, enter=S0B_idle_connected, outputs=[])
     S0B_idle_connected.upon(lost, enter=S0A_idle_disconnected, outputs=[])
 
-    S0A_idle_disconnected.upon(refresh_nameplates,
+    S0A_idle_disconnected.upon(refresh,
                                enter=S1A_wanting_disconnected, outputs=[])
-    S1A_wanting_disconnected.upon(refresh_nameplates,
+    S1A_wanting_disconnected.upon(refresh,
                                   enter=S1A_wanting_disconnected, outputs=[])
     S1A_wanting_disconnected.upon(connected, enter=S1B_wanting_connected,
                                   outputs=[RC_tx_list])
-    S0B_idle_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
+    S0B_idle_connected.upon(refresh, enter=S1B_wanting_connected,
                             outputs=[RC_tx_list])
     S0B_idle_connected.upon(rx_nameplates, enter=S0B_idle_connected,
                             outputs=[I_got_nameplates])
     S1B_wanting_connected.upon(lost, enter=S1A_wanting_disconnected, outputs=[])
-    S1B_wanting_connected.upon(refresh_nameplates, enter=S1B_wanting_connected,
+    S1B_wanting_connected.upon(refresh, enter=S1B_wanting_connected,
                                outputs=[RC_tx_list])
     S1B_wanting_connected.upon(rx_nameplates, enter=S0B_idle_connected,
                                outputs=[I_got_nameplates])

@@ -181,42 +181,49 @@ The code-entry Helper object has the following API:
   "4" in "4-purple-sausages"). Note that they are unicode strings (so "4",
   not 4). The Helper will get the response in the background, and calls to
   `get_nameplate_completions()` after the response will use the new list.
+  Calling this after `h.choose_nameplate` will raise
+  `AlreadyChoseNameplateError`.
 * `completions = h.get_nameplate_completions(prefix)`: returns
-  (synchronously) a list of suffixes for the given nameplate prefix. For
+  (synchronously) a set of suffixes for the given nameplate prefix. For
   example, if the server reports nameplates 1, 12, 13, 24, and 170 are in
-  use, `get_nameplate_completions("1")` will return `["", "2", "3", "70"]`.
-  Raises `AlreadyClaimedNameplateError` if called after `h.choose_nameplate`.
-* `h.choose_nameplate(nameplate)`: accepts a string with the chosen nameplate.
-  May only be called once, after which `OnlyOneNameplateError` is raised. (in
-  this future, this might return a Deferred that fires (with None) when the
-  nameplate's wordlist is known (which happens after the nameplate is
-  claimed, requiring a roundtrip to the server)).
+  use, `get_nameplate_completions("1")` will return `{"", "2", "3", "70"}`.
+  You may want to sort these before displaying them to the user. Raises
+  `AlreadyChoseNameplateError` if called after `h.choose_nameplate`.
+* `h.choose_nameplate(nameplate)`: accepts a string with the chosen
+  nameplate. May only be called once, after which
+  `AlreadyChoseNameplateError` is raised. (in this future, this might
+  return a Deferred that fires (with None) when the nameplate's wordlist is
+  known (which happens after the nameplate is claimed, requiring a roundtrip
+  to the server)).
 * `completions = h.get_word_completions(prefix)`: return (synchronously) a
-  list of suffixes for the given words prefix. The possible completions
-  depend upon the wordlist in use for the previously-claimed nameplate, so
-  calling this before `choose_nameplate` will raise
-  `MustClaimNameplateFirstError`. Given a prefix like "su", this returns a
-  list of strings which are appropriate to append to the prefix (e.g.
-  `["pportive", "rrender", "spicious"]`, for expansion into "supportive",
-  "surrender", and "suspicious". The prefix should not include the nameplate,
-  but *should* include whatever words and hyphens have been typed so far (the
-  default wordlist uses alternate lists, where even numbered words have three
+  set of suffixes for the given words prefix. The possible completions depend
+  upon the wordlist in use for the previously-claimed nameplate, so calling
+  this before `choose_nameplate` will raise `MustChooseNameplateFirstError`.
+  Calling this after `h.choose_words()` will raise `AlreadyChoseWordsError`.
+  Given a prefix like "su", this returns a set of strings which are
+  appropriate to append to the prefix (e.g. `{"pportive", "rrender",
+  "spicious"}`, for expansion into "supportive", "surrender", and
+  "suspicious". The prefix should not include the nameplate, but *should*
+  include whatever words and hyphens have been typed so far (the default
+  wordlist uses alternate lists, where even numbered words have three
   syllables, and odd numbered words have two, so the completions depend upon
   how many words are present, not just the partial last word). E.g.
-  `get_word_completions("pr")` will return `["ocessor", "ovincial",
-  "oximate"]`, while `get_word_completions("opulent-pr")` will return
-  `["eclude", "efer", "eshrunk", "inter", "owler"]`. If the wordlist is not
-  yet known, this returns an empty list. It will also return an empty list if
+  `get_word_completions("pr")` will return `{"ocessor", "ovincial",
+  "oximate"}`, while `get_word_completions("opulent-pr")` will return
+  `{"eclude", "efer", "eshrunk", "inter", "owler"}`. If the wordlist is not
+  yet known, this returns an empty set. It will also return an empty set if
   the prefix is complete (the last word matches something in the completion
   list, and there are no longer extension words), although the code may not
   yet be complete if there are additional words. The completions will never
-  include a hyphen: the UI frontend must supply these if desired.
+  include a hyphen: the UI frontend must supply these if desired. The
+  frontend is also responsible for sorting the results before display.
 * `h.choose_words(words)`: call this when the user is finished typing in the
   code. It does not return anything, but will cause the Wormhole's
   `w.when_code()` (or corresponding delegate) to fire, and triggers the
   wormhole connection process. This accepts a string like "purple-sausages",
   without the nameplate. It must be called after `h.choose_nameplate()` or
-  `MustClaimNameplateFirstError` will be raised.
+  `MustChooseNameplateFirstError` will be raised. May only be called once,
+  after which `AlreadyChoseWordsError` is raised.
 
 The `rlcompleter` wrapper is a function that knows how to use the code-entry
 helper to do tab completion of wormhole codes:

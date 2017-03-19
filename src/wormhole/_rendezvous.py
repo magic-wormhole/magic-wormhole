@@ -147,6 +147,7 @@ class RendezvousConnector(object):
             self._N.connected()
             self._M.connected()
             self._L.connected()
+            self._A.connected()
         except Exception as e:
             self._B.error(e)
             raise
@@ -186,6 +187,7 @@ class RendezvousConnector(object):
         self._N.lost()
         self._M.lost()
         self._L.lost()
+        self._A.lost()
 
     # internal
     def _stopped(self, res):
@@ -207,17 +209,19 @@ class RendezvousConnector(object):
     def _response_handle_allocated(self, msg):
         nameplate = msg["nameplate"]
         assert isinstance(nameplate, type("")), type(nameplate)
-        self._C.rx_allocated(nameplate)
+        self._A.rx_allocated(nameplate)
 
     def _response_handle_nameplates(self, msg):
+        # we get list of {id: ID}, with maybe more attributes in the future
         nameplates = msg["nameplates"]
         assert isinstance(nameplates, list), type(nameplates)
-        nids = []
+        nids = set()
         for n in nameplates:
             assert isinstance(n, dict), type(n)
             nameplate_id = n["id"]
             assert isinstance(nameplate_id, type("")), type(nameplate_id)
-            nids.append(nameplate_id)
+            nids.add(nameplate_id)
+        # deliver a set of nameplate ids
         self._L.rx_nameplates(nids)
 
     def _response_handle_ack(self, msg):

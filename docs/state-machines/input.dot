@@ -36,7 +36,7 @@ digraph {
         S4 [label="S4: done" color="green"]
         S4 -> S4 [label="got_nameplates\ngot_wordlist"]
 
-        other [shape="box" style="dotted"
+        other [shape="box" style="dotted" color="orange" fontcolor="orange"
                label="h.refresh_nameplates()\nh.get_nameplate_completions(prefix)\nh.choose_nameplate(nameplate)\nh.get_word_completions(prefix)\nh.choose_words(words)"
                ]
         {rank=same; S4 other}
