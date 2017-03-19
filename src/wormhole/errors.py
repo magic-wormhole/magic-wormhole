@@ -57,6 +57,16 @@ class NoKeyError(WormholeError):
 class OnlyOneCodeError(WormholeError):
     """Only one w.generate_code/w.set_code/w.input_code may be called"""
 
+class MustChooseNameplateFirstError(WormholeError):
+    """The InputHelper was asked to do get_word_completions() or
+    choose_words() before the nameplate was chosen."""
+class AlreadyChoseNameplateError(WormholeError):
+    """The InputHelper was asked to do get_nameplate_completions() after
+    choose_nameplate() was called, or choose_nameplate() was called a second
+    time."""
+class AlreadyChoseWordsError(WormholeError):
+    """The InputHelper was asked to do get_word_completions() after
+    choose_words() was called, or choose_words() was called a second time."""
 class WormholeClosed(Exception):
     """Deferred-returning API calls errback with WormholeClosed if the
     wormhole was already closed, or if it closes before a real result can be

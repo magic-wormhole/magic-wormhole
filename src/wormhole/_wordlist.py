@@ -165,10 +165,10 @@ class PGPWordList(object):
             words = even_words_lowercase
         last_partial_word = prefix.split("-")[-1]
         lp = len(last_partial_word)
-        completions = []
+        completions = set()
         for word in words:
             if word.startswith(prefix):
-                completions.append(word[lp:])
+                completions.add(word[lp:])
         return completions
 
     def choose_words(self, length):

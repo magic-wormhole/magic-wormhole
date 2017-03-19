@@ -35,7 +35,7 @@ class Code(object):
     @m.input()
     def allocate_code(self, length, wordlist): pass
     @m.input()
-    def input_code(self, input_helper): pass
+    def input_code(self): pass
     @m.input()
     def set_code(self, code): pass
 
@@ -57,8 +57,8 @@ class Code(object):
         self._B.got_code(code)
 
     @m.output()
-    def do_start_input(self, input_helper):
-        self._I.start(input_helper)
+    def do_start_input(self):
+        return self._I.start()
     @m.output()
     def do_middle_input(self, nameplate):
         self._N.set_nameplate(nameplate)
@@ -72,6 +72,7 @@ class Code(object):
         self._A.allocate(length, wordlist)
     @m.output()
     def do_finish_allocate(self, nameplate, code):
+        assert code.startswith(nameplate+"-"), (nameplate, code)
         self._N.set_nameplate(nameplate)
         self._K.got_code(code)
         self._B.got_code(code)
