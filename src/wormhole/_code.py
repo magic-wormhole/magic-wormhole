@@ -5,6 +5,9 @@ from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
 
+def first(outputs):
+    return list(outputs)[0]
+
 @attrs
 @implementer(_interfaces.ICode)
 class Code(object):
@@ -79,7 +82,7 @@ class Code(object):
 
     S0_idle.upon(set_code, enter=S4_known, outputs=[do_set_code])
     S0_idle.upon(input_code, enter=S1_inputting_nameplate,
-                 outputs=[do_start_input])
+                 outputs=[do_start_input], collector=first)
     S1_inputting_nameplate.upon(got_nameplate, enter=S2_inputting_words,
                                 outputs=[do_middle_input])
     S2_inputting_words.upon(finished_input, enter=S4_known,
