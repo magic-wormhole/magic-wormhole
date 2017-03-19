@@ -1119,11 +1119,11 @@ class Boss(unittest.TestCase):
         b = MockBoss(wormhole, "side", "url", "appid", versions,
                      self._welcome_handler, reactor, journal, tor_manager,
                      timing.DebugTiming())
-        t = b._T = Dummy("t", events, ITerminator, "close")
-        s = b._S = Dummy("s", events, ISend, "send")
-        rc = b._RC = Dummy("rc", events, IRendezvousConnector, "start")
-        c = b._C = Dummy("c", events, ICode,
-                         "allocate_code", "input_code", "set_code")
+        b._T = Dummy("t", events, ITerminator, "close")
+        b._S = Dummy("s", events, ISend, "send")
+        b._RC = Dummy("rc", events, IRendezvousConnector, "start")
+        b._C = Dummy("c", events, ICode,
+                     "allocate_code", "input_code", "set_code")
         return b, events
 
     def test_basic(self):
