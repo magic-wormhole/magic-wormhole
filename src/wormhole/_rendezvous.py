@@ -143,7 +143,6 @@ class RendezvousConnector(object):
         self._ws = proto
         try:
             self._tx("bind", appid=self._appid, side=self._side)
-            self._C.connected()
             self._N.connected()
             self._M.connected()
             self._L.connected()
@@ -183,7 +182,6 @@ class RendezvousConnector(object):
     def ws_close(self, wasClean, code, reason):
         self._debug("R.lost")
         self._ws = None
-        self._C.lost()
         self._N.lost()
         self._M.lost()
         self._L.lost()

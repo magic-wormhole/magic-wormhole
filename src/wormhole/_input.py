@@ -124,9 +124,15 @@ class Input(object):
 
     S0_idle.upon(start, enter=S1_typing_nameplate,
                  outputs=[do_start], collector=first)
+    # wormholes that don't use input_code (i.e. they use allocate_code or
+    # generate_code) will never start() us, but Nameplate will give us a
+    # wordlist anyways (as soon as the nameplate is claimed), so handle it.
+    S0_idle.upon(got_wordlist, enter=S0_idle, outputs=[record_wordlist])
     S1_typing_nameplate.upon(got_nameplates, enter=S1_typing_nameplate,
                              outputs=[record_nameplates])
-    # too early for got_wordlist, should never happen
+    # but wormholes that *do* use input_code should not get got_wordlist
+    # until after we tell Code that we got_nameplate, which is the earliest
+    # it can be claimed
     S1_typing_nameplate.upon(refresh_nameplates, enter=S1_typing_nameplate,
                              outputs=[do_refresh])
     S1_typing_nameplate.upon(get_nameplate_completions,
