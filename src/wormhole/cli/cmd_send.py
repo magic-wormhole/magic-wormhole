@@ -125,7 +125,7 @@ class Sender:
         #finally:
         #    if not notify.called:
         #        notify.cancel()
-        yield w.when_verified()
+        verifier_bytes = yield w.when_verified()
 
         if args.verify:
             verifier = bytes_to_hexstr(verifier_bytes)
