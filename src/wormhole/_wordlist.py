@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 import os
+from zope.interface import implementer
+from ._interfaces import IWordlist
 
 # The PGP Word List, which maps bytes to phonetically-distinct words. There
 # are two lists, even and odd, and encodings should alternate between then to
@@ -156,6 +158,7 @@ for k,both_words in raw_words.items():
     even_words_lowercase.add(even_word.lower())
     odd_words_lowercase.add(odd_word.lower())
 
+@implementer(IWordlist)
 class PGPWordList(object):
     def get_completions(self, prefix):
         # start with the odd words
