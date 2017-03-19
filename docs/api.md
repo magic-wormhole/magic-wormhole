@@ -211,12 +211,13 @@ The code-entry Helper object has the following API:
   `get_word_completions("pr")` will return `{"ocessor", "ovincial",
   "oximate"}`, while `get_word_completions("opulent-pr")` will return
   `{"eclude", "efer", "eshrunk", "inter", "owler"}`. If the wordlist is not
-  yet known, this returns an empty set. It will also return an empty set if
-  the prefix is complete (the last word matches something in the completion
-  list, and there are no longer extension words), although the code may not
-  yet be complete if there are additional words. The completions will never
-  include a hyphen: the UI frontend must supply these if desired. The
-  frontend is also responsible for sorting the results before display.
+  yet known, this returns an empty set. It will include an empty string in
+  the returned set if the prefix is complete (the last word is an exact match
+  for something in the completion list), but will include additional strings
+  if the completion list includes extensions of the last word. The
+  completions will never include a hyphen: the UI frontend must supply these
+  if desired. The frontend is also responsible for sorting the results before
+  display.
 * `h.choose_words(words)`: call this when the user is finished typing in the
   code. It does not return anything, but will cause the Wormhole's
   `w.when_code()` (or corresponding delegate) to fire, and triggers the

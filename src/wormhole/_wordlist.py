@@ -167,7 +167,7 @@ class PGPWordList(object):
         lp = len(last_partial_word)
         completions = set()
         for word in words:
-            if word.startswith(prefix):
+            if word.startswith(last_partial_word):
                 completions.add(word[lp:])
         return completions
 
