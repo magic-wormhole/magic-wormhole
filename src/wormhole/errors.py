@@ -72,3 +72,7 @@ class WormholeClosed(Exception):
     wormhole was already closed, or if it closes before a real result can be
     obtained."""
 
+class _UnknownPhaseError(Exception):
+    """internal exception type, for tests."""
+class _UnknownMessageTypeError(Exception):
+    """internal exception type, for tests."""

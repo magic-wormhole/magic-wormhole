@@ -124,7 +124,7 @@ class _DelegatedWormhole(object):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._delegate.wormhole_verified(verifier)
-    def got_versions(self, versions):
+    def got_version(self, versions):
         self._delegate.wormhole_version(versions)
     def received(self, plaintext):
         self._delegate.wormhole_received(plaintext)
@@ -191,8 +191,8 @@ class _DeferredWormhole(object):
 
     def allocate_code(self, code_length=2):
         self._boss.allocate_code(code_length)
-    def input_code(self, stdio): # TODO
-        self._boss.input_code(stdio)
+    def input_code(self):
+        return self._boss.input_code()
     def set_code(self, code):
         self._boss.set_code(code)
 
@@ -241,7 +241,7 @@ class _DeferredWormhole(object):
         for d in self._verifier_observers:
             d.callback(verifier)
         self._verifier_observers[:] = []
-    def got_versions(self, versions):
+    def got_version(self, versions):
         self._versions = versions
         for d in self._version_observers:
             d.callback(versions)
