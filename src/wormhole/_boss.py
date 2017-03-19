@@ -21,7 +21,7 @@ from ._code import Code
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
-                     KeyFormatError, OnlyOneCodeError)
+                     KeyFormatError, OnlyOneCodeError, _UnknownPhaseError)
 from .util import bytes_to_dict
 
 @attrs
@@ -126,11 +126,11 @@ class Boss(object):
     # would require the Wormhole to be aware of Code (whereas right now
     # Wormhole only knows about this Boss instance, and everything else is
     # hidden away).
-    def input_code(self, helper):
+    def input_code(self):
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True
-        self._C.input_code(helper)
+        return self._C.input_code()
     def allocate_code(self, code_length):
         if self._did_start_code:
             raise OnlyOneCodeError()
@@ -175,17 +175,17 @@ class Boss(object):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
         if phase == "version":
-            self.got_version(plaintext)
+            self._got_version(plaintext)
         elif re.search(r'^\d+$', phase):
-            self.got_phase(int(phase), plaintext)
+            self._got_phase(int(phase), plaintext)
         else:
             # Ignore unrecognized phases, for forwards-compatibility. Use
             # log.err so tests will catch surprises.
-            log.err("received unknown phase '%s'" % phase)
+            log.err(_UnknownPhaseError("received unknown phase '%s'" % phase))
     @m.input()
-    def got_version(self, plaintext): pass
+    def _got_version(self, plaintext): pass
     @m.input()
-    def got_phase(self, phase, plaintext): pass
+    def _got_phase(self, phase, plaintext): pass
     @m.input()
     def got_key(self, key): pass
     @m.input()
@@ -210,7 +210,7 @@ class Boss(object):
         self._their_versions = bytes_to_dict(plaintext)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
-        self._W.got_versions(app_versions)
+        self._W.got_version(app_versions)
 
     @m.output()
     def S_send(self, plaintext):
@@ -279,8 +279,8 @@ class Boss(object):
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S2_happy.upon(rx_welcome, enter=S2_happy, outputs=[process_welcome])
-    S2_happy.upon(got_phase, enter=S2_happy, outputs=[W_received])
-    S2_happy.upon(got_version, enter=S2_happy, outputs=[process_version])
+    S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
+    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
@@ -289,8 +289,8 @@ class Boss(object):
 
     S3_closing.upon(rx_welcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
-    S3_closing.upon(got_phase, enter=S3_closing, outputs=[])
-    S3_closing.upon(got_version, enter=S3_closing, outputs=[])
+    S3_closing.upon(_got_phase, enter=S3_closing, outputs=[])
+    S3_closing.upon(_got_version, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
@@ -299,8 +299,8 @@ class Boss(object):
     S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S4_closed.upon(rx_welcome, enter=S4_closed, outputs=[])
-    S4_closed.upon(got_phase, enter=S4_closed, outputs=[])
-    S4_closed.upon(got_version, enter=S4_closed, outputs=[])
+    S4_closed.upon(_got_phase, enter=S4_closed, outputs=[])
+    S4_closed.upon(_got_version, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])
     S4_closed.upon(scared, enter=S4_closed, outputs=[])
     S4_closed.upon(close, enter=S4_closed, outputs=[])

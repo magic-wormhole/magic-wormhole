@@ -8,7 +8,7 @@ from twisted.python import log
 from twisted.internet import defer, endpoints
 from twisted.application import internet
 from autobahn.twisted import websocket
-from . import _interfaces
+from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes,
                    bytes_to_dict, dict_to_bytes)
 
@@ -171,7 +171,7 @@ class RendezvousConnector(object):
         meth = getattr(self, "_response_handle_"+mtype, None)
         if not meth:
             # make tests fail, but real application will ignore it
-            log.err(ValueError("Unknown inbound message type %r" % (msg,)))
+            log.err(errors._UnknownMessageTypeError("Unknown inbound message type %r" % (msg,)))
             return
         try:
             return meth(msg)

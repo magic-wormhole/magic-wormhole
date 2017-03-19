@@ -30,9 +30,11 @@ class Dummy:
             directlyProvides(self, iface)
         for meth in meths:
             self.mock(meth)
+        self.retval = None
     def mock(self, meth):
         def log(*args):
             self.events.append(("%s.%s" % (self.name, meth),) + args)
+            return self.retval
         setattr(self, meth, log)
 
 class Send(unittest.TestCase):
@@ -1109,13 +1111,13 @@ class Boss(unittest.TestCase):
         wormhole = Dummy("w", events, None,
                          "got_code", "got_key", "got_verifier", "got_version",
                          "received", "closed")
-        welcome_handler = mock.Mock()
+        self._welcome_handler = mock.Mock()
         versions = {"app": "version1"}
         reactor = None
         journal = ImmediateJournal()
         tor_manager = None
         b = MockBoss(wormhole, "side", "url", "appid", versions,
-                     welcome_handler, reactor, journal, tor_manager,
+                     self._welcome_handler, reactor, journal, tor_manager,
                      timing.DebugTiming())
         t = b._T = Dummy("t", events, ITerminator, "close")
         s = b._S = Dummy("s", events, ISend, "send")
@@ -1134,22 +1136,199 @@ class Boss(unittest.TestCase):
         self.assertEqual(events, [("w.got_code", "1-code")])
         events[:] = []
 
+        b.rx_welcome("welcome")
+        self.assertEqual(self._welcome_handler.mock_calls, [mock.call("welcome")])
+
         # pretend a peer message was correctly decrypted
+        b.got_key(b"key")
+        b.got_verifier(b"verifier")
         b.happy()
-        b.got_version({})
-        b.got_phase("phase1", b"msg1")
-        self.assertEqual(events, [("w.got_version", {}),
+        b.got_message("version", b"{}")
+        b.got_message("0", b"msg1")
+        self.assertEqual(events, [("w.got_key", b"key"),
+                                  ("w.got_verifier", b"verifier"),
+                                  ("w.got_version", {}),
                                   ("w.received", b"msg1"),
                                   ])
         events[:] = []
+
+        b.send(b"msg2")
+        self.assertEqual(events, [("s.send", "0", b"msg2")])
+        events[:] = []
+
         b.close()
         self.assertEqual(events, [("t.close", "happy")])
         events[:] = []
 
         b.closed()
-        self.assertEqual(events, [("w.closed", "reasons")])
-        
-        
+        self.assertEqual(events, [("w.closed", "happy")])
+
+    def test_lonely(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.got_code("1-code")
+        self.assertEqual(events, [("w.got_code", "1-code")])
+        events[:] = []
+
+        b.close()
+        self.assertEqual(events, [("t.close", "lonely")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], errors.LonelyError)
+
+    def test_server_error(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        orig = {}
+        b.rx_error("server-error-msg", orig)
+        self.assertEqual(events, [("t.close", "errory")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], errors.ServerError)
+        self.assertEqual(events[0][1].args[0], "server-error-msg")
+
+    def test_internal_error(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.error(ValueError("catch me"))
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], ValueError)
+        self.assertEqual(events[0][1].args[0], "catch me")
+
+    def test_close_early(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.close() # before even w.got_code
+        self.assertEqual(events, [("t.close", "lonely")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], errors.LonelyError)
+
+    def test_error_while_closing(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.close()
+        self.assertEqual(events, [("t.close", "lonely")])
+        events[:] = []
+
+        b.error(ValueError("oops"))
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], ValueError)
+
+    def test_scary_version(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.got_code("1-code")
+        self.assertEqual(events, [("w.got_code", "1-code")])
+        events[:] = []
+
+        b.scared()
+        self.assertEqual(events, [("t.close", "scary")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], errors.WrongPasswordError)
+
+    def test_scary_phase(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.got_code("1-code")
+        self.assertEqual(events, [("w.got_code", "1-code")])
+        events[:] = []
+
+        b.happy() # phase=version
+
+        b.scared() # phase=0
+        self.assertEqual(events, [("t.close", "scary")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "w.closed")
+        self.assertIsInstance(events[0][1], errors.WrongPasswordError)
+
+    def test_unknown_phase(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.got_code("1-code")
+        self.assertEqual(events, [("w.got_code", "1-code")])
+        events[:] = []
+
+        b.happy() # phase=version
+
+        b.got_message("unknown-phase", b"spooky")
+        self.assertEqual(events, [])
+
+        self.flushLoggedErrors(errors._UnknownPhaseError)
+
+    def test_set_code_bad_format(self):
+        b, events = self.build()
+        with self.assertRaises(errors.KeyFormatError):
+            b.set_code("1 code")
+
+    def test_set_code_bad_twice(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        with self.assertRaises(errors.OnlyOneCodeError):
+            b.set_code("1-code")
+
+    def test_input_code(self):
+        b, events = self.build()
+        b._C.retval = "helper"
+        helper = b.input_code()
+        self.assertEqual(events, [("c.input_code",)])
+        self.assertEqual(helper, "helper")
+        with self.assertRaises(errors.OnlyOneCodeError):
+            b.input_code()
+
+    def test_allocate_code(self):
+        b, events = self.build()
+        wl = object()
+        with mock.patch("wormhole._boss.PGPWordList", return_value=wl):
+            b.allocate_code(3)
+        self.assertEqual(events, [("c.allocate_code", 3, wl)])
+        with self.assertRaises(errors.OnlyOneCodeError):
+            b.allocate_code(3)
+
+
+
 
 # TODO
 # #Send
