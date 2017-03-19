@@ -3,12 +3,13 @@ import json
 import mock
 from zope.interface import directlyProvides, implementer
 from twisted.trial import unittest
-from .. import (errors, timing, _order, _receive, _key, _code, _lister,
+from .. import (errors, timing, _order, _receive, _key, _code, _lister, _boss,
                 _input, _allocator, _send, _terminator, _nameplate, _mailbox)
 from .._interfaces import (IKey, IReceive, IBoss, ISend, IMailbox, IOrder,
                            IRendezvousConnector, ILister, IInput, IAllocator,
                            INameplate, ICode, IWordlist, ITerminator)
 from .._key import derive_key, derive_phase_key, encrypt_data
+from ..journal import ImmediateJournal
 from ..util import dict_to_bytes, hexstr_to_bytes, bytes_to_hexstr, to_bytes
 from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
@@ -25,7 +26,8 @@ class Dummy:
     def __init__(self, name, events, iface, *meths):
         self.name = name
         self.events = events
-        directlyProvides(self, iface)
+        if iface:
+            directlyProvides(self, iface)
         for meth in meths:
             self.mock(meth)
     def mock(self, meth):
@@ -1095,6 +1097,59 @@ class Terminator(unittest.TestCase):
         self._do_test("close", "mailbox", "nameplate")
 
     # TODO: test moods
+
+class MockBoss(_boss.Boss):
+    def __attrs_post_init__(self):
+        #self._build_workers()
+        self._init_other_state()
+
+class Boss(unittest.TestCase):
+    def build(self):
+        events = []
+        wormhole = Dummy("w", events, None,
+                         "got_code", "got_key", "got_verifier", "got_version",
+                         "received", "closed")
+        welcome_handler = mock.Mock()
+        versions = {"app": "version1"}
+        reactor = None
+        journal = ImmediateJournal()
+        tor_manager = None
+        b = MockBoss(wormhole, "side", "url", "appid", versions,
+                     welcome_handler, reactor, journal, tor_manager,
+                     timing.DebugTiming())
+        t = b._T = Dummy("t", events, ITerminator, "close")
+        s = b._S = Dummy("s", events, ISend, "send")
+        rc = b._RC = Dummy("rc", events, IRendezvousConnector, "start")
+        c = b._C = Dummy("c", events, ICode,
+                         "allocate_code", "input_code", "set_code")
+        return b, events
+
+    def test_basic(self):
+        b, events = self.build()
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
+        events[:] = []
+
+        b.got_code("1-code")
+        self.assertEqual(events, [("w.got_code", "1-code")])
+        events[:] = []
+
+        # pretend a peer message was correctly decrypted
+        b.happy()
+        b.got_version({})
+        b.got_phase("phase1", b"msg1")
+        self.assertEqual(events, [("w.got_version", {}),
+                                  ("w.received", b"msg1"),
+                                  ])
+        events[:] = []
+        b.close()
+        self.assertEqual(events, [("t.close", "happy")])
+        events[:] = []
+
+        b.closed()
+        self.assertEqual(events, [("w.closed", "reasons")])
+        
+        
 
 # TODO
 # #Send

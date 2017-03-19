@@ -42,6 +42,10 @@ class Boss(object):
     def set_trace(): pass # pragma: no cover
 
     def __attrs_post_init__(self):
+        self._build_workers()
+        self._init_other_state()
+
+    def _build_workers(self):
         self._N = Nameplate()
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
@@ -70,6 +74,7 @@ class Boss(object):
         self._C.wire(self, self._A, self._N, self._K, self._I)
         self._T.wire(self, self._RC, self._N, self._M)
 
+    def _init_other_state(self):
         self._did_start_code = False
         self._next_tx_phase = 0
         self._next_rx_phase = 0
