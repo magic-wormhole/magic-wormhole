@@ -9,7 +9,7 @@ class Terminator(object):
     @m.setTrace()
     def set_trace(): pass # pragma: no cover
 
-    def __attrs_post_init__(self):
+    def __init__(self):
         self._mood = None
 
     def wire(self, boss, rendezvous_connector, nameplate, mailbox):
