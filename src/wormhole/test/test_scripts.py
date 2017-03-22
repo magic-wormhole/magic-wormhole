@@ -536,6 +536,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_slow_text(self):
         return self._do_test(mode="slow-text")
+    test_slow_text.skip = "pending rethink"
 
     @inlineCallbacks
     def _do_test_fail(self, mode, failmode):
