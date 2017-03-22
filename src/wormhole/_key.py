@@ -52,9 +52,63 @@ def encrypt_data(key, plaintext):
     nonce = utils.random(SecretBox.NONCE_SIZE)
     return box.encrypt(plaintext, nonce)
 
+# the Key we expose to callers (Boss, Ordering) is responsible for sorting
+# the two messages (got_code and got_pake), then delivering them to
+# _SortedKey in the right order.
+
 @attrs
 @implementer(_interfaces.IKey)
 class Key(object):
+    _appid = attrib(validator=instance_of(type(u"")))
+    _versions = attrib(validator=instance_of(dict))
+    _side = attrib(validator=instance_of(type(u"")))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
+    m = MethodicalMachine()
+    @m.setTrace()
+    def _set_trace(): pass # pragma: no cover
+
+    def __attrs_post_init__(self):
+        self._SK = _SortedKey(self._appid, self._versions, self._side,
+                              self._timing)
+
+    def wire(self, boss, mailbox, receive):
+        self._SK.wire(boss, mailbox, receive)
+
+    @m.state(initial=True)
+    def S00(self): pass # pragma: no cover
+    @m.state()
+    def S01(self): pass # pragma: no cover
+    @m.state()
+    def S10(self): pass # pragma: no cover
+    @m.state()
+    def S11(self): pass # pragma: no cover
+
+    @m.input()
+    def got_code(self, code): pass
+    @m.input()
+    def got_pake(self, body): pass
+
+    @m.output()
+    def stash_pake(self, body):
+        self._pake = body
+    @m.output()
+    def deliver_code(self, code):
+        self._SK.got_code(code)
+    @m.output()
+    def deliver_pake(self, body):
+        self._SK.got_pake(body)
+    @m.output()
+    def deliver_code_and_stashed_pake(self, code):
+        self._SK.got_code(code)
+        self._SK.got_pake(self._pake)
+
+    S00.upon(got_code, enter=S10, outputs=[deliver_code])
+    S10.upon(got_pake, enter=S11, outputs=[deliver_pake])
+    S00.upon(got_pake, enter=S01, outputs=[stash_pake])
+    S01.upon(got_code, enter=S11, outputs=[deliver_code_and_stashed_pake])
+
+@attrs
+class _SortedKey(object):
     _appid = attrib(validator=instance_of(type(u"")))
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(type(u"")))

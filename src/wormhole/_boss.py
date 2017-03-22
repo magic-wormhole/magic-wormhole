@@ -88,7 +88,7 @@ class Boss(object):
 
     def _set_trace(self, client_name, which, logger):
         names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
-                 "O": self._O, "K": self._K, "R": self._R,
+                 "O": self._O, "K": self._K, "SK": self._K._SK, "R": self._R,
                  "RC": self._RC, "L": self._L, "C": self._C,
                  "T": self._T}
         for machine in which.split():
