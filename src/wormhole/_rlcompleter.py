@@ -5,6 +5,16 @@ from attr import attrs, attrib
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 
+import os
+errf = None
+if os.path.exists("err"):
+    errf = open("err", "w")
+def debug(*args, **kwargs):
+    if errf:
+        kwargs["file"] = errf
+        print(*args, **kwargs)
+        errf.flush()
+
 @attrs
 class CodeInputter(object):
     _input_helper = attrib()
@@ -12,7 +22,8 @@ class CodeInputter(object):
     def __attrs_post_init__(self):
         self.used_completion = False
         self._matches = None
-        self._committed_nameplate = None
+        # once we've claimed the nameplate, we can't go back
+        self._committed_nameplate = None # or string
 
     def bcft(self, f, *a, **kw):
         return blockingCallFromThread(self._reactor, f, *a, **kw)
@@ -30,69 +41,94 @@ class CodeInputter(object):
 
     def completer(self, text, state):
         self.used_completion = True
-        # debug
-        #import readline
-        #if state == 0:
-        #    print("", file=sys.stderr)
-        #print("completer: '%s' %d '%d'" % (text, state,
-        #                                   readline.get_completion_type()),
-        #      file=sys.stderr)
-        #sys.stderr.flush()
-
-        if state > 0:
-            # just use the values we decided last time
-            if state >= len(self._matches):
-                return None
-            return self._matches[state]
-
-        if not self._committed_nameplate:
-            self.bcft(self._input_helper.refresh_nameplates)
-
-        # now figure out new matches
-        if not "-" in text:
-            completions = self.bcft(self._input_helper.get_nameplate_completions,
-                                    text)
-            # TODO: does rlcompleter want full strings, or the next suffix?
-            self._matches = sorted(completions)
+        import readline
+        ct = readline.get_completion_type()
+        if state == 0:
+            debug("completer starting (%s) (state=0) (ct=%d)" % (text, ct))
+            self._matches = self._commit_and_build_completions(text)
+            debug(" matches:", " ".join(["'%s'" % m for m in self._matches]))
         else:
-            nameplate, words = text.split("-", 1)
-            if self._committed_nameplate:
-                if nameplate != self._committed_nameplate:
-                    # they deleted past the committment point: we can't use
-                    # this. For now, bail, but in the future let's find a
-                    # gentler way to encourage them to not do that.
-                    raise ValueError("nameplate (NN-) already entered, cannot go back")
-                # they've just committed to this nameplate
-                self.bcft(self._input_helper.choose_nameplate, nameplate)
-                self._committed_nameplate = nameplate
-            completions = self.bcft(self._input_helper.get_word_completions,
-                                    words)
-            self._matches = sorted(completions)
+            debug(" s%d t'%s' ct=%d" % (state, text, ct))
 
-        #print(" match: '%s'" % self._matches[state], file=sys.stderr)
-        #sys.stderr.flush()
+        if state >= len(self._matches):
+            debug("  returning None")
+            return None
+        debug("  returning '%s'" % self._matches[state])
         return self._matches[state]
 
+    def _commit_and_build_completions(self, text):
+        ih = self._input_helper
+        if "-" in text:
+            got_nameplate = True
+            nameplate, words = text.split("-", 1)
+        else:
+            got_nameplate = False
+            nameplate = text # partial
+
+        # 'text' is one of these categories:
+        #  "": complete on nameplates
+        #  "12": complete on nameplates
+        #  "123-": commit to nameplate (if not already), complete on words
+
+        if self._committed_nameplate:
+            if not got_nameplate or nameplate != self._committed_nameplate:
+                # they deleted past the committment point: we can't use
+                # this. For now, bail, but in the future let's find a
+                # gentler way to encourage them to not do that.
+                raise ValueError("nameplate (NN-) already entered, cannot go back")
+        if not got_nameplate:
+            # we're completing on nameplates
+            self.bcft(ih.refresh_nameplates) # results arrive later
+            debug("  getting nameplates")
+            completions = self.bcft(ih.get_nameplate_completions, nameplate)
+        else:
+            # time to commit to this nameplate, if they haven't already
+            if not self._committed_nameplate:
+                debug("  chose_nameplate", nameplate)
+                self.bcft(ih.choose_nameplate, nameplate)
+                self._committed_nameplate = nameplate
+            # and we're completing on words now
+            debug("  getting words")
+            completions = self.bcft(ih.get_word_completions, words)
+
+        # rlcompleter wants full strings
+        return sorted([text+c for c in completions])
+
+    def finish(self, text):
+        if "-" not in text:
+            raise ValueError("incomplete wormhole code")
+        nameplate, words = text.split("-", 1)
+
+        if self._committed_nameplate:
+            if nameplate != self._committed_nameplate:
+                # they deleted past the committment point: we can't use
+                # this. For now, bail, but in the future let's find a
+                # gentler way to encourage them to not do that.
+                raise ValueError("nameplate (NN-) already entered, cannot go back")
+        else:
+            self._input_helper.choose_nameplate(nameplate)
+        self._input_helper.choose_words(words)
+
 def input_code_with_completion(prompt, input_helper, reactor):
+    c = CodeInputter(input_helper, reactor)
     try:
         import readline
-        c = CodeInputter(input_helper, reactor)
         if readline.__doc__ and "libedit" in readline.__doc__:
             readline.parse_and_bind("bind ^I rl_complete")
         else:
             readline.parse_and_bind("tab: complete")
         readline.set_completer(c.wrap_completer)
         readline.set_completer_delims("")
+        debug("==== readline-based completion is prepared")
     except ImportError:
-        c = None
+        debug("==== unable to import readline, disabling completion")
+        pass
     code = six.moves.input(prompt)
     # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
     if isinstance(code, bytes):
         code = code.decode("utf-8")
-    nameplate, words = code.split("-", 1)
-    input_helper.choose_words(words)
-    used_completion = c.used_completion if c else False
-    return (code, used_completion)
+    c.finish(code)
+    return c.used_completion
 
 def warn_readline():
     # When our process receives a SIGINT, Twisted's SIGINT handler will
@@ -131,8 +167,8 @@ def warn_readline():
 @inlineCallbacks
 def rlcompleter_helper(prompt, input_helper, reactor):
     t = reactor.addSystemEventTrigger("before", "shutdown", warn_readline)
-    res = yield deferToThread(input_code_with_completion, prompt, input_helper,
-                              reactor)
-    (code, used_completion) = res
+    #input_helper.refresh_nameplates()
+    used_completion = yield deferToThread(input_code_with_completion,
+                                          prompt, input_helper, reactor)
     reactor.removeSystemEventTrigger(t)
     returnValue(used_completion)
