@@ -10,6 +10,26 @@ digraph {
 
         start [label="Key\nMachine" style="dotted"]
 
+        /* two connected state machines: the first just puts the messages in
+        the right order, the second handles PAKE */
+
+        {rank=same; SO_00 PO_got_code SO_10}
+        {rank=same; SO_01 PO_got_both SO_11}
+        SO_00 [label="S00"]
+        SO_01 [label="S01: pake"]
+        SO_10 [label="S10: code"]
+        SO_11 [label="S11: both"]
+        SO_00 -> SO_01 [label="got_pake\n(early)"]
+        SO_00 -> PO_got_code [label="got_code"]
+        PO_got_code [shape="box" label="K1.got_code"]
+        PO_got_code -> SO_10
+        SO_01 -> PO_got_both [label="got_code"]
+        PO_got_both [shape="box" label="K1.got_code\nK1.got_pake"]
+        PO_got_both -> SO_11
+        SO_10 -> PO_got_pake [label="got_pake"]
+        PO_got_pake [shape="box" label="K1.got_pake"]
+        PO_got_pake -> SO_11
+
         S0 [label="S0: know\nnothing"]
         S0 -> P0_build [label="got_code"]
 
@@ -30,14 +50,14 @@ digraph {
 
         S1 -> P_mood_scary [label="got_pake\npake bad"]
         P_mood_scary [shape="box" color="red" label="W.scared"]
-        P_mood_scary -> S3 [color="red"]
-        S3 [label="S3:\nscared" color="red"]
+        P_mood_scary -> S5 [color="red"]
+        S5 [label="S5:\nscared" color="red"]
         S1 -> P1_compute [label="got_pake\npake good"]
         #S1 -> P_mood_lonely [label="close"]
 
         P1_compute [label="compute_key\nM.add_message(version)\nB.got_key\nB.got_verifier\nR.got_key" shape="box"]
-        P1_compute -> S2
+        P1_compute -> S4
 
-        S2 [label="S2: know_key" color="green"]
+        S4 [label="S4: know_key" color="green"]
 
 }
