@@ -56,8 +56,8 @@ class Code(object):
     def do_set_code(self, code):
         nameplate = code.split("-", 2)[0]
         self._N.set_nameplate(nameplate)
-        self._K.got_code(code)
         self._B.got_code(code)
+        self._K.got_code(code)
 
     @m.output()
     def do_start_input(self):
@@ -67,8 +67,8 @@ class Code(object):
         self._N.set_nameplate(nameplate)
     @m.output()
     def do_finish_input(self, code):
-        self._K.got_code(code)
         self._B.got_code(code)
+        self._K.got_code(code)
 
     @m.output()
     def do_start_allocate(self, length, wordlist):
@@ -77,8 +77,8 @@ class Code(object):
     def do_finish_allocate(self, nameplate, code):
         assert code.startswith(nameplate+"-"), (nameplate, code)
         self._N.set_nameplate(nameplate)
-        self._K.got_code(code)
         self._B.got_code(code)
+        self._K.got_code(code)
 
     S0_idle.upon(set_code, enter=S4_known, outputs=[do_set_code])
     S0_idle.upon(input_code, enter=S1_inputting_nameplate,

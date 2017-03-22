@@ -273,8 +273,8 @@ class Code(unittest.TestCase):
         c, b, a, n, k, i, events = self.build()
         c.set_code(u"1-code")
         self.assertEqual(events, [("n.set_nameplate", u"1"),
-                                  ("k.got_code", u"1-code"),
                                   ("b.got_code", u"1-code"),
+                                  ("k.got_code", u"1-code"),
                                   ])
 
     def test_allocate_code(self):
@@ -285,8 +285,8 @@ class Code(unittest.TestCase):
         events[:] = []
         c.allocated("1", "1-code")
         self.assertEqual(events, [("n.set_nameplate", u"1"),
-                                  ("k.got_code", u"1-code"),
                                   ("b.got_code", u"1-code"),
+                                  ("k.got_code", u"1-code"),
                                   ])
 
     def test_input_code(self):
@@ -299,8 +299,8 @@ class Code(unittest.TestCase):
                                   ])
         events[:] = []
         c.finished_input("1-code")
-        self.assertEqual(events, [("k.got_code", u"1-code"),
-                                  ("b.got_code", u"1-code"),
+        self.assertEqual(events, [("b.got_code", u"1-code"),
+                                  ("k.got_code", u"1-code"),
                                   ])
 
 class Input(unittest.TestCase):
