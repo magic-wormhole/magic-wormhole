@@ -85,6 +85,8 @@ class Input(object):
         self._C.got_nameplate(nameplate)
     @m.output()
     def record_wordlist(self, wordlist):
+        from ._rlcompleter import debug
+        debug("  -record_wordlist")
         self._wordlist = wordlist
 
     @m.output()
