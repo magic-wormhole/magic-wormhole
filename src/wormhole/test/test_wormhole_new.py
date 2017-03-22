@@ -36,7 +36,7 @@ class New(ServerBase, unittest.TestCase):
         mo = re.search(r"^\d+-\w+-\w+$", code)
         self.assert_(mo, code)
         # w.close() fails because we closed before connecting
-        self.assertFailure(w.close(), errors.LonelyError)
+        yield self.assertFailure(w.close(), errors.LonelyError)
 
     def test_delegated(self):
         dg = Delegate()
@@ -94,6 +94,12 @@ class New(ServerBase, unittest.TestCase):
 
         w1.send(b"data")
 
-        self.assertFailure(w2.when_received(), errors.WrongPasswordError)
-        self.assertFailure(w1.close(), errors.WrongPasswordError)
-        self.assertFailure(w2.close(), errors.WrongPasswordError)
+        yield self.assertFailure(w2.when_received(), errors.WrongPasswordError)
+        # wait for w1.when_received, because if we close w1 before it has
+        # seen the VERSION message, we could legitimately get LonelyError
+        # instead of WrongPasswordError. w2 didn't send anything, so
+        # w1.when_received wouldn't ever callback, but it will errback when
+        # w1 gets the undecryptable VERSION.
+        yield self.assertFailure(w1.when_received(), errors.WrongPasswordError)
+        yield self.assertFailure(w1.close(), errors.WrongPasswordError)
+        yield self.assertFailure(w2.close(), errors.WrongPasswordError)
