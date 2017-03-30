@@ -10,8 +10,7 @@ from . import _interfaces
 class Lister(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    @m.setTrace()
-    def set_trace(): pass # pragma: no cover
+    set_trace = m.setTrace
 
     def wire(self, rendezvous_connector, input):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
