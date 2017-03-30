@@ -38,8 +38,7 @@ class Boss(object):
     _tor_manager = attrib() # TODO: ITorManager or None
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    @m.setTrace()
-    def set_trace(): pass # pragma: no cover
+    set_trace = m.setTrace
 
     def __attrs_post_init__(self):
         self._build_workers()
@@ -92,9 +91,22 @@ class Boss(object):
                  "RC": self._RC, "L": self._L, "C": self._C,
                  "T": self._T}
         for machine in which.split():
-            def tracer(old_state, input, new_state, machine=machine):
-                print("%s.%s[%s].%s -> [%s]" % (client_name, machine,
-                                                old_state, input, new_state))
+            def tracer(old_state, input, new_state, output, machine=machine):
+                if output is None:
+                    if new_state:
+                        print("%s.%s[%s].%s -> [%s]" %
+                              (client_name, machine, old_state, input,
+                               new_state))
+                    else:
+                        # the RendezvousConnector emits message events as if
+                        # they were state transitions, except that old_state
+                        # and new_state are empty strings. "input" is one of
+                        # R.connected, R.rx(type phase+side), R.tx(type
+                        # phase), R.lost .
+                        print("%s.%s.%s" % (client_name, machine, input))
+                else:
+                    if new_state:
+                        print(" %s.%s.%s()" % (client_name, machine, output))
             names[machine].set_trace(tracer)
 
     def serialize(self):

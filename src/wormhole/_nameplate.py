@@ -7,8 +7,7 @@ from ._wordlist import PGPWordList
 @implementer(_interfaces.INameplate)
 class Nameplate(object):
     m = MethodicalMachine()
-    @m.setTrace()
-    def set_trace(): pass # pragma: no cover
+    set_trace = m.setTrace
 
     def __init__(self):
         self._nameplate = None

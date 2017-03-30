@@ -86,7 +86,7 @@ class RendezvousConnector(object):
         self._trace = f
     def _debug(self, what):
         if self._trace:
-            self._trace(old_state="", input=what, new_state="")
+            self._trace(old_state="", input=what, new_state="", output=None)
 
     def _make_endpoint(self, hostname, port):
         if self._tor_manager:
