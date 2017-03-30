@@ -95,8 +95,6 @@ class Mailbox(object):
     # from Send or Key
     @m.input()
     def add_message(self, phase, body):
-        assert isinstance(body, type(b"")), type(body)
-        #print("ADD_MESSAGE", phase, len(body))
         pass
 
 
