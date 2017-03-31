@@ -103,40 +103,6 @@ class Welcome(unittest.TestCase):
         # alas WelcomeError instances don't compare against each other
         #self.assertEqual(se.mock_calls, [mock.call(WelcomeError("oops"))])
 
-class InputCode(unittest.TestCase):
-    def test_list(self):
-        send_command = mock.Mock()
-        stderr = io.StringIO()
-        ic = wormhole._InputCode(None, "prompt", 2, send_command,
-                                 DebugTiming(), stderr)
-        d = ic._list()
-        self.assertNoResult(d)
-        self.assertEqual(send_command.mock_calls, [mock.call("list")])
-        ic._response_handle_nameplates({"type": "nameplates",
-                                        "nameplates": [{"id": "123"}]})
-        res = self.successResultOf(d)
-        self.assertEqual(res, ["123"])
-        self.assertEqual(stderr.getvalue(), "")
-InputCode.skip = "not yet"
-
-class GetCode(unittest.TestCase):
-    def test_get(self):
-        send_command = mock.Mock()
-        gc = wormhole._GetCode(2, send_command, DebugTiming())
-        d = gc.go()
-        self.assertNoResult(d)
-        self.assertEqual(send_command.mock_calls, [mock.call("allocate")])
-        # TODO: nameplate attributes get added and checked here
-        gc._response_handle_allocated({"type": "allocated",
-                                       "nameplate": "123"})
-        code = self.successResultOf(d)
-        self.assertIsInstance(code, type(""))
-        self.assert_(code.startswith("123-"))
-        pieces = code.split("-")
-        self.assertEqual(len(pieces), 3) # nameplate plus two words
-        self.assert_(re.search(r'^\d+-\w+-\w+$', code), code)
-GetCode.skip = "not yet"
-
 class Basic(unittest.TestCase):
     def tearDown(self):
         # flush out any errorful Deferreds left dangling in cycles
