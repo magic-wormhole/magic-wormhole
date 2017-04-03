@@ -21,7 +21,8 @@ from ._code import Code
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
-                     KeyFormatError, OnlyOneCodeError, _UnknownPhaseError)
+                     KeyFormatError, OnlyOneCodeError, _UnknownPhaseError,
+                     WelcomeError)
 from .util import bytes_to_dict
 
 @attrs
@@ -162,11 +163,28 @@ class Boss(object):
     @m.input()
     def close(self): pass
 
-    # from RendezvousConnector. rx_error an error message from the server
-    # (probably because of something we did, or due to CrowdedError). error
-    # is when an exception happened while it tried to deliver something else
+    # from RendezvousConnector:
+    # * "rx_welcome" is the Welcome message, which might signal an error, or
+    #   our welcome_handler might signal one
+    # * "rx_error" is error message from the server (probably because of
+    #   something we said badly, or due to CrowdedError)
+    # * "error" is when an exception happened while it tried to deliver
+    #   something else
+    def rx_welcome(self, welcome):
+        try:
+            if "error" in welcome:
+                raise WelcomeError(welcome["error"])
+            # TODO: it'd be nice to not call the handler when we're in
+            # S3_closing or S4_closed states. I tried to implement this with
+            # rx_Welcome as an @input, but in the error case I'd be
+            # delivering a new input (rx_error or something) while in the
+            # middle of processing the rx_welcome input, and I wasn't sure
+            # Automat would handle that correctly.
+            self._welcome_handler(welcome) # can raise WelcomeError too
+        except WelcomeError as welcome_error:
+            self.rx_unwelcome(welcome_error)
     @m.input()
-    def rx_welcome(self, welcome): pass
+    def rx_unwelcome(self, welcome_error): pass
     @m.input()
     def rx_error(self, errmsg, orig): pass
     @m.input()
@@ -207,11 +225,6 @@ class Boss(object):
     @m.input()
     def closed(self): pass
 
-
-    @m.output()
-    def process_welcome(self, welcome):
-        self._welcome_handler(welcome)
-
     @m.output()
     def do_got_code(self, code):
         self._W.got_code(code)
@@ -231,6 +244,11 @@ class Boss(object):
         self._next_tx_phase += 1
         self._S.send("%d" % phase, plaintext)
 
+    @m.output()
+    def close_unwelcome(self, welcome_error):
+        #assert isinstance(err, WelcomeError)
+        self._result = welcome_error
+        self._T.close("unwelcome")
     @m.output()
     def close_error(self, errmsg, orig):
         self._result = ServerError(errmsg)
@@ -275,12 +293,12 @@ class Boss(object):
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
-    S0_empty.upon(rx_welcome, enter=S0_empty, outputs=[process_welcome])
+    S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
-    S1_lonely.upon(rx_welcome, enter=S1_lonely, outputs=[process_welcome])
+    S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
@@ -290,7 +308,7 @@ class Boss(object):
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
-    S2_happy.upon(rx_welcome, enter=S2_happy, outputs=[process_welcome])
+    S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
@@ -299,7 +317,7 @@ class Boss(object):
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
-    S3_closing.upon(rx_welcome, enter=S3_closing, outputs=[])
+    S3_closing.upon(rx_unwelcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_phase, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_version, enter=S3_closing, outputs=[])
@@ -310,7 +328,7 @@ class Boss(object):
     S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
     S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
-    S4_closed.upon(rx_welcome, enter=S4_closed, outputs=[])
+    S4_closed.upon(rx_unwelcome, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_phase, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_version, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])

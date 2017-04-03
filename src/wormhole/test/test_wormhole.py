@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, json, re, gc
+import os, json, re, gc, io
 from binascii import hexlify, unhexlify
 import mock
 from twisted.trial import unittest
@@ -38,70 +38,20 @@ def response(w, **kwargs):
 
 class Welcome(unittest.TestCase):
     def test_tolerate_no_current_version(self):
-        w = wormhole._WelcomeHandler("relay_url", "current_cli_version", None)
+        w = wormhole._WelcomeHandler("relay_url")
         w.handle_welcome({})
 
     def test_print_motd(self):
-        w = wormhole._WelcomeHandler("relay_url", "current_cli_version", None)
-        with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({"motd": "message of\nthe day"})
-        self.assertEqual(stderr.method_calls,
-                         [mock.call.write("Server (at relay_url) says:\n"
-                                          " message of\n the day"),
-                          mock.call.write("\n")])
+        stderr = io.StringIO()
+        w = wormhole._WelcomeHandler("relay_url", stderr=stderr)
+        w.handle_welcome({"motd": "message of\nthe day"})
+        self.assertEqual(stderr.getvalue(),
+                         "Server (at relay_url) says:\n message of\n the day\n")
         # motd can be displayed multiple times
-        with mock.patch("sys.stderr") as stderr2:
-            w.handle_welcome({"motd": "second message"})
-        self.assertEqual(stderr2.method_calls,
-                         [mock.call.write("Server (at relay_url) says:\n"
-                                          " second message"),
-                          mock.call.write("\n")])
-
-    def test_current_version(self):
-        w = wormhole._WelcomeHandler("relay_url", "2.0", None)
-        with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({"current_cli_version": "2.0"})
-        self.assertEqual(stderr.method_calls, [])
-
-        with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({"current_cli_version": "3.0"})
-        exp1 = ("Warning: errors may occur unless both sides are"
-                " running the same version")
-        exp2 = ("Server claims 3.0 is current, but ours is 2.0")
-        self.assertEqual(stderr.method_calls,
-                         [mock.call.write(exp1),
-                          mock.call.write("\n"),
-                          mock.call.write(exp2),
-                          mock.call.write("\n"),
-                          ])
-
-        # warning is only displayed once
-        with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({"current_cli_version": "3.0"})
-        self.assertEqual(stderr.method_calls, [])
-
-    def test_non_release_version(self):
-        w = wormhole._WelcomeHandler("relay_url", "2.0-dirty", None)
-        with mock.patch("sys.stderr") as stderr:
-            w.handle_welcome({"current_cli_version": "3.0"})
-        self.assertEqual(stderr.method_calls, [])
-
-    def test_signal_error(self):
-        se = mock.Mock()
-        w = wormhole._WelcomeHandler("relay_url", "2.0", se)
-        w.handle_welcome({})
-        self.assertEqual(se.mock_calls, [])
-
-        w.handle_welcome({"error": "oops"})
-        self.assertEqual(len(se.mock_calls), 1)
-        self.assertEqual(len(se.mock_calls[0][1]), 2) # posargs
-        we = se.mock_calls[0][1][0]
-        self.assertIsInstance(we, WelcomeError)
-        self.assertEqual(we.args, ("oops",))
-        mood = se.mock_calls[0][1][1]
-        self.assertEqual(mood, "unwelcome")
-        # alas WelcomeError instances don't compare against each other
-        #self.assertEqual(se.mock_calls, [mock.call(WelcomeError("oops"))])
+        w.handle_welcome({"motd": "second message"})
+        self.assertEqual(stderr.getvalue(),
+                         ("Server (at relay_url) says:\n message of\n the day\n"
+                          "Server (at relay_url) says:\n second message\n"))
 
 class Basic(unittest.TestCase):
     def tearDown(self):
