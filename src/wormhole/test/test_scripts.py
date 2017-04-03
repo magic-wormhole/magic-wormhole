@@ -713,6 +713,9 @@ class NotWelcome(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(self.cfg)
         f = yield self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
+        # TODO: this comes from log.err() in cmd_send.Sender.go._bad, and I'm
+        # undecided about whether that ought to be doing log.err or not
+        self.flushLoggedErrors(WelcomeError)
 
     @inlineCallbacks
     def test_receiver(self):
@@ -721,7 +724,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
-NotWelcome.skip = "not yet"
+        self.flushLoggedErrors(WelcomeError)
 
 class Cleanup(ServerBase, unittest.TestCase):
 

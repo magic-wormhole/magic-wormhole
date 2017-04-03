@@ -10,7 +10,7 @@ from .timing import DebugTiming
 from .journal import ImmediateJournal
 from ._boss import Boss
 from ._key import derive_key
-from .errors import WelcomeError, NoKeyError, WormholeClosed
+from .errors import NoKeyError, WormholeClosed
 from .util import to_bytes
 
 # We can provide different APIs to different apps:
@@ -39,34 +39,16 @@ def _log(client_name, machine_name, old_state, input, new_state):
                                     old_state, input, new_state))
 
 class _WelcomeHandler:
-    def __init__(self, url, current_version, signal_error):
-        self._ws_url = url
-        self._version_warning_displayed = False
-        self._current_version = current_version
-        self._signal_error = signal_error
+    def __init__(self, url, stderr=sys.stderr):
+        self.relay_url = url
+        self.stderr = stderr
 
     def handle_welcome(self, welcome):
         if "motd" in welcome:
             motd_lines = welcome["motd"].splitlines()
             motd_formatted = "\n ".join(motd_lines)
             print("Server (at %s) says:\n %s" %
-                  (self._ws_url, motd_formatted), file=sys.stderr)
-
-        # Only warn if we're running a release version (e.g. 0.0.6, not
-        # 0.0.6-DISTANCE-gHASH). Only warn once.
-        if ("current_cli_version" in welcome
-            and "-" not in self._current_version
-            and not self._version_warning_displayed
-            and welcome["current_cli_version"] != self._current_version):
-            print("Warning: errors may occur unless both sides are running the same version", file=sys.stderr)
-            print("Server claims %s is current, but ours is %s"
-                  % (welcome["current_cli_version"], self._current_version),
-                  file=sys.stderr)
-            self._version_warning_displayed = True
-
-        if "error" in welcome:
-            return self._signal_error(WelcomeError(welcome["error"]),
-                                      "unwelcome")
+                  (self.relay_url, motd_formatted), file=self.stderr)
 
 @attrs
 @implementer(IWormhole)
@@ -118,8 +100,6 @@ class _DelegatedWormhole(object):
     # from below
     def got_code(self, code):
         self._delegate.wormhole_code(code)
-    def got_welcome(self, welcome):
-        pass # TODO
     def got_key(self, key):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
@@ -232,8 +212,6 @@ class _DeferredWormhole(object):
         for d in self._code_observers:
             d.callback(code)
         self._code_observers[:] = []
-    def got_welcome(self, welcome):
-        pass # TODO
     def got_key(self, key):
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
@@ -280,10 +258,7 @@ def create(appid, relay_url, reactor, versions={},
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     if not welcome_handler:
-        from . import __version__
-        signal_error = NotImplemented # TODO
-        wh = _WelcomeHandler(relay_url, __version__, signal_error)
-        welcome_handler = wh.handle_welcome
+        welcome_handler = _WelcomeHandler(relay_url).handle_welcome
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:

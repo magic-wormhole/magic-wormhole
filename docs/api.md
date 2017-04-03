@@ -288,6 +288,75 @@ sides are the same, call `send()` to continue the protocol. If you call
 `send()` before `verify()`, it will perform the complete protocol without
 pausing.
 
+## Welcome Messages
+
+The first message sent by the rendezvous server is a "welcome" message (a
+dictionary). Clients should not wait for this message, but when it arrives,
+they should process the keys it contains.
+
+The welcome message serves three main purposes:
+
+* notify users about important server changes, such as CAPTCHA requirements
+  driven by overload, or donation requests
+* enable future protocol negotiation between clients and the server
+* advise users of the CLI tools (`wormhole send`) to upgrade to a new version
+
+There are three keys currently defined for the welcome message, all of which
+are optional (the welcome message omits "error" and "motd" unless the server
+operator needs to signal a problem).
+
+* `motd`: if this key is present, it will be a string with embedded newlines.
+  The client should display this string to the user, including a note that it
+  comes from the magic-wormhole Rendezvous Server and that server's URL.
+* `error`: if present, the server has decided it cannot service this client.
+  The string will be wrapped in a `WelcomeError` (which is a subclass of
+  `WormholeError`), and all API calls will signal errors (pending Deferreds
+  will errback). The rendezvous connection will be closed.
+* `current_cli_version`: if present, the server is advising instances of the
+  CLI tools (the `wormhole` command included in the python distribution) that
+  there is a newer release available, thus users should upgrade if they can,
+  because more features will be available if both clients are running the
+  same version. The CLI tools compare this string against their `__version__`
+  and can print a short message to stderr if an upgrade is warranted.
+
+There is currently no facility in the server to actually send `motd`, but a
+static `error` string can be included by running the server with
+`--signal-error=MESSAGE`.
+
+The main idea of `error` is to allow the server to cleanly inform the client
+about some necessary action it didn't take. The server currently sends the
+welcome message as soon as the client connects (even before it receives the
+"claim" request), but a future server could wait for a required client
+message and signal an error (via the Welcome message) if it didn't see this
+extra message before the CLAIM arrived.
+
+This could enable changes to the protocol, e.g. requiring a CAPTCHA or
+proof-of-work token when the server is under DoS attack. The new server would
+send the current requirements in an initial message (which old clients would
+ignore). New clients would be required to send the token before their "claim"
+message. If the server sees "claim" before "token", it knows that the client
+is too old to know about this protocol, and it could send a "welcome" with an
+`error` field containing instructions (explaining to the user that the server
+is under attack, and they must either upgrade to a client that can speak the
+new protocol, or wait until the attack has passed). Either case is better
+than an opaque exception later when the required message fails to arrive.
+
+(Note that the server can also send an explicit ERROR message at any time,
+and the client should react with a ServerError. Versions 0.9.2 and earlier of
+the library did not pay attention to the ERROR message, hence the server
+should deliver errors in a WELCOME message if at all possible)
+
+The `error` field is handled internally by the Wormhole object. The other
+fields are processed by an application-supplied "welcome handler" function,
+supplied as an argument to the `wormhole()` constructor. This function will
+be called with the full welcome dictionary, so any other keys that a future
+server might send will be available to it. If the welcome handler raises
+`WelcomeError`, the connection will be closed just as if an `error` key had
+been received.
+
+The default welcome handler will print `motd` to stderr, and will ignore
+`current_cli_version`.
+
 ## Events
 
 As the wormhole connection is established, several events may be dispatched
