@@ -12,7 +12,7 @@ class Receive(object):
     _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def __attrs_post_init__(self):
         self._key = None

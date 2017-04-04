@@ -10,7 +10,7 @@ from . import _interfaces
 class Allocator(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def wire(self, rendezvous_connector, code):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
