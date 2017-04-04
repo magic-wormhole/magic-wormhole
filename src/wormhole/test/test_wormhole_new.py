@@ -76,6 +76,9 @@ class New(ServerBase, unittest.TestCase):
         data2 = yield w1.when_received()
         self.assertEqual(data2, b"data2")
 
+        version1_again = yield w1.when_version()
+        self.assertEqual(version1, version1_again)
+
         c1 = yield w1.close()
         self.assertEqual(c1, "happy")
         c2 = yield w2.close()
