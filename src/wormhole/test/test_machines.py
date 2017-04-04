@@ -228,7 +228,7 @@ class Key(unittest.TestCase):
         k.got_code(code)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0][:2], ("m.add_message", "pake"))
-        msg1_json = events[0][2]
+        msg1_json = events[0][2].decode("utf-8")
         events[:] = []
         msg1 = json.loads(msg1_json)
         msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
@@ -249,9 +249,9 @@ class Key(unittest.TestCase):
         k.got_code(code)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0][:2], ("m.add_message", "pake"))
-        pake_1_json = events[0][2]
+        pake_1_json = events[0][2].decode("utf-8")
         pake_1 = json.loads(pake_1_json)
-        self.assertEqual(pake_1.keys(), ["pake_v1"]) # value is PAKE stuff
+        self.assertEqual(list(pake_1.keys()), ["pake_v1"]) # value is PAKE stuff
         events[:] = []
         bad_pake_d = {"not_pake_v1": "stuff"}
         k.got_pake(dict_to_bytes(bad_pake_d))
