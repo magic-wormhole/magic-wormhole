@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, json, re, gc, io
+import os, json, re, gc
 from binascii import hexlify, unhexlify
 import mock
 from twisted.trial import unittest
