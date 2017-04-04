@@ -352,7 +352,9 @@ supplied as an argument to the `wormhole()` constructor. This function will
 be called with the full welcome dictionary, so any other keys that a future
 server might send will be available to it. If the welcome handler raises
 `WelcomeError`, the connection will be closed just as if an `error` key had
-been received.
+been received. The handler may be called multiple times (once per connection,
+if the rendezvous connection is lost and then reestablished), so applications
+should avoid presenting the user with redundant messages.
 
 The default welcome handler will print `motd` to stderr, and will ignore
 `current_cli_version`.
