@@ -9,6 +9,7 @@ DEV_REQUIREMENTS = [
     "mock",
     "tox",
     "pyflakes",
+    "pexpect",
 ]
 if sys.version_info[0] < 3:
     # txtorcon is not yet compatible with py3, so we include "txtorcon" in
