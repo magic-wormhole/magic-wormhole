@@ -175,11 +175,11 @@ class ScriptsBase:
         # Setting LANG/LC_ALL to a unicode-capable locale is necessary to
         # convince Click to not complain about a forced-ascii locale. My
         # apologies to folks who want to run tests on a machine that doesn't
-        # have the en_US.UTF-8 locale installed.
+        # have the C.UTF-8 locale installed.
         wormhole = self.find_executable()
         d = getProcessOutputAndValue(wormhole, ["--version"],
-                                     env=dict(LC_ALL="en_US.UTF-8",
-                                              LANG="en_US.UTF-8"))
+                                     env=dict(LC_ALL="C.UTF-8",
+                                              LANG="C.UTF-8"))
         def _check(res):
             out, err, rc = res
             if rc != 0:
@@ -335,7 +335,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_d = getProcessOutputAndValue(
                 wormhole_bin, send_args,
                 path=send_dir,
-                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
+                env=dict(LC_ALL="C.UTF-8", LANG="C.UTF-8"),
             )
             recv_args = [
                 '--relay-url', self.relayurl,
@@ -351,7 +351,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = getProcessOutputAndValue(
                 wormhole_bin, recv_args,
                 path=receive_dir,
-                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
+                env=dict(LC_ALL="C.UTF-8", LANG="C.UTF-8"),
             )
 
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],

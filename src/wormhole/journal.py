@@ -1,6 +1,7 @@
+from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 import contextlib
-from _interfaces import IJournal
+from ._interfaces import IJournal
 
 @implementer(IJournal)
 class Journal(object):
