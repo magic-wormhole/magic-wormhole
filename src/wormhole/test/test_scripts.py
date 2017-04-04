@@ -6,7 +6,7 @@ from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet import defer, endpoints, reactor
 from twisted.internet.utils import getProcessOutputAndValue
-from twisted.internet.defer import gatherResults, inlineCallbacks
+from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from .. import __version__
 from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive
@@ -141,6 +141,45 @@ class OfferData(unittest.TestCase):
         self.assertEqual(str(e),
                          "'%s' is neither file nor directory" % filename)
 
+class LocaleFinder:
+    def __init__(self):
+        self._run_once = False
+
+    @inlineCallbacks
+    def find_utf8_locale(self):
+        if self._run_once:
+            returnValue(self._best_locale)
+        self._best_locale = yield self._find_utf8_locale()
+        self._run_once = True
+        returnValue(self._best_locale)
+
+    @inlineCallbacks
+    def _find_utf8_locale(self):
+        # Click really wants to be running under a unicode-capable locale,
+        # especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
+        # most linux boxes have C.UTF-8 but not en-US.UTF-8 . For tests,
+        # figure out which one is present and use that. For runtime, it's a
+        # mess, as really the user must take responsibility for setting their
+        # locale properly. I'm thinking of abandoning Click and going back to
+        # twisted.python.usage to avoid this problem in the future.
+        (out, err, rc) = yield getProcessOutputAndValue("locale", ["-a"])
+        if rc != 0:
+            log.msg("error running 'locale -a', rc=%s" % (rc,))
+            log.msg("stderr: %s" % (err,))
+            returnValue(None)
+        out = out.decode("utf-8") # make sure we get a string
+        utf8_locales = {}
+        for locale in out.splitlines():
+            locale = locale.strip()
+            if locale.lower().endswith((".utf-8", ".utf8")):
+                utf8_locales[locale.lower()] = locale
+        for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
+            if wanted.lower() in utf8_locales:
+                returnValue(utf8_locales[wanted.lower()])
+        if utf8_locales:
+            returnValue(list(utf8_locales.values())[0])
+        returnValue(None)
+locale_finder = LocaleFinder()
 
 class ScriptsBase:
     def find_executable(self):
@@ -159,6 +198,7 @@ class ScriptsBase:
                                     % (wormhole, sys.executable))
         return wormhole
 
+    @inlineCallbacks
     def is_runnable(self):
         # One property of Versioneer is that many changes to the source tree
         # (making a commit, dirtying a previously-clean tree) will change the
@@ -176,20 +216,21 @@ class ScriptsBase:
         # convince Click to not complain about a forced-ascii locale. My
         # apologies to folks who want to run tests on a machine that doesn't
         # have the C.UTF-8 locale installed.
+        locale = yield locale_finder.find_utf8_locale()
+        if not locale:
+            raise unittest.SkipTest("unable to find UTF-8 locale")
+        locale_env = dict(LC_ALL=locale, LANG=locale)
         wormhole = self.find_executable()
-        d = getProcessOutputAndValue(wormhole, ["--version"],
-                                     env=dict(LC_ALL="C.UTF-8",
-                                              LANG="C.UTF-8"))
-        def _check(res):
-            out, err, rc = res
-            if rc != 0:
-                log.msg("wormhole not runnable in this tree:")
-                log.msg("out", out)
-                log.msg("err", err)
-                log.msg("rc", rc)
-                raise unittest.SkipTest("wormhole is not runnable in this tree")
-        d.addCallback(_check)
-        return d
+        res = yield getProcessOutputAndValue(wormhole, ["--version"],
+                                             env=locale_env)
+        out, err, rc = res
+        if rc != 0:
+            log.msg("wormhole not runnable in this tree:")
+            log.msg("out", out)
+            log.msg("err", err)
+            log.msg("rc", rc)
+            raise unittest.SkipTest("wormhole is not runnable in this tree")
+        returnValue(locale_env)
 
 class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -204,7 +245,8 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         wormhole = self.find_executable()
         # we must pass on the environment so that "something" doesn't
         # get sad about UTF8 vs. ascii encodings
-        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"], env=os.environ)
+        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"],
+                                                      env=os.environ)
         err = err.decode("utf-8")
         if "DistributionNotFound" in err:
             log.msg("stderr was %s" % err)
@@ -230,10 +272,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
+    @inlineCallbacks
     def setUp(self):
-        d = self.is_runnable()
-        d.addCallback(lambda _: ServerBase.setUp(self))
-        return d
+        self._env = yield self.is_runnable()
+        yield ServerBase.setUp(self)
 
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
@@ -335,7 +377,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_d = getProcessOutputAndValue(
                 wormhole_bin, send_args,
                 path=send_dir,
-                env=dict(LC_ALL="C.UTF-8", LANG="C.UTF-8"),
+                env=self._env,
             )
             recv_args = [
                 '--relay-url', self.relayurl,
@@ -351,7 +393,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = getProcessOutputAndValue(
                 wormhole_bin, recv_args,
                 path=receive_dir,
-                env=dict(LC_ALL="C.UTF-8", LANG="C.UTF-8"),
+                env=self._env,
             )
 
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],
