@@ -6,7 +6,7 @@ from . import _interfaces
 @implementer(_interfaces.ITerminator)
 class Terminator(object):
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def __init__(self):
         self._mood = None

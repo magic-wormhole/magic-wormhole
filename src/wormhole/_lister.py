@@ -10,7 +10,7 @@ from . import _interfaces
 class Lister(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def wire(self, rendezvous_connector, input):
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)

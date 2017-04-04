@@ -13,7 +13,7 @@ def first(outputs):
 class Code(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def wire(self, boss, allocator, nameplate, key, input):
         self._B = _interfaces.IBoss(boss)

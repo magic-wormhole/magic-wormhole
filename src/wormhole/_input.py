@@ -13,7 +13,7 @@ def first(outputs):
 class Input(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def __attrs_post_init__(self):
         self._all_nameplates = set()

@@ -39,7 +39,7 @@ class Boss(object):
     _tor_manager = attrib() # TODO: ITorManager or None
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = m.setTrace
+    set_trace = getattr(m, "setTrace", lambda self, f: None)
 
     def __attrs_post_init__(self):
         self._build_workers()
