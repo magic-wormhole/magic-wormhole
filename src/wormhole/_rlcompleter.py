@@ -1,19 +1,25 @@
 from __future__ import print_function, unicode_literals
-import sys
-import six
+import traceback
+from sys import stderr
+try:
+    import readline
+except ImportError:
+    readline = None
+from six.moves import input
 from attr import attrs, attrib
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 
-import os
-errf = None
-if os.path.exists("err"):
-    errf = open("err", "w")
+#import os
+#errf = None
+#if os.path.exists("err"):
+#    errf = open("err", "w")
 def debug(*args, **kwargs):
-    if errf:
-        kwargs["file"] = errf
-        print(*args, **kwargs)
-        errf.flush()
+#    if errf:
+#        kwargs["file"] = errf
+#        print(*args, **kwargs)
+#        errf.flush()
+    pass
 
 @attrs
 class CodeInputter(object):
@@ -28,20 +34,19 @@ class CodeInputter(object):
     def bcft(self, f, *a, **kw):
         return blockingCallFromThread(self._reactor, f, *a, **kw)
 
-    def wrap_completer(self, text, state):
+    def completer(self, text, state):
         try:
-            return self.completer(text, state)
+            return self._wrapped_completer(text, state)
         except Exception as e:
             # completer exceptions are normally silently discarded, which
             # makes debugging challenging
             print("completer exception: %s" % e)
-            import traceback
             traceback.print_exc()
             raise e
 
-    def completer(self, text, state):
+    def _wrapped_completer(self, text, state):
         self.used_completion = True
-        import readline
+        # if we get here, then readline must be active
         ct = readline.get_completion_type()
         if state == 0:
             debug("completer starting (%s) (state=0) (ct=%d)" % (text, ct))
@@ -109,21 +114,20 @@ class CodeInputter(object):
             self._input_helper.choose_nameplate(nameplate)
         self._input_helper.choose_words(words)
 
-def input_code_with_completion(prompt, input_helper, reactor):
+def _input_code_with_completion(prompt, input_helper, reactor):
     c = CodeInputter(input_helper, reactor)
-    try:
-        import readline
+    if readline is not None:
         if readline.__doc__ and "libedit" in readline.__doc__:
             readline.parse_and_bind("bind ^I rl_complete")
         else:
             readline.parse_and_bind("tab: complete")
-        readline.set_completer(c.wrap_completer)
+        readline.set_completer(c.completer)
         readline.set_completer_delims("")
         debug("==== readline-based completion is prepared")
-    except ImportError:
+    else:
         debug("==== unable to import readline, disabling completion")
         pass
-    code = six.moves.input(prompt)
+    code = input(prompt)
     # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
     if isinstance(code, bytes):
         code = code.decode("utf-8")
@@ -137,8 +141,7 @@ def warn_readline():
     # input_code_with_completion() when SIGINT happened, the readline
     # thread will be blocked waiting for something on stdin. Trick the
     # user into satisfying the blocking read so we can exit.
-    print("\nCommand interrupted: please press Return to quit",
-          file=sys.stderr)
+    print("\nCommand interrupted: please press Return to quit", file=stderr)
 
     # Other potential approaches to this problem:
     # * hard-terminate our process with os._exit(1), but make sure the
@@ -165,10 +168,10 @@ def warn_readline():
     # readline finish.
 
 @inlineCallbacks
-def rlcompleter_helper(prompt, input_helper, reactor):
+def input_with_completion(prompt, input_helper, reactor):
     t = reactor.addSystemEventTrigger("before", "shutdown", warn_readline)
     #input_helper.refresh_nameplates()
-    used_completion = yield deferToThread(input_code_with_completion,
+    used_completion = yield deferToThread(_input_code_with_completion,
                                           prompt, input_helper, reactor)
     reactor.removeSystemEventTrigger(t)
     returnValue(used_completion)

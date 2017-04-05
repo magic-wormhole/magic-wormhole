@@ -7,7 +7,7 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError, NoTorError
-from .. import wormhole, __version__
+from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from .welcome import CLIWelcomeHandler
@@ -55,11 +55,11 @@ class Sender:
 
         wh = CLIWelcomeHandler(self._args.relay_url, __version__,
                                self._args.stderr)
-        w = wormhole.create(self._args.appid or APPID, self._args.relay_url,
-                            self._reactor,
-                            tor_manager=self._tor_manager,
-                            timing=self._timing,
-                            welcome_handler=wh.handle_welcome)
+        w = create(self._args.appid or APPID, self._args.relay_url,
+                   self._reactor,
+                   tor_manager=self._tor_manager,
+                   timing=self._timing,
+                   welcome_handler=wh.handle_welcome)
         d = self._go(w)
 
         # if we succeed, we should close and return the w.close results

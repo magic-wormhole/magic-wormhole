@@ -226,18 +226,18 @@ The code-entry Helper object has the following API:
   `MustChooseNameplateFirstError` will be raised. May only be called once,
   after which `AlreadyChoseWordsError` is raised.
 
-The `rlcompleter` wrapper is a function that knows how to use the code-entry
-helper to do tab completion of wormhole codes:
+The `input_with_completion` wrapper is a function that knows how to use the
+code-entry helper to do tab completion of wormhole codes:
 
 ```python
-from wormhole import create, rlcompleter_helper
+from wormhole import create, input_with_completion
 w = create(appid, relay_url, reactor)
-rlcompleter_helper("Wormhole code:", w.input_code(), reactor)
+input_with_completion("Wormhole code:", w.input_code(), reactor)
 d = w.when_code()
 ```
 
-This helper runs python's `rawinput()` function inside a thread, since
-`rawinput()` normally blocks.
+This helper runs python's (raw) `input()` function inside a thread, since
+`input()` normally blocks.
 
 The two machines participating in the wormhole setup are not distinguished:
 it doesn't matter which one goes first, and both use the same Wormhole
