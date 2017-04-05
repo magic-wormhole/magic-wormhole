@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import traceback
+import os, traceback
 from sys import stderr
 try:
     import readline
@@ -10,16 +10,13 @@ from attr import attrs, attrib
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 
-#import os
-#errf = None
-#if os.path.exists("err"):
-#    errf = open("err", "w")
+errf = None
+if 0:
+    errf = open("err", "w") if os.path.exists("err") else None
 def debug(*args, **kwargs):
-#    if errf:
-#        kwargs["file"] = errf
-#        print(*args, **kwargs)
-#        errf.flush()
-    pass
+    if errf:
+        print(*args, file=errf, **kwargs)
+        errf.flush()
 
 @attrs
 class CodeInputter(object):
@@ -72,7 +69,10 @@ class CodeInputter(object):
 
         # 'text' is one of these categories:
         #  "": complete on nameplates
-        #  "12": complete on nameplates
+        #  "12" (multiple matches): complete on nameplates
+        #  "123" (single match): return "123-" (no commit, no refresh)
+        #   nope: need to let readline add letters
+        #   so: return "123-"
         #  "123-": commit to nameplate (if not already), complete on words
 
         if self._committed_nameplate:
@@ -82,14 +82,14 @@ class CodeInputter(object):
                 # gentler way to encourage them to not do that.
                 raise ValueError("nameplate (NN-) already entered, cannot go back")
         if not got_nameplate:
-            # we're completing on nameplates
+            # we're completing on nameplates: "" or "12" or "123"
             self.bcft(ih.refresh_nameplates) # results arrive later
             debug("  getting nameplates")
             completions = self.bcft(ih.get_nameplate_completions, nameplate)
-        else:
+        else: # "123-"
             # time to commit to this nameplate, if they haven't already
             if not self._committed_nameplate:
-                debug("  chose_nameplate", nameplate)
+                debug("  choose_nameplate(%s)" % nameplate)
                 self.bcft(ih.choose_nameplate, nameplate)
                 self._committed_nameplate = nameplate
             # and we're completing on words now
@@ -111,7 +111,9 @@ class CodeInputter(object):
                 # gentler way to encourage them to not do that.
                 raise ValueError("nameplate (NN-) already entered, cannot go back")
         else:
+            debug("  choose_nameplate(%s)" % nameplate)
             self._input_helper.choose_nameplate(nameplate)
+        debug("  choose_words(%s)" % words)
         self._input_helper.choose_words(words)
 
 def _input_code_with_completion(prompt, input_helper, reactor):
