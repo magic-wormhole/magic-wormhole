@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, print_function
 import os
 from zope.interface import implementer
 from ._interfaces import IWordlist
@@ -160,9 +160,10 @@ for k,both_words in raw_words.items():
 
 @implementer(IWordlist)
 class PGPWordList(object):
-    def get_completions(self, prefix):
+    def get_completions(self, prefix, num_words=2):
         # start with the odd words
-        if prefix.count("-") % 2 == 0:
+        count = prefix.count("-")
+        if count % 2 == 0:
             words = odd_words_lowercase
         else:
             words = even_words_lowercase
@@ -171,7 +172,11 @@ class PGPWordList(object):
         completions = set()
         for word in words:
             if word.startswith(last_partial_word):
-                completions.add(word[lp:])
+                suffix = word[lp:]
+                # append a hyphen if we expect more words
+                if count+1 < num_words:
+                    suffix += "-"
+                completions.add(suffix)
         return completions
 
     def choose_words(self, length):
