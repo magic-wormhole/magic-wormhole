@@ -5,7 +5,7 @@ from humanize import naturalsize
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
-from .. import wormhole, __version__
+from wormhole import create, input_with_completion, __version__
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError, NoTorError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
@@ -64,11 +64,11 @@ class TwistedReceiver:
 
         wh = CLIWelcomeHandler(self.args.relay_url, __version__,
                                self.args.stderr)
-        w = wormhole.create(self.args.appid or APPID, self.args.relay_url,
-                            self._reactor,
-                            tor_manager=self._tor_manager,
-                            timing=self.args.timing,
-                            welcome_handler=wh.handle_welcome)
+        w = create(self.args.appid or APPID, self.args.relay_url,
+                   self._reactor,
+                   tor_manager=self._tor_manager,
+                   timing=self.args.timing,
+                   welcome_handler=wh.handle_welcome)
         # I wanted to do this instead:
         #
         #    try:
@@ -168,10 +168,10 @@ class TwistedReceiver:
         if code:
             w.set_code(code)
         else:
-            from .._rlcompleter import rlcompleter_helper
-            used_completion = yield rlcompleter_helper("Enter receive wormhole code: ",
-                                                       w.input_code(),
-                                                       self._reactor)
+            prompt = "Enter receive wormhole code: "
+            used_completion = yield input_with_completion(prompt,
+                                                          w.input_code(),
+                                                          self._reactor)
             if not used_completion:
                 print(" (note: you can use <Tab> to complete words)",
                       file=self.args.stderr)
