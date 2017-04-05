@@ -34,10 +34,6 @@ from .util import to_bytes
 #   wormhole(delegate=app, delegate_prefix="wormhole_",
 #            delegate_args=(args, kwargs))
 
-def _log(client_name, machine_name, old_state, input, new_state):
-    print("%s.%s[%s].%s -> [%s]" % (client_name, machine_name,
-                                    old_state, input, new_state))
-
 class _WelcomeHandler:
     def __init__(self, url, stderr=sys.stderr):
         self.relay_url = url
@@ -93,9 +89,9 @@ class _DelegatedWormhole(object):
     def close(self):
         self._boss.close()
 
-    def debug_set_trace(self, client_name, which="B N M S O K R RC NL C T",
-                           logger=_log):
-        self._boss.set_trace(client_name, which, logger)
+    def debug_set_trace(self, client_name, which="B N M S O K R RC L C T",
+                        file=sys.stderr):
+        self._boss._set_trace(client_name, which, file)
 
     # from below
     def got_code(self, code):
@@ -203,8 +199,8 @@ class _DeferredWormhole(object):
         return d
 
     def debug_set_trace(self, client_name, which="B N M S O K R RC L C T",
-                           logger=_log):
-        self._boss._set_trace(client_name, which, logger)
+                        file=sys.stderr):
+        self._boss._set_trace(client_name, which, file)
 
     # from below
     def got_code(self, code):

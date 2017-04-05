@@ -86,7 +86,7 @@ class Boss(object):
     def start(self):
         self._RC.start()
 
-    def _set_trace(self, client_name, which, logger):
+    def _set_trace(self, client_name, which, file):
         names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
                  "O": self._O, "K": self._K, "SK": self._K._SK, "R": self._R,
                  "RC": self._RC, "L": self._L, "C": self._C,
@@ -97,17 +97,20 @@ class Boss(object):
                     if new_state:
                         print("%s.%s[%s].%s -> [%s]" %
                               (client_name, machine, old_state, input,
-                               new_state))
+                               new_state), file=file)
                     else:
                         # the RendezvousConnector emits message events as if
                         # they were state transitions, except that old_state
                         # and new_state are empty strings. "input" is one of
                         # R.connected, R.rx(type phase+side), R.tx(type
                         # phase), R.lost .
-                        print("%s.%s.%s" % (client_name, machine, input))
+                        print("%s.%s.%s" % (client_name, machine, input),
+                              file=file)
                 else:
                     if new_state:
-                        print(" %s.%s.%s()" % (client_name, machine, output))
+                        print(" %s.%s.%s()" % (client_name, machine, output),
+                              file=file)
+                file.flush()
             names[machine].set_trace(tracer)
 
     def serialize(self):
