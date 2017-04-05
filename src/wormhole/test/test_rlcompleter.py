@@ -231,6 +231,18 @@ class Completion(unittest.TestCase):
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
 
+        # in this test, we pretend that nameplates 1 and 12 are active.
+
+        # 43 TAB -> nothing (and refresh_nameplates)
+        gnc.configure_mock(return_value=[])
+        matches = yield deferToThread(cabc, "43")
+        self.assertEqual(matches, [])
+        self.assertEqual(rn.mock_calls, [mock.call()])
+        self.assertEqual(gnc.mock_calls, [mock.call("43")])
+        self.assertEqual(cn.mock_calls, [])
+        rn.reset_mock()
+        gnc.reset_mock()
+
         # 1 TAB -> 1, 12 (and refresh_nameplates)
         gnc.configure_mock(return_value=["", "2"])
         matches = yield deferToThread(cabc, "1")
