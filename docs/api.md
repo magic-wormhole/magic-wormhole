@@ -441,6 +441,23 @@ In Deferred mode, this just means waiting for the Deferred returned by
 doesn't return anything) and waiting for the delegate's `wormhole_closed()`
 method to be called.
 
+`w.close()` will errback (with some form of `WormholeError`) if anything went
+wrong with the process, such as:
+
+* `WelcomeError`: the server told us to signal an error, probably because the
+  client is too old understand some new protocol feature
+* `ServerError`: the server rejected something we did
+* `LonelyError`: we didn't hear from the other side, so no key was
+  established
+* `WrongPasswordError`: we received at least one incorrectly-encrypted
+  message. This probably indicates that the other side used a different
+  wormhole code than we did, perhaps because of a typo, or maybe an attacker
+  tried to guess your code and failed.
+
+If the wormhole was happy at the time it was closed, the `w.close()` Deferred
+will callback (probably with the string "happy", but this may change in the
+future).
+
 ## Serialization
 
 (NOTE: this section is speculative: this code has not yet been written)
