@@ -4,7 +4,7 @@ import mock
 from twisted.trial import unittest
 from twisted.internet import reactor
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from .common import ServerBase
+from .common import ServerBase, poll_until
 from .. import wormhole, _rendezvous
 from ..errors import (WrongPasswordError,
                       KeyFormatError, WormholeClosed, LonelyError,
@@ -226,6 +226,28 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
+        w1.send(b"data1"), w2.send(b"data2")
+        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        (dataX, dataY) = dl
+        self.assertEqual(dataX, b"data2")
+        self.assertEqual(dataY, b"data1")
+        yield w1.close()
+        yield w2.close()
+
+    @inlineCallbacks
+    def test_input_code(self):
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        w1.set_code("123-purple-elephant")
+        h = w2.input_code()
+        h.choose_nameplate("123")
+        # Pause to allow some messages to get delivered. Specifically we want
+        # to wait until w2 claims the nameplate, opens the mailbox, and
+        # receives the PAKE message, to exercise the PAKE-before-CODE path in
+        # Key.
+        yield poll_until(lambda: w2._boss._K._debug_pake_stashed)
+        h.choose_words("purple-elephant")
+
         w1.send(b"data1"), w2.send(b"data2")
         dl = yield self.doBoth(w1.when_received(), w2.when_received())
         (dataX, dataY) = dl

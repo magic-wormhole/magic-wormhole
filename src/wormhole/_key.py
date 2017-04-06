@@ -69,6 +69,7 @@ class Key(object):
     def __attrs_post_init__(self):
         self._SK = _SortedKey(self._appid, self._versions, self._side,
                               self._timing)
+        self._debug_pake_stashed = False # for tests
 
     def wire(self, boss, mailbox, receive):
         self._SK.wire(boss, mailbox, receive)
@@ -90,6 +91,7 @@ class Key(object):
     @m.output()
     def stash_pake(self, body):
         self._pake = body
+        self._debug_pake_stashed = True
     @m.output()
     def deliver_code(self, code):
         self._SK.got_code(code)

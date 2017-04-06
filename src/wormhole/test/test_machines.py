@@ -257,6 +257,34 @@ class Key(unittest.TestCase):
         k.got_pake(dict_to_bytes(bad_pake_d))
         self.assertEqual(events, [("b.scared",)])
 
+    def test_reversed(self):
+        # A receiver using input_code() will choose the nameplate first, then
+        # the rest of the code. Once the nameplate is selected, we'll claim
+        # it and open the mailbox, which will cause the senders PAKE to
+        # arrive before the code has been set. Key() is supposed to stash the
+        # PAKE message until the code is set (allowing the PAKE computation
+        # to finish). This test exercises that PAKE-then-code sequence.
+        k, b, m, r, events = self.build()
+        code = u"1-foo"
+
+        sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes(u"appid"))
+        msg2_bytes = sp.start()
+        msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
+        k.got_pake(msg2)
+        self.assertEqual(len(events), 0)
+
+        k.got_code(code)
+        self.assertEqual(len(events), 5)
+        self.assertEqual(events[0][:2], ("m.add_message", "pake"))
+        msg1_json = events[0][2].decode("utf-8")
+        msg1 = json.loads(msg1_json)
+        msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
+        key2 = sp.finish(msg1_bytes)
+        self.assertEqual(events[1], ("b.got_key", key2))
+        self.assertEqual(events[2][0], "b.got_verifier")
+        self.assertEqual(events[3][:2], ("m.add_message", "version"))
+        self.assertEqual(events[4], ("r.got_key", key2))
+
 class Code(unittest.TestCase):
     def build(self):
         events = []
