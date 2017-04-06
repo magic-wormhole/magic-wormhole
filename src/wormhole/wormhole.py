@@ -246,7 +246,8 @@ class _DeferredWormhole(object):
             d.callback(self._closed_result)
 
 
-def create(appid, relay_url, reactor, versions={},
+def create(appid, relay_url, reactor, # use keyword args for everything else
+           versions={},
            delegate=None, journal=None, tor_manager=None,
            timing=None, welcome_handler=None,
            stderr=sys.stderr):
@@ -280,15 +281,3 @@ def from_serialized(serialized, reactor, delegate,
     b.start() # ??
     raise NotImplemented
     # should the new Wormhole call got_code? only if it wasn't called before.
-
-# after creating the wormhole object, app must call exactly one of:
-# set_code(code), generate_code(), helper=input_code(), and then (if they need
-# to know the code) wait for delegate.got_code() or d=w.when_code()
-
-# the helper for input_code() can be asked for completions:
-# d=helper.get_completions(text_so_far), which will fire with a list of
-# strings that could usefully be appended to text_so_far.
-
-# wormhole.input_code_readline(w) is a wrapper that knows how to use
-# w.input_code() to drive rlcompleter
-
