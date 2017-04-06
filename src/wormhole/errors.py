@@ -31,9 +31,10 @@ class WrongPasswordError(WormholeError):
 
 class KeyFormatError(WormholeError):
     """
-    The key you entered contains spaces. Magic-wormhole expects keys to be
-    separated by dashes. Please reenter the key you were given separating the
-    words with dashes.
+    The key you entered contains spaces or was missing a dash. Magic-wormhole
+    expects the numerical nameplate and the code words to be separated by
+    dashes. Please reenter the key you were given separating the words with
+    dashes.
     """
 
 class ReflectionAttack(WormholeError):
@@ -67,6 +68,9 @@ class AlreadyChoseNameplateError(WormholeError):
 class AlreadyChoseWordsError(WormholeError):
     """The InputHelper was asked to do get_word_completions() after
     choose_words() was called, or choose_words() was called a second time."""
+class AlreadyInputNameplateError(WormholeError):
+    """The CodeInputter was asked to do completion on a nameplate, when we
+    had already committed to a different one."""
 class WormholeClosed(Exception):
     """Deferred-returning API calls errback with WormholeClosed if the
     wormhole was already closed, or if it closes before a real result can be

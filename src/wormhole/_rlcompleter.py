@@ -9,6 +9,7 @@ from six.moves import input
 from attr import attrs, attrib
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread, blockingCallFromThread
+from .errors import KeyFormatError, AlreadyInputNameplateError
 
 errf = None
 if 0:
@@ -68,40 +69,61 @@ class CodeInputter(object):
             nameplate = text # partial
 
         # 'text' is one of these categories:
-        #  "": complete on nameplates
-        #  "12" (multiple matches): complete on nameplates
-        #  "123" (single match): return "123-" (no commit, no refresh)
-        #   nope: need to let readline add letters
-        #   so: return "123-"
-        #  "123-": commit to nameplate (if not already), complete on words
+        #  "" or "12": complete on nameplates (all that match, maybe just one)
+
+        #  "123-": if we haven't already committed to a nameplate, commit and
+        #  wait for the wordlist. Then (either way) return the whole wordlist.
+
+        #  "123-supp": if we haven't already committed to a nameplate, commit
+        #  and wait for the wordlist. Then (either way) return all current
+        #  matches.
 
         if self._committed_nameplate:
             if not got_nameplate or nameplate != self._committed_nameplate:
                 # they deleted past the committment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
-                raise ValueError("nameplate (NN-) already entered, cannot go back")
+                raise AlreadyInputNameplateError("nameplate (%s-) already entered, cannot go back" % self._committed_nameplate)
         if not got_nameplate:
             # we're completing on nameplates: "" or "12" or "123"
             self.bcft(ih.refresh_nameplates) # results arrive later
             debug("  getting nameplates")
             completions = self.bcft(ih.get_nameplate_completions, nameplate)
-        else: # "123-"
+        else: # "123-" or "123-supp"
             # time to commit to this nameplate, if they haven't already
             if not self._committed_nameplate:
                 debug("  choose_nameplate(%s)" % nameplate)
                 self.bcft(ih.choose_nameplate, nameplate)
                 self._committed_nameplate = nameplate
+
+                # Now we want to wait for the wordlist to be available. If
+                # the user just typed "12-supp TAB", we'll claim "12" but
+                # will need a server roundtrip to discover that "supportive"
+                # is the only match. If we don't block, we'd return an empty
+                # wordlist to readline (which will beep and show no
+                # completions). *Then* when the user hits TAB again a moment
+                # later (after the wordlist has arrived, but the user hasn't
+                # modified the input line since the previous empty response),
+                # readline would show one match but not complete anything.
+
+                # In general we want to avoid returning empty lists to
+                # readline. If the user hits TAB when typing in the nameplate
+                # (before the sender has established one, or before we're
+                # heard about it from the server), it can't be helped. But
+                # for the rest of the code, a simple wait-for-wordlist will
+                # improve the user experience.
+                self.bcft(ih.when_wordlist_is_available) # blocks on CLAIM
             # and we're completing on words now
             debug("  getting words")
-            completions = self.bcft(ih.get_word_completions, words)
+            completions = [nameplate+"-"+c
+                           for c in self.bcft(ih.get_word_completions, words)]
 
         # rlcompleter wants full strings
-        return sorted([text+c for c in completions])
+        return sorted(completions)
 
     def finish(self, text):
         if "-" not in text:
-            raise ValueError("incomplete wormhole code")
+            raise KeyFormatError("incomplete wormhole code")
         nameplate, words = text.split("-", 1)
 
         if self._committed_nameplate:
@@ -109,7 +131,7 @@ class CodeInputter(object):
                 # they deleted past the committment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
-                raise ValueError("nameplate (NN-) already entered, cannot go back")
+                raise AlreadyInputNameplateError("nameplate (%s-) already entered, cannot go back" % self._committed_nameplate)
         else:
             debug("  choose_nameplate(%s)" % nameplate)
             self._input_helper.choose_nameplate(nameplate)

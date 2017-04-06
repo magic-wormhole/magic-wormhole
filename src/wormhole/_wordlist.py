@@ -172,7 +172,7 @@ class PGPWordList(object):
         completions = set()
         for word in words:
             if word.startswith(last_partial_word):
-                suffix = word[lp:]
+                suffix = prefix[:-lp] + word
                 # append a hyphen if we expect more words
                 if count+1 < num_words:
                     suffix += "-"

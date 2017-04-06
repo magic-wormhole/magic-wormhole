@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides
+from twisted.internet import defer
 from automat import MethodicalMachine
 from . import _interfaces, errors
 
@@ -19,10 +20,18 @@ class Input(object):
         self._all_nameplates = set()
         self._nameplate = None
         self._wordlist = None
+        self._wordlist_waiters = []
 
     def wire(self, code, lister):
         self._C = _interfaces.ICode(code)
         self._L = _interfaces.ILister(lister)
+
+    def when_wordlist_is_available(self):
+        if self._wordlist:
+            return defer.succeed(None)
+        d = defer.Deferred()
+        self._wordlist_waiters.append(d)
+        return d
 
     @m.state(initial=True)
     def S0_idle(self): pass # pragma: no cover
@@ -72,11 +81,12 @@ class Input(object):
         self._all_nameplates = all_nameplates
     @m.output()
     def _get_nameplate_completions(self, prefix):
-        lp = len(prefix)
         completions = set()
         for nameplate in self._all_nameplates:
             if nameplate.startswith(prefix):
-                completions.add(nameplate[lp:])
+                # TODO: it's a little weird that Input is responsible for the
+                # hyphen on nameplates, but WordList owns it for words
+                completions.add(nameplate+"-")
         return completions
     @m.output()
     def record_all_nameplates(self, nameplate):
@@ -87,6 +97,11 @@ class Input(object):
         from ._rlcompleter import debug
         debug("  -record_wordlist")
         self._wordlist = wordlist
+    @m.output()
+    def notify_wordlist_waiters(self, wordlist):
+        while self._wordlist_waiters:
+            d = self._wordlist_waiters.pop()
+            d.callback(None)
 
     @m.output()
     def no_word_completions(self, prefix):
@@ -128,7 +143,8 @@ class Input(object):
     # wormholes that don't use input_code (i.e. they use allocate_code or
     # generate_code) will never start() us, but Nameplate will give us a
     # wordlist anyways (as soon as the nameplate is claimed), so handle it.
-    S0_idle.upon(got_wordlist, enter=S0_idle, outputs=[record_wordlist])
+    S0_idle.upon(got_wordlist, enter=S0_idle, outputs=[record_wordlist,
+                                                       notify_wordlist_waiters])
     S1_typing_nameplate.upon(got_nameplates, enter=S1_typing_nameplate,
                              outputs=[record_nameplates])
     # but wormholes that *do* use input_code should not get got_wordlist
@@ -152,7 +168,8 @@ class Input(object):
                                     enter=S2_typing_code_no_wordlist, outputs=[])
     S2_typing_code_no_wordlist.upon(got_wordlist,
                                     enter=S3_typing_code_yes_wordlist,
-                                    outputs=[record_wordlist])
+                                    outputs=[record_wordlist,
+                                             notify_wordlist_waiters])
     S2_typing_code_no_wordlist.upon(refresh_nameplates,
                                     enter=S2_typing_code_no_wordlist,
                                     outputs=[raise_already_chose_nameplate1])
@@ -215,6 +232,8 @@ class Helper(object):
         return self._input.get_nameplate_completions(prefix)
     def choose_nameplate(self, nameplate):
         self._input.choose_nameplate(nameplate)
+    def when_wordlist_is_available(self):
+        return self._input.when_wordlist_is_available()
     def get_word_completions(self, prefix):
         return self._input.get_word_completions(prefix)
     def choose_words(self, words):

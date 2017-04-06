@@ -336,19 +336,22 @@ class Input(unittest.TestCase):
         self.assertIsInstance(helper, _input.Helper)
         self.assertEqual(events, [("l.refresh",)])
         events[:] = []
+        d = helper.when_wordlist_is_available()
+        self.assertNoResult(d)
         helper.refresh_nameplates()
         self.assertEqual(events, [("l.refresh",)])
         events[:] = []
         with self.assertRaises(errors.MustChooseNameplateFirstError):
             helper.get_word_completions("prefix")
         i.got_nameplates({"1", "12", "34", "35", "367"})
+        self.assertNoResult(d)
         self.assertEqual(helper.get_nameplate_completions(""),
-                         {"1", "12", "34", "35", "367"})
+                         {"1-", "12-", "34-", "35-", "367-"})
         self.assertEqual(helper.get_nameplate_completions("1"),
-                         {"", "2"})
+                         {"1-", "12-"})
         self.assertEqual(helper.get_nameplate_completions("2"), set())
         self.assertEqual(helper.get_nameplate_completions("3"),
-                         {"4", "5", "67"})
+                         {"34-", "35-", "367-"})
         helper.choose_nameplate("34")
         with self.assertRaises(errors.AlreadyChoseNameplateError):
             helper.refresh_nameplates()
@@ -357,10 +360,16 @@ class Input(unittest.TestCase):
         self.assertEqual(events, [("c.got_nameplate", "34")])
         events[:] = []
         # no wordlist yet
+        self.assertNoResult(d)
         self.assertEqual(helper.get_word_completions(""), set())
         wl = FakeWordList()
         i.got_wordlist(wl)
-        wl._completions = {"bc", "bcd", "e"}
+        self.assertEqual(self.successResultOf(d), None)
+        # a new Deferred should fire right away
+        d = helper.when_wordlist_is_available()
+        self.assertEqual(self.successResultOf(d), None)
+
+        wl._completions = {"abc-", "abcd-", "ae-"}
         self.assertEqual(helper.get_word_completions("a"), wl._completions)
         self.assertEqual(wl._get_completions_prefix, "a")
         with self.assertRaises(errors.AlreadyChoseNameplateError):
