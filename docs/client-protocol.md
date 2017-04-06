@@ -31,9 +31,10 @@ similar negotiation.
 At this stage, the client knows the supposed shared key, but has not yet seen
 evidence that the peer knows it too. When the first peer message arrives
 (i.e. the first message with a `.side` that does not equal our own), it will
-be decrypted: if this decryption succeeds, then we're confident that
-*somebody* used the same wormhole code as us. This event pushes the client
-mood from "lonely" to "happy".
+be decrypted: we use authenticated encryption (`nacl.SecretBox`), so if this
+decryption succeeds, then we're confident that *somebody* used the same
+wormhole code as us. This event pushes the client mood from "lonely" to
+"happy".
 
 This might be triggered by the peer's `version` message, but if we had to
 re-establish the Rendezvous Server connection, we might get peer messages out
@@ -46,14 +47,15 @@ strictly in-order: if we see phases 3 then 2 then 1, all three will be
 delivered in sequence after phase 1 is received.
 
 If any message cannot be successfully decrypted, the mood is set to "scary",
-and the wormhole is closed. All pending Deferreds will be errbacked with some
-kind of WormholeError, the nameplate/mailbox will be released, and the
-WebSocket connection will be dropped. If the application calls `close()`, the
-resulting Deferred will not fire until deallocation has finished and the
-WebSocket is closed, and then it will fire with an errback.
+and the wormhole is closed. All pending Deferreds will be errbacked with a
+`WrongPasswordError` (a subclass of `WormholeError`), the nameplate/mailbox
+will be released, and the WebSocket connection will be dropped. If the
+application calls `close()`, the resulting Deferred will not fire until
+deallocation has finished and the WebSocket is closed, and then it will fire
+with an errback.
 
 Both `version` and all numeric (app-specific) phases are encrypted. The
-message body will be the hex-encoded output of a NACL SecretBox, keyed by a
+message body will be the hex-encoded output of a NaCl `SecretBox`, keyed by a
 phase+side -specific key (computed with HKDF-SHA256, using the shared PAKE
 key as the secret input, and `wormhole:phase:%s%s % (SHA256(side),
 SHA256(phase))` as the CTXinfo), with a random nonce.

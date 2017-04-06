@@ -50,23 +50,23 @@ the server and both clients, to identify protocol slowdowns and guide
 optimization efforts. To support this, the client/server messages include
 additional keys. Client->Server messages include a random `id` key, which is
 copied into the `ack` that is immediately sent back to the client for all
-commands (and is ignored except for the timing tool). Some client->server
-messages (`list`, `allocate`, `claim`, `release`, `close`, `ping`) provoke a
-direct response by the server: for these, `id` is copied into the response.
-This helps the tool correlate the command and response. All server->client
-messages have a `server_tx` timestamp (seconds since epoch, as a float),
-which records when the message left the server. Direct responses include a
-`server_rx` timestamp, to record when the client's command was received. The
-tool combines these with local timestamps (recorded by the client and not
-shared with the server) to build a full picture of network delays and
-round-trip times.
+commands (logged for the timing tool but otherwise ignored). Some
+client->server messages (`list`, `allocate`, `claim`, `release`, `close`,
+`ping`) provoke a direct response by the server: for these, `id` is copied
+into the response. This helps the tool correlate the command and response.
+All server->client messages have a `server_tx` timestamp (seconds since
+epoch, as a float), which records when the message left the server. Direct
+responses include a `server_rx` timestamp, to record when the client's
+command was received. The tool combines these with local timestamps (recorded
+by the client and not shared with the server) to build a full picture of
+network delays and round-trip times.
 
 All messages are serialized as JSON, encoded to UTF-8, and the resulting
 bytes sent as a single "binary-mode" WebSocket payload.
 
 Servers can signal `error` for any message type it does not recognize.
 Clients and Servers must ignore unrecognized keys in otherwise-recognized
-messages.
+messages. Clients must ignore unrecognized message types from the Server.
 
 ## Connection-Specific (Client-to-Server) Messages
 
@@ -74,8 +74,8 @@ The first thing each client sends to the server, immediately after the
 WebSocket connection is established, is a `bind` message. This specifies the
 AppID and side (in keys `appid` and `side`, respectively) that all subsequent
 messages will be scoped to. While technically each message could be
-independent, I thought it would be less confusing to use exactly one
-WebSocket per logical wormhole connection.
+independent (with its own `appid` and `side`), I thought it would be less
+confusing to use exactly one WebSocket per logical wormhole connection.
 
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
@@ -123,7 +123,7 @@ all nameplates, even ones which they've allocated themselves.
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
 clients. So if two clients connect quickly, but then maintain a long-lived
-wormhole connection, the do not need to consume the limited spare of short
+wormhole connection, the do not need to consume the limited space of short
 nameplates for that whole time.
 
 The `allocate` command allocates a nameplate (the server returns one that is
@@ -133,7 +133,9 @@ with all allocated nameplates for the bound AppID: this helps the code-input
 tab-completion feature know which prefixes to offer. The `nameplates`
 response returns a list of dictionaries, one per claimed nameplate, with at
 least an `id` key in each one (with the nameplate string). Future versions
-may record additional attributes in the nameplate records.
+may record additional attributes in the nameplate records, specifically a
+wordlist identifier and a code length (again to help with code-completion on
+the receiver).
 
 ## Mailboxes
 
@@ -162,17 +164,17 @@ interaction. The server records the mood in its "usage" record, so the server
 operator can get a sense of how many connections are succeeding and failing.
 The moods currently recognized by the Rendezvous Server are:
 
-* happy (default): the PAKE key-establishment worked, and the client saw a
-  valid encrypted message from its peer
-* lonely: the client gave up without hearing anything from its peer
-* scary: the client saw an invalid encrypted message from its peer,
+* `happy` (default): the PAKE key-establishment worked, and the client saw at
+  least one valid encrypted message from its peer
+* `lonely`: the client gave up without hearing anything from its peer
+* `scary`: the client saw an invalid encrypted message from its peer,
   indicating that either the wormhole code was typed in wrong, or an attacker
   tried (and failed) to guess the code
-* errory: the client encountered some other error: protocol problem or
+* `errory`: the client encountered some other error: protocol problem or
   internal error
 
-The server will also record "pruney" if it deleted the mailbox due to
-inactivity, or "crowded" if more than two sides tried to access the mailbox.
+The server will also record `pruney` if it deleted the mailbox due to
+inactivity, or `crowded` if more than two sides tried to access the mailbox.
 
 When clients use the `add` command to add a client-to-client message, they
 will put the body (a bytestring) into the command as a hex-encoded string in
@@ -223,7 +225,7 @@ any), and which ones provoke direct responses:
 The server stores all messages in a database, so it should not lose any
 information when it is restarted. The server will not send a direct
 response until any side-effects (such as the message being added to the
-mailbox) being safely committed to the database.
+mailbox) have been safely committed to the database.
 
 The client library knows how to resume the protocol after a reconnection
 event, assuming the client process itself continues to run.
@@ -232,4 +234,4 @@ Clients which terminate entirely between messages (e.g. a secure chat
 application, which requires multiple wormhole messages to exchange
 address-book entries, and which must function even if the two apps are never
 both running at the same time) can use "Journal Mode" to ensure forward
-progress is made: see "api.md" (Journal Mode) for details.
+progress is made: see "journal.md" for details.
