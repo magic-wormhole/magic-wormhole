@@ -9,7 +9,7 @@ from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from .. import __version__
 from .common import ServerBase, config
-from ..cli import cmd_send, cmd_receive
+from ..cli import cmd_send, cmd_receive, welcome
 from ..errors import TransferError, WrongPasswordError, WelcomeError
 
 
@@ -888,3 +888,44 @@ class AppID(ServerBase, unittest.TestCase):
                                             ).fetchall()
         self.assertEqual(len(used), 1, used)
         self.assertEqual(used[0]["app_id"], u"appid2")
+
+class Welcome(unittest.TestCase):
+    def do(self, welcome_message, my_version="2.0", twice=False):
+        stderr = io.StringIO()
+        h = welcome.CLIWelcomeHandler("url", my_version, stderr)
+        h.handle_welcome(welcome_message)
+        if twice:
+            h.handle_welcome(welcome_message)
+        return stderr.getvalue()
+
+    def test_empty(self):
+        stderr = self.do({})
+        self.assertEqual(stderr, "")
+
+    def test_version_current(self):
+        stderr = self.do({"current_cli_version": "2.0"})
+        self.assertEqual(stderr, "")
+
+    def test_version_old(self):
+        stderr = self.do({"current_cli_version": "3.0"})
+        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
+                    "Server claims 3.0 is current, but ours is 2.0\n")
+        self.assertEqual(stderr, expected)
+
+    def test_version_old_twice(self):
+        stderr = self.do({"current_cli_version": "3.0"}, twice=True)
+        # the handler should only emit the version warning once, even if we
+        # get multiple Welcome messages (which could happen if we lose the
+        # connection and then reconnect)
+        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
+                    "Server claims 3.0 is current, but ours is 2.0\n")
+        self.assertEqual(stderr, expected)
+
+    def test_version_unreleased(self):
+        stderr = self.do({"current_cli_version": "3.0"},
+                         my_version="2.5-middle-something")
+        self.assertEqual(stderr, "")
+
+    def test_motd(self):
+        stderr = self.do({"motd": "hello"})
+        self.assertEqual(stderr, "Server (at url) says:\n hello\n")
