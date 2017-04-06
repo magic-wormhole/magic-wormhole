@@ -133,9 +133,9 @@ optional arguments:
 * `welcome_handler`: this is a function that will be called when the
   Rendezvous Server's "welcome" message is received. It is used to display
   important server messages in an application-specific way.
-* `app_versions`: this can accept a dictionary (JSON-encodable) of data that
-  will be made available to the peer via the `got_version` event. This data
-  is delivered before any data messages, and can be used to indicate peer
+* `versions`: this can accept a dictionary (JSON-encodable) of data that will
+  be made available to the peer via the `got_version` event. This data is
+  delivered before any data messages, and can be used to indicate peer
   capabilities.
 
 ## Code Management
@@ -386,10 +386,10 @@ those Deferreds.
   that *someone* has used the correct wormhole code; if someone used the
   wrong code, the VERSION message cannot be decrypted, and the wormhole will
   be closed instead.
-* version (`yield w.when_version()` / `dg.wormhole_version(version)`:
-  fired when the VERSION message arrives from the peer. This fires at the
-  same time as `verified`, but delivers the "app_versions" data (passed into
-  `wormhole.create`) instead of the verifier string.
+* version (`yield w.when_version()` / `dg.wormhole_version(versions)`: fired
+  when the VERSION message arrives from the peer. This fires at the same time
+  as `verified`, but delivers the "app_versions" data (as passed into
+  `wormhole.create(versions=)`) instead of the verifier string.
 * received (`yield w.when_received()` / `dg.wormhole_received(data)`: fired
   each time a data message arrives from the peer, with the bytestring that
   the peer passed into `w.send(data)`.
@@ -489,19 +489,19 @@ in python3):
 
 ## Full API list
 
-action                     | Deferred-Mode        | Delegated-Mode
--------------------------- | -------------------- | --------------
-w.generate_code(length=2)  |                      |
-w.set_code(code)           |                      |
-h=w.input_code()           |                      |
-                           |  d=w.when_code()     | dg.wormhole_code(code)
-                           |  d=w.when_verified() | dg.wormhole_verified(verifier)
-                           |  d=w.when_version()  | dg.wormhole_version(version)
-w.send(data)               |                      |
-                           |  d=w.when_received() | dg.wormhole_received(data)
-key=w.derive_key(purpose, length)  |              |
-w.close()                  |                      | dg.wormhole_closed(result)
-                           |  d=w.close()         |
+action             | Deferred-Mode        | Delegated-Mode
+------------------ | -------------------- | --------------
+w.generate_code()  |                      |
+w.set_code(code)   |                      |
+h=w.input_code()   |                      |
+.                  |  d=w.when_code()     | dg.wormhole_code(code)
+.                  |  d=w.when_verified() | dg.wormhole_verified(verifier)
+.                  |  d=w.when_version()  | dg.wormhole_version(version)
+w.send(data)       |                      |
+.                  |  d=w.when_received() | dg.wormhole_received(data)
+key=w.derive_key(purpose, length)  |      |
+w.close()          |                      | dg.wormhole_closed(result)
+.                  |  d=w.close()         |
 
 
 ## Dilation
