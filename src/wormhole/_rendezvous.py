@@ -57,10 +57,6 @@ class WSFactory(websocket.WebSocketClientFactory):
         #proto.wormhole_open = False
         return proto
 
-def dmsg(side, text):
-    offset = int(side, 16) % 20
-    print(" "*offset, text)
-
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
 class RendezvousConnector(object):
@@ -154,11 +150,6 @@ class RendezvousConnector(object):
 
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
-        #if self.DEBUG and msg["type"]!="ack":
-        #    dmsg(self._side, "R.rx(%s %s%s)" %
-        #         (msg["type"], msg.get("phase",""),
-        #          "[mine]" if msg.get("side","") == self._side else "",
-        #          ))
         if msg["type"] != "ack":
                 self._debug("R.rx(%s %s%s)" %
                             (msg["type"], msg.get("phase",""),
