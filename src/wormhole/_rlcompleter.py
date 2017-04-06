@@ -114,7 +114,7 @@ class CodeInputter(object):
                 # improve the user experience.
                 self.bcft(ih.when_wordlist_is_available) # blocks on CLAIM
             # and we're completing on words now
-            debug("  getting words")
+            debug("  getting words (%s)" % (words,))
             completions = [nameplate+"-"+c
                            for c in self.bcft(ih.get_word_completions, words)]
 

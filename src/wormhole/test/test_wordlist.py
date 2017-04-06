@@ -10,6 +10,10 @@ class Completions(unittest.TestCase):
         self.assertEqual(gc("ar", 2), {"armistice-", "article-"})
         self.assertEqual(gc("armis", 2), {"armistice-"})
         self.assertEqual(gc("armistice", 2), {"armistice-"})
+        lots = gc("armistice-", 2)
+        self.assertEqual(len(lots), 256, lots)
+        first = list(lots)[0]
+        self.assert_(first.startswith("armistice-"), first)
         self.assertEqual(gc("armistice-ba", 2),
                          {"armistice-baboon", "armistice-backfield",
                           "armistice-backward", "armistice-banjo"})
