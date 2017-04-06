@@ -29,6 +29,8 @@ class Journal(object):
 
 @implementer(IJournal)
 class ImmediateJournal(object):
+    def __init__(self):
+        pass
     def queue_outbound(self, fn, *args, **kwargs):
         fn(*args, **kwargs)
     @contextlib.contextmanager
