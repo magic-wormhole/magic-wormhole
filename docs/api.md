@@ -443,7 +443,7 @@ method to be called.
 
 ## Serialization
 
-(this section is speculative: this code has not yet been written)
+(NOTE: this section is speculative: this code has not yet been written)
 
 Wormhole objects can be serialized. This can be useful for apps which save
 their own state before shutdown, and restore it when they next start up
@@ -467,6 +467,56 @@ To ensure correct behavior, serialization should probably only be done in
 
 If you use serialization, be careful to never use the same partial wormhole
 object twice.
+
+## Dilation
+
+(NOTE: this section is speculative: this code has not yet been written)
+
+In the longer term, the Wormhole object will incorporate the "Transit"
+functionality (see transit.md) directly, removing the need to instantiate a
+second object. A Wormhole can be "dilated" into a form that is suitable for
+bulk data transfer.
+
+All wormholes start out "undilated". In this state, all messages are queued
+on the Rendezvous Server for the lifetime of the wormhole, and server-imposed
+number/size/rate limits apply. Calling `w.dilate()` initiates the dilation
+process, and success is signalled via either `d=w.when_dilated()` firing, or
+`dg.wormhole_dilated()` being called. Once dilated, the Wormhole can be used
+as an IConsumer/IProducer, and messages will be sent on a direct connection
+(if possible) or through the transit relay (if not).
+
+What's good about a non-dilated wormhole?:
+
+* setup is faster: no delay while it tries to make a direct connection
+* survives temporary network outages, since messages are queued
+* works with "journaled mode", allowing progress to be made even when both
+  sides are never online at the same time, by serializing the wormhole
+
+What's good about dilated wormholes?:
+
+* they support bulk data transfer
+* you get flow control (backpressure), and IProducer/IConsumer
+* throughput is faster: no store-and-forward step
+
+Use non-dilated wormholes when your application only needs to exchange a
+couple of messages, for example to set up public keys or provision access
+tokens. Use a dilated wormhole to move large files.
+
+Dilated wormholes can provide multiple "channels": these are multiplexed
+through the single (encrypted) TCP connection. Each channel is a separate
+stream (offering IProducer/IConsumer)
+
+To create a channel, call `c = w.create_channel()` on a dilated wormhole. The
+"channel ID" can be obtained with `c.get_id()`. This ID will be a short
+(unicode) string, which can be sent to the other side via a normal
+`w.send()`, or any other means. On the other side, use `c =
+w.open_channel(channel_id)` to get a matching channel object.
+
+Then use `c.send(data)` and `d=c.when_received()` to exchange data, or wire
+them up with `c.registerProducer()`. Note that channels do not close until
+the wormhole connection is closed, so they do not have separate `close()`
+methods or events. Therefore if you plan to send files through them, you'll
+need to inform the recipient ahead of time about how many bytes to expect.
 
 ## Bytes, Strings, Unicode, and Python 3
 
@@ -503,53 +553,3 @@ key=w.derive_key(purpose, length)  |      |
 w.close()          |                      | dg.wormhole_closed(result)
 .                  |  d=w.close()         |
 
-
-## Dilation
-
-(this section is speculative: this code has not yet been written)
-
-In the longer term, the Wormhole object will incorporate the "Transit"
-functionality (see transit.md) directly, removing the need to instantiate a
-second object. A Wormhole can be "dilated" into a form that is suitable for
-bulk data transfer.
-
-All wormholes start out "undilated". In this state, all messages are queued
-on the Rendezvous Server for the lifetime of the wormhole, and server-imposed
-number/size/rate limits apply. Calling `w.dilate()` initiates the dilation
-process, and success is signalled via either `d=w.when_dilated()` firing, or
-`dg.wormhole_dilated()` being called. Once dilated, the Wormhole can be used
-as an IConsumer/IProducer, and messages will be sent on a direct connection
-(if possible) or through the transit relay (if not).
-
-What's good about a non-dilated wormhole?:
-
-* setup is faster: no delay while it tries to make a direct connection
-* survives temporary network outages, since messages are queued
-* works with "journaled mode", allowing progress to be made even when both
-  sides are never online at the same time, by serializing the wormhole
-
-What's good about dilated wormholes?:
-
-* they support bulk data transfer
-* you get flow control (backpressure), and provide IProducer/IConsumer
-* throughput is faster: no store-and-forward step
-
-Use non-dilated wormholes when your application only needs to exchange a
-couple of messages, for example to set up public keys or provision access
-tokens. Use a dilated wormhole to move large files.
-
-Dilated wormholes can provide multiple "channels": these are multiplexed
-through the single (encrypted) TCP connection. Each channel is a separate
-stream (offering IProducer/IConsumer)
-
-To create a channel, call `c = w.create_channel()` on a dilated wormhole. The
-"channel ID" can be obtained with `c.get_id()`. This ID will be a short
-(unicode) string, which can be sent to the other side via a normal
-`w.send()`, or any other means. On the other side, use `c =
-w.open_channel(channel_id)` to get a matching channel object.
-
-Then use `c.send(data)` and `d=c.when_received()` to exchange data, or wire
-them up with `c.registerProducer()`. Note that channels do not close until
-the wormhole connection is closed, so they do not have separate `close()`
-methods or events. Therefore if you plan to send files through them, you'll
-need to inform the recipient ahead of time about how many bytes to expect.
