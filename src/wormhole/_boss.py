@@ -113,8 +113,8 @@ class Boss(object):
                 file.flush()
             names[machine].set_trace(tracer)
 
-    def serialize(self):
-        raise NotImplemented
+    ## def serialize(self):
+    ##     raise NotImplemented
 
     # and these are the state-machine transition functions, which don't take
     # args

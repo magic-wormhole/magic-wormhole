@@ -66,11 +66,11 @@ class _DelegatedWormhole(object):
     def set_code(self, code):
         self._boss.set_code(code)
 
-    def serialize(self):
-        s = {"serialized_wormhole_version": 1,
-             "boss": self._boss.serialize(),
-             }
-        return s
+    ## def serialize(self):
+    ##     s = {"serialized_wormhole_version": 1,
+    ##          "boss": self._boss.serialize(),
+    ##          }
+    ##     return s
 
     def send(self, plaintext):
         self._boss.send(plaintext)
@@ -269,15 +269,15 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
     b.start()
     return w
 
-def from_serialized(serialized, reactor, delegate,
-                    journal=None, tor_manager=None,
-                    timing=None, stderr=sys.stderr):
-    assert serialized["serialized_wormhole_version"] == 1
-    timing = timing or DebugTiming()
-    w = _DelegatedWormhole(delegate)
-    # now unpack state machines, including the SPAKE2 in Key
-    b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
-    w._set_boss(b)
-    b.start() # ??
-    raise NotImplemented
-    # should the new Wormhole call got_code? only if it wasn't called before.
+## def from_serialized(serialized, reactor, delegate,
+##                     journal=None, tor_manager=None,
+##                     timing=None, stderr=sys.stderr):
+##     assert serialized["serialized_wormhole_version"] == 1
+##     timing = timing or DebugTiming()
+##     w = _DelegatedWormhole(delegate)
+##     # now unpack state machines, including the SPAKE2 in Key
+##     b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
+##     w._set_boss(b)
+##     b.start() # ??
+##     raise NotImplemented
+##     # should the new Wormhole call got_code? only if it wasn't called before.
