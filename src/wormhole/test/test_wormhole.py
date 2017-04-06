@@ -343,7 +343,7 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1.allocate_code()
         code = yield w1.when_code()
         w2.set_code(code)
-        v1 = yield w1.when_verified()
+        v1 = yield w1.when_verified() # early
         v2 = yield w2.when_verified()
         self.failUnlessEqual(type(v1), type(b""))
         self.failUnlessEqual(v1, v2)
@@ -353,6 +353,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         dataY = yield w2.when_received()
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
+
+        # calling when_verified() this late should fire right away
+        v1_late = self.successResultOf(w2.when_verified())
+        self.assertEqual(v1_late, v1)
+
         yield w1.close()
         yield w2.close()
 
