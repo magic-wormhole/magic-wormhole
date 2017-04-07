@@ -166,7 +166,6 @@ class _SortedKey(object):
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
         self._B.got_key(key)
-        self._B.got_verifier(derive_key(key, b"wormhole:verifier"))
         phase = "version"
         data_key = derive_phase_key(key, self._side, phase)
         plaintext = dict_to_bytes(self._versions)

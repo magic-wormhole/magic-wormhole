@@ -286,11 +286,17 @@ the rest of the protocol to proceed. If they do not match, then the two
 programs are not talking to each other (they may both be talking to a
 man-in-the-middle attacker), and the protocol should be abandoned.
 
-Once retrieved, you can turn this into hex or Base64 to print it, or render
-it as ASCII-art, etc. Once the users are convinced that `verify()` from both
-sides are the same, call `send()` to continue the protocol. If you call
-`send()` before `verify()`, it will perform the complete protocol without
-pausing.
+Deferred-mode applications can wait for `d=w.when_verified()`: the Deferred
+it returns will fire with the verifier. You can turn this into hex or Base64
+to print it, or render it as ASCII-art, etc.
+
+Asking the wormhole object for the verifier does not affect the flow of the
+protocol. To benefit from verification, applications must refrain from
+sending any data (with `w.send(data)`) until after the verifiers are approved
+by the user. In addition, applications must queue or otherwise ignore
+incoming (received) messages until that point. However once the verifiers are
+confirmed, previously-received messages can be considered valid and processed
+as usual.
 
 ## Welcome Messages
 
@@ -377,6 +383,14 @@ those Deferreds.
   has been told `h.set_words()`, or immediately after `w.set_code(code)` is
   called. This is most useful after calling `w.generate_code()`, to show the
   generated code to the user so they can transcribe it to their peer.
+* key (`yield w.when_key()` / `dg.wormhole_key()`): fired when the
+  key-exchange process has completed and a purported shared key is
+  established. At this point we do not know that anyone else actually shares
+  this key: the peer may have used the wrong code, or may have disappeared
+  altogether. To wait for proof that the key is shared, wait for
+  `when_verified` instead. This event is really only useful for detecting
+  that the initiating peer has disconnected after leaving the initial PAKE
+  message, to display a pacifying message to the user.
 * verified (`verifier = yield w.when_verified()` /
   `dg.wormhole_verified(verifier)`: fired when the key-exchange process has
   completed and a valid VERSION message has arrived. The "verifier" is a byte

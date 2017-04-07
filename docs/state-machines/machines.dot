@@ -42,7 +42,7 @@ digraph {
 
         #Boss -> Mailbox [color="blue"]
         Mailbox -> Order [style="dashed" label="got_message (once)"]
-        Key -> Boss [style="dashed" label="got_key\ngot_verifier\nscared"]
+        Key -> Boss [style="dashed" label="got_key\nscared"]
         Order -> Key [style="dashed" label="got_pake"]
         Order -> Receive [style="dashed" label="got_message"]
         #Boss -> Key [color="blue"]
@@ -54,7 +54,7 @@ digraph {
 
         Key -> Receive [style="dashed" label="got_key"]
         Receive -> Boss [style="dashed"
-                         label="happy\nscared\ngot_message"]
+                         label="happy\nscared\ngot_verifier\ngot_message"]
         Nameplate -> Connection [style="dashed"
                                  label="tx_claim\ntx_release"]
         Connection -> Nameplate [style="dashed"

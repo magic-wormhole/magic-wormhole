@@ -197,8 +197,8 @@ class Boss(object):
     @m.input()
     def got_code(self, code): pass
 
-    # Key sends (got_key, got_verifier, scared)
-    # Receive sends (got_message, happy, scared)
+    # Key sends (got_key, scared)
+    # Receive sends (got_message, happy, got_verifier, scared)
     @m.input()
     def happy(self): pass
     @m.input()
@@ -307,11 +307,11 @@ class Boss(object):
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key])
-    S1_lonely.upon(got_verifier, enter=S1_lonely, outputs=[W_got_verifier])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
+    S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
@@ -322,6 +322,7 @@ class Boss(object):
 
     S3_closing.upon(rx_unwelcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
+    S3_closing.upon(got_verifier, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_phase, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_version, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
@@ -332,6 +333,7 @@ class Boss(object):
     S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S4_closed.upon(rx_unwelcome, enter=S4_closed, outputs=[])
+    S4_closed.upon(got_verifier, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_phase, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_version, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])

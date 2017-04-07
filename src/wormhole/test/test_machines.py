@@ -128,7 +128,8 @@ class Receive(unittest.TestCase):
     def build(self):
         events = []
         r = _receive.Receive(u"side", timing.DebugTiming())
-        b = Dummy("b", events, IBoss, "happy", "scared", "got_message")
+        b = Dummy("b", events, IBoss,
+                  "happy", "scared", "got_verifier", "got_message")
         s = Dummy("s", events, ISend, "got_verified_key")
         r.wire(b, s)
         return r, b, s, events
@@ -138,12 +139,14 @@ class Receive(unittest.TestCase):
         key = b"key"
         r.got_key(key)
         self.assertEqual(events, [])
+        verifier = derive_key(key, b"wormhole:verifier")
         phase1_key = derive_phase_key(key, u"side", u"phase1")
         data1 = b"data1"
         good_body = encrypt_data(phase1_key, data1)
         r.got_message(u"side", u"phase1", good_body)
         self.assertEqual(events, [("s.got_verified_key", key),
                                   ("b.happy",),
+                                  ("b.got_verifier", verifier),
                                   ("b.got_message", u"phase1", data1),
                                   ])
 
@@ -153,6 +156,7 @@ class Receive(unittest.TestCase):
         r.got_message(u"side", u"phase2", good_body)
         self.assertEqual(events, [("s.got_verified_key", key),
                                   ("b.happy",),
+                                  ("b.got_verifier", verifier),
                                   ("b.got_message", u"phase1", data1),
                                   ("b.got_message", u"phase2", data2),
                                   ])
@@ -181,12 +185,14 @@ class Receive(unittest.TestCase):
         key = b"key"
         r.got_key(key)
         self.assertEqual(events, [])
+        verifier = derive_key(key, b"wormhole:verifier")
         phase1_key = derive_phase_key(key, u"side", u"phase1")
         data1 = b"data1"
         good_body = encrypt_data(phase1_key, data1)
         r.got_message(u"side", u"phase1", good_body)
         self.assertEqual(events, [("s.got_verified_key", key),
                                   ("b.happy",),
+                                  ("b.got_verifier", verifier),
                                   ("b.got_message", u"phase1", data1),
                                   ])
 
@@ -196,6 +202,7 @@ class Receive(unittest.TestCase):
         r.got_message(u"side", u"phase2", bad_body)
         self.assertEqual(events, [("s.got_verified_key", key),
                                   ("b.happy",),
+                                  ("b.got_verifier", verifier),
                                   ("b.got_message", u"phase1", data1),
                                   ("b.scared",),
                                   ])
@@ -203,6 +210,7 @@ class Receive(unittest.TestCase):
         r.got_message(u"side", u"phase2", bad_body)
         self.assertEqual(events, [("s.got_verified_key", key),
                                   ("b.happy",),
+                                  ("b.got_verifier", verifier),
                                   ("b.got_message", u"phase1", data1),
                                   ("b.scared",),
                                   ])
@@ -216,7 +224,7 @@ class Key(unittest.TestCase):
     def build(self):
         events = []
         k = _key.Key(u"appid", {}, u"side", timing.DebugTiming())
-        b = Dummy("b", events, IBoss, "scared", "got_key", "got_verifier")
+        b = Dummy("b", events, IBoss, "scared", "got_key")
         m = Dummy("m", events, IMailbox, "add_message")
         r = Dummy("r", events, IReceive, "got_key")
         k.wire(b, m, r)
@@ -237,11 +245,10 @@ class Key(unittest.TestCase):
         key2 = sp.finish(msg1_bytes)
         msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
         k.got_pake(msg2)
-        self.assertEqual(len(events), 4, events)
+        self.assertEqual(len(events), 3, events)
         self.assertEqual(events[0], ("b.got_key", key2))
-        self.assertEqual(events[1][0], "b.got_verifier")
-        self.assertEqual(events[2][:2], ("m.add_message", "version"))
-        self.assertEqual(events[3], ("r.got_key", key2))
+        self.assertEqual(events[1][:2], ("m.add_message", "version"))
+        self.assertEqual(events[2], ("r.got_key", key2))
 
     def test_bad(self):
         k, b, m, r, events = self.build()
@@ -274,16 +281,15 @@ class Key(unittest.TestCase):
         self.assertEqual(len(events), 0)
 
         k.got_code(code)
-        self.assertEqual(len(events), 5)
+        self.assertEqual(len(events), 4)
         self.assertEqual(events[0][:2], ("m.add_message", "pake"))
         msg1_json = events[0][2].decode("utf-8")
         msg1 = json.loads(msg1_json)
         msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
         key2 = sp.finish(msg1_bytes)
         self.assertEqual(events[1], ("b.got_key", key2))
-        self.assertEqual(events[2][0], "b.got_verifier")
-        self.assertEqual(events[3][:2], ("m.add_message", "version"))
-        self.assertEqual(events[4], ("r.got_key", key2))
+        self.assertEqual(events[2][:2], ("m.add_message", "version"))
+        self.assertEqual(events[3], ("r.got_key", key2))
 
 class Code(unittest.TestCase):
     def build(self):
@@ -1178,8 +1184,8 @@ class Boss(unittest.TestCase):
 
         # pretend a peer message was correctly decrypted
         b.got_key(b"key")
-        b.got_verifier(b"verifier")
         b.happy()
+        b.got_verifier(b"verifier")
         b.got_message("version", b"{}")
         b.got_message("0", b"msg1")
         self.assertEqual(events, [("w.got_key", b"key"),

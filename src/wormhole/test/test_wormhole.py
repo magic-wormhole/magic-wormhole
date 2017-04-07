@@ -4,7 +4,7 @@ import mock
 from twisted.trial import unittest
 from twisted.internet import reactor
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from .common import ServerBase, poll_until
+from .common import ServerBase, poll_until, pause_one_tick
 from .. import wormhole, _rendezvous
 from ..errors import (WrongPasswordError,
                       KeyFormatError, WormholeClosed, LonelyError,
@@ -115,9 +115,15 @@ class Wormholes(ServerBase, unittest.TestCase):
         code = yield w1.when_code()
         w2.set_code(code)
 
+        yield w1.when_key()
+        yield w2.when_key()
+
         verifier1 = yield w1.when_verified()
         verifier2 = yield w2.when_verified()
         self.assertEqual(verifier1, verifier2)
+
+        self.successResultOf(w1.when_key())
+        self.successResultOf(w2.when_key())
 
         version1 = yield w1.when_version()
         version2 = yield w2.when_version()
@@ -291,12 +297,13 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.close()
         yield w2.close()
 
-        # once closed, all Deferred-yielding API calls get an error
-        e = yield self.assertFailure(w1.when_code(), WormholeClosed)
-        self.assertEqual(e.args[0], "happy")
-        yield self.assertFailure(w1.when_verified(), WormholeClosed)
-        yield self.assertFailure(w1.when_version(), WormholeClosed)
-        yield self.assertFailure(w1.when_received(), WormholeClosed)
+        # once closed, all Deferred-yielding API calls get an immediate error
+        f = self.failureResultOf(w1.when_code(), WormholeClosed)
+        self.assertEqual(f.value.args[0], "happy")
+        self.failureResultOf(w1.when_key(), WormholeClosed)
+        self.failureResultOf(w1.when_verified(), WormholeClosed)
+        self.failureResultOf(w1.when_version(), WormholeClosed)
+        self.failureResultOf(w1.when_received(), WormholeClosed)
 
 
     @inlineCallbacks
@@ -315,16 +322,64 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1.send(b"should still work")
         w2.send(b"should still work")
 
-        # API calls that wait (i.e. get) will errback
-        yield self.assertFailure(w2.when_received(), WrongPasswordError)
-        yield self.assertFailure(w1.when_received(), WrongPasswordError)
+        key2 = yield w2.when_key() # should work
+        # w2 has just received w1.PAKE, and is about to send w2.VERSION
+        key1 = yield w1.when_key() # should work
+        # w1 has just received w2.PAKE, and is about to send w1.VERSION, and
+        # then will receive w2.VERSION. When it sees w2.VERSION, it will
+        # learn about the WrongPasswordError.
+        self.assertNotEqual(key1, key2)
 
+        # API calls that wait (i.e. get) will errback. We collect all these
+        # Deferreds early to exercise the wait-then-fail path
+        d1_verified = w1.when_verified()
+        d1_version = w1.when_version()
+        d1_received = w1.when_received()
+        d2_verified = w2.when_verified()
+        d2_version = w2.when_version()
+        d2_received = w2.when_received()
+
+        # wait for each side to notice the failure
         yield self.assertFailure(w1.when_verified(), WrongPasswordError)
-        yield self.assertFailure(w1.when_version(), WrongPasswordError)
+        yield self.assertFailure(w2.when_verified(), WrongPasswordError)
+        # and then wait for the rest of the loops to fire. if we had+used
+        # eventual-send, this wouldn't be a problem
+        yield pause_one_tick()
+
+        # now all the rest should have fired already
+        self.failureResultOf(d1_verified, WrongPasswordError)
+        self.failureResultOf(d1_version, WrongPasswordError)
+        self.failureResultOf(d1_received, WrongPasswordError)
+        self.failureResultOf(d2_verified, WrongPasswordError)
+        self.failureResultOf(d2_version, WrongPasswordError)
+        self.failureResultOf(d2_received, WrongPasswordError)
+
+        # and at this point, with the failure safely noticed by both sides,
+        # new when_key() calls should signal the failure, even before we
+        # close
+
+        # any new calls in the error state should immediately fail
+        self.failureResultOf(w1.when_key(), WrongPasswordError)
+        self.failureResultOf(w1.when_verified(), WrongPasswordError)
+        self.failureResultOf(w1.when_version(), WrongPasswordError)
+        self.failureResultOf(w1.when_received(), WrongPasswordError)
+        self.failureResultOf(w2.when_key(), WrongPasswordError)
+        self.failureResultOf(w2.when_verified(), WrongPasswordError)
+        self.failureResultOf(w2.when_version(), WrongPasswordError)
+        self.failureResultOf(w2.when_received(), WrongPasswordError)
 
         yield self.assertFailure(w1.close(), WrongPasswordError)
         yield self.assertFailure(w2.close(), WrongPasswordError)
 
+        # API calls should still get the error, not WormholeClosed
+        self.failureResultOf(w1.when_key(), WrongPasswordError)
+        self.failureResultOf(w1.when_verified(), WrongPasswordError)
+        self.failureResultOf(w1.when_version(), WrongPasswordError)
+        self.failureResultOf(w1.when_received(), WrongPasswordError)
+        self.failureResultOf(w2.when_key(), WrongPasswordError)
+        self.failureResultOf(w2.when_verified(), WrongPasswordError)
+        self.failureResultOf(w2.when_version(), WrongPasswordError)
+        self.failureResultOf(w2.when_received(), WrongPasswordError)
 
     @inlineCallbacks
     def test_wrong_password_with_spaces(self):

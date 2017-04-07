@@ -91,3 +91,10 @@ def poll_until(predicate):
         d = defer.Deferred()
         reactor.callLater(0.001, d.callback, None)
         yield d
+
+@defer.inlineCallbacks
+def pause_one_tick():
+    # return a Deferred that won't fire until at least the next reactor tick
+    d = defer.Deferred()
+    reactor.callLater(0.001, d.callback, None)
+    yield d

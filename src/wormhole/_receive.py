@@ -4,7 +4,7 @@ from attr import attrs, attrib
 from attr.validators import provides, instance_of
 from automat import MethodicalMachine
 from . import _interfaces
-from ._key import derive_phase_key, decrypt_data, CryptoError
+from ._key import derive_key, derive_phase_key, decrypt_data, CryptoError
 
 @attrs
 @implementer(_interfaces.IReceive)
@@ -63,6 +63,9 @@ class Receive(object):
     def W_happy(self, phase, plaintext):
         self._B.happy()
     @m.output()
+    def W_got_verifier(self, phase, plaintext):
+        self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
+    @m.output()
     def W_got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
@@ -73,7 +76,8 @@ class Receive(object):
 
     S0_unknown_key.upon(got_key, enter=S1_unverified_key, outputs=[record_key])
     S1_unverified_key.upon(got_message_good, enter=S2_verified_key,
-                           outputs=[S_got_verified_key, W_happy, W_got_message])
+                           outputs=[S_got_verified_key,
+                                    W_happy, W_got_verifier, W_got_message])
     S1_unverified_key.upon(got_message_bad, enter=S3_scared,
                            outputs=[W_scared])
     S2_verified_key.upon(got_message_bad, enter=S3_scared,

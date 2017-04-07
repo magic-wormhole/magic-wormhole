@@ -97,6 +97,7 @@ class _DelegatedWormhole(object):
     def got_code(self, code):
         self._delegate.wormhole_code(code)
     def got_key(self, key):
+        self._delegate.wormhole_key()
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._delegate.wormhole_verified(verifier)
@@ -113,6 +114,7 @@ class _DeferredWormhole(object):
         self._code = None
         self._code_observers = []
         self._key = None
+        self._key_observers = []
         self._verifier = None
         self._verifier_observers = []
         self._versions = None
@@ -136,6 +138,15 @@ class _DeferredWormhole(object):
             return defer.succeed(self._code)
         d = defer.Deferred()
         self._code_observers.append(d)
+        return d
+
+    def when_key(self):
+        if self._observer_result is not None:
+            return defer.fail(self._observer_result)
+        if self._key is not None:
+            return defer.succeed(self._key)
+        d = defer.Deferred()
+        self._key_observers.append(d)
         return d
 
     def when_verified(self):
@@ -180,7 +191,7 @@ class _DeferredWormhole(object):
         """Derive a new key from the established wormhole channel for some
         other purpose. This is a deterministic randomized function of the
         session key and the 'purpose' string (unicode/py3-string). This
-        cannot be called until when_verifier() has fired, nor after close()
+        cannot be called until when_verified() has fired, nor after close()
         was called.
         """
         if not isinstance(purpose, type("")): raise TypeError(type(purpose))
@@ -210,6 +221,9 @@ class _DeferredWormhole(object):
         self._code_observers[:] = []
     def got_key(self, key):
         self._key = key # for derive_key()
+        for d in self._key_observers:
+            d.callback(key)
+        self._key_observers[:] = []
     def got_verifier(self, verifier):
         self._verifier = verifier
         for d in self._verifier_observers:
@@ -232,10 +246,12 @@ class _DeferredWormhole(object):
         if isinstance(result, Exception):
             self._observer_result = self._closed_result = failure.Failure(result)
         else:
-            # pending w.verify()/w.version()/w.read() get an error
+            # pending w.key()/w.verify()/w.version()/w.read() get an error
             self._observer_result = WormholeClosed(result)
             # but w.close() only gets error if we're unhappy
             self._closed_result = result
+        for d in self._key_observers:
+            d.errback(self._observer_result)
         for d in self._verifier_observers:
             d.errback(self._observer_result)
         for d in self._version_observers:

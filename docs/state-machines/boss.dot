@@ -73,7 +73,7 @@ digraph {
 
         {rank=same; Other S_closed}
         Other [shape="box" style="dashed"
-               label="rx_welcome -> process (maybe rx_unwelcome)\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate_Code -> C.allocate_code\ninput_code -> C.input_code\nset_code -> C.set_code"
+               label="rx_welcome -> process (maybe rx_unwelcome)\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate_code -> C.allocate_code\ninput_code -> C.input_code\nset_code -> C.set_code"
                ]
 
 
