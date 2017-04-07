@@ -127,7 +127,8 @@ class Wormholes(ServerBase, unittest.TestCase):
 
         version1 = yield w1.when_version()
         version2 = yield w2.when_version()
-        # TODO: add the ability to set app-versions
+        # app-versions are exercised properly in test_versions, this just
+        # tests the defaults
         self.assertEqual(version1, {})
         self.assertEqual(version2, {})
 

@@ -131,7 +131,10 @@ class _DeferredWormhole(object):
     # from above
     def when_code(self):
         # TODO: consider throwing error unless one of allocate/set/input_code
-        # was called first
+        # was called first. It's legit to grab the Deferred before triggering
+        # the process that will cause it to fire, but forbidding that
+        # ordering would make it easier to cause programming errors that
+        # forget to trigger it entirely.
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._code is not None:
