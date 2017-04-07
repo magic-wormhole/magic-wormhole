@@ -932,7 +932,7 @@ class Welcome(unittest.TestCase):
 
     def test_version_unreleased(self):
         stderr = self.do({"current_cli_version": "3.0"},
-                         my_version="2.5-middle-something")
+                         my_version="2.5+middle.something")
         self.assertEqual(stderr, "")
 
     def test_motd(self):
