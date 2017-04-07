@@ -147,6 +147,8 @@ class LocaleFinder:
 
     @inlineCallbacks
     def find_utf8_locale(self):
+        if sys.platform == "win32":
+            returnValue("en_US.UTF-8")
         if self._run_once:
             returnValue(self._best_locale)
         self._best_locale = yield self._find_utf8_locale()
