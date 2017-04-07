@@ -118,30 +118,34 @@ class Sender:
             args.stderr.flush()
         print(u"", file=args.stderr)
 
+        # We don't print a "waiting" message for when_key() here, even though
+        # we do that in cmd_receive.py, because it's not at all surprising to
+        # we waiting here for a long time. We'll sit in when_key() until the
+        # receiver has typed in the code and their PAKE message makes it to
+        # us.
+        yield w.when_key()
+
+        # TODO: don't stall on w.verify() unless they want it
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
-        #notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
-
-        # TODO: don't stall on w.verify() unless they want it
-        #try:
-        #    verifier_bytes = yield w.when_verified() # might WrongPasswordError
-        #finally:
-        #    if not notify.called:
-        #        notify.cancel()
-        verifier_bytes = yield w.when_verified()
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
+        try:
+            # The usual sender-chooses-code sequence means the receiver's
+            # PAKE should be followed immediately by their VERSION, so
+            # w.when_verified() should fire right away. However if we're
+            # using the offline-codes sequence, and the receiver typed in
+            # their code first, and then they went offline, we might be
+            # sitting here for a while, so printing the "waiting" message
+            # seems like a good idea. It might even be appropriate to give up
+            # after a while.
+            verifier_bytes = yield w.when_verified() # might WrongPasswordError
+        finally:
+            if not notify.called:
+                notify.cancel()
 
         if args.verify:
-            verifier = bytes_to_hexstr(verifier_bytes)
-            while True:
-                ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
-                if ok.lower() == "yes":
-                    break
-                if ok.lower() == "no":
-                    err = "sender rejected verification check, abandoned transfer"
-                    reject_data = dict_to_bytes({"error": err})
-                    w.send(reject_data)
-                    raise TransferError(err)
+            self._check_verifier(w, verifier_bytes) # blocks, can TransferError
 
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
@@ -196,6 +200,18 @@ class Sender:
                 returnValue(None)
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))
+
+    def _check_verifier(self, w, verifier_bytes):
+        verifier = bytes_to_hexstr(verifier_bytes)
+        while True:
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
+            if ok.lower() == "yes":
+                break
+            if ok.lower() == "no":
+                err = "sender rejected verification check, abandoned transfer"
+                reject_data = dict_to_bytes({"error": err})
+                w.send(reject_data)
+                raise TransferError(err)
 
     def _handle_transit(self, receiver_transit):
         ts = self._transit_sender

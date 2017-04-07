@@ -281,7 +281,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False,
                  fake_tor=False, overwrite=False, mock_accept=False):
-        assert mode in ("text", "file", "empty-file", "directory", "slow-text")
+        assert mode in ("text", "file", "empty-file", "directory",
+                        "slow-text", "slow-sender-text")
         if fake_tor:
             assert not as_subprocess
         send_cfg = config("send")
@@ -302,7 +303,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
 
-        if mode in ("text", "slow-text"):
+        if mode in ("text", "slow-text", "slow-sender-text"):
             send_cfg.text = message
 
         elif mode in ("file", "empty-file"):
@@ -428,20 +429,22 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                 ) as mrx_tm:
                     receive_d = cmd_receive.receive(recv_cfg)
             else:
-                send_d = cmd_send.send(send_cfg)
-                receive_d = cmd_receive.receive(recv_cfg)
+                KEY_TIMER = 0 if mode == "slow-sender-text" else 1.0
+                with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
+                    send_d = cmd_send.send(send_cfg)
+                    receive_d = cmd_receive.receive(recv_cfg)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
-            if mode == "slow-text":
-                with mock.patch.object(cmd_send, "VERIFY_TIMER", 0), \
-                      mock.patch.object(cmd_receive, "VERIFY_TIMER", 0):
-                    yield gatherResults([send_d, receive_d], True)
-            elif mock_accept:
-                with mock.patch.object(cmd_receive.six.moves, 'input', return_value='y'):
-                    yield gatherResults([send_d, receive_d], True)
-            else:
-                yield gatherResults([send_d, receive_d], True)
+            VERIFY_TIMER = 0 if mode == "slow-text" else 1.0
+            with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
+                with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
+                    if mock_accept:
+                        with mock.patch.object(cmd_receive.six.moves,
+                                               'input', return_value='y'):
+                            yield gatherResults([send_d, receive_d], True)
+                    else:
+                        yield gatherResults([send_d, receive_d], True)
 
             if fake_tor:
                 expected_endpoints = [("127.0.0.1", self.relayport)]
@@ -512,9 +515,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                               .format(NL=NL), send_stderr)
 
         # check receiver
-        if mode == "text" or mode == "slow-text":
+        if mode in ("text", "slow-text", "slow-sender-text"):
             self.assertEqual(receive_stdout, message+NL)
-            self.assertEqual(receive_stderr, key_established)
+            if mode == "text":
+                self.assertEqual(receive_stderr, "")
+            elif mode == "slow-text":
+                self.assertEqual(receive_stderr, key_established)
+            elif mode == "slow-sender-text":
+                self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
             self.failUnlessIn("Receiving file ({size:s}) into: {name}"
@@ -578,7 +586,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_slow_text(self):
         return self._do_test(mode="slow-text")
-    test_slow_text.skip = "pending rethink"
+    def test_slow_sender_text(self):
+        return self._do_test(mode="slow-sender-text")
 
     @inlineCallbacks
     def _do_test_fail(self, mode, failmode):

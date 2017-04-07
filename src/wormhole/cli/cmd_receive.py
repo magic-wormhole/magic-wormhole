@@ -13,7 +13,9 @@ from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
 from .welcome import CLIWelcomeHandler
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
-VERIFY_TIMER = 1
+
+KEY_TIMER = 1.0
+VERIFY_TIMER = 1.0
 
 class RespondError(Exception):
     def __init__(self, response):
@@ -106,17 +108,45 @@ class TwistedReceiver:
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        verifier = yield w.when_verified()
-        def on_slow_connection():
-            print(u"Key established, waiting for confirmation...",
-                  file=self.args.stderr)
-        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
+
+        def on_slow_key():
+            print(u"Waiting for sender...", file=self.args.stderr)
+        notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
         try:
-            yield w.when_version()
+            # We wait here until we connect to the server and see the senders
+            # PAKE message. If we used set_code() in the "human-selected
+            # offline codes" mode, then the sender might not have even
+            # started yet, so we might be sitting here for a while. Because
+            # of that possibility, it's probably not appropriate to give up
+            # automatically after some timeout. The user can express their
+            # impatience by quitting the program with control-C.
+            yield w.when_key()
         finally:
             if not notify.called:
                 notify.cancel()
-        self._show_verifier(verifier)
+
+        def on_slow_verification():
+            print(u"Key established, waiting for confirmation...",
+                  file=self.args.stderr)
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
+        try:
+            # We wait here until we've seen their VERSION message (which they
+            # send after seeing our PAKE message, and has the side-effect of
+            # verifying that we both share the same key). There is a
+            # round-trip between these two events, and we could experience a
+            # significant delay here if:
+            # * the relay server is being restarted
+            # * the network is very slow
+            # * the sender is very slow
+            # * the sender has quit (in which case we may wait forever)
+
+            # It would be reasonable to give up after waiting here for too
+            # long.
+            verifier_bytes = yield w.when_verified()
+        finally:
+            if not notify.called:
+                notify.cancel()
+        self._show_verifier(verifier_bytes)
 
         want_offer = True
         done = False
@@ -177,8 +207,8 @@ class TwistedReceiver:
                       file=self.args.stderr)
         yield w.when_code()
 
-    def _show_verifier(self, verifier):
-        verifier_hex = bytes_to_hexstr(verifier)
+    def _show_verifier(self, verifier_bytes):
+        verifier_hex = bytes_to_hexstr(verifier_bytes)
         if self.args.verify:
             self._msg(u"Verifier %s." % verifier_hex)
 
