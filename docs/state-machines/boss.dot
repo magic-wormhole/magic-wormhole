@@ -1,0 +1,80 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        start [label="Boss\n(manager)" style="dotted"]
+
+        {rank=same; P0_code S0}
+        P0_code [shape="box" style="dashed"
+                 label="C.input_code\n or C.allocate_code\n or C.set_code"]
+        P0_code -> S0
+        S0 [label="S0: empty"]
+        S0 -> P0_build [label="got_code"]
+
+        S0 -> P_close_error [label="rx_error"]
+        P_close_error [shape="box" label="T.close(errory)"]
+        P_close_error -> S_closing
+        S0 -> P_close_lonely [label="close"]
+
+        S0 -> P_close_unwelcome [label="rx_unwelcome"]
+        P_close_unwelcome [shape="box" label="T.close(unwelcome)"]
+        P_close_unwelcome -> S_closing
+
+        P0_build [shape="box" label="W.got_code"]
+        P0_build -> S1
+        S1 [label="S1: lonely" color="orange"]
+
+        S1 -> S2 [label="happy"]
+
+        S1 -> P_close_error [label="rx_error"]
+        S1 -> P_close_scary [label="scared" color="red"]
+        S1 -> P_close_unwelcome [label="rx_unwelcome"]
+        S1 -> P_close_lonely [label="close"]
+        P_close_lonely [shape="box" label="T.close(lonely)"]
+        P_close_lonely -> S_closing
+
+        P_close_scary [shape="box" label="T.close(scary)" color="red"]
+        P_close_scary -> S_closing [color="red"]
+
+        S2 [label="S2: happy" color="green"]
+        S2 -> P2_close [label="close"]
+        P2_close [shape="box" label="T.close(happy)"]
+        P2_close -> S_closing
+
+        S2 -> P2_got_phase [label="got_phase"]
+        P2_got_phase [shape="box" label="W.received"]
+        P2_got_phase -> S2
+
+        S2 -> P2_got_version [label="got_version"]
+        P2_got_version [shape="box" label="W.got_version"]
+        P2_got_version -> S2
+
+        S2 -> P_close_error [label="rx_error"]
+        S2 -> P_close_scary [label="scared" color="red"]
+        S2 -> P_close_unwelcome [label="rx_unwelcome"]
+
+        S_closing [label="closing"]
+        S_closing -> P_closed [label="closed\nerror"]
+        S_closing -> S_closing [label="got_version\ngot_phase\nhappy\nscared\nclose"]
+
+        P_closed [shape="box" label="W.closed(reason)"]
+        P_closed -> S_closed
+        S_closed [label="closed"]
+
+        S0 -> P_closed [label="error"]
+        S1 -> P_closed [label="error"]
+        S2 -> P_closed [label="error"]
+
+        {rank=same; Other S_closed}
+        Other [shape="box" style="dashed"
+               label="rx_welcome -> process (maybe rx_unwelcome)\nsend -> S.send\ngot_message -> got_version or got_phase\ngot_key -> W.got_key\ngot_verifier -> W.got_verifier\nallocate_code -> C.allocate_code\ninput_code -> C.input_code\nset_code -> C.set_code"
+               ]
+
+
+}

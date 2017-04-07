@@ -1,0 +1,63 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        start [label="Key\nMachine" style="dotted"]
+
+        /* two connected state machines: the first just puts the messages in
+        the right order, the second handles PAKE */
+
+        {rank=same; SO_00 PO_got_code SO_10}
+        {rank=same; SO_01 PO_got_both SO_11}
+        SO_00 [label="S00"]
+        SO_01 [label="S01: pake"]
+        SO_10 [label="S10: code"]
+        SO_11 [label="S11: both"]
+        SO_00 -> SO_01 [label="got_pake\n(early)"]
+        SO_00 -> PO_got_code [label="got_code"]
+        PO_got_code [shape="box" label="K1.got_code"]
+        PO_got_code -> SO_10
+        SO_01 -> PO_got_both [label="got_code"]
+        PO_got_both [shape="box" label="K1.got_code\nK1.got_pake"]
+        PO_got_both -> SO_11
+        SO_10 -> PO_got_pake [label="got_pake"]
+        PO_got_pake [shape="box" label="K1.got_pake"]
+        PO_got_pake -> SO_11
+
+        S0 [label="S0: know\nnothing"]
+        S0 -> P0_build [label="got_code"]
+
+        P0_build [shape="box" label="build_pake\nM.add_message(pake)"]
+        P0_build -> S1
+        S1 [label="S1: know\ncode"]
+
+        /* the Mailbox will deliver each message exactly once, but doesn't
+        guarantee ordering: if Alice starts the process, then disconnects,
+        then Bob starts (reading PAKE, sending both his PAKE and his VERSION
+        phase), then Alice will see both PAKE and VERSION on her next
+        connect, and might get the VERSION first.
+
+        The Wormhole will queue inbound messages that it isn't ready for. The
+        wormhole shim that lets applications do w.get(phase=) must do
+        something similar, queueing inbound messages until it sees one for
+        the phase it currently cares about.*/
+
+        S1 -> P_mood_scary [label="got_pake\npake bad"]
+        P_mood_scary [shape="box" color="red" label="W.scared"]
+        P_mood_scary -> S5 [color="red"]
+        S5 [label="S5:\nscared" color="red"]
+        S1 -> P1_compute [label="got_pake\npake good"]
+        #S1 -> P_mood_lonely [label="close"]
+
+        P1_compute [label="compute_key\nM.add_message(version)\nB.got_key\nR.got_key" shape="box"]
+        P1_compute -> S4
+
+        S4 [label="S4: know_key" color="green"]
+
+}

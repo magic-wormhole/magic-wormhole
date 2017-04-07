@@ -58,4 +58,5 @@ target/
 /twistd.pid
 /relay.sqlite
 /misc/node_modules/
-/docs/events.png
+/.automat_visualize/
+/docs/state-machines/*.png

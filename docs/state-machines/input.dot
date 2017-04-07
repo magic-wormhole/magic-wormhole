@@ -1,0 +1,43 @@
+digraph {
+
+        start [label="I:\nCode\nInput" style="dotted"]
+        {rank=same; start S0}
+        start -> S0 [style="invis"]
+        S0 [label="S0:\nidle"]
+
+        S0 -> P0_list_nameplates [label="start"]
+        P0_list_nameplates [shape="box" label="L.refresh"]
+        P0_list_nameplates -> S1
+        S1 [label="S1: typing\nnameplate" color="orange"]
+
+        {rank=same; foo P0_list_nameplates}
+        S1 -> foo [label="refresh_nameplates" color="orange" fontcolor="orange"]
+        foo [style="dashed" label=""]
+        foo -> P0_list_nameplates
+
+        S1 -> P1_record [label="got_nameplates"]
+        P1_record [shape="box" label="record\nnameplates"]
+        P1_record -> S1
+
+        S1 -> P1_claim [label="choose_nameplate" color="orange" fontcolor="orange"]
+        P1_claim [shape="box" label="stash nameplate\nC.got_nameplate"]
+        P1_claim -> S2
+        S2 [label="S2: typing\ncode\n(no wordlist)"]
+        S2 -> S2 [label="got_nameplates"]
+        S2 -> P2_stash_wordlist [label="got_wordlist"]
+        P2_stash_wordlist [shape="box" label="stash wordlist"]
+        P2_stash_wordlist -> S3
+        S2 -> P_done [label="choose_words" color="orange" fontcolor="orange"]
+        S3 [label="S3: typing\ncode\n(yes wordlist)"]
+        S3 -> S3 [label="got_nameplates"]
+        S3 -> P_done [label="choose_words" color="orange" fontcolor="orange"]
+        P_done [shape="box" label="build code\nC.finished_input(code)"]
+        P_done -> S4
+        S4 [label="S4: done" color="green"]
+        S4 -> S4 [label="got_nameplates\ngot_wordlist"]
+
+        other [shape="box" style="dotted" color="orange" fontcolor="orange"
+               label="h.refresh_nameplates()\nh.get_nameplate_completions(prefix)\nh.choose_nameplate(nameplate)\nh.get_word_completions(prefix)\nh.choose_words(words)"
+               ]
+        {rank=same; S4 other}
+}

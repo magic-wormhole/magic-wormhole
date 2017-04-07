@@ -6,10 +6,10 @@ from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet import defer, endpoints, reactor
 from twisted.internet.utils import getProcessOutputAndValue
-from twisted.internet.defer import gatherResults, inlineCallbacks
+from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from .. import __version__
 from .common import ServerBase, config
-from ..cli import cmd_send, cmd_receive
+from ..cli import cmd_send, cmd_receive, welcome
 from ..errors import TransferError, WrongPasswordError, WelcomeError
 
 
@@ -141,6 +141,45 @@ class OfferData(unittest.TestCase):
         self.assertEqual(str(e),
                          "'%s' is neither file nor directory" % filename)
 
+class LocaleFinder:
+    def __init__(self):
+        self._run_once = False
+
+    @inlineCallbacks
+    def find_utf8_locale(self):
+        if self._run_once:
+            returnValue(self._best_locale)
+        self._best_locale = yield self._find_utf8_locale()
+        self._run_once = True
+        returnValue(self._best_locale)
+
+    @inlineCallbacks
+    def _find_utf8_locale(self):
+        # Click really wants to be running under a unicode-capable locale,
+        # especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
+        # most linux boxes have C.UTF-8 but not en-US.UTF-8 . For tests,
+        # figure out which one is present and use that. For runtime, it's a
+        # mess, as really the user must take responsibility for setting their
+        # locale properly. I'm thinking of abandoning Click and going back to
+        # twisted.python.usage to avoid this problem in the future.
+        (out, err, rc) = yield getProcessOutputAndValue("locale", ["-a"])
+        if rc != 0:
+            log.msg("error running 'locale -a', rc=%s" % (rc,))
+            log.msg("stderr: %s" % (err,))
+            returnValue(None)
+        out = out.decode("utf-8") # make sure we get a string
+        utf8_locales = {}
+        for locale in out.splitlines():
+            locale = locale.strip()
+            if locale.lower().endswith((".utf-8", ".utf8")):
+                utf8_locales[locale.lower()] = locale
+        for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
+            if wanted.lower() in utf8_locales:
+                returnValue(utf8_locales[wanted.lower()])
+        if utf8_locales:
+            returnValue(list(utf8_locales.values())[0])
+        returnValue(None)
+locale_finder = LocaleFinder()
 
 class ScriptsBase:
     def find_executable(self):
@@ -159,6 +198,7 @@ class ScriptsBase:
                                     % (wormhole, sys.executable))
         return wormhole
 
+    @inlineCallbacks
     def is_runnable(self):
         # One property of Versioneer is that many changes to the source tree
         # (making a commit, dirtying a previously-clean tree) will change the
@@ -175,21 +215,22 @@ class ScriptsBase:
         # Setting LANG/LC_ALL to a unicode-capable locale is necessary to
         # convince Click to not complain about a forced-ascii locale. My
         # apologies to folks who want to run tests on a machine that doesn't
-        # have the en_US.UTF-8 locale installed.
+        # have the C.UTF-8 locale installed.
+        locale = yield locale_finder.find_utf8_locale()
+        if not locale:
+            raise unittest.SkipTest("unable to find UTF-8 locale")
+        locale_env = dict(LC_ALL=locale, LANG=locale)
         wormhole = self.find_executable()
-        d = getProcessOutputAndValue(wormhole, ["--version"],
-                                     env=dict(LC_ALL="en_US.UTF-8",
-                                              LANG="en_US.UTF-8"))
-        def _check(res):
-            out, err, rc = res
-            if rc != 0:
-                log.msg("wormhole not runnable in this tree:")
-                log.msg("out", out)
-                log.msg("err", err)
-                log.msg("rc", rc)
-                raise unittest.SkipTest("wormhole is not runnable in this tree")
-        d.addCallback(_check)
-        return d
+        res = yield getProcessOutputAndValue(wormhole, ["--version"],
+                                             env=locale_env)
+        out, err, rc = res
+        if rc != 0:
+            log.msg("wormhole not runnable in this tree:")
+            log.msg("out", out)
+            log.msg("err", err)
+            log.msg("rc", rc)
+            raise unittest.SkipTest("wormhole is not runnable in this tree")
+        returnValue(locale_env)
 
 class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -204,7 +245,8 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         wormhole = self.find_executable()
         # we must pass on the environment so that "something" doesn't
         # get sad about UTF8 vs. ascii encodings
-        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"], env=os.environ)
+        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"],
+                                                      env=os.environ)
         err = err.decode("utf-8")
         if "DistributionNotFound" in err:
             log.msg("stderr was %s" % err)
@@ -230,16 +272,17 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
+    @inlineCallbacks
     def setUp(self):
-        d = self.is_runnable()
-        d.addCallback(lambda _: ServerBase.setUp(self))
-        return d
+        self._env = yield self.is_runnable()
+        yield ServerBase.setUp(self)
 
     @inlineCallbacks
     def _do_test(self, as_subprocess=False,
                  mode="text", addslash=False, override_filename=False,
                  fake_tor=False, overwrite=False, mock_accept=False):
-        assert mode in ("text", "file", "empty-file", "directory", "slow-text")
+        assert mode in ("text", "file", "empty-file", "directory",
+                        "slow-text", "slow-sender-text")
         if fake_tor:
             assert not as_subprocess
         send_cfg = config("send")
@@ -260,7 +303,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
 
-        if mode in ("text", "slow-text"):
+        if mode in ("text", "slow-text", "slow-sender-text"):
             send_cfg.text = message
 
         elif mode in ("file", "empty-file"):
@@ -335,7 +378,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_d = getProcessOutputAndValue(
                 wormhole_bin, send_args,
                 path=send_dir,
-                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
+                env=self._env,
             )
             recv_args = [
                 '--relay-url', self.relayurl,
@@ -351,7 +394,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = getProcessOutputAndValue(
                 wormhole_bin, recv_args,
                 path=receive_dir,
-                env=dict(LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8"),
+                env=self._env,
             )
 
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],
@@ -386,20 +429,22 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                 ) as mrx_tm:
                     receive_d = cmd_receive.receive(recv_cfg)
             else:
-                send_d = cmd_send.send(send_cfg)
-                receive_d = cmd_receive.receive(recv_cfg)
+                KEY_TIMER = 0 if mode == "slow-sender-text" else 1.0
+                with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
+                    send_d = cmd_send.send(send_cfg)
+                    receive_d = cmd_receive.receive(recv_cfg)
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
-            if mode == "slow-text":
-                with mock.patch.object(cmd_send, "VERIFY_TIMER", 0), \
-                      mock.patch.object(cmd_receive, "VERIFY_TIMER", 0):
-                    yield gatherResults([send_d, receive_d], True)
-            elif mock_accept:
-                with mock.patch.object(cmd_receive.six.moves, 'input', return_value='y'):
-                    yield gatherResults([send_d, receive_d], True)
-            else:
-                yield gatherResults([send_d, receive_d], True)
+            VERIFY_TIMER = 0 if mode == "slow-text" else 1.0
+            with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
+                with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
+                    if mock_accept:
+                        with mock.patch.object(cmd_receive.six.moves,
+                                               'input', return_value='y'):
+                            yield gatherResults([send_d, receive_d], True)
+                    else:
+                        yield gatherResults([send_d, receive_d], True)
 
             if fake_tor:
                 expected_endpoints = [("127.0.0.1", self.relayport)]
@@ -470,9 +515,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                               .format(NL=NL), send_stderr)
 
         # check receiver
-        if mode == "text" or mode == "slow-text":
+        if mode in ("text", "slow-text", "slow-sender-text"):
             self.assertEqual(receive_stdout, message+NL)
-            self.assertEqual(receive_stderr, key_established)
+            if mode == "text":
+                self.assertEqual(receive_stderr, "")
+            elif mode == "slow-text":
+                self.assertEqual(receive_stderr, key_established)
+            elif mode == "slow-sender-text":
+                self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
             self.failUnlessIn("Receiving file ({size:s}) into: {name}"
@@ -536,6 +586,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_slow_text(self):
         return self._do_test(mode="slow-text")
+    def test_slow_sender_text(self):
+        return self._do_test(mode="slow-sender-text")
 
     @inlineCallbacks
     def _do_test_fail(self, mode, failmode):
@@ -682,6 +734,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check server stats
         self._rendezvous.get_stats()
+        self.flushLoggedErrors(TransferError)
 
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
@@ -711,6 +764,9 @@ class NotWelcome(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(self.cfg)
         f = yield self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
+        # TODO: this comes from log.err() in cmd_send.Sender.go._bad, and I'm
+        # undecided about whether that ought to be doing log.err or not
+        self.flushLoggedErrors(WelcomeError)
 
     @inlineCallbacks
     def test_receiver(self):
@@ -719,7 +775,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
-
+        self.flushLoggedErrors(WelcomeError)
 
 class Cleanup(ServerBase, unittest.TestCase):
 
@@ -841,3 +897,44 @@ class AppID(ServerBase, unittest.TestCase):
                                             ).fetchall()
         self.assertEqual(len(used), 1, used)
         self.assertEqual(used[0]["app_id"], u"appid2")
+
+class Welcome(unittest.TestCase):
+    def do(self, welcome_message, my_version="2.0", twice=False):
+        stderr = io.StringIO()
+        h = welcome.CLIWelcomeHandler("url", my_version, stderr)
+        h.handle_welcome(welcome_message)
+        if twice:
+            h.handle_welcome(welcome_message)
+        return stderr.getvalue()
+
+    def test_empty(self):
+        stderr = self.do({})
+        self.assertEqual(stderr, "")
+
+    def test_version_current(self):
+        stderr = self.do({"current_cli_version": "2.0"})
+        self.assertEqual(stderr, "")
+
+    def test_version_old(self):
+        stderr = self.do({"current_cli_version": "3.0"})
+        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
+                    "Server claims 3.0 is current, but ours is 2.0\n")
+        self.assertEqual(stderr, expected)
+
+    def test_version_old_twice(self):
+        stderr = self.do({"current_cli_version": "3.0"}, twice=True)
+        # the handler should only emit the version warning once, even if we
+        # get multiple Welcome messages (which could happen if we lose the
+        # connection and then reconnect)
+        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
+                    "Server claims 3.0 is current, but ours is 2.0\n")
+        self.assertEqual(stderr, expected)
+
+    def test_version_unreleased(self):
+        stderr = self.do({"current_cli_version": "3.0"},
+                         my_version="2.5+middle.something")
+        self.assertEqual(stderr, "")
+
+    def test_motd(self):
+        stderr = self.do({"motd": "hello"})
+        self.assertEqual(stderr, "Server (at url) says:\n hello\n")

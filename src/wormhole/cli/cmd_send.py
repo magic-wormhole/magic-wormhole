@@ -7,9 +7,10 @@ from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from ..errors import TransferError, WormholeClosedError, NoTorError
-from ..wormhole import wormhole
+from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from .welcome import CLIWelcomeHandler
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 VERIFY_TIMER = 1
@@ -52,11 +53,35 @@ class Sender:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(self._args.appid or APPID, self._args.relay_url,
-                     self._reactor, self._tor_manager,
-                     timing=self._timing)
+        wh = CLIWelcomeHandler(self._args.relay_url, __version__,
+                               self._args.stderr)
+        w = create(self._args.appid or APPID, self._args.relay_url,
+                   self._reactor,
+                   tor_manager=self._tor_manager,
+                   timing=self._timing,
+                   welcome_handler=wh.handle_welcome)
         d = self._go(w)
-        d.addBoth(w.close) # must wait for ack from close()
+
+        # if we succeed, we should close and return the w.close results
+        # (which might be an error)
+        @inlineCallbacks
+        def _good(res):
+            yield w.close() # wait for ack
+            returnValue(res)
+
+        # if we raise an error, we should close and then return the original
+        # error (the close might give us an error, but it isn't as important
+        # as the original one)
+        @inlineCallbacks
+        def _bad(f):
+            log.err(f)
+            try:
+                yield w.close() # might be an error too
+            except:
+                pass
+            returnValue(f)
+
+        d.addCallbacks(_good, _bad)
         yield d
 
     def _send_data(self, data, w):
@@ -83,40 +108,44 @@ class Sender:
 
         if args.code:
             w.set_code(args.code)
-            code = args.code
         else:
-            code = yield w.get_code(args.code_length)
+            w.allocate_code(args.code_length)
 
+        code = yield w.when_code()
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
             # flush stderr so the code is displayed immediately
             args.stderr.flush()
         print(u"", file=args.stderr)
 
-        yield w.establish_key()
+        # We don't print a "waiting" message for when_key() here, even though
+        # we do that in cmd_receive.py, because it's not at all surprising to
+        # we waiting here for a long time. We'll sit in when_key() until the
+        # receiver has typed in the code and their PAKE message makes it to
+        # us.
+        yield w.when_key()
+
+        # TODO: don't stall on w.verify() unless they want it
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
-
-        # TODO: don't stall on w.verify() unless they want it
         try:
-            verifier_bytes = yield w.verify() # this may raise WrongPasswordError
+            # The usual sender-chooses-code sequence means the receiver's
+            # PAKE should be followed immediately by their VERSION, so
+            # w.when_verified() should fire right away. However if we're
+            # using the offline-codes sequence, and the receiver typed in
+            # their code first, and then they went offline, we might be
+            # sitting here for a while, so printing the "waiting" message
+            # seems like a good idea. It might even be appropriate to give up
+            # after a while.
+            verifier_bytes = yield w.when_verified() # might WrongPasswordError
         finally:
             if not notify.called:
                 notify.cancel()
 
         if args.verify:
-            verifier = bytes_to_hexstr(verifier_bytes)
-            while True:
-                ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
-                if ok.lower() == "yes":
-                    break
-                if ok.lower() == "no":
-                    err = "sender rejected verification check, abandoned transfer"
-                    reject_data = dict_to_bytes({"error": err})
-                    w.send(reject_data)
-                    raise TransferError(err)
+            self._check_verifier(w, verifier_bytes) # blocks, can TransferError
 
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
@@ -146,12 +175,13 @@ class Sender:
 
         while True:
             try:
-                them_d_bytes = yield w.get()
+                them_d_bytes = yield w.when_received()
             except WormholeClosedError:
                 if done:
                     returnValue(None)
                 raise TransferError("unexpected close")
-            # TODO: get() fired, so now it's safe to use w.derive_key()
+            # TODO: when_received() fired, so now it's safe to use
+            # w.derive_key()
             them_d = bytes_to_dict(them_d_bytes)
             #print("GOT", them_d)
             recognized = False
@@ -170,6 +200,18 @@ class Sender:
                 returnValue(None)
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))
+
+    def _check_verifier(self, w, verifier_bytes):
+        verifier = bytes_to_hexstr(verifier_bytes)
+        while True:
+            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
+            if ok.lower() == "yes":
+                break
+            if ok.lower() == "no":
+                err = "sender rejected verification check, abandoned transfer"
+                reject_data = dict_to_bytes({"error": err})
+                w.send(reject_data)
+                raise TransferError(err)
 
     def _handle_transit(self, receiver_transit):
         ts = self._transit_sender

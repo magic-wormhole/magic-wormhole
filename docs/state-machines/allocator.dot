@@ -1,0 +1,29 @@
+digraph {
+
+        start [label="A:\nNameplate\nAllocation" style="dotted"]
+        {rank=same; start S0A S0B}
+        start -> S0A [style="invis"]
+        S0A [label="S0A:\nidle\ndisconnected" color="orange"]
+        S0A -> S0B [label="connected"]
+        S0B -> S0A [label="lost"]
+        S0B [label="S0B:\nidle\nconnected"]
+        S0A -> S1A [label="allocate(length, wordlist)" color="orange"]
+        S0B -> P_allocate [label="allocate(length, wordlist)"]
+        P_allocate [shape="box" label="RC.tx_allocate" color="orange"]
+        P_allocate -> S1B [color="orange"]
+        {rank=same; S1A P_allocate S1B}
+        S0B -> S1B [style="invis"]
+        S1B [label="S1B:\nallocating\nconnected" color="orange"]
+        S1B -> foo [label="lost"]
+        foo [style="dotted" label=""]
+        foo -> S1A
+        S1A [label="S1A:\nallocating\ndisconnected" color="orange"]
+        S1A -> P_allocate [label="connected" color="orange"]
+
+        S1B -> P_allocated [label="rx_allocated" color="orange"]
+        P_allocated [shape="box" label="choose words\nC.allocated(nameplate,code)" color="orange"]
+        P_allocated -> S2 [color="orange"]
+
+        S2 [label="S2:\ndone" color="orange"]
+        
+}

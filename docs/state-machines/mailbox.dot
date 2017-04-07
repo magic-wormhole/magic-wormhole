@@ -1,0 +1,98 @@
+digraph {
+        /* new idea */
+
+        title [label="Mailbox\nMachine" style="dotted"]
+
+        {rank=same; S0A S0B}
+        S0A [label="S0A:\nunknown"]
+        S0A -> S0B [label="connected"]
+        S0B [label="S0B:\nunknown\n(bound)" color="orange"]
+
+        S0B -> S0A [label="lost"]
+
+        S0A -> P0A_queue [label="add_message" style="dotted"]
+        P0A_queue [shape="box" label="queue" style="dotted"]
+        P0A_queue -> S0A [style="dotted"]
+        S0B -> P0B_queue [label="add_message" style="dotted"]
+        P0B_queue [shape="box" label="queue" style="dotted"]
+        P0B_queue -> S0B [style="dotted"]
+
+        subgraph {rank=same; S1A P_open}
+        S0A -> S1A [label="got_mailbox"]
+        S1A [label="S1A:\nknown"]
+        S1A -> P_open [label="connected"]
+        S1A -> P1A_queue [label="add_message" style="dotted"]
+        P1A_queue [shape="box" label="queue" style="dotted"]
+        P1A_queue -> S1A [style="dotted"]
+        S1A -> S2A [style="invis"]
+        P_open -> P2_connected [style="invis"]
+
+        S0A -> S2A [style="invis"]
+        S0B -> P_open [label="got_mailbox" color="orange" fontcolor="orange"]
+        P_open [shape="box"
+                label="store mailbox\nRC.tx_open\nRC.tx_add(queued)" color="orange"]
+        P_open -> S2B [color="orange"]
+
+        subgraph {rank=same; S2A S2B P2_connected}
+        S2A [label="S2A:\nknown\nmaybe opened"]
+        S2B [label="S2B:\nopened\n(bound)" color="green"]
+        S2A -> P2_connected [label="connected"]
+        S2B -> S2A [label="lost"]
+
+        P2_connected [shape="box" label="RC.tx_open\nRC.tx_add(queued)"]
+        P2_connected -> S2B
+
+        S2A -> P2_queue [label="add_message" style="dotted"]
+        P2_queue [shape="box" label="queue" style="dotted"]
+        P2_queue -> S2A [style="dotted"]
+
+        S2B -> P2_send [label="add_message"]
+        P2_send [shape="box" label="queue\nRC.tx_add(msg)"]
+        P2_send -> S2B
+
+        {rank=same; P2_send P2_close P2_process_theirs}
+        P2_process_theirs -> P2_close [style="invis"]
+        S2B -> P2_process_ours [label="rx_message\n(ours)"]
+        P2_process_ours [shape="box" label="dequeue"]
+        P2_process_ours -> S2B
+        S2B -> P2_process_theirs [label="rx_message\n(theirs)"
+                                  color="orange" fontcolor="orange"]
+        P2_process_theirs [shape="box" color="orange"
+                           label="N.release\nO.got_message if new\nrecord"
+                           ]
+        P2_process_theirs -> S2B [color="orange"]
+
+        S2B -> P2_close [label="close" color="red"]
+        P2_close [shape="box" label="RC.tx_close" color="red"]
+        P2_close -> S3B [color="red"]
+
+        subgraph {rank=same; S3A P3_connected S3B}
+        S3A [label="S3A:\nclosing"]
+        S3A -> P3_connected [label="connected"]
+        P3_connected [shape="box" label="RC.tx_close"]
+        P3_connected -> S3B
+        #S3A -> S3A [label="add_message"] # implicit
+        S3B [label="S3B:\nclosing\n(bound)" color="red"]
+        S3B -> S3B [label="add_message\nrx_message\nclose"]
+        S3B -> S3A [label="lost"]
+
+        subgraph {rank=same; P3A_done P3B_done}
+        P3A_done [shape="box" label="T.mailbox_done" color="red"]
+        P3A_done -> S4A
+        S3B -> P3B_done [label="rx_closed" color="red"]
+        P3B_done [shape="box" label="T.mailbox_done" color="red"]
+        P3B_done -> S4B
+
+        subgraph {rank=same; S4A S4B}
+        S4A [label="S4A:\nclosed"]
+        S4B [label="S4B:\nclosed"]
+        S4A -> S4B [label="connected"]
+        S4B -> S4A [label="lost"]
+        S4B -> S4B [label="add_message\nrx_message\nclose"] # is "close" needed?
+
+        S0A -> P3A_done [label="close" color="red"]
+        S0B -> P3B_done [label="close" color="red"]
+        S1A -> P3A_done [label="close" color="red"]
+        S2A -> S3A [label="close" color="red"]
+        
+}

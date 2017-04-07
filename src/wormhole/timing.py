@@ -1,5 +1,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 import json, time
+from zope.interface import implementer
+from ._interfaces import ITiming
 
 class Event:
     def __init__(self, name, when, **details):
@@ -33,6 +35,7 @@ class Event:
         else:
             self.finish()
 
+@implementer(ITiming)
 class DebugTiming:
     def __init__(self):
         self._events = []

@@ -1,0 +1,39 @@
+digraph {
+        {rank=same; title S0A S0B}
+        title [label="(Nameplate)\nLister" style="dotted"]
+
+        S0A [label="S0A:\nnot wanting\nunconnected"]
+        S0B [label="S0B:\nnot wanting\nconnected" color="orange"]
+
+        S0A -> S0B [label="connected"]
+        S0B -> S0A [label="lost"]
+
+        S0A -> S1A [label="refresh"]
+        S0B -> P_tx [label="refresh" color="orange" fontcolor="orange"]
+
+        S0A -> P_tx [style="invis"]
+
+        {rank=same; S1A P_tx S1B P_notify}
+
+        S1A [label="S1A:\nwant list\nunconnected"]
+        S1B [label="S1B:\nwant list\nconnected" color="orange"]
+
+        S1A -> P_tx [label="connected"]
+        P_tx [shape="box" label="RC.tx_list()" color="orange"]
+        P_tx -> S1B [color="orange"]
+        S1B -> S1A [label="lost"]
+
+        S1A -> foo [label="refresh"]
+        foo [label="" style="dashed"]
+        foo -> S1A
+
+        S1B -> foo2 [label="refresh"]
+        foo2 [label="" style="dashed"]
+        foo2 -> P_tx
+
+        S0B -> P_notify [label="rx_nameplates"]
+        S1B -> P_notify [label="rx_nameplates" color="orange" fontcolor="orange"]
+        P_notify [shape="box" label="I.got_nameplates()"]
+        P_notify -> S0B
+
+}

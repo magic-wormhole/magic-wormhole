@@ -1,4 +1,8 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, print_function
+import os
+from zope.interface import implementer
+from ._interfaces import IWordlist
+
 # The PGP Word List, which maps bytes to phonetically-distinct words. There
 # are two lists, even and odd, and encodings should alternate between then to
 # detect dropped words. https://en.wikipedia.org/wiki/PGP_Words
@@ -146,13 +150,44 @@ byte_to_even_word = dict([(unhexlify(k.encode("ascii")), both_words[0])
 byte_to_odd_word = dict([(unhexlify(k.encode("ascii")), both_words[1])
                          for k,both_words
                          in raw_words.items()])
+
 even_words_lowercase, odd_words_lowercase = set(), set()
-even_words_lowercase_to_byte, odd_words_lowercase_to_byte = dict(), dict()
+
 for k,both_words in raw_words.items():
     even_word, odd_word = both_words
-
     even_words_lowercase.add(even_word.lower())
-    even_words_lowercase_to_byte[even_word.lower()] = unhexlify(k.encode("ascii"))
-
     odd_words_lowercase.add(odd_word.lower())
-    odd_words_lowercase_to_byte[odd_word.lower()] = unhexlify(k.encode("ascii"))
+
+@implementer(IWordlist)
+class PGPWordList(object):
+    def get_completions(self, prefix, num_words=2):
+        # start with the odd words
+        count = prefix.count("-")
+        if count % 2 == 0:
+            words = odd_words_lowercase
+        else:
+            words = even_words_lowercase
+        last_partial_word = prefix.split("-")[-1]
+        lp = len(last_partial_word)
+        completions = set()
+        for word in words:
+            if word.startswith(last_partial_word):
+                if lp == 0:
+                    suffix = prefix + word
+                else:
+                    suffix = prefix[:-lp] + word
+                # append a hyphen if we expect more words
+                if count+1 < num_words:
+                    suffix += "-"
+                completions.add(suffix)
+        return completions
+
+    def choose_words(self, length):
+        words = []
+        for i in range(length):
+            # we start with an "odd word"
+            if i % 2 == 0:
+                words.append(byte_to_odd_word[os.urandom(1)].lower())
+            else:
+                words.append(byte_to_even_word[os.urandom(1)].lower())
+        return "-".join(words)

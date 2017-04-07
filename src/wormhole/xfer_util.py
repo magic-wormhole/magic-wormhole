@@ -1,7 +1,7 @@
 import json
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-from .wormhole import wormhole
+from . import wormhole
 from .tor_manager import TorManager
 from .errors import NoTorError
 
@@ -38,16 +38,17 @@ def receive(reactor, appid, relay_url, code,
             raise NoTorError()
         yield tm.start()
 
-    wh = wormhole(appid, relay_url, reactor, tor_manager=tm)
+    wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
-        code = yield wh.get_code()
+        wh.allocate_code()
+        code = yield wh.when_code()
     else:
         wh.set_code(code)
     # we'll call this no matter what, even if you passed in a code --
     # maybe it should be only in the 'if' block above?
     if on_code:
         on_code(code)
-    data = yield wh.get()
+    data = yield wh.when_received()
     data = json.loads(data.decode("utf-8"))
     offer = data.get('offer', None)
     if not offer:
@@ -100,9 +101,10 @@ def send(reactor, appid, relay_url, data, code,
         if not tm.tor_available():
             raise NoTorError()
         yield tm.start()
-    wh = wormhole(appid, relay_url, reactor, tor_manager=tm)
+    wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
-        code = yield wh.get_code()
+        wh.allocate_code()
+        code = yield wh.when_code()
     else:
         wh.set_code(code)
     if on_code:
@@ -115,7 +117,7 @@ def send(reactor, appid, relay_url, data, code,
             }
         }).encode("utf-8")
     )
-    data = yield wh.get()
+    data = yield wh.when_received()
     data = json.loads(data.decode("utf-8"))
     answer = data.get('answer', None)
     yield wh.close()

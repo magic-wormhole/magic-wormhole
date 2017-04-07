@@ -1,0 +1,86 @@
+digraph {
+        
+        /*
+        NM_start [label="Nameplate\nMachine" style="dotted"]
+        NM_start -> NM_S_unclaimed [style="invis"]
+        NM_S_unclaimed [label="no nameplate"]
+        NM_S_unclaimed -> NM_S_unclaimed [label="NM_release()"]
+        NM_P_set_nameplate [shape="box" label="post_claim()"]
+        NM_S_unclaimed -> NM_P_set_nameplate [label="NM_set_nameplate()"]
+        NM_S_claiming [label="claim pending"]
+        NM_P_set_nameplate -> NM_S_claiming
+        NM_S_claiming -> NM_P_rx_claimed [label="rx claimed"]
+        NM_P_rx_claimed [label="MM_set_mailbox()" shape="box"]
+        NM_P_rx_claimed -> NM_S_claimed
+        NM_S_claimed [label="claimed"]
+        NM_S_claimed -> NM_P_release [label="NM_release()"]
+        NM_P_release [shape="box" label="post_release()"]
+        NM_P_release -> NM_S_releasing
+        NM_S_releasing [label="release pending"]
+        NM_S_releasing -> NM_S_releasing [label="NM_release()"]
+        NM_S_releasing -> NM_S_released [label="rx released"]
+        NM_S_released [label="released"]
+        NM_S_released -> NM_S_released [label="NM_release()"]
+        */
+
+        /*
+        MM_start [label="Mailbox\nMachine" style="dotted"]
+        MM_start -> MM_S_want_mailbox [style="invis"]
+        MM_S_want_mailbox [label="want mailbox"]
+        MM_S_want_mailbox -> MM_P_queue1 [label="MM_send()" style="dotted"]
+        MM_P_queue1 [shape="box" style="dotted" label="queue message"]
+        MM_P_queue1 -> MM_S_want_mailbox [style="dotted"]
+        MM_P_open_mailbox [shape="box" label="post_open()"]
+        MM_S_want_mailbox -> MM_P_open_mailbox [label="set_mailbox()"]
+        MM_P_send_queued [shape="box" label="post add() for\nqueued messages"]
+        MM_P_open_mailbox -> MM_P_send_queued
+        MM_P_send_queued -> MM_S_open
+        MM_S_open [label="open\n(unused)"]
+        MM_S_open -> MM_P_send1 [label="MM_send()"]
+        MM_P_send1 [shape="box" label="post add()\nfor message"]
+        MM_P_send1 -> MM_S_open
+        MM_S_open -> MM_P_release1 [label="MM_close()"]
+        MM_P_release1 [shape="box" label="NM_release()"]
+        MM_P_release1 -> MM_P_close
+
+        MM_S_open -> MM_P_rx [label="rx message"]
+        MM_P_rx [shape="box" label="WM_rx_pake()\nor WM_rx_msg()"]
+        MM_P_rx -> MM_P_release2
+        MM_P_release2 [shape="box" label="NM_release()"]
+        MM_P_release2 -> MM_S_used
+        MM_S_used [label="open\n(used)"]
+        MM_S_used -> MM_P_rx [label="rx message"]
+        MM_S_used -> MM_P_send2 [label="MM_send()"]
+        MM_P_send2 [shape="box" label="post add()\nfor message"]
+        MM_P_send2 -> MM_S_used
+        MM_S_used -> MM_P_close [label="MM_close()"]
+        MM_P_close [shape="box" label="post_close(mood)"]
+        MM_P_close -> MM_S_closing
+        MM_S_closing [label="waiting"]
+        MM_S_closing -> MM_S_closing [label="MM_close()"]
+        MM_S_closing -> MM_S_closed [label="rx closed"]
+        MM_S_closed [label="closed"]
+        MM_S_closed -> MM_S_closed [label="MM_close()"]
+        */
+
+        /* upgrading to new PAKE algorithm, the slower form (the faster form
+        puts the pake_abilities record in the nameplate_info message) */
+        /*
+        P2_start [label="(PAKE\nupgrade)\nstart"]
+        P2_start -> P2_P_send_abilities [label="set_code()"]
+        P2_P_send_abilities [shape="box" label="send pake_abilities"]
+        P2_P_send_abilities -> P2_wondering
+        P2_wondering [label="waiting\nwondering"]
+        P2_wondering -> P2_P_send_pakev1 [label="rx pake_v1"]
+        P2_P_send_pakev1 [shape="box" label="send pake_v1"]
+        P2_P_send_pakev1 -> P2_P_process_v1
+        P2_P_process_v1 [shape="box" label="process v1"]
+        P2_wondering -> P2_P_find_max [label="rx pake_abilities"]
+        P2_P_find_max [shape="box" label="find max"]
+        P2_P_find_max -> P2_P_send_pakev2
+        P2_P_send_pakev2
+        P2_P_send_pakev2 [shape="box" label="send pake_v2"]
+        P2_P_send_pakev2 -> P2_P_process_v2 [label="rx pake_v2"]
+        P2_P_process_v2 [shape="box" label="process v2"]
+        */
+}

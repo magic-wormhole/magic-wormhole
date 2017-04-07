@@ -1,0 +1,34 @@
+digraph {
+
+        start [label="C:\nCode\n(management)" style="dotted"]
+        {rank=same; start S0}
+        start -> S0 [style="invis"]
+        S0 [label="S0:\nidle"]
+        S0 -> P0_got_code [label="set_code\n(code)"]
+        P0_got_code [shape="box" label="N.set_nameplate"]
+        P0_got_code -> P_done
+        P_done [shape="box" label="K.got_code\nB.got_code"]
+        P_done -> S4
+        S4 [label="S4: known" color="green"]
+
+        {rank=same; S1_inputting_nameplate S3_allocating}
+        {rank=same; P0_got_code P1_set_nameplate P3_got_nameplate}
+        S0 -> P_input [label="input_code"]
+        P_input [shape="box" label="I.start\n(helper)"]
+        P_input -> S1_inputting_nameplate
+        S1_inputting_nameplate [label="S1:\ninputting\nnameplate"]
+        S1_inputting_nameplate -> P1_set_nameplate [label="got_nameplate\n(nameplate)"]
+        P1_set_nameplate [shape="box" label="N.set_nameplate"]
+        P1_set_nameplate -> S2_inputting_words
+        S2_inputting_words [label="S2:\ninputting\nwords"]
+        S2_inputting_words -> P_done [label="finished_input\n(code)"]
+
+        S0 -> P_allocate [label="allocate_code\n(length,\nwordlist)"]
+        P_allocate [shape="box" label="A.allocate\n(length, wordlist)"]
+        P_allocate -> S3_allocating
+        S3_allocating [label="S3:\nallocating"]
+        S3_allocating -> P3_got_nameplate [label="allocated\n(nameplate,\ncode)"]
+        P3_got_nameplate [shape="box" label="N.set_nameplate"]
+        P3_got_nameplate -> P_done
+
+}

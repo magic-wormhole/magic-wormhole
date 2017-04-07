@@ -1,6 +1,6 @@
 # no unicode_literals untill twisted update
 from twisted.application import service
-from twisted.internet import defer, task
+from twisted.internet import defer, task, reactor
 from twisted.python import log
 from click.testing import CliRunner
 import mock
@@ -84,3 +84,17 @@ def config(*argv):
         cfg = go.call_args[0][1]
     return cfg
 
+@defer.inlineCallbacks
+def poll_until(predicate):
+    # return a Deferred that won't fire until the predicate is True
+    while not predicate():
+        d = defer.Deferred()
+        reactor.callLater(0.001, d.callback, None)
+        yield d
+
+@defer.inlineCallbacks
+def pause_one_tick():
+    # return a Deferred that won't fire until at least the next reactor tick
+    d = defer.Deferred()
+    reactor.callLater(0.001, d.callback, None)
+    yield d

@@ -1,0 +1,76 @@
+digraph {
+        /* note: this is nominally what we want from the machine that
+         establishes the WebSocket connection (and re-establishes it when it
+         is lost). We aren't using this yet; for now we're relying upon
+         twisted.application.internet.ClientService, which does reconnection
+         and random exponential backoff.
+
+         The one thing it doesn't do is fail entirely when the first
+         connection attempt fails, which I think would be good for usability.
+         If the first attempt fails, it's probably because you don't have a
+         network connection, or the hostname is wrong, or the service has
+         been retired entirely. And retrying silently forever is not being
+         honest with the user.
+
+         So I'm keeping this diagram around, as a reminder of how we'd like
+         to modify ClientService. */
+
+
+        /* ConnectionMachine */
+        C_start [label="Connection\nMachine" style="dotted"]
+        C_start -> C_Pc1 [label="CM_start()" color="orange" fontcolor="orange"]
+        C_Pc1 [shape="box" label="ep.connect()" color="orange"]
+        C_Pc1 -> C_Sc1 [color="orange"]
+        C_Sc1 [label="connecting\n(1st time)" color="orange"]
+        C_Sc1 -> C_P_reset [label="d.callback" color="orange" fontcolor="orange"]
+        C_P_reset [shape="box" label="reset\ntimer" color="orange"]
+        C_P_reset -> C_S_negotiating [color="orange"]
+        C_Sc1 -> C_P_failed [label="d.errback" color="red"]
+        C_Sc1 -> C_P_failed [label="p.onClose" color="red"]
+        C_Sc1 -> C_P_cancel [label="C_stop()"]
+        C_P_cancel [shape="box" label="d.cancel()"]
+        C_P_cancel -> C_S_cancelling
+        C_S_cancelling [label="cancelling"]
+        C_S_cancelling -> C_P_stopped [label="d.errback"]
+
+        C_S_negotiating [label="negotiating" color="orange"]
+        C_S_negotiating -> C_P_failed [label="p.onClose"]
+        C_S_negotiating -> C_P_connected [label="p.onOpen" color="orange" fontcolor="orange"]
+        C_S_negotiating -> C_P_drop2 [label="C_stop()"]
+        C_P_drop2 [shape="box" label="p.dropConnection()"]
+        C_P_drop2 -> C_S_disconnecting
+        C_P_connected [shape="box" label="tx bind\nM_connected()" color="orange"]
+        C_P_connected -> C_S_open [color="orange"]
+
+        C_S_open [label="open" color="green"]
+        C_S_open -> C_P_lost [label="p.onClose" color="blue" fontcolor="blue"]
+        C_S_open -> C_P_drop [label="C_stop()" color="orange" fontcolor="orange"]
+        C_P_drop [shape="box" label="p.dropConnection()\nM_lost()" color="orange"]
+        C_P_drop -> C_S_disconnecting [color="orange"]
+        C_S_disconnecting [label="disconnecting" color="orange"]
+        C_S_disconnecting -> C_P_stopped [label="p.onClose" color="orange" fontcolor="orange"]
+
+        C_P_lost [shape="box" label="M_lost()" color="blue"]
+        C_P_lost -> C_P_wait [color="blue"]
+        C_P_wait [shape="box" label="start timer" color="blue"]
+        C_P_wait -> C_S_waiting [color="blue"]
+        C_S_waiting [label="waiting" color="blue"]
+        C_S_waiting -> C_Pc2 [label="expire" color="blue" fontcolor="blue"]
+        C_S_waiting -> C_P_stop_timer [label="C_stop()"]
+        C_P_stop_timer [shape="box" label="timer.cancel()"]
+        C_P_stop_timer -> C_P_stopped
+        C_Pc2 [shape="box" label="ep.connect()" color="blue"]
+        C_Pc2 -> C_Sc2 [color="blue"]
+        C_Sc2 [label="reconnecting" color="blue"]
+        C_Sc2 -> C_P_reset [label="d.callback" color="blue" fontcolor="blue"]
+        C_Sc2 -> C_P_wait [label="d.errback"]
+        C_Sc2 -> C_P_cancel [label="C_stop()"]
+
+        C_P_stopped [shape="box" label="MC_stopped()" color="orange"]
+        C_P_stopped -> C_S_stopped [color="orange"]
+        C_S_stopped [label="stopped" color="orange"]
+
+        C_P_failed [shape="box" label="notify_fail" color="red"]
+        C_P_failed -> C_S_failed
+        C_S_failed [label="failed" color="red"]
+}

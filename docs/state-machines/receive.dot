@@ -1,0 +1,39 @@
+digraph {
+
+        /* could shave a RTT by committing to the nameplate early, before
+        finishing the rest of the code input. While the user is still
+        typing/completing the code, we claim the nameplate, open the mailbox,
+        and retrieve the peer's PAKE message. Then as soon as the user
+        finishes entering the code, we build our own PAKE message, send PAKE,
+        compute the key, send VERSION. Starting from the Return, this saves
+        two round trips. OTOH it adds consequences to hitting Tab. */
+
+        start [label="Receive\nMachine" style="dotted"]
+
+        S0 [label="S0:\nunknown key" color="orange"]
+        S0 -> P0_got_key [label="got_key" color="orange"]
+
+        P0_got_key [shape="box" label="record key" color="orange"]
+        P0_got_key -> S1 [color="orange"]
+
+        S1 [label="S1:\nunverified key" color="orange"]
+        S1 -> P_mood_scary [label="got_message\n(bad)"]
+        S1 -> P1_accept_msg [label="got_message\n(good)" color="orange"]
+        P1_accept_msg [shape="box" label="S.got_verified_key\nB.happy\nB.got_verifier\nB.got_message"
+                       color="orange"]
+        P1_accept_msg -> S2 [color="orange"]
+
+        S2 [label="S2:\nverified key" color="green"]
+
+        S2 -> P2_accept_msg [label="got_message\n(good)" color="orange"]
+        S2 -> P_mood_scary [label="got_message(bad)"]
+
+        P2_accept_msg [label="B.got_message" shape="box" color="orange"]
+        P2_accept_msg -> S2 [color="orange"]
+
+        P_mood_scary [shape="box" label="B.scared" color="red"]
+        P_mood_scary -> S3 [color="red"]
+
+        S3 [label="S3:\nscared" color="red"]
+        S3 -> S3 [label="got_message"]
+}

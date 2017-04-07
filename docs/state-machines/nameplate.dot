@@ -1,0 +1,101 @@
+digraph {
+        /* new idea */
+
+        title [label="Nameplate\nMachine" style="dotted"]
+        title -> S0A [style="invis"]
+
+        {rank=same; S0A S0B}
+        S0A [label="S0A:\nknow nothing"]
+        S0B [label="S0B:\nknow nothing\n(bound)" color="orange"]
+        S0A -> S0B [label="connected"]
+        S0B -> S0A [label="lost"]
+
+        S0A -> S1A [label="set_nameplate"]
+        S0B -> P2_connected [label="set_nameplate" color="orange" fontcolor="orange"]
+
+        S1A [label="S1A:\nnever claimed"]
+        S1A -> P2_connected [label="connected"]
+
+        S1A -> S2A [style="invis"]
+        S1B [style="invis"]
+        S0B -> S1B [style="invis"]
+        S1B -> S2B [style="invis"]
+        {rank=same; S1A S1B}
+        S1A -> S1B [style="invis"]
+        
+        {rank=same; S2A P2_connected S2B}
+        S2A [label="S2A:\nmaybe claimed"]
+        S2A -> P2_connected [label="connected"]
+        P2_connected [shape="box"
+                      label="RC.tx_claim" color="orange"]
+        P2_connected -> S2B [color="orange"]
+        S2B [label="S2B:\nmaybe claimed\n(bound)" color="orange"]
+
+        #S2B -> S2A [label="lost"] # causes bad layout
+        S2B -> foo2 [label="lost"]
+        foo2 [label="" style="dashed"]
+        foo2 -> S2A
+
+        S2A -> S3A [label="(none)" style="invis"]
+        S2B -> P_open [label="rx_claimed" color="orange" fontcolor="orange"]
+        P_open [shape="box" label="I.got_wordlist\nM.got_mailbox" color="orange"]
+        P_open -> S3B [color="orange"]
+
+        subgraph {rank=same; S3A S3B}
+        S3A [label="S3A:\nclaimed"]
+        S3B [label="S3B:\nclaimed\n(bound)" color="orange"]
+        S3A -> S3B [label="connected"]
+        S3B -> foo3 [label="lost"]
+        foo3 [label="" style="dashed"]
+        foo3 -> S3A
+
+        #S3B -> S3B [label="rx_claimed"] # shouldn't happen
+
+        S3B -> P3_release [label="release" color="orange" fontcolor="orange"]
+        P3_release [shape="box" color="orange" label="RC.tx_release"]
+        P3_release -> S4B [color="orange"]
+
+        subgraph {rank=same; S4A P4_connected S4B}
+        S4A [label="S4A:\nmaybe released\n"]
+
+        S4B [label="S4B:\nmaybe released\n(bound)" color="orange"]
+        S4A -> P4_connected [label="connected"]
+        P4_connected [shape="box" label="RC.tx_release"]
+        S4B -> S4B [label="release"]
+
+        P4_connected -> S4B
+        S4B -> foo4 [label="lost"]
+        foo4 [label="" style="dashed"]
+        foo4 -> S4A
+
+        S4A -> S5B [style="invis"]
+        P4_connected -> S5B [style="invis"]
+
+        subgraph {rank=same; P5A_done P5B_done}
+        S4B -> P5B_done [label="rx released" color="orange" fontcolor="orange"]
+        P5B_done [shape="box" label="T.nameplate_done" color="orange"]
+        P5B_done -> S5B [color="orange"]
+
+        subgraph {rank=same; S5A S5B}
+        S5A [label="S5A:\nreleased"]
+        S5A -> S5B [label="connected"]
+        S5B -> S5A [label="lost"]
+        S5B [label="S5B:\nreleased" color="green"]
+
+        S5B -> S5B [label="release\nclose"]
+
+        P5A_done [shape="box" label="T.nameplate_done"]
+        P5A_done -> S5A
+
+        S0A -> P5A_done [label="close" color="red"]
+        S1A -> P5A_done [label="close" color="red"]
+        S2A -> S4A [label="close" color="red"]
+        S3A -> S4A [label="close" color="red"]
+        S4A -> S4A [label="close" color="red"]
+        S0B -> P5B_done [label="close" color="red"]
+        S2B -> P3_release [label="close" color="red"]
+        S3B -> P3_release [label="close" color="red"]
+        S4B -> S4B [label="close" color="red"]
+        
+
+}

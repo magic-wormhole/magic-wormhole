@@ -5,14 +5,17 @@ from humanize import naturalsize
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
-from ..wormhole import wormhole
+from wormhole import create, input_with_completion, __version__
 from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError, NoTorError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
                     estimate_free_space)
+from .welcome import CLIWelcomeHandler
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
-VERIFY_TIMER = 1
+
+KEY_TIMER = 1.0
+VERIFY_TIMER = 1.0
 
 class RespondError(Exception):
     def __init__(self, response):
@@ -61,8 +64,13 @@ class TwistedReceiver:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        w = wormhole(self.args.appid or APPID, self.args.relay_url,
-                     self._reactor, self._tor_manager, timing=self.args.timing)
+        wh = CLIWelcomeHandler(self.args.relay_url, __version__,
+                               self.args.stderr)
+        w = create(self.args.appid or APPID, self.args.relay_url,
+                   self._reactor,
+                   tor_manager=self._tor_manager,
+                   timing=self.args.timing,
+                   welcome_handler=wh.handle_welcome)
         # I wanted to do this instead:
         #
         #    try:
@@ -74,23 +82,71 @@ class TwistedReceiver:
         # as coming from the "yield self._go" line, which wasn't very useful
         # for tracking it down.
         d = self._go(w)
-        d.addBoth(w.close)
+
+        # if we succeed, we should close and return the w.close results
+        # (which might be an error)
+        @inlineCallbacks
+        def _good(res):
+            yield w.close() # wait for ack
+            returnValue(res)
+
+        # if we raise an error, we should close and then return the original
+        # error (the close might give us an error, but it isn't as important
+        # as the original one)
+        @inlineCallbacks
+        def _bad(f):
+            log.err(f)
+            try:
+                yield w.close() # might be an error too
+            except:
+                pass
+            returnValue(f)
+
+        d.addCallbacks(_good, _bad)
         yield d
 
     @inlineCallbacks
     def _go(self, w):
         yield self._handle_code(w)
-        yield w.establish_key()
-        def on_slow_connection():
-            print(u"Key established, waiting for confirmation...",
-                  file=self.args.stderr)
-        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
+
+        def on_slow_key():
+            print(u"Waiting for sender...", file=self.args.stderr)
+        notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
         try:
-            verifier = yield w.verify()
+            # We wait here until we connect to the server and see the senders
+            # PAKE message. If we used set_code() in the "human-selected
+            # offline codes" mode, then the sender might not have even
+            # started yet, so we might be sitting here for a while. Because
+            # of that possibility, it's probably not appropriate to give up
+            # automatically after some timeout. The user can express their
+            # impatience by quitting the program with control-C.
+            yield w.when_key()
         finally:
             if not notify.called:
                 notify.cancel()
-        self._show_verifier(verifier)
+
+        def on_slow_verification():
+            print(u"Key established, waiting for confirmation...",
+                  file=self.args.stderr)
+        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
+        try:
+            # We wait here until we've seen their VERSION message (which they
+            # send after seeing our PAKE message, and has the side-effect of
+            # verifying that we both share the same key). There is a
+            # round-trip between these two events, and we could experience a
+            # significant delay here if:
+            # * the relay server is being restarted
+            # * the network is very slow
+            # * the sender is very slow
+            # * the sender has quit (in which case we may wait forever)
+
+            # It would be reasonable to give up after waiting here for too
+            # long.
+            verifier_bytes = yield w.when_verified()
+        finally:
+            if not notify.called:
+                notify.cancel()
+        self._show_verifier(verifier_bytes)
 
         want_offer = True
         done = False
@@ -127,7 +183,7 @@ class TwistedReceiver:
     @inlineCallbacks
     def _get_data(self, w):
         # this may raise WrongPasswordError
-        them_bytes = yield w.get()
+        them_bytes = yield w.when_received()
         them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
@@ -142,11 +198,17 @@ class TwistedReceiver:
         if code:
             w.set_code(code)
         else:
-            yield w.input_code("Enter receive wormhole code: ",
-                               self.args.code_length)
+            prompt = "Enter receive wormhole code: "
+            used_completion = yield input_with_completion(prompt,
+                                                          w.input_code(),
+                                                          self._reactor)
+            if not used_completion:
+                print(" (note: you can use <Tab> to complete words)",
+                      file=self.args.stderr)
+        yield w.when_code()
 
-    def _show_verifier(self, verifier):
-        verifier_hex = bytes_to_hexstr(verifier)
+    def _show_verifier(self, verifier_bytes):
+        verifier_hex = bytes_to_hexstr(verifier_bytes)
         if self.args.verify:
             self._msg(u"Verifier %s." % verifier_hex)
 

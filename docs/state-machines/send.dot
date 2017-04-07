@@ -1,0 +1,19 @@
+digraph {
+        start [label="Send\nMachine" style="dotted"]
+
+        {rank=same; S0 P0_queue}
+        {rank=same; S1 P1_send}
+        
+        S0 [label="S0: unknown\nkey"]
+        S0 -> P0_queue [label="send" style="dotted"]
+        P0_queue [shape="box" label="queue" style="dotted"]
+        P0_queue -> S0 [style="dotted"]
+        S0 -> P0_got_key [label="got_verified_key"]
+
+        P0_got_key [shape="box" label="drain queue:\n[encrypt\n M.add_message]"]
+        P0_got_key -> S1
+        S1 [label="S1: verified\nkey"]
+        S1 -> P1_send [label="send"]
+        P1_send [shape="box" label="encrypt\nM.add_message"]
+        P1_send -> S1
+}

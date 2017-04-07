@@ -1,0 +1,35 @@
+digraph {
+        start [label="Order\nMachine" style="dotted"]
+        /* our goal: deliver PAKE before anything else */
+
+        {rank=same; S0 P0_other}
+        {rank=same; S1 P1_other}
+
+        S0 [label="S0: no pake" color="orange"]
+        S1 [label="S1: yes pake" color="green"]
+        S0 -> P0_pake [label="got_pake"
+                       color="orange" fontcolor="orange"]
+        P0_pake [shape="box" color="orange"
+                 label="K.got_pake\ndrain queue:\n[R.got_message]"
+                 ]
+        P0_pake -> S1 [color="orange"]
+        S0 -> P0_other [label="got_version\ngot_phase" style="dotted"]
+        P0_other [shape="box" label="queue" style="dotted"]
+        P0_other -> S0 [style="dotted"]
+
+        S1 -> P1_other [label="got_version\ngot_phase"]
+        P1_other [shape="box" label="R.got_message"]
+        P1_other -> S1
+
+        
+        /* the Mailbox will deliver each message exactly once, but doesn't
+        guarantee ordering: if Alice starts the process, then disconnects,
+        then Bob starts (reading PAKE, sending both his PAKE and his VERSION
+        phase), then Alice will see both PAKE and VERSION on her next
+        connect, and might get the VERSION first.
+
+        The Wormhole will queue inbound messages that it isn't ready for. The
+        wormhole shim that lets applications do w.get(phase=) must do
+        something similar, queueing inbound messages until it sees one for
+        the phase it currently cares about.*/
+}
