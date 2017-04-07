@@ -493,3 +493,50 @@ class Errors(ServerBase, unittest.TestCase):
         yield w.when_code()
         self.assertRaises(OnlyOneCodeError, w.set_code, "123-nope")
         yield self.assertFailure(w.close(), LonelyError)
+
+class Reconnection(ServerBase, unittest.TestCase):
+    @inlineCallbacks
+    def test_basic(self):
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        w1_in = []
+        w1._boss._RC._debug_record_inbound_f = w1_in.append
+        #w1.debug_set_trace("W1")
+        w1.allocate_code()
+        code = yield w1.when_code()
+        w1.send(b"data1") # will be queued until wormhole is established
+
+        # now wait until we've deposited all our messages on the server
+        def seen_our_pake():
+            for m in w1_in:
+                if m["type"] == "message" and m["phase"] == "pake":
+                    return True
+            return False
+        yield poll_until(seen_our_pake)
+
+        w1_in[:] = []
+        # drop the connection
+        w1._boss._RC._ws.transport.loseConnection()
+        # wait for it to reconnect and redeliver all the messages. The server
+        # sends mtype=message messages in random order, but we've only sent
+        # one of them, so it's safe to wait for just the PAKE phase.
+        yield poll_until(seen_our_pake)
+
+        # now let the second side proceed. this simulates the most common
+        # case: the server is bounced while the sender is waiting, before the
+        # receiver has started
+
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        #w2.debug_set_trace("  W2")
+        w2.set_code(code)
+
+        dataY = yield w2.when_received()
+        self.assertEqual(dataY, b"data1")
+
+        w2.send(b"data2")
+        dataX = yield w1.when_received()
+        self.assertEqual(dataX, b"data2")
+
+        c1 = yield w1.close()
+        self.assertEqual(c1, "happy")
+        c2 = yield w2.close()
+        self.assertEqual(c2, "happy")

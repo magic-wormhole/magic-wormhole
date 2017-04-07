@@ -77,6 +77,7 @@ class RendezvousConnector(object):
         ep = self._make_endpoint(p.hostname, p.port or 80)
         # TODO: change/wrap ClientService to fail if the first attempt fails
         self._connector = internet.ClientService(ep, f)
+        self._debug_record_inbound_f = None
 
     def set_trace(self, f):
         self._trace = f
@@ -120,6 +121,8 @@ class RendezvousConnector(object):
         self._tx("close", mailbox=mailbox, mood=mood)
 
     def stop(self):
+        # ClientService.stopService is defined to "Stop attempting to
+        # reconnect and close any existing connections"
         d = defer.maybeDeferred(self._connector.stopService)
         d.addErrback(log.err) # TODO: deliver error upstairs?
         d.addBoth(self._stopped)
@@ -157,6 +160,8 @@ class RendezvousConnector(object):
                              ))
 
         self._timing.add("ws_receive", _side=self._side, message=msg)
+        if self._debug_record_inbound_f:
+            self._debug_record_inbound_f(msg)
         mtype = msg["type"]
         meth = getattr(self, "_response_handle_"+mtype, None)
         if not meth:
