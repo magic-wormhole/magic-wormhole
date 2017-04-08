@@ -21,25 +21,12 @@ environment:
       DISTUTILS_USE_SDK: "1"
     - PYTHON: "C:\\Python35"
     - PYTHON: "C:\\Python35-x64"
-      DISTUTILS_USE_SDK: "1"
-
-matrix:
-  allow_failures:
-      # we allow all python3 versions to fail without as they do not currently work
-    - PYTHON: "C:\\Python33"
-    - PYTHON: "C:\\Python33-x64"
-    - PYTHON: "C:\\Python34"
-    - PYTHON: "C:\\Python34-x64"
-    - PYTHON: "C:\\Python35"
-    - PYTHON: "C:\\Python35-x64"
-
-# tox-2.3.1 has a windows bug (#314), fixed in hg but not yet released. When
-# the next release comes out, replace this with just:
-#   %PYTHON%\python.exe -m pip install wheel tox
+    - PYTHON: "C:\\Python36"
+    - PYTHON: "C:\\Python36-x64"
 
 install:
   - |
-    %PYTHON%\python.exe -m pip install -U pip virtualenv wheel tox
+    %PYTHON%\python.exe -m pip install wheel tox
 
 # note:
 # %PYTHON% has: python.exe
