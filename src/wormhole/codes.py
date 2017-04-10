@@ -1,7 +1,7 @@
 from __future__ import print_function, unicode_literals
 import os, six
-from .wordlist import (byte_to_even_word, byte_to_odd_word,
-                       even_words_lowercase, odd_words_lowercase)
+from ._wordlist import (byte_to_even_word, byte_to_odd_word,
+                        even_words_lowercase, odd_words_lowercase)
 
 def make_code(channel_id, code_length):
     assert isinstance(channel_id, type("")), type(channel_id)
