@@ -74,7 +74,6 @@ class Sender:
         # as the original one)
         @inlineCallbacks
         def _bad(f):
-            log.err(f)
             try:
                 yield w.close() # might be an error too
             except:

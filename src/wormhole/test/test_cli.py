@@ -736,7 +736,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check server stats
         self._rendezvous.get_stats()
-        self.flushLoggedErrors(TransferError)
 
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
@@ -766,9 +765,6 @@ class NotWelcome(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(self.cfg)
         f = yield self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
-        # TODO: this comes from log.err() in cmd_send.Sender.go._bad, and I'm
-        # undecided about whether that ought to be doing log.err or not
-        self.flushLoggedErrors(WelcomeError)
 
     @inlineCallbacks
     def test_receiver(self):
@@ -777,7 +773,6 @@ class NotWelcome(ServerBase, unittest.TestCase):
         receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
-        self.flushLoggedErrors(WelcomeError)
 
 class Cleanup(ServerBase, unittest.TestCase):
 
@@ -825,7 +820,6 @@ class Cleanup(ServerBase, unittest.TestCase):
 
         cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
         self.assertEqual(len(cids), 0)
-        self.flushLoggedErrors(WrongPasswordError)
 
 class ExtractFile(unittest.TestCase):
     def test_filenames(self):
