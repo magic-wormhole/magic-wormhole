@@ -746,6 +746,61 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def test_fail_directory_toobig(self):
         return self._do_test_fail("directory", "toobig")
 
+class ZeroMode(ServerBase, unittest.TestCase):
+    @inlineCallbacks
+    def test_text(self):
+        send_cfg = config("send")
+        recv_cfg = config("receive")
+        message = "textponies"
+
+        for cfg in [send_cfg, recv_cfg]:
+            cfg.hide_progress = True
+            cfg.relay_url = self.relayurl
+            cfg.transit_helper = ""
+            cfg.listen = True
+            cfg.zeromode = True
+            cfg.stdout = io.StringIO()
+            cfg.stderr = io.StringIO()
+
+        send_cfg.text = message
+
+        #send_cfg.cwd = send_dir
+        #recv_cfg.cwd = receive_dir
+
+        send_d = cmd_send.send(send_cfg)
+        receive_d = cmd_receive.receive(recv_cfg)
+
+        yield gatherResults([send_d, receive_d], True)
+
+        send_stdout = send_cfg.stdout.getvalue()
+        send_stderr = send_cfg.stderr.getvalue()
+        receive_stdout = recv_cfg.stdout.getvalue()
+        receive_stderr = recv_cfg.stderr.getvalue()
+
+        # all output here comes from a StringIO, which uses \n for
+        # newlines, even if we're on windows
+        NL = "\n"
+
+        self.maxDiff = None # show full output for assertion failures
+
+        self.assertEqual(send_stdout, "")
+
+        # check sender
+        expected = ("Sending text message ({bytes:d} Bytes){NL}"
+                    "On the other computer, please run: "
+                    "wormhole receive -0{NL}{NL}"
+                    "text message sent{NL}").format(bytes=len(message),
+                                                    code=send_cfg.code,
+                                                    NL=NL)
+        self.failUnlessEqual(send_stderr, expected)
+
+        # check receiver
+        self.assertEqual(receive_stdout, message+NL)
+        self.assertEqual(receive_stderr, "")
+
+        # check server stats
+        self._rendezvous.get_stats()
+
 class NotWelcome(ServerBase, unittest.TestCase):
     def setUp(self):
         self._setup_relay(error="please upgrade XYZ")
