@@ -245,6 +245,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             return self.dataReceivedRECORDS()
         if isinstance(self.state, Exception): # for tests
             raise self.state
+        raise ValueError("internal error: unknown state %s" % (self.state,))
 
     def _negotiationSuccessful(self):
         self.state = "records"
