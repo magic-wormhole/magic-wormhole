@@ -16,6 +16,13 @@ class UnsendableFileError(Exception):
 class ServerError(WormholeError):
     """The relay server complained about something we did."""
 
+class ServerConnectionError(WormholeError):
+    """We had a problem connecting to the relay server:"""
+    def __init__(self, reason):
+        self.reason = reason
+    def __str__(self):
+        return str(self.reason)
+
 class Timeout(WormholeError):
     pass
 
