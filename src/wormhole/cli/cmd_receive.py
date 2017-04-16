@@ -33,10 +33,10 @@ def receive(args, reactor=reactor):
     * TransferError: the sender rejected the transfer: verifier mismatch
     * any other error: something unexpected happened
     """
-    return TwistedReceiver(args, reactor).go()
+    return Receiver(args, reactor).go()
 
 
-class TwistedReceiver:
+class Receiver:
     def __init__(self, args, reactor=reactor):
         assert isinstance(args.relay_url, type(u""))
         self.args = args

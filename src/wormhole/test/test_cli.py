@@ -831,7 +831,7 @@ class ExtractFile(unittest.TestCase):
     def test_filenames(self):
         args = mock.Mock()
         args.relay_url = ""
-        ef = cmd_receive.TwistedReceiver(args)._extract_file
+        ef = cmd_receive.Receiver(args)._extract_file
         extract_dir = os.path.abspath(self.mktemp())
 
         zf = mock.Mock()
