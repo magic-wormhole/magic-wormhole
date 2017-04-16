@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import json, io, re
+import io, re
 import mock
 from twisted.trial import unittest
 from twisted.internet import reactor
@@ -11,24 +11,6 @@ from ..errors import (WrongPasswordError,
                       NoKeyError, OnlyOneCodeError)
 
 APPID = "appid"
-
-class MockWebSocket:
-    def __init__(self):
-        self._payloads = []
-    def sendMessage(self, payload, is_binary):
-        assert not is_binary
-        self._payloads.append(payload)
-
-    def outbound(self):
-        out = []
-        while self._payloads:
-            p = self._payloads.pop(0)
-            out.append(json.loads(p.decode("utf-8")))
-        return out
-
-def response(w, **kwargs):
-    payload = json.dumps(kwargs).encode("utf-8")
-    w._ws_dispatch_response(payload)
 
 class Welcome(unittest.TestCase):
     def test_tolerate_no_current_version(self):
