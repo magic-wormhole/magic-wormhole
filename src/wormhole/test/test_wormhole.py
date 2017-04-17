@@ -100,6 +100,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.when_key()
         yield w2.when_key()
 
+        with self.assertRaises(TypeError):
+            w1.derive_key(b"not unicode", 16)
+        with self.assertRaises(TypeError):
+            w1.derive_key(12345, 16)
+
         verifier1 = yield w1.when_verified()
         verifier2 = yield w2.when_verified()
         self.assertEqual(verifier1, verifier2)
