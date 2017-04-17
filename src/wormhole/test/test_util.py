@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import six
+import mock
 import unicodedata
 from twisted.trial import unittest
 from .. import util
@@ -48,3 +49,7 @@ class Space(unittest.TestCase):
         # some platforms (I think the VMs used by travis are in this
         # category) return 0, and windows will return None, so don't assert
         # anything more specific about the return value
+
+    def test_no_statvfs(self):
+        with mock.patch("os.statvfs", side_effect=AttributeError()):
+            self.assertEqual(util.estimate_free_space("."), None)
