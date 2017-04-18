@@ -266,6 +266,7 @@ class Receiver:
 
     def _handle_text(self, them_d, w):
         # we're receiving a text message
+        self.args.timing.add("print")
         print(them_d["message"], file=self.args.stdout)
         self._send_data({"answer": {"message_ack": "ok"}}, w)
 

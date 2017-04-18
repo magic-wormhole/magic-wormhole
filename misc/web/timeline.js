@@ -39,13 +39,15 @@ const server_message_color = {
     "allocated": 1, // receive
 
     "list": 2, // send
-    "channelids": 2, // receive
+    "nameplates": 2, // receive
 
     "claim": 3, // send
-    "watch": 4, // send
+    "claimed": 3, // receive
 
-    "deallocate": 5, // send
-    "deallocated": 5, // receive
+    "open": 4, // send
+
+    "release": 5, // send
+    "released": 5, // receive
 
     "error": 6, // receive
 
@@ -62,6 +64,7 @@ const proc_map = {
     "code established": "code-established",
     "key established": "key-established",
     "transit connected": "transit-connected",
+    "print": "print",
     "exit": "exit",
     "transit connect": "transit-connect",
     "import": "import"

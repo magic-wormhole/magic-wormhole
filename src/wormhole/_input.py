@@ -70,6 +70,7 @@ class Input(object):
 
     @m.output()
     def do_start(self):
+        self._start_timing = self._timing.add("input code", waiting="user")
         self._L.refresh()
         return Helper(self)
     @m.output()
@@ -136,6 +137,7 @@ class Input(object):
     @m.output()
     def do_words(self, words):
         code = self._nameplate + "-" + words
+        self._start_timing.finish()
         self._C.finished_input(code)
 
     S0_idle.upon(start, enter=S1_typing_nameplate,
