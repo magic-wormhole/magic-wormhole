@@ -86,32 +86,38 @@ class Boss(object):
     def start(self):
         self._RC.start()
 
+    def _print_trace(self, old_state, input, new_state,
+                     client_name, machine, file):
+        if new_state:
+            print("%s.%s[%s].%s -> [%s]" %
+                  (client_name, machine, old_state, input,
+                   new_state), file=file)
+        else:
+            # the RendezvousConnector emits message events as if
+            # they were state transitions, except that old_state
+            # and new_state are empty strings. "input" is one of
+            # R.connected, R.rx(type phase+side), R.tx(type
+            # phase), R.lost .
+            print("%s.%s.%s" % (client_name, machine, input),
+                  file=file)
+        file.flush()
+        def output_tracer(output):
+            print(" %s.%s.%s()" % (client_name, machine, output),
+                  file=file)
+            file.flush()
+        return output_tracer
+
     def _set_trace(self, client_name, which, file):
         names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
                  "O": self._O, "K": self._K, "SK": self._K._SK, "R": self._R,
                  "RC": self._RC, "L": self._L, "C": self._C,
                  "T": self._T}
         for machine in which.split():
-            def tracer(old_state, input, new_state, machine=machine):
-                if new_state:
-                    print("%s.%s[%s].%s -> [%s]" %
-                          (client_name, machine, old_state, input,
-                           new_state), file=file)
-                else:
-                    # the RendezvousConnector emits message events as if
-                    # they were state transitions, except that old_state
-                    # and new_state are empty strings. "input" is one of
-                    # R.connected, R.rx(type phase+side), R.tx(type
-                    # phase), R.lost .
-                    print("%s.%s.%s" % (client_name, machine, input),
-                          file=file)
-                file.flush()
-                def output_tracer(output):
-                    print(" %s.%s.%s()" % (client_name, machine, output),
-                          file=file)
-                    file.flush()
-                return output_tracer
-            names[machine].set_trace(tracer)
+            t = (lambda old_state, input, new_state:
+                 self._print_trace(old_state, input, new_state,
+                                   client_name=client_name,
+                                   machine=machine, file=file))
+            names[machine].set_trace(t)
 
     ## def serialize(self):
     ##     raise NotImplemented

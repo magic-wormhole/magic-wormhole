@@ -527,3 +527,35 @@ class Reconnection(ServerBase, unittest.TestCase):
         self.assertEqual(c1, "happy")
         c2 = yield w2.close()
         self.assertEqual(c2, "happy")
+
+class Trace(unittest.TestCase):
+    def test_basic(self):
+        w1 = wormhole.create(APPID, "ws://localhost:1", reactor)
+        stderr = io.StringIO()
+        w1.debug_set_trace("W1", file=stderr)
+        # if Automat doesn't have the tracing API, then we won't actually
+        # exercise the tracing function, so exercise the RendezvousConnector
+        # function manually (it isn't a state machine, so it will always wire
+        # up the tracer)
+        w1._boss._RC._debug("what")
+
+        stderr = io.StringIO()
+        out = w1._boss._print_trace("OLD", "IN", "NEW", "C1", "M1", stderr)
+        self.assertEqual(stderr.getvalue().splitlines(),
+                         ["C1.M1[OLD].IN -> [NEW]"])
+        out("OUT1")
+        self.assertEqual(stderr.getvalue().splitlines(),
+                         ["C1.M1[OLD].IN -> [NEW]",
+                          " C1.M1.OUT1()"])
+        w1._boss._print_trace("", "R.connected", "", "C1", "RC1", stderr)
+        self.assertEqual(stderr.getvalue().splitlines(),
+                         ["C1.M1[OLD].IN -> [NEW]",
+                          " C1.M1.OUT1()",
+                          "C1.RC1.R.connected"])
+
+    def test_delegated(self):
+        dg = Delegate()
+        w1 = wormhole.create(APPID, "ws://localhost:1", reactor, delegate=dg)
+        stderr = io.StringIO()
+        w1.debug_set_trace("W1", file=stderr)
+        w1._boss._RC._debug("what")
