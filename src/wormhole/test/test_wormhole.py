@@ -43,24 +43,76 @@ class Welcome(unittest.TestCase):
 class Delegate:
     def __init__(self):
         self.code = None
+        self.key = None
         self.verifier = None
+        self.version = None
         self.messages = []
         self.closed = None
-    def wormhole_got_code(self, code):
+    def wormhole_code(self, code):
         self.code = code
-    def wormhole_got_verifier(self, verifier):
+    def wormhole_key(self, key):
+        self.key = key
+    def wormhole_verified(self, verifier):
         self.verifier = verifier
-    def wormhole_receive(self, data):
+    def wormhole_version(self, version):
+        self.version = version
+    def wormhole_received(self, data):
         self.messages.append(data)
     def wormhole_closed(self, result):
         self.closed = result
 
 class Delegated(ServerBase, unittest.TestCase):
 
+    @inlineCallbacks
     def test_delegated(self):
         dg = Delegate()
-        w = wormhole.create(APPID, self.relayurl, reactor, delegate=dg)
-        w.close()
+        w1 = wormhole.create(APPID, self.relayurl, reactor, delegate=dg)
+        #w1.debug_set_trace("W1")
+        with self.assertRaises(NoKeyError):
+            w1.derive_key("purpose", 12)
+        w1.set_code("1-abc")
+        self.assertEqual(dg.code, "1-abc")
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        w2.set_code(dg.code)
+        yield poll_until(lambda: dg.key is not None)
+        yield poll_until(lambda: dg.verifier is not None)
+        yield poll_until(lambda: dg.version is not None)
+
+        w1.send(b"ping")
+        got = yield w2.when_received()
+        self.assertEqual(got, b"ping")
+        w2.send(b"pong")
+        yield poll_until(lambda: dg.messages)
+        self.assertEqual(dg.messages[0], b"pong")
+
+        key1 = w1.derive_key("purpose", 16)
+        self.assertEqual(len(key1), 16)
+        self.assertEqual(type(key1), type(b""))
+        with self.assertRaises(TypeError):
+            w1.derive_key(b"not unicode", 16)
+        with self.assertRaises(TypeError):
+            w1.derive_key(12345, 16)
+
+        w1.close()
+        yield w2.close()
+
+    @inlineCallbacks
+    def test_allocate_code(self):
+        dg = Delegate()
+        w1 = wormhole.create(APPID, self.relayurl, reactor, delegate=dg)
+        w1.allocate_code()
+        yield poll_until(lambda: dg.code is not None)
+        w1.close()
+
+    @inlineCallbacks
+    def test_input_code(self):
+        dg = Delegate()
+        w1 = wormhole.create(APPID, self.relayurl, reactor, delegate=dg)
+        h = w1.input_code()
+        h.choose_nameplate("123")
+        h.choose_words("purple-elephant")
+        yield poll_until(lambda: dg.code is not None)
+        w1.close()
 
 class Wormholes(ServerBase, unittest.TestCase):
     # integration test, with a real server
