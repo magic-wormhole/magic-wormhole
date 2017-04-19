@@ -143,6 +143,9 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_basic(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         #w1.debug_set_trace("W1")
+        with self.assertRaises(NoKeyError):
+            w1.derive_key("purpose", 12)
+
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         #w2.debug_set_trace("  W2")
         w1.allocate_code()
@@ -152,6 +155,9 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.when_key()
         yield w2.when_key()
 
+        key1 = w1.derive_key("purpose", 16)
+        self.assertEqual(len(key1), 16)
+        self.assertEqual(type(key1), type(b""))
         with self.assertRaises(TypeError):
             w1.derive_key(b"not unicode", 16)
         with self.assertRaises(TypeError):
