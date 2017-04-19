@@ -514,7 +514,8 @@ class Errors(ServerBase, unittest.TestCase):
     def test_derive_key_early(self):
         w = wormhole.create(APPID, self.relayurl, reactor)
         # definitely too early
-        self.assertRaises(NoKeyError, w.derive_key, "purpose", 12)
+        with self.assertRaises(NoKeyError):
+            w.derive_key("purpose", 12)
         yield self.assertFailure(w.close(), LonelyError)
 
     @inlineCallbacks
@@ -522,7 +523,8 @@ class Errors(ServerBase, unittest.TestCase):
         w = wormhole.create(APPID, self.relayurl, reactor)
         w.set_code("123-purple-elephant")
         # code can only be set once
-        self.assertRaises(OnlyOneCodeError, w.set_code, "123-nope")
+        with self.assertRaises(OnlyOneCodeError):
+            w.set_code("123-nope")
         yield self.assertFailure(w.close(), LonelyError)
 
     @inlineCallbacks
@@ -530,7 +532,8 @@ class Errors(ServerBase, unittest.TestCase):
         w = wormhole.create(APPID, self.relayurl, reactor)
         w.allocate_code()
         yield w.when_code()
-        self.assertRaises(OnlyOneCodeError, w.set_code, "123-nope")
+        with self.assertRaises(OnlyOneCodeError):
+            w.set_code("123-nope")
         yield self.assertFailure(w.close(), LonelyError)
 
 class Reconnection(ServerBase, unittest.TestCase):
