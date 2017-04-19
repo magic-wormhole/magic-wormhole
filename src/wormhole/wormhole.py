@@ -61,8 +61,8 @@ class _DelegatedWormhole(object):
 
     def allocate_code(self, code_length=2):
         self._boss.allocate_code(code_length)
-    def input_code(self, stdio):
-        self._boss.input_code(stdio)
+    def input_code(self):
+        return self._boss.input_code()
     def set_code(self, code):
         self._boss.set_code(code)
 
@@ -97,7 +97,7 @@ class _DelegatedWormhole(object):
     def got_code(self, code):
         self._delegate.wormhole_code(code)
     def got_key(self, key):
-        self._delegate.wormhole_key()
+        self._delegate.wormhole_key(key)
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
         self._delegate.wormhole_verified(verifier)
