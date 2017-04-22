@@ -67,7 +67,7 @@ digraph {
                                label="tx_open\ntx_add\ntx_close"
                                ]
         Connection -> Mailbox [style="dashed"
-                               label="connected\nlost\nrx_message\nrx_closed\nstopped"]
+                               label="connected\nlost\nrx_message\nrx_closed"]
 
         Connection -> Lister [style="dashed"
                               label="connected\nlost\nrx_nameplates"
