@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import time
 start = time.time()
+import six
 from textwrap import fill, dedent
 from sys import stdout, stderr
 from . import public_relay
@@ -106,28 +107,28 @@ def _dispatch_command(reactor, cfg, command):
         yield maybeDeferred(command)
     except (WrongPasswordError, KeyFormatError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
-        print(msg, file=stderr)
+        print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except WelcomeError as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
-        print(msg, file=stderr)
-        print(file=stderr)
-        print(str(e), file=stderr)
+        print(msg, file=cfg.stderr)
+        print(six.u(""), file=cfg.stderr)
+        print(six.text_type(e), file=cfg.stderr)
         raise SystemExit(1)
     except TransferError as e:
-        print("TransferError: %s" % str(e), file=stderr)
+        print(u"TransferError: %s" % six.text_type(e), file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:
         # this prints a proper traceback, whereas
         # traceback.print_exc() just prints a TB to the "yield"
         # line above ...
-        Failure().printTraceback(file=stderr)
-        print("ERROR:", e, file=stderr)
+        Failure().printTraceback(file=cfg.stderr)
+        print(u"ERROR:", six.text_type(e), file=cfg.stderr)
         raise SystemExit(1)
 
     cfg.timing.add("exit")
     if cfg.dump_timing:
-        cfg.timing.write(cfg.dump_timing, stderr)
+        cfg.timing.write(cfg.dump_timing, cfg.stderr)
 
 
 CommonArgs = _compose(
