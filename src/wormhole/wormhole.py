@@ -253,6 +253,8 @@ class _DeferredWormhole(object):
             self._observer_result = WormholeClosed(result)
             # but w.close() only gets error if we're unhappy
             self._closed_result = result
+        for d in self._code_observers:
+            d.errback(self._observer_result)
         for d in self._key_observers:
             d.errback(self._observer_result)
         for d in self._verifier_observers:
