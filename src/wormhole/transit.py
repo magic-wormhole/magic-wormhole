@@ -243,6 +243,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             raise BadHandshake("abandoned")
         if self.state == "records":
             return self.dataReceivedRECORDS()
+        if self.state == "hung up":
+            pass
         if isinstance(self.state, Exception): # for tests
             raise self.state
         raise ValueError("internal error: unknown state %s" % (self.state,))
