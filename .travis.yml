@@ -19,3 +19,6 @@ script:
   - tox -e coverage
 after_success:
   - codecov
+matrix:
+  allow_failures:
+    - python: "nightly"
