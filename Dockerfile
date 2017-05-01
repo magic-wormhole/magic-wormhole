@@ -28,10 +28,15 @@ RUN apt-get --quiet update && \
     unattended-upgrade --minimal_upgrade_steps && \
 rm -rf /var/lib/apt/lists/*
 
+# libffi-dev should probably be a build-dep for python-nacl and python-openssl
+# but isn't for some reason.
 RUN apt-get --quiet update && apt-get --quiet install -y \
+    libffi-dev \
     python-virtualenv \
 && rm -rf /var/lib/apt/lists/*
 
+# magic-wormhole depends on these and pip wants to build them both from
+# source.
 RUN apt-get --quiet update && apt-get --quiet build-dep -y \
     python-nacl \
     python-openssl \
