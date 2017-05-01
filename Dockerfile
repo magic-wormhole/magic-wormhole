@@ -29,13 +29,12 @@ RUN apt-get --quiet update && \
 rm -rf /var/lib/apt/lists/*
 
 RUN apt-get --quiet update && apt-get --quiet install -y \
-    gcc \
-    python-dev \
-    libffi-dev \
-    openssl \
-    libssl-dev \
-    \
     python-virtualenv \
+&& rm -rf /var/lib/apt/lists/*
+
+RUN apt-get --quiet update && apt-get --quiet build-dep -y \
+    python-nacl \
+    python-openssl \
 && rm -rf /var/lib/apt/lists/*
 
 # Create a virtualenv into which to install magicwormhole in to.
