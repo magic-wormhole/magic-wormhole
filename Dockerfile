@@ -29,6 +29,7 @@ RUN apt-get --quiet update && \
 rm -rf /var/lib/apt/lists/*
 
 RUN apt-get --quiet update && apt-get --quiet install -y \
+    gcc \
     python-dev \
     libffi-dev \
     openssl \
