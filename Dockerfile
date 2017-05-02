@@ -66,8 +66,10 @@ WORKDIR /app/run
 # And give it to the user the application will run as.
 RUN chown ${WORMHOLE_USER_NAME} /app/run
 
-# Facilitate network connections to the application.
+# Facilitate network connections to the application.  The rendezvous server
+# listens on 4000 by default.  The transit relay server on 4001.
 EXPOSE 4000
+EXPOSE 4001
 
 # Put the source somewhere pip will be able to see it.
 ADD . /src
@@ -78,6 +80,9 @@ RUN /app/env/bin/pip install /src
 # Switch to a non-root user.
 USER 1000
 
-CMD /app/env/bin/wormhole-server start \
-    --rendezvous tcp:4000 \
-    --no-daemon
+# This makes starting a server succinct.
+ENTRYPOINT ["/app/env/bin/wormhole-server", "start", "--no-daemon"]
+
+# By default, start up a pretty reasonable server.  This can easily be
+# overridden by another command which will get added to the entrypoint.
+CMD ["--rendezvous", "tcp:4000", "--transit", "tcp:4001"]
