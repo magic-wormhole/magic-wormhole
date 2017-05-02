@@ -38,7 +38,7 @@ RUN apt-get --quiet update && apt-get --quiet install -y \
 # magic-wormhole depends on these and pip wants to build them both from
 # source.
 RUN apt-get --quiet update && apt-get --quiet build-dep -y \
-    pyopenssl \
+    python-openssl \
     python-nacl \
 && rm -rf /var/lib/apt/lists/*
 
