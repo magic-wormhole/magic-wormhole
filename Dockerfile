@@ -35,6 +35,10 @@ RUN apt-get --quiet update && apt-get --quiet install -y \
     python-virtualenv \
 && rm -rf /var/lib/apt/lists/*
 
+# Source repositories seem to be disabled on the Xenial image now.  Enable
+# them so we can actually get some build deps.
+RUN sed -i -e 's/^# deb-src/deb-src/' /etc/apt/sources.list
+
 # magic-wormhole depends on these and pip wants to build them both from
 # source.
 RUN apt-get --quiet update && apt-get --quiet build-dep -y \
