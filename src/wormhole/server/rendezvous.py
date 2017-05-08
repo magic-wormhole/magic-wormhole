@@ -159,8 +159,10 @@ class Mailbox:
             stop_f()
         self._listeners = {}
 
-class AppNamespace:
-    def __init__(self, db, blur_usage, log_requests, app_id):
+
+class AppNamespace(object):
+
+    def __init__(self, db, blur_usage, log_requests, app_id, allow_list):
         self._db = db
         self._blur_usage = blur_usage
         self._log_requests = log_requests
@@ -168,8 +170,14 @@ class AppNamespace:
         self._mailboxes = {}
         self._nameplate_counts = collections.defaultdict(int)
         self._mailbox_counts = collections.defaultdict(int)
+        self._allow_list = allow_list
 
     def get_nameplate_ids(self):
+        if not self._allow_list:
+            return []
+        return self._get_nameplate_ids()
+
+    def _get_nameplate_ids(self):
         db = self._db
         # TODO: filter this to numeric ids?
         c = db.execute("SELECT DISTINCT `name` FROM `nameplates`"
@@ -177,7 +185,7 @@ class AppNamespace:
         return set([row["name"] for row in c.fetchall()])
 
     def _find_available_nameplate_id(self):
-        claimed = self.get_nameplate_ids()
+        claimed = self._get_nameplate_ids()
         for size in range(1,4): # stick to 1-999 for now
             available = set()
             for id_int in range(10**(size-1), 10**size):
@@ -505,14 +513,17 @@ class AppNamespace:
         for channel in self._mailboxes.values():
             channel._shutdown()
 
+
 class Rendezvous(service.MultiService):
-    def __init__(self, db, welcome, blur_usage):
+
+    def __init__(self, db, welcome, blur_usage, allow_list):
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
         self._blur_usage = blur_usage
         log_requests = blur_usage is None
         self._log_requests = log_requests
+        self._allow_list = allow_list
         self._apps = {}
 
     def get_welcome(self):
@@ -525,9 +536,13 @@ class Rendezvous(service.MultiService):
         if not app_id in self._apps:
             if self._log_requests:
                 log.msg("spawning app_id %s" % (app_id,))
-            self._apps[app_id] = AppNamespace(self._db,
-                                              self._blur_usage,
-                                              self._log_requests, app_id)
+            self._apps[app_id] = AppNamespace(
+                self._db,
+                self._blur_usage,
+                self._log_requests,
+                app_id,
+                self._allow_list,
+            )
         return self._apps[app_id]
 
     def get_all_apps(self):

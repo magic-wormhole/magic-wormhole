@@ -292,6 +292,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
 
 class WebSocketRendezvousFactory(websocket.WebSocketServerFactory):
     protocol = WebSocketRendezvous
+
     def __init__(self, url, rendezvous):
         websocket.WebSocketServerFactory.__init__(self, url)
         self.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
