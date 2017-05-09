@@ -49,15 +49,14 @@ RUN apt-get --quiet update && apt-get --quiet build-dep -y \
 # Create a virtualenv into which to install magicwormhole in to.
 RUN virtualenv /app/env
 
-# Get a newer version of pip.
+# Get a newer version of pip.  The version in the virtualenv installed from
+# Ubuntu might not be very recent, depending on when the build happens.
 RUN /app/env/bin/pip install --upgrade pip
 
-# Create the website account, the user as which the infrastructure
-# server will run.
+# Create a less privileged account to actually use to run the server.
 ENV WORMHOLE_USER_NAME="wormhole"
 
-# Force the allocated user to uid 1000 because we hard-code 1000
-# below.
+# Force the allocated user to uid 1000 because we hard-code 1000 below.
 RUN adduser --uid 1000 --disabled-password --gecos "" "${WORMHOLE_USER_NAME}"
 
 # Run the application with this working directory.
