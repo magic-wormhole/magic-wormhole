@@ -1,0 +1,10 @@
+.appveyor.yml
+.coveragerc
+docs
+.git
+.gitattributes
+.gitignore
+misc
+snapcraft.yaml
+tox.ini
+.travis.yml
