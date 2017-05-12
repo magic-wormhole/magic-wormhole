@@ -15,36 +15,24 @@ from .util import to_bytes
 
 # We can provide different APIs to different apps:
 # * Deferreds
-#   w.when_code().addCallback(print_code)
-#   w.send(data)
-#   w.when_received().addCallback(got_data)
+#   w.get_code().addCallback(print_code)
+#   w.send_message(data)
+#   w.get_message().addCallback(got_data)
 #   w.close().addCallback(closed)
 
 # * delegate callbacks (better for journaled environments)
 #   w = wormhole(delegate=app)
-#   w.send(data)
+#   w.send_message(data)
 #   app.wormhole_got_code(code)
 #   app.wormhole_got_verifier(verifier)
-#   app.wormhole_got_version(versions)
-#   app.wormhole_receive(data)
+#   app.wormhole_got_versions(versions)
+#   app.wormhole_got_message(data)
 #   w.close()
 #   app.wormhole_closed()
 #
 # * potential delegate options
 #   wormhole(delegate=app, delegate_prefix="wormhole_",
 #            delegate_args=(args, kwargs))
-
-class _WelcomeHandler:
-    def __init__(self, url, stderr=sys.stderr):
-        self.relay_url = url
-        self.stderr = stderr
-
-    def handle_welcome(self, welcome):
-        if "motd" in welcome:
-            motd_lines = welcome["motd"].splitlines()
-            motd_formatted = "\n ".join(motd_lines)
-            print("Server (at %s) says:\n %s" %
-                  (self.relay_url, motd_formatted), file=self.stderr)
 
 @attrs
 @implementer(IWormhole)
@@ -72,7 +60,7 @@ class _DelegatedWormhole(object):
     ##          }
     ##     return s
 
-    def send(self, plaintext):
+    def send_message(self, plaintext):
         self._boss.send(plaintext)
 
     def derive_key(self, purpose, length):
@@ -94,23 +82,27 @@ class _DelegatedWormhole(object):
         self._boss._set_trace(client_name, which, file)
 
     # from below
+    def got_welcome(self, welcome):
+        self._delegate.wormhole_got_welcome(welcome)
     def got_code(self, code):
-        self._delegate.wormhole_code(code)
+        self._delegate.wormhole_got_code(code)
     def got_key(self, key):
-        self._delegate.wormhole_key(key)
+        self._delegate.wormhole_got_unverified_key(key)
         self._key = key # for derive_key()
     def got_verifier(self, verifier):
-        self._delegate.wormhole_verified(verifier)
-    def got_version(self, versions):
-        self._delegate.wormhole_version(versions)
+        self._delegate.wormhole_got_verifier(verifier)
+    def got_versions(self, versions):
+        self._delegate.wormhole_got_versions(versions)
     def received(self, plaintext):
-        self._delegate.wormhole_received(plaintext)
+        self._delegate.wormhole_got_message(plaintext)
     def closed(self, result):
         self._delegate.wormhole_closed(result)
 
 @implementer(IWormhole)
 class _DeferredWormhole(object):
     def __init__(self):
+        self._welcome = None
+        self._welcome_observers = []
         self._code = None
         self._code_observers = []
         self._key = None
@@ -129,7 +121,7 @@ class _DeferredWormhole(object):
         self._boss = boss
 
     # from above
-    def when_code(self):
+    def get_code(self):
         # TODO: consider throwing error unless one of allocate/set/input_code
         # was called first. It's legit to grab the Deferred before triggering
         # the process that will cause it to fire, but forbidding that
@@ -143,7 +135,16 @@ class _DeferredWormhole(object):
         self._code_observers.append(d)
         return d
 
-    def when_key(self):
+    def get_welcome(self):
+        if self._observer_result is not None:
+            return defer.fail(self._observer_result)
+        if self._welcome is not None:
+            return defer.succeed(self._welcome)
+        d = defer.Deferred()
+        self._welcome_observers.append(d)
+        return d
+
+    def get_unverified_key(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._key is not None:
@@ -152,7 +153,7 @@ class _DeferredWormhole(object):
         self._key_observers.append(d)
         return d
 
-    def when_verified(self):
+    def get_verifier(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._verifier is not None:
@@ -161,7 +162,7 @@ class _DeferredWormhole(object):
         self._verifier_observers.append(d)
         return d
 
-    def when_version(self):
+    def get_versions(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._versions is not None:
@@ -170,7 +171,7 @@ class _DeferredWormhole(object):
         self._version_observers.append(d)
         return d
 
-    def when_received(self):
+    def get_message(self):
         if self._observer_result is not None:
             return defer.fail(self._observer_result)
         if self._received_data:
@@ -187,7 +188,8 @@ class _DeferredWormhole(object):
         self._boss.set_code(code)
 
     # no .serialize in Deferred-mode
-    def send(self, plaintext):
+
+    def send_message(self, plaintext):
         self._boss.send(plaintext)
 
     def derive_key(self, purpose, length):
@@ -217,6 +219,11 @@ class _DeferredWormhole(object):
         self._boss._set_trace(client_name, which, file)
 
     # from below
+    def got_welcome(self, welcome):
+        self._welcome = welcome
+        for d in self._welcome_observers:
+            d.callback(welcome)
+        self._welcome_observers[:] = []
     def got_code(self, code):
         self._code = code
         for d in self._code_observers:
@@ -227,12 +234,13 @@ class _DeferredWormhole(object):
         for d in self._key_observers:
             d.callback(key)
         self._key_observers[:] = []
+
     def got_verifier(self, verifier):
         self._verifier = verifier
         for d in self._verifier_observers:
             d.callback(verifier)
         self._verifier_observers[:] = []
-    def got_version(self, versions):
+    def got_versions(self, versions):
         self._versions = versions
         for d in self._version_observers:
             d.callback(versions)
@@ -245,7 +253,7 @@ class _DeferredWormhole(object):
         self._received_data.append(plaintext)
 
     def closed(self, result):
-        #print("closed", result, type(result))
+        #print("closed", result, type(result), file=sys.stderr)
         if isinstance(result, Exception):
             self._observer_result = self._closed_result = failure.Failure(result)
         else:
@@ -253,6 +261,8 @@ class _DeferredWormhole(object):
             self._observer_result = WormholeClosed(result)
             # but w.close() only gets error if we're unhappy
             self._closed_result = result
+        for d in self._welcome_observers:
+            d.errback(self._observer_result)
         for d in self._code_observers:
             d.errback(self._observer_result)
         for d in self._key_observers:
@@ -270,13 +280,11 @@ class _DeferredWormhole(object):
 def create(appid, relay_url, reactor, # use keyword args for everything else
            versions={},
            delegate=None, journal=None, tor_manager=None,
-           timing=None, welcome_handler=None,
+           timing=None,
            stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
-    if not welcome_handler:
-        welcome_handler = _WelcomeHandler(relay_url).handle_welcome
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
@@ -284,8 +292,7 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
     b = Boss(w, side, relay_url, appid, wormhole_versions,
-             welcome_handler, reactor, journal,
-             tor_manager, timing)
+             reactor, journal, tor_manager, timing)
     w._set_boss(b)
     b.start()
     return w

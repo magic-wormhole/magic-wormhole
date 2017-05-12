@@ -12,23 +12,6 @@ from ..errors import (WrongPasswordError,
 
 APPID = "appid"
 
-class Welcome(unittest.TestCase):
-    def test_tolerate_no_current_version(self):
-        w = wormhole._WelcomeHandler("relay_url")
-        w.handle_welcome({})
-
-    def test_print_motd(self):
-        stderr = io.StringIO()
-        w = wormhole._WelcomeHandler("relay_url", stderr=stderr)
-        w.handle_welcome({"motd": "message of\nthe day"})
-        self.assertEqual(stderr.getvalue(),
-                         "Server (at relay_url) says:\n message of\n the day\n")
-        # motd can be displayed multiple times
-        w.handle_welcome({"motd": "second message"})
-        self.assertEqual(stderr.getvalue(),
-                         ("Server (at relay_url) says:\n message of\n the day\n"
-                          "Server (at relay_url) says:\n second message\n"))
-
 # event orderings to exercise:
 #
 # * normal sender: set_code, send_phase1, connected, claimed, learn_msg2,
@@ -42,21 +25,24 @@ class Welcome(unittest.TestCase):
 
 class Delegate:
     def __init__(self):
+        self.welcome = None
         self.code = None
         self.key = None
         self.verifier = None
-        self.version = None
+        self.versions = None
         self.messages = []
         self.closed = None
-    def wormhole_code(self, code):
+    def wormhole_got_welcome(self, welcome):
+        self.welcome = welcome
+    def wormhole_got_code(self, code):
         self.code = code
-    def wormhole_key(self, key):
+    def wormhole_got_unverified_key(self, key):
         self.key = key
-    def wormhole_verified(self, verifier):
+    def wormhole_got_verifier(self, verifier):
         self.verifier = verifier
-    def wormhole_version(self, version):
-        self.version = version
-    def wormhole_received(self, data):
+    def wormhole_got_versions(self, versions):
+        self.versions = versions
+    def wormhole_got_message(self, data):
         self.messages.append(data)
     def wormhole_closed(self, result):
         self.closed = result
@@ -76,12 +62,12 @@ class Delegated(ServerBase, unittest.TestCase):
         w2.set_code(dg.code)
         yield poll_until(lambda: dg.key is not None)
         yield poll_until(lambda: dg.verifier is not None)
-        yield poll_until(lambda: dg.version is not None)
+        yield poll_until(lambda: dg.versions is not None)
 
-        w1.send(b"ping")
-        got = yield w2.when_received()
+        w1.send_message(b"ping")
+        got = yield w2.get_message()
         self.assertEqual(got, b"ping")
-        w2.send(b"pong")
+        w2.send_message(b"pong")
         yield poll_until(lambda: dg.messages)
         self.assertEqual(dg.messages[0], b"pong")
 
@@ -124,7 +110,7 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_allocate_default(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         mo = re.search(r"^\d+-\w+-\w+$", code)
         self.assert_(mo, code)
         # w.close() fails because we closed before connecting
@@ -134,7 +120,7 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_allocate_more_words(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code(3)
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         mo = re.search(r"^\d+-\w+-\w+-\w+$", code)
         self.assert_(mo, code)
         yield self.assertFailure(w1.close(), LonelyError)
@@ -149,11 +135,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         #w2.debug_set_trace("  W2")
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
 
-        yield w1.when_key()
-        yield w2.when_key()
+        yield w1.get_unverified_key()
+        yield w2.get_unverified_key()
 
         key1 = w1.derive_key("purpose", 16)
         self.assertEqual(len(key1), 16)
@@ -163,29 +149,29 @@ class Wormholes(ServerBase, unittest.TestCase):
         with self.assertRaises(TypeError):
             w1.derive_key(12345, 16)
 
-        verifier1 = yield w1.when_verified()
-        verifier2 = yield w2.when_verified()
+        verifier1 = yield w1.get_verifier()
+        verifier2 = yield w2.get_verifier()
         self.assertEqual(verifier1, verifier2)
 
-        self.successResultOf(w1.when_key())
-        self.successResultOf(w2.when_key())
+        self.successResultOf(w1.get_unverified_key())
+        self.successResultOf(w2.get_unverified_key())
 
-        version1 = yield w1.when_version()
-        version2 = yield w2.when_version()
+        versions1 = yield w1.get_versions()
+        versions2 = yield w2.get_versions()
         # app-versions are exercised properly in test_versions, this just
         # tests the defaults
-        self.assertEqual(version1, {})
-        self.assertEqual(version2, {})
+        self.assertEqual(versions1, {})
+        self.assertEqual(versions2, {})
 
-        w1.send(b"data1")
-        w2.send(b"data2")
-        dataX = yield w1.when_received()
-        dataY = yield w2.when_received()
+        w1.send_message(b"data1")
+        w2.send_message(b"data2")
+        dataX = yield w1.get_message()
+        dataY = yield w2.get_message()
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
 
-        version1_again = yield w1.when_version()
-        self.assertEqual(version1, version1_again)
+        versions1_again = yield w1.get_versions()
+        self.assertEqual(versions1, versions1_again)
 
         c1 = yield w1.close()
         self.assertEqual(c1, "happy")
@@ -193,19 +179,19 @@ class Wormholes(ServerBase, unittest.TestCase):
         self.assertEqual(c2, "happy")
 
     @inlineCallbacks
-    def test_when_code_early(self):
+    def test_get_code_early(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
-        d = w1.when_code()
+        d = w1.get_code()
         w1.set_code("1-abc")
         code = self.successResultOf(d)
         self.assertEqual(code, "1-abc")
         yield self.assertFailure(w1.close(), LonelyError)
 
     @inlineCallbacks
-    def test_when_code_late(self):
+    def test_get_code_late(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("1-abc")
-        d = w1.when_code()
+        d = w1.get_code()
         code = self.successResultOf(d)
         self.assertEqual(code, "1-abc")
         yield self.assertFailure(w1.close(), LonelyError)
@@ -218,12 +204,12 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
-        w1.send(b"data")
-        w2.send(b"data")
-        dataX = yield w1.when_received()
-        dataY = yield w2.when_received()
+        w1.send_message(b"data")
+        w2.send_message(b"data")
+        dataX = yield w1.get_message()
+        dataY = yield w2.get_message()
         self.assertEqual(dataX, b"data")
         self.assertEqual(dataY, b"data")
         yield w1.close()
@@ -234,13 +220,13 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
-        w1.send(b"data1")
-        dataY = yield w2.when_received()
+        w1.send_message(b"data1")
+        dataY = yield w2.get_message()
         self.assertEqual(dataY, b"data1")
-        d = w1.when_received()
-        w2.send(b"data2")
+        d = w1.get_message()
+        w2.send_message(b"data2")
         dataX = yield d
         self.assertEqual(dataX, b"data2")
         yield w1.close()
@@ -251,10 +237,10 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
-        w1.send(b"data1")
-        dataY = yield w2.when_received()
+        w1.send_message(b"data1")
+        dataY = yield w2.get_message()
         self.assertEqual(dataY, b"data1")
         yield w1.close()
         yield w2.close()
@@ -262,9 +248,9 @@ class Wormholes(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_early(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
-        w1.send(b"data1")
+        w1.send_message(b"data1")
         w2 = wormhole.create(APPID, self.relayurl, reactor)
-        d = w2.when_received()
+        d = w2.get_message()
         w1.set_code("123-abc-def")
         w2.set_code("123-abc-def")
         dataY = yield d
@@ -278,8 +264,8 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        w1.send(b"data1"), w2.send(b"data2")
-        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        w1.send_message(b"data1"), w2.send_message(b"data2")
+        dl = yield self.doBoth(w1.get_message(), w2.get_message())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
@@ -300,8 +286,8 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield poll_until(lambda: w2._boss._K._debug_pake_stashed)
         h.choose_words("purple-elephant")
 
-        w1.send(b"data1"), w2.send(b"data2")
-        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        w1.send_message(b"data1"), w2.send_message(b"data2")
+        dl = yield self.doBoth(w1.get_message(), w2.get_message())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
@@ -315,13 +301,13 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        w1.send(b"data1"), w2.send(b"data2")
-        w1.send(b"data3"), w2.send(b"data4")
-        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        w1.send_message(b"data1"), w2.send_message(b"data2")
+        w1.send_message(b"data3"), w2.send_message(b"data4")
+        dl = yield self.doBoth(w1.get_message(), w2.get_message())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
-        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        dl = yield self.doBoth(w1.get_message(), w2.get_message())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data4")
         self.assertEqual(dataY, b"data3")
@@ -337,19 +323,19 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2.set_code("123-foo")
 
         # let it connect and become HAPPY
-        yield w1.when_version()
-        yield w2.when_version()
+        yield w1.get_versions()
+        yield w2.get_versions()
 
         yield w1.close()
         yield w2.close()
 
         # once closed, all Deferred-yielding API calls get an immediate error
-        f = self.failureResultOf(w1.when_code(), WormholeClosed)
+        f = self.failureResultOf(w1.get_code(), WormholeClosed)
         self.assertEqual(f.value.args[0], "happy")
-        self.failureResultOf(w1.when_key(), WormholeClosed)
-        self.failureResultOf(w1.when_verified(), WormholeClosed)
-        self.failureResultOf(w1.when_version(), WormholeClosed)
-        self.failureResultOf(w1.when_received(), WormholeClosed)
+        self.failureResultOf(w1.get_unverified_key(), WormholeClosed)
+        self.failureResultOf(w1.get_verifier(), WormholeClosed)
+        self.failureResultOf(w1.get_versions(), WormholeClosed)
+        self.failureResultOf(w1.get_message(), WormholeClosed)
 
 
     @inlineCallbacks
@@ -357,20 +343,20 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code+"not")
-        code2 = yield w2.when_code()
+        code2 = yield w2.get_code()
         self.assertNotEqual(code, code2)
         # That's enough to allow both sides to discover the mismatch, but
         # only after the confirmation message gets through. API calls that
         # don't wait will appear to work until the mismatched confirmation
         # message arrives.
-        w1.send(b"should still work")
-        w2.send(b"should still work")
+        w1.send_message(b"should still work")
+        w2.send_message(b"should still work")
 
-        key2 = yield w2.when_key() # should work
+        key2 = yield w2.get_unverified_key() # should work
         # w2 has just received w1.PAKE, and is about to send w2.VERSION
-        key1 = yield w1.when_key() # should work
+        key1 = yield w1.get_unverified_key() # should work
         # w1 has just received w2.PAKE, and is about to send w1.VERSION, and
         # then will receive w2.VERSION. When it sees w2.VERSION, it will
         # learn about the WrongPasswordError.
@@ -378,54 +364,54 @@ class Wormholes(ServerBase, unittest.TestCase):
 
         # API calls that wait (i.e. get) will errback. We collect all these
         # Deferreds early to exercise the wait-then-fail path
-        d1_verified = w1.when_verified()
-        d1_version = w1.when_version()
-        d1_received = w1.when_received()
-        d2_verified = w2.when_verified()
-        d2_version = w2.when_version()
-        d2_received = w2.when_received()
+        d1_verified = w1.get_verifier()
+        d1_versions = w1.get_versions()
+        d1_received = w1.get_message()
+        d2_verified = w2.get_verifier()
+        d2_versions = w2.get_versions()
+        d2_received = w2.get_message()
 
         # wait for each side to notice the failure
-        yield self.assertFailure(w1.when_verified(), WrongPasswordError)
-        yield self.assertFailure(w2.when_verified(), WrongPasswordError)
+        yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
+        yield self.assertFailure(w2.get_verifier(), WrongPasswordError)
         # and then wait for the rest of the loops to fire. if we had+used
         # eventual-send, this wouldn't be a problem
         yield pause_one_tick()
 
         # now all the rest should have fired already
         self.failureResultOf(d1_verified, WrongPasswordError)
-        self.failureResultOf(d1_version, WrongPasswordError)
+        self.failureResultOf(d1_versions, WrongPasswordError)
         self.failureResultOf(d1_received, WrongPasswordError)
         self.failureResultOf(d2_verified, WrongPasswordError)
-        self.failureResultOf(d2_version, WrongPasswordError)
+        self.failureResultOf(d2_versions, WrongPasswordError)
         self.failureResultOf(d2_received, WrongPasswordError)
 
         # and at this point, with the failure safely noticed by both sides,
-        # new when_key() calls should signal the failure, even before we
-        # close
+        # new get_unverified_key() calls should signal the failure, even
+        # before we close
 
         # any new calls in the error state should immediately fail
-        self.failureResultOf(w1.when_key(), WrongPasswordError)
-        self.failureResultOf(w1.when_verified(), WrongPasswordError)
-        self.failureResultOf(w1.when_version(), WrongPasswordError)
-        self.failureResultOf(w1.when_received(), WrongPasswordError)
-        self.failureResultOf(w2.when_key(), WrongPasswordError)
-        self.failureResultOf(w2.when_verified(), WrongPasswordError)
-        self.failureResultOf(w2.when_version(), WrongPasswordError)
-        self.failureResultOf(w2.when_received(), WrongPasswordError)
+        self.failureResultOf(w1.get_unverified_key(), WrongPasswordError)
+        self.failureResultOf(w1.get_verifier(), WrongPasswordError)
+        self.failureResultOf(w1.get_versions(), WrongPasswordError)
+        self.failureResultOf(w1.get_message(), WrongPasswordError)
+        self.failureResultOf(w2.get_unverified_key(), WrongPasswordError)
+        self.failureResultOf(w2.get_verifier(), WrongPasswordError)
+        self.failureResultOf(w2.get_versions(), WrongPasswordError)
+        self.failureResultOf(w2.get_message(), WrongPasswordError)
 
         yield self.assertFailure(w1.close(), WrongPasswordError)
         yield self.assertFailure(w2.close(), WrongPasswordError)
 
         # API calls should still get the error, not WormholeClosed
-        self.failureResultOf(w1.when_key(), WrongPasswordError)
-        self.failureResultOf(w1.when_verified(), WrongPasswordError)
-        self.failureResultOf(w1.when_version(), WrongPasswordError)
-        self.failureResultOf(w1.when_received(), WrongPasswordError)
-        self.failureResultOf(w2.when_key(), WrongPasswordError)
-        self.failureResultOf(w2.when_verified(), WrongPasswordError)
-        self.failureResultOf(w2.when_version(), WrongPasswordError)
-        self.failureResultOf(w2.when_received(), WrongPasswordError)
+        self.failureResultOf(w1.get_unverified_key(), WrongPasswordError)
+        self.failureResultOf(w1.get_verifier(), WrongPasswordError)
+        self.failureResultOf(w1.get_versions(), WrongPasswordError)
+        self.failureResultOf(w1.get_message(), WrongPasswordError)
+        self.failureResultOf(w2.get_unverified_key(), WrongPasswordError)
+        self.failureResultOf(w2.get_verifier(), WrongPasswordError)
+        self.failureResultOf(w2.get_versions(), WrongPasswordError)
+        self.failureResultOf(w2.get_message(), WrongPasswordError)
 
     @inlineCallbacks
     def test_wrong_password_with_spaces(self):
@@ -442,21 +428,21 @@ class Wormholes(ServerBase, unittest.TestCase):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
-        v1 = yield w1.when_verified() # early
-        v2 = yield w2.when_verified()
+        v1 = yield w1.get_verifier() # early
+        v2 = yield w2.get_verifier()
         self.failUnlessEqual(type(v1), type(b""))
         self.failUnlessEqual(v1, v2)
-        w1.send(b"data1")
-        w2.send(b"data2")
-        dataX = yield w1.when_received()
-        dataY = yield w2.when_received()
+        w1.send_message(b"data1")
+        w2.send_message(b"data2")
+        dataX = yield w1.get_message()
+        dataY = yield w2.get_message()
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
 
-        # calling when_verified() this late should fire right away
-        v1_late = self.successResultOf(w2.when_verified())
+        # calling get_verifier() this late should fire right away
+        v1_late = self.successResultOf(w2.get_verifier())
         self.assertEqual(v1_late, v1)
 
         yield w1.close()
@@ -470,11 +456,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor,
                              versions={"w2": 456})
         w1.allocate_code()
-        code = yield w1.when_code()
+        code = yield w1.get_code()
         w2.set_code(code)
-        w1_versions = yield w2.when_version()
+        w1_versions = yield w2.get_versions()
         self.assertEqual(w1_versions, {"w1": 123})
-        w2_versions = yield w1.when_version()
+        w2_versions = yield w1.get_versions()
         self.assertEqual(w2_versions, {"w2": 456})
         yield w1.close()
         yield w2.close()
@@ -496,8 +482,8 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w1.set_code("123-purple-elephant")
         w2.set_code("123-purple-elephant")
-        w1.send(b"data1"), w2.send(b"data2")
-        dl = yield self.doBoth(w1.when_received(), w2.when_received())
+        w1.send_message(b"data1"), w2.send_message(b"data2")
+        dl = yield self.doBoth(w1.get_message(), w2.get_message())
         (dataX, dataY) = dl
         self.assertEqual(dataX, b"data2")
         self.assertEqual(dataY, b"data1")
@@ -537,7 +523,7 @@ class Errors(ServerBase, unittest.TestCase):
     def test_allocate_and_set_code(self):
         w = wormhole.create(APPID, self.relayurl, reactor)
         w.allocate_code()
-        yield w.when_code()
+        yield w.get_code()
         with self.assertRaises(OnlyOneCodeError):
             w.set_code("123-nope")
         yield self.assertFailure(w.close(), LonelyError)
@@ -550,8 +536,8 @@ class Reconnection(ServerBase, unittest.TestCase):
         w1._boss._RC._debug_record_inbound_f = w1_in.append
         #w1.debug_set_trace("W1")
         w1.allocate_code()
-        code = yield w1.when_code()
-        w1.send(b"data1") # will be queued until wormhole is established
+        code = yield w1.get_code()
+        w1.send_message(b"data1") # queued until wormhole is established
 
         # now wait until we've deposited all our messages on the server
         def seen_our_pake():
@@ -577,11 +563,11 @@ class Reconnection(ServerBase, unittest.TestCase):
         #w2.debug_set_trace("  W2")
         w2.set_code(code)
 
-        dataY = yield w2.when_received()
+        dataY = yield w2.get_message()
         self.assertEqual(dataY, b"data1")
 
-        w2.send(b"data2")
-        dataX = yield w1.when_received()
+        w2.send_message(b"data2")
+        dataX = yield w1.get_message()
         self.assertEqual(dataX, b"data2")
 
         c1 = yield w1.close()

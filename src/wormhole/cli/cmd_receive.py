@@ -10,7 +10,7 @@ from ..transit import TransitReceiver
 from ..errors import TransferError, WormholeClosedError, NoTorError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
                     estimate_free_space)
-from .welcome import CLIWelcomeHandler
+from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -68,13 +68,10 @@ class Receiver:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        wh = CLIWelcomeHandler(self.args.relay_url, __version__,
-                               self.args.stderr)
         w = create(self.args.appid or APPID, self.args.relay_url,
                    self._reactor,
                    tor_manager=self._tor_manager,
-                   timing=self.args.timing,
-                   welcome_handler=wh.handle_welcome)
+                   timing=self.args.timing)
         self._w = w # so tests can wait on events too
 
         # I wanted to do this instead:
@@ -112,6 +109,10 @@ class Receiver:
 
     @inlineCallbacks
     def _go(self, w):
+        welcome = yield w.get_welcome()
+        handle_welcome(welcome, self.args.relay_url, __version__,
+                       self.args.stderr)
+
         yield self._handle_code(w)
 
         def on_slow_key():
@@ -125,7 +126,7 @@ class Receiver:
             # of that possibility, it's probably not appropriate to give up
             # automatically after some timeout. The user can express their
             # impatience by quitting the program with control-C.
-            yield w.when_key()
+            yield w.get_unverified_key()
         finally:
             if not notify.called:
                 notify.cancel()
@@ -147,7 +148,7 @@ class Receiver:
 
             # It would be reasonable to give up after waiting here for too
             # long.
-            verifier_bytes = yield w.when_verified()
+            verifier_bytes = yield w.get_verifier()
         finally:
             if not notify.called:
                 notify.cancel()
@@ -183,12 +184,12 @@ class Receiver:
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
-        w.send(data_bytes)
+        w.send_message(data_bytes)
 
     @inlineCallbacks
     def _get_data(self, w):
         # this may raise WrongPasswordError
-        them_bytes = yield w.when_received()
+        them_bytes = yield w.get_message()
         them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
@@ -210,7 +211,7 @@ class Receiver:
             if not used_completion:
                 print(" (note: you can use <Tab> to complete words)",
                       file=self.args.stderr)
-        yield w.when_code()
+        yield w.get_code()
 
     def _show_verifier(self, verifier_bytes):
         verifier_hex = bytes_to_hexstr(verifier_bytes)
