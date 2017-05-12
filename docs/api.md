@@ -30,10 +30,10 @@ from twisted.internet.defer import inlineCallbacks
 def go():
     w = wormhole.create(appid, relay_url, reactor)
     w.generate_code()
-    code = yield w.when_code()
+    code = yield w.get_code()
     print "code:", code
-    w.send(b"outbound data")
-    inbound = yield w.when_received()
+    w.send_message(b"outbound data")
+    inbound = yield w.get_message()
     yield w.close()
 ```
 
@@ -55,8 +55,8 @@ Delegated mode:
 class MyDelegate:
     def wormhole_got_code(self, code):
         print("code: %s" % code)
-    def wormhole_received(self, data): # called for each message
-        print("got data, %d bytes" % len(data))
+    def wormhole_got_message(self, msg): # called for each message
+        print("got data, %d bytes" % len(msg))
 
 w = wormhole.create(appid, relay_url, reactor, delegate=MyDelegate())
 w.generate_code()
@@ -69,10 +69,10 @@ w = wormhole.create(appid, relay_url, reactor)
 w.generate_code()
 def print_code(code):
     print("code: %s" % code)
-w.when_code().addCallback(print_code)
-def received(data):
-    print("got data, %d bytes" % len(data))
-w.when_received().addCallback(received) # gets exactly one message
+w.get_code().addCallback(print_code)
+def received(msg):
+    print("got data, %d bytes" % len(msg))
+w.get_message().addCallback(received) # gets exactly one message
 ```
 
 ## Application Identifier
@@ -168,9 +168,9 @@ The Wormhole object has three APIs for generating or accepting a code:
   far. A convenience wrapper is provided to attach this to the `rlcompleter`
   function of libreadline.
 
-No matter which mode is used, the `w.when_code()` Deferred (or
+No matter which mode is used, the `w.get_code()` Deferred (or
 `delegate.wormhole_got_code(code)` callback) will fire when the code is
-known. `when_code` is clearly necessary for `generate_code`, since there's no
+known. `get_code` is clearly necessary for `generate_code`, since there's no
 other way to learn what code was created, but it may be useful in other modes
 for consistency.
 
@@ -224,7 +224,7 @@ The code-entry Helper object has the following API:
   before display.
 * `h.choose_words(words)`: call this when the user is finished typing in the
   code. It does not return anything, but will cause the Wormhole's
-  `w.when_code()` (or corresponding delegate) to fire, and triggers the
+  `w.get_code()` (or corresponding delegate) to fire, and triggers the
   wormhole connection process. This accepts a string like "purple-sausages",
   without the nameplate. It must be called after `h.choose_nameplate()` or
   `MustChooseNameplateFirstError` will be raised. May only be called once,
@@ -237,7 +237,7 @@ code-entry helper to do tab completion of wormhole codes:
 from wormhole import create, input_with_completion
 w = create(appid, relay_url, reactor)
 input_with_completion("Wormhole code:", w.input_code(), reactor)
-d = w.when_code()
+d = w.get_code()
 ```
 
 This helper runs python's (raw) `input()` function inside a thread, since
@@ -276,33 +276,13 @@ random values (e.g. by using the Diceware wordlist) unless that makes it
 easier to transcribe: e.g. rolling 6 dice could result in a code like
 "913-166532", and flipping 16 coins could result in "123-HTTHHHTTHTTHHTHH".
 
-## Verifier
-
-For extra protection against guessing attacks, Wormhole can provide a
-"Verifier". This is a moderate-length series of bytes (a SHA256 hash) that is
-derived from the supposedly-shared session key. If desired, both sides can
-display this value, and the humans can manually compare them before allowing
-the rest of the protocol to proceed. If they do not match, then the two
-programs are not talking to each other (they may both be talking to a
-man-in-the-middle attacker), and the protocol should be abandoned.
-
-Deferred-mode applications can wait for `d=w.when_verified()`: the Deferred
-it returns will fire with the verifier. You can turn this into hex or Base64
-to print it, or render it as ASCII-art, etc.
-
-Asking the wormhole object for the verifier does not affect the flow of the
-protocol. To benefit from verification, applications must refrain from
-sending any data (with `w.send(data)`) until after the verifiers are approved
-by the user. In addition, applications must queue or otherwise ignore
-incoming (received) messages until that point. However once the verifiers are
-confirmed, previously-received messages can be considered valid and processed
-as usual.
-
 ## Welcome Messages
 
 The first message sent by the rendezvous server is a "welcome" message (a
-dictionary). Clients should not wait for this message, but when it arrives,
-they should process the keys it contains.
+dictionary). This is sent as soon as the client connects to the server,
+generally before the code is established. Clients should use
+`d=get_welcome()` to get and process the `motd` key (and maybe
+`current_cli_version`) inside the welcome message.
 
 The welcome message serves three main purposes:
 
@@ -357,17 +337,45 @@ the library did not pay attention to the ERROR message, hence the server
 should deliver errors in a WELCOME message if at all possible)
 
 The `error` field is handled internally by the Wormhole object. The other
-fields are processed by an application-supplied "welcome handler" function,
-supplied as an argument to the `wormhole()` constructor. This function will
-be called with the full welcome dictionary, so any other keys that a future
-server might send will be available to it. If the welcome handler raises
-`WelcomeError`, the connection will be closed just as if an `error` key had
-been received. The handler may be called multiple times (once per connection,
-if the rendezvous connection is lost and then reestablished), so applications
-should avoid presenting the user with redundant messages.
+fields can be processed by application, by using `d=w.get_welcome()`. The
+Deferred will fire with the full welcome dictionary, so any other keys that a
+future server might send will be available to it.
 
-The default welcome handler will print `motd` to stderr, and will ignore
-`current_cli_version`.
+Applications which need to display `motd` or an upgrade message, and wish to
+do so before using stdin/stdout for interactive code entry (`w.input_code()`)
+should wait for `get_welcome()` before starting the entry process:
+
+```python
+@inlineCallbacks
+def go():
+    w = wormhole.create(appid, relay_url, reactor)
+    welcome = yield w.get_welcome()
+    if "motd" in welcome: print welcome["motd"]
+    input_with_completion("Wormhole code:", w.input_code(), reactor)
+    ...
+```
+
+## Verifier
+
+For extra protection against guessing attacks, Wormhole can provide a
+"Verifier". This is a moderate-length series of bytes (a SHA256 hash) that is
+derived from the supposedly-shared session key. If desired, both sides can
+display this value, and the humans can manually compare them before allowing
+the rest of the protocol to proceed. If they do not match, then the two
+programs are not talking to each other (they may both be talking to a
+man-in-the-middle attacker), and the protocol should be abandoned.
+
+Deferred-mode applications can wait for `d=w.get_verifier()`: the Deferred
+it returns will fire with the verifier. You can turn this into hex or Base64
+to print it, or render it as ASCII-art, etc.
+
+Asking the wormhole object for the verifier does not affect the flow of the
+protocol. To benefit from verification, applications must refrain from
+sending any data (with `w.send_message(data)`) until after the verifiers are
+approved by the user. In addition, applications must queue or otherwise
+ignore incoming (received) messages until that point. However once the
+verifiers are confirmed, previously-received messages can be considered valid
+and processed as usual.
 
 ## Events
 
@@ -377,36 +385,45 @@ functions on the delegate object. In Deferred mode, the application retrieves
 Deferred objects from the wormhole, and event dispatch is performed by firing
 those Deferreds.
 
-* got_code (`yield w.when_code()` / `dg.wormhole_code(code)`): fired when the
-  wormhole code is established, either after `w.generate_code()` finishes the
-  generation process, or when the Input Helper returned by `w.input_code()`
-  has been told `h.set_words()`, or immediately after `w.set_code(code)` is
-  called. This is most useful after calling `w.generate_code()`, to show the
-  generated code to the user so they can transcribe it to their peer.
-* key (`yield w.when_key()` / `dg.wormhole_key()`): fired when the
-  key-exchange process has completed and a purported shared key is
-  established. At this point we do not know that anyone else actually shares
-  this key: the peer may have used the wrong code, or may have disappeared
-  altogether. To wait for proof that the key is shared, wait for
-  `when_verified` instead. This event is really only useful for detecting
-  that the initiating peer has disconnected after leaving the initial PAKE
+Most applications will only use `code`, `received`, and `close`.
+
+* code (`code = yield w.get_code()` / `dg.wormhole_got_code(code)`): fired
+  when the wormhole code is established, either after `w.generate_code()`
+  finishes the generation process, or when the Input Helper returned by
+  `w.input_code()` has been told `h.set_words()`, or immediately after
+  `w.set_code(code)` is called. This is most useful after calling
+  `w.generate_code()`, to show the generated code to the user so they can
+  transcribe it to their peer.
+* key (`yield w.get_unverified_key()` /
+  `dg.wormhole_got_unverified_key(key)`): fired (with the raw master SPAKE2
+  key) when the key-exchange process has completed and a purported shared key
+  is established. At this point we do not know that anyone else actually
+  shares this key: the peer may have used the wrong code, or may have
+  disappeared altogether. To wait for proof that the key is shared, wait for
+  `get_verifier` instead. This event is really only useful for detecting that
+  the initiating peer has disconnected after leaving the initial PAKE
   message, to display a pacifying message to the user.
-* verified (`verifier = yield w.when_verified()` /
-  `dg.wormhole_verified(verifier)`: fired when the key-exchange process has
-  completed and a valid VERSION message has arrived. The "verifier" is a byte
-  string with a hash of the shared session key; clients can compare them
+* verifier (`verifier = yield w.get_verifier()` /
+  `dg.wormhole_got_verifier(verifier)`: fired when the key-exchange process
+  has completed and a valid VERSION message has arrived. The "verifier" is a
+  byte string with a hash of the shared session key; clients can compare them
   (probably as hex) to ensure that they're really talking to each other, and
-  not to a man-in-the-middle. When `got_verifier` happens, this side knows
+  not to a man-in-the-middle. When `get_verifier` happens, this side knows
   that *someone* has used the correct wormhole code; if someone used the
   wrong code, the VERSION message cannot be decrypted, and the wormhole will
   be closed instead.
-* version (`yield w.when_version()` / `dg.wormhole_version(versions)`: fired
-  when the VERSION message arrives from the peer. This fires at the same time
-  as `verified`, but delivers the "app_versions" data (as passed into
-  `wormhole.create(versions=)`) instead of the verifier string.
-* received (`yield w.when_received()` / `dg.wormhole_received(data)`: fired
+* versions (`versions = yield w.get_versions()` /
+  `dg.wormhole_got_versions(versions)`: fired when the VERSION message
+  arrives from the peer. This fires just after `verified`, but delivers the
+  "app_versions" data (as passed into `wormhole.create(versions=)`) instead
+  of the verifier string. This is mostly a hack to make room for
+  forwards-compatible changes to the CLI file-transfer protocol, which sends
+  a request in the first message (rather than merely sending the abilities of
+  each side).
+* received (`yield w.get_message()` / `dg.wormhole_got_message(msg)`: fired
   each time a data message arrives from the peer, with the bytestring that
-  the peer passed into `w.send(data)`.
+  the peer passed into `w.send_message(msg)`. This is the primary
+  data-transfer API.
 * closed (`yield w.close()` / `dg.wormhole_closed(result)`: fired when
   `w.close()` has finished shutting down the wormhole, which means all
   nameplates and mailboxes have been deallocated, and the WebSocket
@@ -419,27 +436,28 @@ those Deferreds.
 ## Sending Data
 
 The main purpose of a Wormhole is to send data. At any point after
-construction, callers can invoke `w.send(data)`. This will queue the message
-if necessary, but (if all goes well) will eventually result in the peer
-getting a `received` event and the data being delivered to the application.
+construction, callers can invoke `w.send_message(msg)`. This will queue the
+message if necessary, but (if all goes well) will eventually result in the
+peer getting a `received` event and the data being delivered to the
+application.
 
-Since Wormhole provides an ordered record pipe, each call to `w.send` will
-result in exactly one `received` event on the far side. Records are not
+Since Wormhole provides an ordered record pipe, each call to `w.send_message`
+will result in exactly one `received` event on the far side. Records are not
 split, merged, dropped, or reordered.
 
-Each side can do an arbitrary number of `send()` calls. The Wormhole is not
-meant as a long-term communication channel, but some protocols work better if
-they can exchange an initial pair of messages (perhaps offering some set of
-negotiable capabilities), and then follow up with a second pair (to reveal
-the results of the negotiation). The Rendezvous Server does not currently
-enforce any particular limits on number of messages, size of messages, or
-rate of transmission, but in general clients are expected to send fewer than
-a dozen messages, of no more than perhaps 20kB in size (remember that all
-these messages are temporarily stored in a SQLite database on the server). A
-future version of the protocol may make these limits more explicit, and will
-allow clients to ask for greater capacity when they connect (probably by
-passing additional "mailbox attribute" parameters with the
-`allocate`/`claim`/`open` messages).
+Each side can do an arbitrary number of `send_message()` calls. The Wormhole
+is not meant as a long-term communication channel, but some protocols work
+better if they can exchange an initial pair of messages (perhaps offering
+some set of negotiable capabilities), and then follow up with a second pair
+(to reveal the results of the negotiation). The Rendezvous Server does not
+currently enforce any particular limits on number of messages, size of
+messages, or rate of transmission, but in general clients are expected to
+send fewer than a dozen messages, of no more than perhaps 20kB in size
+(remember that all these messages are temporarily stored in a SQLite database
+on the server). A future version of the protocol may make these limits more
+explicit, and will allow clients to ask for greater capacity when they
+connect (probably by passing additional "mailbox attribute" parameters with
+the `allocate`/`claim`/`open` messages).
 
 For bulk data transfer, see "transit.md", or the "Dilation" section below.
 
@@ -531,7 +549,7 @@ What's good about dilated wormholes?:
 
 Use non-dilated wormholes when your application only needs to exchange a
 couple of messages, for example to set up public keys or provision access
-tokens. Use a dilated wormhole to move large files.
+tokens. Use a dilated wormhole to move files.
 
 Dilated wormholes can provide multiple "channels": these are multiplexed
 through the single (encrypted) TCP connection. Each channel is a separate
@@ -570,17 +588,19 @@ in python3):
 
 ## Full API list
 
-action             | Deferred-Mode        | Delegated-Mode
------------------- | -------------------- | --------------
-w.generate_code()  |                      |
-w.set_code(code)   |                      |
-h=w.input_code()   |                      |
-.                  |  d=w.when_code()     | dg.wormhole_code(code)
-.                  |  d=w.when_verified() | dg.wormhole_verified(verifier)
-.                  |  d=w.when_version()  | dg.wormhole_version(version)
-w.send(data)       |                      |
-.                  |  d=w.when_received() | dg.wormhole_received(data)
-key=w.derive_key(purpose, length)  |      |
-w.close()          |                      | dg.wormhole_closed(result)
-.                  |  d=w.close()         |
+action              | Deferred-Mode      | Delegated-Mode
+------------------  | ------------------ | --------------
+.                   | d=w.get_welcome()  | dg.wormhole_got_welcome(welcome)
+  w.generate_code() |                    |
+  w.set_code(code)  |                    |
+h=w.input_code()    |                    |
+.                   | d=w.get_code()     | dg.wormhole_got_code(code)
+.                   | d=w.get_unverified_key() | dg.wormhole_got_unverified_key(key)
+.                   | d=w.get_verifier() | dg.wormhole_got_verifier(verifier)
+.                   | d=w.get_versions() | dg.wormhole_got_versions(versions)
+key=w.derive_key(purpose, length)  |     |
+w.send_message(msg) |                    |
+.                   | d=w.get_message()  | dg.wormhole_got_message(msg)
+w.close()           |                    | dg.wormhole_closed(result)
+.                   | d=w.close()        |
 
