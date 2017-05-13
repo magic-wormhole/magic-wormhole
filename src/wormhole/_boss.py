@@ -113,7 +113,7 @@ class Boss(object):
                  "RC": self._RC, "L": self._L, "C": self._C,
                  "T": self._T}
         for machine in which.split():
-            t = (lambda old_state, input, new_state:
+            t = (lambda old_state, input, new_state, machine=machine:
                  self._print_trace(old_state, input, new_state,
                                    client_name=client_name,
                                    machine=machine, file=file))
