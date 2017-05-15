@@ -330,6 +330,7 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w2.close()
 
         # once closed, all Deferred-yielding API calls get an immediate error
+        self.failureResultOf(w1.get_welcome(), WormholeClosed)
         f = self.failureResultOf(w1.get_code(), WormholeClosed)
         self.assertEqual(f.value.args[0], "happy")
         self.failureResultOf(w1.get_unverified_key(), WormholeClosed)
@@ -337,6 +338,28 @@ class Wormholes(ServerBase, unittest.TestCase):
         self.failureResultOf(w1.get_versions(), WormholeClosed)
         self.failureResultOf(w1.get_message(), WormholeClosed)
 
+    @inlineCallbacks
+    def test_closed_idle(self):
+        yield self._relay_server.disownServiceParent()
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        # without a relay server, this won't ever connect
+
+        d_welcome = w1.get_welcome()
+        self.assertNoResult(d_welcome)
+        d_code = w1.get_code()
+        d_key = w1.get_unverified_key()
+        d_verifier = w1.get_verifier()
+        d_versions = w1.get_versions()
+        d_message = w1.get_message()
+
+        yield self.assertFailure(w1.close(), LonelyError)
+
+        self.failureResultOf(d_welcome, LonelyError)
+        self.failureResultOf(d_code, LonelyError)
+        self.failureResultOf(d_key, LonelyError)
+        self.failureResultOf(d_verifier, LonelyError)
+        self.failureResultOf(d_versions, LonelyError)
+        self.failureResultOf(d_message, LonelyError)
 
     @inlineCallbacks
     def test_wrong_password(self):
@@ -422,6 +445,25 @@ class Wormholes(ServerBase, unittest.TestCase):
         expected_msg = "code (%s) contains spaces." % (badcode,)
         self.assertEqual(expected_msg, str(ex.exception))
         yield self.assertFailure(w.close(), LonelyError)
+
+    @inlineCallbacks
+    def test_welcome(self):
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        wel1 = yield w1.get_welcome() # early: before connection established
+        wel2 = yield w1.get_welcome() # late: already received welcome
+        self.assertEqual(wel1, wel2)
+        self.assertIn("current_cli_version", wel1)
+
+        # cause an error, so a later get_welcome will return the error
+        w1.set_code("123-foo")
+        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        w2.set_code("123-NOT")
+        yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
+
+        yield self.assertFailure(w1.get_welcome(), WrongPasswordError) # late
+
+        yield self.assertFailure(w1.close(), WrongPasswordError)
+        yield self.assertFailure(w2.close(), WrongPasswordError)
 
     @inlineCallbacks
     def test_verifier(self):

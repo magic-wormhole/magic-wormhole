@@ -25,6 +25,7 @@ class ServerBase:
                         advertise_version=__version__,
                         signal_error=error)
         s.setServiceParent(self.sp)
+        self._relay_server = s
         self._rendezvous = s._rendezvous
         self._transit_server = s._transit
         self.relayurl = u"ws://127.0.0.1:%d/v1" % self.relayport
