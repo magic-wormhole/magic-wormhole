@@ -25,7 +25,7 @@ class TransferRejectedError(RespondError):
     def __init__(self):
         RespondError.__init__(self, "transfer rejected")
 
-def receive(args, reactor=reactor):
+def receive(args, reactor=reactor, _debug_stash_wormhole=None):
     """I implement 'wormhole receive'. I return a Deferred that fires with
     None (for success), or signals one of the following errors:
     * WrongPasswordError: the two sides didn't use matching passwords
@@ -33,7 +33,11 @@ def receive(args, reactor=reactor):
     * TransferError: the sender rejected the transfer: verifier mismatch
     * any other error: something unexpected happened
     """
-    return Receiver(args, reactor).go()
+    r = Receiver(args, reactor)
+    d = r.go()
+    if _debug_stash_wormhole is not None:
+        _debug_stash_wormhole.append(r._w)
+    return d
 
 
 class Receiver:
@@ -71,6 +75,8 @@ class Receiver:
                    tor_manager=self._tor_manager,
                    timing=self.args.timing,
                    welcome_handler=wh.handle_welcome)
+        self._w = w # so tests can wait on events too
+
         # I wanted to do this instead:
         #
         #    try:
