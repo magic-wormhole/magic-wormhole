@@ -41,14 +41,14 @@ def receive(reactor, appid, relay_url, code,
     wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
         wh.allocate_code()
-        code = yield wh.when_code()
+        code = yield wh.get_code()
     else:
         wh.set_code(code)
     # we'll call this no matter what, even if you passed in a code --
     # maybe it should be only in the 'if' block above?
     if on_code:
         on_code(code)
-    data = yield wh.when_received()
+    data = yield wh.get_message()
     data = json.loads(data.decode("utf-8"))
     offer = data.get('offer', None)
     if not offer:
@@ -58,7 +58,8 @@ def receive(reactor, appid, relay_url, code,
     msg = None
     if 'message' in offer:
         msg = offer['message']
-        wh.send(json.dumps({"answer": {"message_ack": "ok"}}).encode("utf-8"))
+        wh.send_message(json.dumps({"answer":
+                                    {"message_ack": "ok"}}).encode("utf-8"))
 
     else:
         raise Exception(
@@ -104,20 +105,20 @@ def send(reactor, appid, relay_url, data, code,
     wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
     if code is None:
         wh.allocate_code()
-        code = yield wh.when_code()
+        code = yield wh.get_code()
     else:
         wh.set_code(code)
     if on_code:
         on_code(code)
 
-    wh.send(
+    wh.send_message(
         json.dumps({
             "offer": {
                 "message": data
             }
         }).encode("utf-8")
     )
-    data = yield wh.when_received()
+    data = yield wh.get_message()
     data = json.loads(data.decode("utf-8"))
     answer = data.get('answer', None)
     yield wh.close()

@@ -433,9 +433,16 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     receive_d = cmd_receive.receive(recv_cfg)
             else:
                 KEY_TIMER = 0 if mode == "slow-sender-text" else 1.0
+                rxw = []
                 with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
                     send_d = cmd_send.send(send_cfg)
-                    receive_d = cmd_receive.receive(recv_cfg)
+                    receive_d = cmd_receive.receive(recv_cfg,
+                                                    _debug_stash_wormhole=rxw)
+                    # we need to keep KEY_TIMER patched until the receiver
+                    # gets far enough to start the timer, which happens after
+                    # the code is set
+                    if mode == "slow-sender-text":
+                        yield rxw[0].get_unverified_key()
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
@@ -832,26 +839,26 @@ class NotWelcome(ServerBase, unittest.TestCase):
 
 class Cleanup(ServerBase, unittest.TestCase):
 
-    def setUp(self):
-        d = super(Cleanup, self).setUp()
-        self.cfg = cfg = config("send")
+    def make_config(self):
+        cfg = config("send")
         # common options for all tests in this suite
         cfg.hide_progress = True
         cfg.relay_url = self.relayurl
         cfg.transit_helper = ""
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
-        return d
+        return cfg
 
     @inlineCallbacks
     @mock.patch('sys.stdout')
     def test_text(self, stdout):
         # the rendezvous channel should be deleted after success
-        self.cfg.text = "hello"
-        self.cfg.code = "1-abc"
+        cfg = self.make_config()
+        cfg.text = "hello"
+        cfg.code = "1-abc"
 
-        send_d = cmd_send.send(self.cfg)
-        receive_d = cmd_receive.receive(self.cfg)
+        send_d = cmd_send.send(cfg)
+        receive_d = cmd_receive.receive(cfg)
 
         yield send_d
         yield receive_d
@@ -863,12 +870,14 @@ class Cleanup(ServerBase, unittest.TestCase):
     def test_text_wrong_password(self):
         # if the password was wrong, the rendezvous channel should still be
         # deleted
-        self.cfg.text = "secret message"
-        self.cfg.code = "1-abc"
-        send_d = cmd_send.send(self.cfg)
+        send_cfg = self.make_config()
+        send_cfg.text = "secret message"
+        send_cfg.code = "1-abc"
+        send_d = cmd_send.send(send_cfg)
 
-        self.cfg.code = "1-WRONG"
-        receive_d = cmd_receive.receive(self.cfg)
+        rx_cfg = self.make_config()
+        rx_cfg.code = "1-WRONG"
+        receive_d = cmd_receive.receive(rx_cfg)
 
         # both sides should be capable of detecting the mismatch
         yield self.assertFailure(send_d, WrongPasswordError)
@@ -951,12 +960,9 @@ class AppID(ServerBase, unittest.TestCase):
         self.assertEqual(used[0]["app_id"], u"appid2")
 
 class Welcome(unittest.TestCase):
-    def do(self, welcome_message, my_version="2.0", twice=False):
+    def do(self, welcome_message, my_version="2.0"):
         stderr = io.StringIO()
-        h = welcome.CLIWelcomeHandler("url", my_version, stderr)
-        h.handle_welcome(welcome_message)
-        if twice:
-            h.handle_welcome(welcome_message)
+        welcome.handle_welcome(welcome_message, "url", my_version, stderr)
         return stderr.getvalue()
 
     def test_empty(self):
@@ -969,15 +975,6 @@ class Welcome(unittest.TestCase):
 
     def test_version_old(self):
         stderr = self.do({"current_cli_version": "3.0"})
-        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
-                    "Server claims 3.0 is current, but ours is 2.0\n")
-        self.assertEqual(stderr, expected)
-
-    def test_version_old_twice(self):
-        stderr = self.do({"current_cli_version": "3.0"}, twice=True)
-        # the handler should only emit the version warning once, even if we
-        # get multiple Welcome messages (which could happen if we lose the
-        # connection and then reconnect)
         expected = ("Warning: errors may occur unless both sides are running the same version\n" +
                     "Server claims 3.0 is current, but ours is 2.0\n")
         self.assertEqual(stderr, expected)

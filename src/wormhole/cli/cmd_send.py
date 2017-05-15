@@ -10,7 +10,7 @@ from ..errors import TransferError, WormholeClosedError, NoTorError
 from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
-from .welcome import CLIWelcomeHandler
+from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 VERIFY_TIMER = 1
@@ -53,13 +53,10 @@ class Sender:
             # with the user handing off the wormhole code
             yield self._tor_manager.start()
 
-        wh = CLIWelcomeHandler(self._args.relay_url, __version__,
-                               self._args.stderr)
         w = create(self._args.appid or APPID, self._args.relay_url,
                    self._reactor,
                    tor_manager=self._tor_manager,
-                   timing=self._timing,
-                   welcome_handler=wh.handle_welcome)
+                   timing=self._timing)
         d = self._go(w)
 
         # if we succeed, we should close and return the w.close results
@@ -85,10 +82,14 @@ class Sender:
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
-        w.send(data_bytes)
+        w.send_message(data_bytes)
 
     @inlineCallbacks
     def _go(self, w):
+        welcome = yield w.get_welcome()
+        handle_welcome(welcome, self._args.relay_url, __version__,
+                       self._args.stderr)
+
         # TODO: run the blocking zip-the-directory IO in a thread, let the
         # wormhole exchange happen in parallel
         offer, self._fd_to_send = self._build_offer()
@@ -110,21 +111,21 @@ class Sender:
         else:
             w.allocate_code(args.code_length)
 
-        code = yield w.when_code()
+        code = yield w.get_code()
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
             # flush stderr so the code is displayed immediately
             args.stderr.flush()
         print(u"", file=args.stderr)
 
-        # We don't print a "waiting" message for when_key() here, even though
-        # we do that in cmd_receive.py, because it's not at all surprising to
-        # we waiting here for a long time. We'll sit in when_key() until the
-        # receiver has typed in the code and their PAKE message makes it to
-        # us.
-        yield w.when_key()
+        # We don't print a "waiting" message for get_unverified_key() here,
+        # even though we do that in cmd_receive.py, because it's not at all
+        # surprising to we waiting here for a long time. We'll sit in
+        # get_unverified_key() until the receiver has typed in the code and
+        # their PAKE message makes it to us.
+        yield w.get_unverified_key()
 
-        # TODO: don't stall on w.verify() unless they want it
+        # TODO: don't stall on w.get_verifier() unless they want it
         def on_slow_connection():
             print(u"Key established, waiting for confirmation...",
                   file=args.stderr)
@@ -132,13 +133,13 @@ class Sender:
         try:
             # The usual sender-chooses-code sequence means the receiver's
             # PAKE should be followed immediately by their VERSION, so
-            # w.when_verified() should fire right away. However if we're
+            # w.get_verifier() should fire right away. However if we're
             # using the offline-codes sequence, and the receiver typed in
             # their code first, and then they went offline, we might be
             # sitting here for a while, so printing the "waiting" message
             # seems like a good idea. It might even be appropriate to give up
             # after a while.
-            verifier_bytes = yield w.when_verified() # might WrongPasswordError
+            verifier_bytes = yield w.get_verifier() # might WrongPasswordError
         finally:
             if not notify.called:
                 notify.cancel()
@@ -162,7 +163,7 @@ class Sender:
                               }
             self._send_data({u"transit": sender_transit}, w)
 
-            # TODO: move this down below w.get()
+            # TODO: move this down below w.get_message()
             transit_key = w.derive_key(APPID+"/transit-key",
                                        ts.TRANSIT_KEY_LENGTH)
             ts.set_transit_key(transit_key)
@@ -174,13 +175,13 @@ class Sender:
 
         while True:
             try:
-                them_d_bytes = yield w.when_received()
+                them_d_bytes = yield w.get_message()
             except WormholeClosedError:
                 if done:
                     returnValue(None)
                 raise TransferError("unexpected close")
-            # TODO: when_received() fired, so now it's safe to use
-            # w.derive_key()
+            # TODO: get_message() fired, so get_verifier must have fired, so
+            # now it's safe to use w.derive_key()
             them_d = bytes_to_dict(them_d_bytes)
             #print("GOT", them_d)
             recognized = False
@@ -209,7 +210,7 @@ class Sender:
             if ok.lower() == "no":
                 err = "sender rejected verification check, abandoned transfer"
                 reject_data = dict_to_bytes({"error": err})
-                w.send(reject_data)
+                w.send_message(reject_data)
                 raise TransferError(err)
 
     def _handle_transit(self, receiver_transit):

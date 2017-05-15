@@ -1152,15 +1152,15 @@ class Boss(unittest.TestCase):
     def build(self):
         events = []
         wormhole = Dummy("w", events, None,
-                         "got_code", "got_key", "got_verifier", "got_version",
+                         "got_welcome",
+                         "got_code", "got_key", "got_verifier", "got_versions",
                          "received", "closed")
-        self._welcome_handler = mock.Mock()
         versions = {"app": "version1"}
         reactor = None
         journal = ImmediateJournal()
         tor_manager = None
         b = MockBoss(wormhole, "side", "url", "appid", versions,
-                     self._welcome_handler, reactor, journal, tor_manager,
+                     reactor, journal, tor_manager,
                      timing.DebugTiming())
         b._T = Dummy("t", events, ITerminator, "close")
         b._S = Dummy("s", events, ISend, "send")
@@ -1179,8 +1179,11 @@ class Boss(unittest.TestCase):
         self.assertEqual(events, [("w.got_code", "1-code")])
         events[:] = []
 
-        b.rx_welcome("welcome")
-        self.assertEqual(self._welcome_handler.mock_calls, [mock.call("welcome")])
+        welcome = {"howdy": "how are ya"}
+        b.rx_welcome(welcome)
+        self.assertEqual(events, [("w.got_welcome", welcome),
+                                  ])
+        events[:] = []
 
         # pretend a peer message was correctly decrypted
         b.got_key(b"key")
@@ -1190,7 +1193,7 @@ class Boss(unittest.TestCase):
         b.got_message("0", b"msg1")
         self.assertEqual(events, [("w.got_key", b"key"),
                                   ("w.got_verifier", b"verifier"),
-                                  ("w.got_version", {}),
+                                  ("w.got_versions", {}),
                                   ("w.received", b"msg1"),
                                   ])
         events[:] = []
@@ -1205,6 +1208,12 @@ class Boss(unittest.TestCase):
 
         b.closed()
         self.assertEqual(events, [("w.closed", "happy")])
+
+    def test_unwelcome(self):
+        b, events = self.build()
+        unwelcome = {"error": "go away"}
+        b.rx_welcome(unwelcome)
+        self.assertEqual(events, [("t.close", "unwelcome")])
 
     def test_lonely(self):
         b, events = self.build()

@@ -33,7 +33,6 @@ class Boss(object):
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
     _versions = attrib(validator=instance_of(dict))
-    _welcome_handler = attrib() # TODO: validator: callable
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor_manager = attrib() # TODO: ITorManager or None
@@ -185,11 +184,11 @@ class Boss(object):
                 raise WelcomeError(welcome["error"])
             # TODO: it'd be nice to not call the handler when we're in
             # S3_closing or S4_closed states. I tried to implement this with
-            # rx_Welcome as an @input, but in the error case I'd be
+            # rx_welcome as an @input, but in the error case I'd be
             # delivering a new input (rx_error or something) while in the
             # middle of processing the rx_welcome input, and I wasn't sure
             # Automat would handle that correctly.
-            self._welcome_handler(welcome) # can raise WelcomeError too
+            self._W.got_welcome(welcome) # TODO: let this raise WelcomeError?
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
     @m.input()
@@ -244,7 +243,7 @@ class Boss(object):
         self._their_versions = bytes_to_dict(plaintext)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
-        self._W.got_version(app_versions)
+        self._W.got_versions(app_versions)
 
     @m.output()
     def S_send(self, plaintext):
