@@ -16,9 +16,9 @@ ID and rendezvous server). Each side can send multiple messages to the other,
 but the encrypted data for all messages must pass through (and be temporarily
 stored on) the rendezvous server, which is a shared resource. For this
 reason, larger data (including bulk file transfers) should use the Transit
-class instead. The Wormhole object has a method to create a Transit object
-for this purpose. In the future, Transit will be deprecated, and this
-functionality will be incorporated directly as a "dilated wormhole".
+class instead. The Wormhole can be used to create a Transit object for this
+purpose. In the future, Transit will be deprecated, and this functionality
+will be incorporated directly as a "dilated wormhole".
 
 A quick example:
 
