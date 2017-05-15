@@ -6,7 +6,7 @@ var items;
 var globals = {};
 var server_time_offset=0, rx_time_offset=0; // in seconds, relative to tx
 
-var zoom = d3.behavior.zoom().scaleExtent([1, Infinity]);
+var zoom = d3.zoom().scaleExtent([1, Infinity]);
 function zoomin() {
     //var w = Number(container.style("width").slice(0,-2));
     //console.log("zoomin", w);
@@ -316,12 +316,12 @@ d3.json("data.json", function(d) {
     var container_height = Number(container.style("height").slice(0,-2));
     container_height = 700; // no contents, so no height is allocated yet
     // scale the X axis to the full width of our container
-    var x = d3.scale.linear().domain([0, 50]).range([0, container_width]);
+    var x = d3.scaleLinear().domain([0, 50]).range([0, container_width]);
 
     // scale the Y axis later
-    var y = d3.scale.linear().domain([first_timestamp, last_timestamp])
+    var y = d3.scaleLinear().domain([first_timestamp, last_timestamp])
             .range([0, container_height]);
-    zoom.y(y);
+    //zoom.y(y);
     zoom.on("zoom", redraw);
 
 
@@ -460,7 +460,7 @@ d3.json("data.json", function(d) {
         all_cm_lines = all_cm_lines.concat(cm_line(v));
     });
     console.log(all_cm_lines);
-    var cm_colors = d3.scale.category10();
+    var cm_colors = d3.scaleOrdinal(d3.schemeCategory10);
     chart.selectAll("line.c2c").data(all_cm_lines)
         .enter()
         .append("svg:line")
@@ -816,7 +816,7 @@ function OFF() {
     // d3.time.scale() has no support for ms or us.
     var xOFF = d3.time.scale().domain([data.bounds.min, data.bounds.max])
                  .range([0,w]);
-    var x = d3.scale.linear().domain([-last*0.05, last])
+    var x = d3.scaleLinear().domain([-last*0.05, last])
               .range([0,w]);
     zoom.x(x);
     function tx(d) { return "translate(" +x(d) + ",0)"; }
