@@ -301,7 +301,7 @@ class Prune(unittest.TestCase):
 
     def test_update(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, None)
+        rv = rendezvous.Rendezvous(db, None, None, True)
         app = rv.get_app("appid")
         mbox_id = "mbox1"
         app.open_mailbox(mbox_id, "side1", 1)
@@ -315,7 +315,7 @@ class Prune(unittest.TestCase):
         self.assertEqual(self._get_mailbox_updated(app, mbox_id), 3)
 
     def test_apps(self):
-        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None)
+        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None, True)
         app = rv.get_app("appid")
         app.allocate_nameplate("side", 121)
         app.prune = mock.Mock()
@@ -324,7 +324,7 @@ class Prune(unittest.TestCase):
 
     def test_nameplates(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600)
+        rv = rendezvous.Rendezvous(db, None, 3600, True)
 
         # timestamps <=50 are "old", >=51 are "new"
         #OLD = "old"; NEW = "new"
@@ -358,7 +358,7 @@ class Prune(unittest.TestCase):
 
     def test_mailboxes(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600)
+        rv = rendezvous.Rendezvous(db, None, 3600, True)
 
         # timestamps <=50 are "old", >=51 are "new"
         #OLD = "old"; NEW = "new"
@@ -404,7 +404,7 @@ class Prune(unittest.TestCase):
         log.msg(desc)
 
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600)
+        rv = rendezvous.Rendezvous(db, None, 3600, True)
         APPID = "appid"
         app = rv.get_app(APPID)
 
@@ -1174,7 +1174,7 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
 
 class Summary(unittest.TestCase):
     def test_mailbox(self):
-        app = rendezvous.AppNamespace(None, None, False, None)
+        app = rendezvous.AppNamespace(None, None, False, None, True)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         def s(rows, pruned=False):
             return app._summarize_mailbox(rows, 5, pruned)
@@ -1217,7 +1217,7 @@ class Summary(unittest.TestCase):
         self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "crowded"))
 
     def test_nameplate(self):
-        a = rendezvous.AppNamespace(None, None, False, None)
+        a = rendezvous.AppNamespace(None, None, False, None, True)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         def s(rows, pruned=False):
             return a._summarize_nameplate_usage(rows, 5, pruned)
@@ -1233,10 +1233,21 @@ class Summary(unittest.TestCase):
         rows = [dict(added=1), dict(added=3), dict(added=4)]
         self.assertEqual(s(rows), Usage(1, 2, 4, "crowded"))
 
+    def test_nameplate_disallowed(self):
+        db = get_db(":memory:")
+        a = rendezvous.AppNamespace(db, None, False, "some_app_id", False)
+        a.allocate_nameplate("side1", "123")
+        self.assertEqual([], a.get_nameplate_ids())
+
+    def test_nameplate_allowed(self):
+        db = get_db(":memory:")
+        a = rendezvous.AppNamespace(db, None, False, "some_app_id", True)
+        np = a.allocate_nameplate("side1", "321")
+        self.assertEqual(set([np]), a.get_nameplate_ids())
 
     def test_blur(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600)
+        rv = rendezvous.Rendezvous(db, None, 3600, True)
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10
@@ -1253,7 +1264,7 @@ class Summary(unittest.TestCase):
 
     def test_no_blur(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, None)
+        rv = rendezvous.Rendezvous(db, None, None, True)
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10
@@ -1292,3 +1303,22 @@ class DumpStats(unittest.TestCase):
         self.assertEqual(data["rendezvous"]["all_time"]["mailboxes_total"], 0)
         self.assertEqual(data["transit"]["all_time"]["total"], 0)
 
+
+class Startup(unittest.TestCase):
+
+    @mock.patch('wormhole.server.server.log')
+    def test_empty(self, fake_log):
+        rs = server.RelayServer(
+            str("tcp:0"),
+            str("tcp:0"),
+            None,
+            allow_list=False,
+        )
+        rs.startService()
+        try:
+            logs = '\n'.join([call[1][0] for call in fake_log.mock_calls])
+            self.assertTrue(
+                'listing of allocated nameplates disallowed' in logs
+            )
+        finally:
+            rs.stopService()

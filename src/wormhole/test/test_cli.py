@@ -3,6 +3,7 @@ import os, sys, re, io, zipfile, six, stat
 from textwrap import fill, dedent
 from humanize import naturalsize
 import mock
+import click.testing
 from twisted.trial import unittest
 from twisted.python import procutils, log
 from twisted.internet import defer, endpoints, reactor
@@ -12,6 +13,8 @@ from .. import __version__
 from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive, welcome, cli
 from ..errors import TransferError, WrongPasswordError, WelcomeError
+from wormhole.server.cmd_server import MyPlugin
+from wormhole.server.cli import server
 
 
 def build_offer(args):
@@ -1065,3 +1068,28 @@ class Dispatch(unittest.TestCase):
         expected = "<TRACEBACK>\nERROR: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
+
+class Server(unittest.TestCase):
+
+    def setUp(self):
+        self.runner = click.testing.CliRunner()
+
+    @mock.patch('wormhole.server.cmd_server.twistd')
+    def test_server_disallow_list(self, fake_twistd):
+        result = self.runner.invoke(server, ['start', '--no-daemon', '--disallow-list'])
+        self.assertEqual(0, result.exit_code)
+
+    def test_server_plugin(self):
+        class FakeConfig(object):
+            no_daemon = True
+            blur_usage = True
+            advertise_version = u"fake.version.1"
+            transit = str('tcp:4321')
+            rendezvous = str('tcp:1234')
+            signal_error = True
+            allow_list = False
+
+        cfg = FakeConfig()
+        plugin = MyPlugin(cfg)
+        relay = plugin.makeService(None)
+        self.assertEqual(False, relay._allow_list)

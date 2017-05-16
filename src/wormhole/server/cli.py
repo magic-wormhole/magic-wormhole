@@ -48,9 +48,13 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     "--signal-error", is_flag=True,
     help="force all clients to fail with a message",
 )
+@click.option(
+    "--disallow-list", is_flag=True,
+    help="never send list of allocated nameplates",
+)
 @click.pass_obj
 def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
-          transit, rendezvous):
+          transit, rendezvous, disallow_list):
     """
     Start a relay server
     """
@@ -61,6 +65,7 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
     cfg.transit = str(transit)
     cfg.rendezvous = str(rendezvous)
     cfg.signal_error = signal_error
+    cfg.allow_list = not disallow_list
 
     start_server(cfg)
 

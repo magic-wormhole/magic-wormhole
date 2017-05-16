@@ -32,11 +32,13 @@ class PrivacyEnhancedSite(server.Site):
             return server.Site.log(self, request)
 
 class RelayServer(service.MultiService):
+
     def __init__(self, rendezvous_web_port, transit_port,
                  advertise_version, db_url=":memory:", blur_usage=None,
-                 signal_error=None, stats_file=None):
+                 signal_error=None, stats_file=None, allow_list=True):
         service.MultiService.__init__(self)
         self._blur_usage = blur_usage
+        self._allow_list = allow_list
 
         db = get_db(db_url)
         welcome = {
@@ -58,7 +60,7 @@ class RelayServer(service.MultiService):
         if signal_error:
             welcome["error"] = signal_error
 
-        self._rendezvous = Rendezvous(db, welcome, blur_usage)
+        self._rendezvous = Rendezvous(db, welcome, blur_usage, self._allow_list)
         self._rendezvous.setServiceParent(self) # for the pruning timer
 
         root = Root()
@@ -108,6 +110,8 @@ class RelayServer(service.MultiService):
             log.msg("not logging HTTP requests or Transit connections")
         else:
             log.msg("not blurring access times")
+        if not self._allow_list:
+            log.msg("listing of allocated nameplates disallowed")
 
     def timer(self):
         now = time.time()
