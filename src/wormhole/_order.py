@@ -4,6 +4,7 @@ from attr import attrs, attrib
 from attr.validators import provides, instance_of
 from automat import MethodicalMachine
 from . import _interfaces
+from typing import Text, Optional, List, Tuple, Any; del Text, Optional, List, Tuple, Any
 
 @attrs
 @implementer(_interfaces.IOrder)
@@ -14,9 +15,11 @@ class Order(object):
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
 
     def __attrs_post_init__(self):
-        self._key = None
-        self._queue = []
+        # type: () -> None
+        self._key = None  # type: Optional[bytes]
+        self._queue = [] # type: List[Tuple[str, str, bytes]]
     def wire(self, key, receive):
+        # type: (_interfaces.IKey, _interfaces.IReceive) -> None
         self._K = _interfaces.IKey(key)
         self._R = _interfaces.IReceive(receive)
 
@@ -25,7 +28,10 @@ class Order(object):
     @m.state(terminal=True)
     def S1_yes_pake(self): pass # pragma: no cover
 
-    def got_message(self, side, phase, body):
+    def got_message(self, side, # type: str
+                    phase, # type: str
+                    body, # type: bytes
+                    ):
         #print("ORDER[%s].got_message(%s)" % (self._side, phase))
         assert isinstance(side, type("")), type(phase)
         assert isinstance(phase, type("")), type(phase)
@@ -36,21 +42,28 @@ class Order(object):
             self.got_non_pake(side, phase, body)
 
     @m.input()
-    def got_pake(self, side, phase, body): pass
+    def got_pake(self, side, phase, body):
+        # type: (str, str, bytes) -> None
+        pass
     @m.input()
-    def got_non_pake(self, side, phase, body): pass
+    def got_non_pake(self, side, phase, body):
+        # type: (str, str, bytes) -> None
+        pass
 
     @m.output()
     def queue(self, side, phase, body):
+        # type: (str, str, bytes) -> None
         assert isinstance(side, type("")), type(phase)
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(body, type(b"")), type(body)
         self._queue.append((side, phase, body))
     @m.output()
     def notify_key(self, side, phase, body):
+        # type: (str, str, bytes) -> None
         self._K.got_pake(body)
     @m.output()
     def drain(self, side, phase, body):
+        # type: (str, str, bytes) -> None
         del phase
         del body
         for (side, phase, body) in self._queue:
@@ -58,9 +71,11 @@ class Order(object):
         self._queue[:] = []
     @m.output()
     def deliver(self, side, phase, body):
+        # type: (str, str, bytes) -> None
         self._deliver(side, phase, body)
 
     def _deliver(self, side, phase, body):
+        # type: (str, str, bytes) -> None
         self._R.got_message(side, phase, body)
 
     S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])

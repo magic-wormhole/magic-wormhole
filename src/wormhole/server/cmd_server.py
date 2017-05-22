@@ -25,7 +25,7 @@ class MyPlugin(object):
         )
 
 class MyTwistdConfig(twistd.ServerOptions):
-    subCommands = [("XYZ", None, usage.Options, "node")]
+    subCommands = [("XYZ", None, usage.Options, "node")] # type: ignore
 
 def start_server(args):
     c = MyTwistdConfig()

@@ -1,4 +1,5 @@
 from zope.interface import Interface
+from typing import Any; del Any
 
 class IWormhole(Interface):
     pass
@@ -13,9 +14,16 @@ class ISend(Interface):
 class IOrder(Interface):
     pass
 class IKey(Interface):
-    pass
+    def __init__(self, other): # type: (Any) -> None
+        pass
+    def got_pake(self, bytes): # type: (bytes) -> None
+        pass
 class IReceive(Interface):
-    pass
+    def __init__(self, other): # type: (Any) -> None
+        pass
+    def got_message(self, side, phase, body): # type: (str, str, bytes) -> None
+        pass
+
 class IRendezvousConnector(Interface):
     pass
 class ILister(Interface):

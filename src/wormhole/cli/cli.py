@@ -74,7 +74,7 @@ class AliasedGroup(click.Group):
     help="(debug) write timing data to file",
 )
 @click.version_option(
-    message="magic-wormhole %(version)s",
+    #message="magic-wormhole %(version)s",
     version=__version__,
 )
 @click.pass_context

@@ -10,8 +10,10 @@ from attr import attrs, attrib
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread, blockingCallFromThread
 from .errors import KeyFormatError, AlreadyInputNameplateError
+from typing import Optional; del Optional
+from typing.io import TextIO; del TextIO
 
-errf = None
+errf = None # type: Optional[TextIO]
 if 0:
     errf = open("err", "w") if os.path.exists("err") else None
 def debug(*args, **kwargs):
