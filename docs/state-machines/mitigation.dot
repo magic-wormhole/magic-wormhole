@@ -1,0 +1,24 @@
+digraph {
+
+        start [label="MT:\nMitigation Token" style="dotted"]
+        {rank=same; start MT0}
+        start -> MT0 [style="invis"]
+
+        MT0 [label="S0:\nidle"]
+        MT0 -> await_token [label="MT_get_token"]
+
+        await_token -> no_dos [label="no DoS"]
+        no_dos [shape="box" label="CM_no_token_needed"]
+        no_dos -> MT0
+
+        await_token -> send_token [label="got token"]
+        send_token [shape="box" label="tx mitigation_token"]
+
+        send_token -> response_ok [label="OK"]
+        response_ok [shape="box" label="CM_token_accepted"]
+        response_ok -> MT0
+
+        send_token -> response_err [label="ERR"]
+        response_err [shape="box" label="CM_token_rejected"]
+        response_err -> MT0
+}
