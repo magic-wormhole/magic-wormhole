@@ -149,14 +149,14 @@ class Hints(unittest.TestCase):
         self.assertIsInstance(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
                               endpoints.HostnameEndpoint)
         self.assertEqual(efho("unknown:stuff:yowza:pivlor"), None)
-        # c._tor_manager is currently None
+        # c._tor is currently None
         self.assertEqual(efho(transit.TorTCPV1Hint("host", "port", 0)), None)
-        c._tor_manager = mock.Mock()
+        c._tor = mock.Mock()
         def tor_ep(hostname, port):
             if hostname == "non-public":
                 return None
             return ("tor_ep", hostname, port)
-        c._tor_manager.get_endpoint_for = mock.Mock(side_effect=tor_ep)
+        c._tor.stream_via = mock.Mock(side_effect=tor_ep)
         self.assertEqual(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
                          ("tor_ep", "host", 1234))
         self.assertEqual(efho(transit.TorTCPV1Hint("host2.onion", 1234, 0.0)),
@@ -1470,7 +1470,7 @@ class Transit(unittest.TestCase):
     @inlineCallbacks
     def test_success_direct_tor(self):
         clock = task.Clock()
-        s = transit.TransitSender("", tor_manager=mock.Mock(), reactor=clock)
+        s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints
@@ -1491,7 +1491,7 @@ class Transit(unittest.TestCase):
     @inlineCallbacks
     def test_success_direct_tor_relay(self):
         clock = task.Clock()
-        s = transit.TransitSender("", tor_manager=mock.Mock(), reactor=clock)
+        s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints() # start the listener
         del hints

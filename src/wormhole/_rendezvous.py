@@ -2,7 +2,7 @@ from __future__ import print_function, absolute_import, unicode_literals
 import os
 from six.moves.urllib_parse import urlparse
 from attr import attrs, attrib
-from attr.validators import provides, instance_of
+from attr.validators import provides, instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
 from twisted.internet import defer, endpoints
@@ -65,7 +65,7 @@ class RendezvousConnector(object):
     _side = attrib(validator=instance_of(type(u"")))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
-    _tor_manager = attrib() # TODO: ITorManager or None
+    _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
 
     def __attrs_post_init__(self):
@@ -86,8 +86,9 @@ class RendezvousConnector(object):
             self._trace(old_state="", input=what, new_state="")
 
     def _make_endpoint(self, hostname, port):
-        if self._tor_manager:
-            return self._tor_manager.get_endpoint_for(hostname, port)
+        if self._tor:
+            # TODO: when we enable TLS, maybe add tls=True here
+            return self._tor.stream_via(hostname, port)
         return endpoints.HostnameEndpoint(self._reactor, hostname, port)
 
     def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):

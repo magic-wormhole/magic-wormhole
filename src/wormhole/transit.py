@@ -589,7 +589,7 @@ class Common:
     RELAY_DELAY = 2.0
     TRANSIT_KEY_LENGTH = SecretBox.KEY_SIZE
 
-    def __init__(self, transit_relay, no_listen=False, tor_manager=None,
+    def __init__(self, transit_relay, no_listen=False, tor=None,
                  reactor=reactor, timing=None):
         self._side = bytes_to_hexstr(os.urandom(8)) # unicode
         if transit_relay:
@@ -603,7 +603,7 @@ class Common:
             self._transit_relays = []
         self._their_direct_hints = [] # hintobjs
         self._our_relay_hints = set(self._transit_relays)
-        self._tor_manager = tor_manager
+        self._tor = tor
         self._transit_key = None
         self._no_listen = no_listen
         self._waiting_for_transit_key = []
@@ -614,7 +614,7 @@ class Common:
         self._timing.add("transit")
 
     def _build_listener(self):
-        if self._no_listen or self._tor_manager:
+        if self._no_listen or self._tor:
             return ([], None)
         portnum = allocate_tcp_port()
         addresses = ipaddrs.find_addresses()
@@ -820,7 +820,7 @@ class Common:
             if not ep:
                 continue
             description = "->%s" % describe_hint_obj(hint_obj)
-            if self._tor_manager:
+            if self._tor:
                 description = "tor" + description
             d = self._start_connector(ep, description)
             contenders.append(d)
@@ -847,7 +847,7 @@ class Common:
                 if not ep:
                     continue
                 description = "->relay:%s" % describe_hint_obj(hint_obj)
-                if self._tor_manager:
+                if self._tor:
                     description = "tor" + description
                 d = task.deferLater(self._reactor, relay_delay,
                                     self._start_connector, ep, description,
@@ -887,12 +887,11 @@ class Common:
         return d
 
     def _endpoint_from_hint_obj(self, hint):
-        if self._tor_manager:
+        if self._tor:
             if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
-                # our TorManager will return None for non-public IPv4
+                # this Tor object will return None for non-public IPv4
                 # addresses and any IPv6 address
-                return self._tor_manager.get_endpoint_for(hint.hostname,
-                                                          hint.port)
+                return self._tor.stream_via(hint.hostname, hint.port)
             return None
         if isinstance(hint, DirectTCPV1Hint):
             return endpoints.HostnameEndpoint(self._reactor,

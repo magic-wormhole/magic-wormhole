@@ -279,7 +279,7 @@ class _DeferredWormhole(object):
 
 def create(appid, relay_url, reactor, # use keyword args for everything else
            versions={},
-           delegate=None, journal=None, tor_manager=None,
+           delegate=None, journal=None, tor=None,
            timing=None,
            stderr=sys.stderr):
     timing = timing or DebugTiming()
@@ -292,13 +292,13 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
     b = Boss(w, side, relay_url, appid, wormhole_versions,
-             reactor, journal, tor_manager, timing)
+             reactor, journal, tor, timing)
     w._set_boss(b)
     b.start()
     return w
 
 ## def from_serialized(serialized, reactor, delegate,
-##                     journal=None, tor_manager=None,
+##                     journal=None, tor=None,
 ##                     timing=None, stderr=sys.stderr):
 ##     assert serialized["serialized_wormhole_version"] == 1
 ##     timing = timing or DebugTiming()

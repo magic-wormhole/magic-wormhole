@@ -3,7 +3,7 @@ import re
 import six
 from zope.interface import implementer
 from attr import attrs, attrib
-from attr.validators import provides, instance_of
+from attr.validators import provides, instance_of, optional
 from twisted.python import log
 from automat import MethodicalMachine
 from . import _interfaces
@@ -35,7 +35,7 @@ class Boss(object):
     _versions = attrib(validator=instance_of(dict))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
-    _tor_manager = attrib() # TODO: ITorManager or None
+    _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
@@ -53,7 +53,7 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
-                                       self._tor_manager, self._timing)
+                                       self._tor, self._timing)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)

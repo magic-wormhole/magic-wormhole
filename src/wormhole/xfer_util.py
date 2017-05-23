@@ -2,8 +2,7 @@ import json
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from . import wormhole
-from .tor_manager import TorManager
-from .errors import NoTorError
+from .tor_manager import get_tor
 
 @inlineCallbacks
 def receive(reactor, appid, relay_url, code,
@@ -27,18 +26,15 @@ def receive(reactor, appid, relay_url, code,
     :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
     :type on_code: single-argument callable
     """
-    tm = None
+    tor = None
     if use_tor:
-        tm = TorManager(reactor, launch_tor, tor_control_port)
+        tor = yield get_tor(reactor, launch_tor, tor_control_port)
         # For now, block everything until Tor has started. Soon: launch
-        # tor in parallel with everything else, make sure the TorManager
+        # tor in parallel with everything else, make sure the Tor object
         # can lazy-provide an endpoint, and overlap the startup process
         # with the user handing off the wormhole code
-        if not tm.tor_available():
-            raise NoTorError()
-        yield tm.start()
 
-    wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
+    wh = wormhole.create(appid, relay_url, reactor, tor=tor)
     if code is None:
         wh.allocate_code()
         code = yield wh.get_code()
@@ -92,17 +88,14 @@ def send(reactor, appid, relay_url, data, code,
     :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
     :type on_code: single-argument callable
     """
-    tm = None
+    tor = None
     if use_tor:
-        tm = TorManager(reactor, launch_tor, tor_control_port)
+        tor = yield get_tor(reactor, launch_tor, tor_control_port)
         # For now, block everything until Tor has started. Soon: launch
-        # tor in parallel with everything else, make sure the TorManager
+        # tor in parallel with everything else, make sure the Tor object
         # can lazy-provide an endpoint, and overlap the startup process
         # with the user handing off the wormhole code
-        if not tm.tor_available():
-            raise NoTorError()
-        yield tm.start()
-    wh = wormhole.create(appid, relay_url, reactor, tor_manager=tm)
+    wh = wormhole.create(appid, relay_url, reactor, tor=tor)
     if code is None:
         wh.allocate_code()
         code = yield wh.get_code()

@@ -7,7 +7,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
 from wormhole import create, input_with_completion, __version__
 from ..transit import TransitReceiver
-from ..errors import TransferError, WormholeClosedError, NoTorError
+from ..errors import TransferError, WormholeClosedError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
                     estimate_free_space)
 from .welcome import handle_welcome
@@ -45,7 +45,7 @@ class Receiver:
         assert isinstance(args.relay_url, type(u""))
         self.args = args
         self._reactor = reactor
-        self._tor_manager = None
+        self._tor = None
         self._transit_receiver = None
 
     def _msg(self, *args, **kwargs):
@@ -55,29 +55,26 @@ class Receiver:
     def go(self):
         if self.args.tor:
             with self.args.timing.add("import", which="tor_manager"):
-                from ..tor_manager import TorManager
-            self._tor_manager = TorManager(self._reactor,
-                                           self.args.launch_tor,
-                                           self.args.tor_control_port,
-                                           timing=self.args.timing)
-            if not self._tor_manager.tor_available():
-                raise NoTorError()
+                from ..tor_manager import get_tor
             # For now, block everything until Tor has started. Soon: launch
-            # tor in parallel with everything else, make sure the TorManager
+            # tor in parallel with everything else, make sure the Tor object
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            yield self._tor_manager.start()
+            self._tor = yield get_tor(self._reactor,
+                                      self.args.launch_tor,
+                                      self.args.tor_control_port,
+                                      timing=self.args.timing)
 
         w = create(self.args.appid or APPID, self.args.relay_url,
                    self._reactor,
-                   tor_manager=self._tor_manager,
+                   tor=self._tor,
                    timing=self.args.timing)
         self._w = w # so tests can wait on events too
 
         # I wanted to do this instead:
         #
         #    try:
-        #        yield self._go(w, tor_manager)
+        #        yield self._go(w, tor)
         #    finally:
         #        yield w.close()
         #
@@ -230,7 +227,7 @@ class Receiver:
     def _build_transit(self, w, sender_transit):
         tr = TransitReceiver(self.args.transit_helper,
                              no_listen=(not self.args.listen),
-                             tor_manager=self._tor_manager,
+                             tor=self._tor,
                              reactor=self._reactor,
                              timing=self.args.timing)
         self._transit_receiver = tr

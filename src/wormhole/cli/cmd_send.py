@@ -6,8 +6,7 @@ from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..errors import (TransferError, WormholeClosedError, NoTorError,
-                      UnsendableFileError)
+from ..errors import (TransferError, WormholeClosedError, UnsendableFileError)
 from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -31,7 +30,7 @@ class Sender:
     def __init__(self, args, reactor):
         self._args = args
         self._reactor = reactor
-        self._tor_manager = None
+        self._tor = None
         self._timing = args.timing
         self._fd_to_send = None
         self._transit_sender = None
@@ -41,22 +40,19 @@ class Sender:
         assert isinstance(self._args.relay_url, type(u""))
         if self._args.tor:
             with self._timing.add("import", which="tor_manager"):
-                from ..tor_manager import TorManager
-            self._tor_manager = TorManager(reactor,
-                                           self._args.launch_tor,
-                                           self._args.tor_control_port,
-                                           timing=self._timing)
-            if not self._tor_manager.tor_available():
-                raise NoTorError()
+                from ..tor_manager import get_tor
             # For now, block everything until Tor has started. Soon: launch
-            # tor in parallel with everything else, make sure the TorManager
+            # tor in parallel with everything else, make sure the Tor object
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            yield self._tor_manager.start()
+            self._tor = yield get_tor(reactor,
+                                      self._args.launch_tor,
+                                      self._args.tor_control_port,
+                                      timing=self._timing)
 
         w = create(self._args.appid or APPID, self._args.relay_url,
                    self._reactor,
-                   tor_manager=self._tor_manager,
+                   tor=self._tor,
                    timing=self._timing)
         d = self._go(w)
 
@@ -151,7 +147,7 @@ class Sender:
         if self._fd_to_send:
             ts = TransitSender(args.transit_helper,
                                no_listen=(not args.listen),
-                               tor_manager=self._tor_manager,
+                               tor=self._tor,
                                reactor=self._reactor,
                                timing=self._timing)
             self._transit_sender = ts
