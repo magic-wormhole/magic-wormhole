@@ -4,7 +4,7 @@ from twisted.trial import unittest
 from twisted.internet import defer
 from twisted.internet.error import ConnectError
 
-from ..tor_manager import get_tor
+from ..tor_manager import get_tor, SocksOnlyTor
 from ..errors import NoTorError
 from .._interfaces import ITorManager
 
@@ -62,7 +62,7 @@ class Tor(unittest.TestCase):
             tor = self.successResultOf(d)
             self.assertIs(tor, my_tor)
             self.assert_(ITorManager.providedBy(tor))
-            self.assertEqual(stderr.getvalue(), " using Tor\n")
+            self.assertEqual(stderr.getvalue(), " using Tor via control port\n")
 
     def test_connect_fails(self):
         reactor = object()
@@ -74,7 +74,27 @@ class Tor(unittest.TestCase):
             d = get_tor(reactor, tor_control_port=tcp, stderr=stderr)
             self.assertNoResult(d)
             self.assertEqual(connect.mock_calls, [mock.call(reactor, tcp)])
-            connect_d.errback(ConnectError())
-            self.failureResultOf(d, ConnectError)
-            self.assertEqual(stderr.getvalue(),
-                             " unable to find control port, bailing\n")
+
+        connect_d.errback(ConnectError())
+        tor = self.successResultOf(d)
+        self.assertIsInstance(tor, SocksOnlyTor)
+        self.assert_(ITorManager.providedBy(tor))
+        self.assertEqual(tor._reactor, reactor)
+        self.assertEqual(stderr.getvalue(),
+                         " unable to find Tor control port, using SOCKS\n")
+
+class SocksOnly(unittest.TestCase):
+    def test_tor(self):
+        reactor = object()
+        sot = SocksOnlyTor(reactor)
+        fake_ep = object()
+        with mock.patch("wormhole.tor_manager.txtorcon.TorClientEndpoint",
+                        return_value=fake_ep) as tce:
+            ep = sot.stream_via("host", "port")
+        self.assertIs(ep, fake_ep)
+        self.assertEqual(tce.mock_calls, [mock.call("host", "port",
+                                                    socks_endpoint=None,
+                                                    tls=False,
+                                                    reactor=reactor)])
+
+

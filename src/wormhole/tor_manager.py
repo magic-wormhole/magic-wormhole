@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
 import sys
+from attr import attrs, attrib
 from zope.interface.declarations import directlyProvides
 from twisted.internet.defer import inlineCallbacks, returnValue
 try:
@@ -8,6 +9,18 @@ except ImportError:
     txtorcon = None
 from . import _interfaces, errors
 from .timing import DebugTiming
+
+@attrs
+class SocksOnlyTor(object):
+    _reactor = attrib()
+
+    def stream_via(self, host, port, tls=False):
+        return txtorcon.TorClientEndpoint(
+            host, port,
+            socks_endpoint=None, # tries localhost:9050 and 9150
+            tls=tls,
+            reactor=self._reactor,
+        )
 
 @inlineCallbacks
 def get_tor(reactor, launch_tor=False, tor_control_port=None,
@@ -18,14 +31,15 @@ def get_tor(reactor, launch_tor=False, tor_control_port=None,
     connections (and inbound onion-service listeners, if necessary).
 
     Otherwise if tor_control_port is provided, I will attempt to connect
-    to an existing Tor's control port at the endpoint it specifies. I'll
+    to an existing Tor's control port at the endpoint it specifies.  I'll
     ask that Tor for its SOCKS port.
 
     With no arguments, I will try to connect to an existing Tor's control
     port at the usual places: [unix:/var/run/tor/control,
-    tcp:127.0.0.1:9051, tcp:127.0.0.1:9151]. If any are successful, I'll
-    ask that Tor for its SOCKS port. If none are successful, I'll attempt
-    to do SOCKS to tcp:127.0.0.1:9050.
+    tcp:127.0.0.1:9051, tcp:127.0.0.1:9151].  If any are successful, I'll
+    ask that Tor for its SOCKS port.  If none are successful, I'll
+    attempt to do SOCKS to the usual places: [tcp:127.0.0.1:9050,
+    tcp:127.0.0.1:9150].
 
     If I am unable to make a SOCKS connection, the initial connection to
     the Rendezvous Server will fail, and the program will terminate.
@@ -69,17 +83,17 @@ def get_tor(reactor, launch_tor=False, tor_control_port=None,
     else:
         with timing.add("find tor"):
             try:
+                # If tor_control_port is None (the default), txtorcon
+                # will look through a list of usual places. If it is set,
+                # it will look only in the place we tell it to.
                 tor = yield txtorcon.connect(reactor, tor_control_port)
-                print(" using Tor", file=stderr)
+                print(" using Tor via control port", file=stderr)
             except Exception:
-                #socks_desc = "tcp:127.0.0.1:9050" # fallback
-                #print(" using Tor (SOCKS port %s)" % socks_desc,
-                #      file=stderr)
-                print(" unable to find control port, bailing",
+                # TODO: make this more specific. I think connect() is
+                # likely to throw a reactor.connectTCP -type error, like
+                # ConnectionFailed or ConnectionRefused or something
+                print(" unable to find Tor control port, using SOCKS",
                       file=stderr)
-                # TODO: something nicer. I think connect() is likely to throw
-                # a reactor.connectTCP -type error, like ConnectionFailed or
-                # ConnectionRefused or something
-                raise
+                tor = SocksOnlyTor(reactor)
     directlyProvides(tor, _interfaces.ITorManager)
     returnValue(tor)
