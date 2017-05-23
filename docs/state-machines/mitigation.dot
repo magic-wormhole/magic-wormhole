@@ -14,11 +14,13 @@ digraph {
         await_token -> send_token [label="got token"]
         send_token [shape="box" label="tx mitigation_token"]
 
-        send_token -> response_ok [label="OK"]
+        send_token -> sent_token
+
+        sent_token -> response_ok [label="OK"]
         response_ok [shape="box" label="CM_token_accepted"]
         response_ok -> MT0
 
-        send_token -> response_err [label="ERR"]
-        response_err [shape="box" label="CM_token_rejected"]
-        response_err -> MT0
+        sent_token -> response_err [label="ERR" color="red"]
+        response_err [shape="box" label="CM_token_rejected" color="red"]
+        response_err -> MT0 [color="red"]
 }

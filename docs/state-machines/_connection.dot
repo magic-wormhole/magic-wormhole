@@ -42,9 +42,9 @@ digraph {
 
 # "boxes are actions, circles are states"
 
-        C_P_req_mitigation [shape="box" label="tx mitigation_token\nMT_get_token" color="orange"]
+        C_P_req_mitigation [shape="box" label="MT_get_token" color="orange"]
         C_P_req_mitigation -> C_P_await_mitigation [color="orange"]
-        C_P_await_mitigation [color="orange"]
+        C_P_await_mitigation [label="await mitigation" color="orange"]
         C_P_await_mitigation -> C_P_connected [label="CM_token_accepted" color="orange"]
         C_P_await_mitigation -> C_P_connected [label="CM_no_token_needed" color="orange"]
         C_P_await_mitigation -> C_P_failed [label="CM_token_rejected" color="red"]
