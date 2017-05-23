@@ -176,6 +176,60 @@ connection is established, data can flow in either direction. All data is
 encrypted (using nacl/libsodium "secretbox") using a key derived from the
 PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 
+## Development
+
+To set up Magic Wormhole for development, you will first need to
+install [virtualenv][].
+
+Once you've done that, `cd` into the root of the repository and run:
+
+```
+virtualenv venv
+source venv/bin/activate
+pip install --upgrade pip setuptools
+```
+
+Now your virtualenv has been activated. You'll want to re-run
+`source venv/bin/activate` for every new terminal session you open.
+
+To install Magic Wormhole and its development dependencies into your
+virtualenv, run:
+
+```
+pip install -e .[dev]
+```
+
+### Running Tests
+
+Within your virtualenv, the command-line program `trial` will
+run the test suite:
+
+```
+trial wormhole
+```
+
+This tests the entire `wormhole` package. If you want to run
+only the tests for a specific module, or even just a specific test,
+you can specify it instead via Python's standard dotted
+import notation, e.g.:
+
+```
+trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
+```
+
+### Troubleshooting
+
+Every so often, you might get a traceback with the following
+kind of error:
+
+```
+pkg_resources.DistributionNotFound: The 'magic-wormhole==0.9.1-268.g66e0d86.dirty' distribution was not found and is required by the application
+```
+
+If this happens, run `pip install -e .[dev]` again.
+
+[virtualenv]: http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/
+
 ## License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
