@@ -6,7 +6,8 @@ from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..errors import TransferError, WormholeClosedError, NoTorError
+from ..errors import (TransferError, WormholeClosedError, NoTorError,
+                      UnsendableFileError)
 from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -274,9 +275,17 @@ class Sender:
                     for fn in files:
                         archivename = os.path.join(*tuple(localpath+[fn]))
                         localfilename = os.path.join(path, fn)
-                        zf.write(localfilename, archivename)
-                        num_bytes += os.stat(localfilename).st_size
-                        num_files += 1
+                        try:
+                            zf.write(localfilename, archivename)
+                            num_bytes += os.stat(localfilename).st_size
+                            num_files += 1
+                        except OSError as e:
+                            errmsg = u"{}: {}".format(fn, e.strerror)
+                            if self._args.ignore_unsendable_files:
+                                print(u"{} (ignoring error)".format(errmsg),
+                                      file=args.stderr)
+                            else:
+                                raise UnsendableFileError(errmsg)
             fd_to_send.seek(0,2)
             filesize = fd_to_send.tell()
             fd_to_send.seek(0,0)

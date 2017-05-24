@@ -12,7 +12,8 @@ from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from .. import __version__
 from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive, welcome, cli
-from ..errors import TransferError, WrongPasswordError, WelcomeError
+from ..errors import (TransferError, WrongPasswordError, WelcomeError,
+                      UnsendableFileError)
 from wormhole.server.cmd_server import MyPlugin
 from wormhole.server.cli import server
 
@@ -64,6 +65,40 @@ class OfferData(unittest.TestCase):
         self.assertEqual(d["file"]["filename"], filename)
         self.assertEqual(fd_to_send.tell(), 0)
         self.assertEqual(fd_to_send.read(), message)
+
+    def _create_broken_symlink(self):
+        if not hasattr(os, 'symlink'):
+            raise unittest.SkipTest("host OS does not support symlinks")
+
+        parent_dir = self.mktemp()
+        os.mkdir(parent_dir)
+        send_dir = "dirname"
+        os.mkdir(os.path.join(parent_dir, send_dir))
+        os.symlink('/non/existent/file',
+                   os.path.join(parent_dir, send_dir, 'linky'))
+
+        send_dir_arg = send_dir
+        self.cfg.what = send_dir_arg
+        self.cfg.cwd = parent_dir
+
+    def test_broken_symlink_raises_err(self):
+        self._create_broken_symlink()
+        self.cfg.ignore_unsendable_files = False
+        e = self.assertRaises(UnsendableFileError, build_offer, self.cfg)
+
+        # On english distributions of Linux, this will be
+        # "linky: No such file or directory", but the error may be
+        # different on Windows and other locales and/or Unix variants, so
+        # we'll just assert the part we know about.
+        self.assertIn("linky: ", str(e))
+
+    def test_broken_symlink_is_ignored(self):
+        self._create_broken_symlink()
+        self.cfg.ignore_unsendable_files = True
+        d, fd_to_send = build_offer(self.cfg)
+        self.assertIn('(ignoring error)', self.cfg.stderr.getvalue())
+        self.assertEqual(d['directory']['numfiles'], 0)
+        self.assertEqual(d['directory']['numbytes'], 0)
 
     def test_missing_file(self):
         self.cfg.what = filename = "missing"
