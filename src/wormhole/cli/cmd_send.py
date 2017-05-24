@@ -282,7 +282,8 @@ class Sender:
                         except OSError as e:
                             errmsg = u"{}: {}".format(fn, e.strerror)
                             if self._args.ignore_unsendable_files:
-                                print(u"{} (ignoring error)".format(errmsg))
+                                print(u"{} (ignoring error)".format(errmsg),
+                                      file=args.stderr)
                             else:
                                 raise UnsendableFileError(errmsg)
             fd_to_send.seek(0,2)

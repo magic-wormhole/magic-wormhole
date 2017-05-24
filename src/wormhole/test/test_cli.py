@@ -66,7 +66,7 @@ class OfferData(unittest.TestCase):
         self.assertEqual(fd_to_send.tell(), 0)
         self.assertEqual(fd_to_send.read(), message)
 
-    def test_broken_symlink(self):
+    def _create_broken_symlink(self):
         if not hasattr(os, 'symlink'):
             raise unittest.SkipTest("host OS does not support symlinks")
 
@@ -81,8 +81,19 @@ class OfferData(unittest.TestCase):
         self.cfg.what = send_dir_arg
         self.cfg.cwd = parent_dir
 
+    def test_broken_symlink_raises_err(self):
+        self._create_broken_symlink()
+        self.cfg.ignore_unsendable_files = False
         e = self.assertRaises(UnsendableFileError, build_offer, self.cfg)
         self.assertEqual(str(e), "linky: No such file or directory")
+
+    def test_broken_symlink_is_ignored(self):
+        self._create_broken_symlink()
+        self.cfg.ignore_unsendable_files = True
+        d, fd_to_send = build_offer(self.cfg)
+        self.assertIn('(ignoring error)', self.cfg.stderr.getvalue())
+        self.assertEqual(d['directory']['numfiles'], 0)
+        self.assertEqual(d['directory']['numbytes'], 0)
 
     def test_missing_file(self):
         self.cfg.what = filename = "missing"
