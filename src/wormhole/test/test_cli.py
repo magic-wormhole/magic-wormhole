@@ -85,7 +85,12 @@ class OfferData(unittest.TestCase):
         self._create_broken_symlink()
         self.cfg.ignore_unsendable_files = False
         e = self.assertRaises(UnsendableFileError, build_offer, self.cfg)
-        self.assertEqual(str(e), "linky: No such file or directory")
+
+        # On english distributions of Linux, this will be
+        # "linky: No such file or directory", but the error may be
+        # different on Windows and other locales and/or Unix variants, so
+        # we'll just assert the part we know about.
+        self.assertIn("linky: ", str(e))
 
     def test_broken_symlink_is_ignored(self):
         self._create_broken_symlink()
