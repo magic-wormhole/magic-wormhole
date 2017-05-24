@@ -889,9 +889,12 @@ class Common:
     def _endpoint_from_hint_obj(self, hint):
         if self._tor:
             if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
-                # this Tor object will return None for non-public IPv4
+                # this Tor object will throw ValueError for non-public IPv4
                 # addresses and any IPv6 address
-                return self._tor.stream_via(hint.hostname, hint.port)
+                try:
+                    return self._tor.stream_via(hint.hostname, hint.port)
+                except ValueError:
+                    return None
             return None
         if isinstance(hint, DirectTCPV1Hint):
             return endpoints.HostnameEndpoint(self._reactor,
