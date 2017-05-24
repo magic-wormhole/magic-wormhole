@@ -10,7 +10,7 @@ from . import public_relay
 from .. import __version__
 from ..timing import DebugTiming
 from ..errors import (WrongPasswordError, WelcomeError, KeyFormatError,
-                      TransferError, NoTorError)
+                      TransferError, NoTorError, UnsendableFileError)
 from twisted.internet.defer import inlineCallbacks, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.internet.task import react
@@ -109,7 +109,7 @@ def _dispatch_command(reactor, cfg, command):
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
-    except WelcomeError as e:
+    except (WelcomeError, UnsendableFileError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
         print(six.u(""), file=cfg.stderr)
@@ -172,6 +172,10 @@ TorArgs = _compose(
 @click.option(
     "--text", default=None, metavar="MESSAGE",
     help="text message to send, instead of a file. Use '-' to read from stdin.",
+)
+@click.option(
+    "--ignore-unsendable-files", default=False, is_flag=True,
+    help="Don't raise an error if a file can't be read."
 )
 @click.argument("what", required=False)
 @click.pass_obj

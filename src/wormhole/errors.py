@@ -3,6 +3,16 @@ from __future__ import unicode_literals
 class WormholeError(Exception):
     """Parent class for all wormhole-related errors"""
 
+class UnsendableFileError(Exception):
+    """
+    A file you wanted to send couldn't be read, maybe because it's not
+    a file, or because it's a symlink that points to something
+    that doesn't exist.
+
+    To ignore this kind of error, you can run wormhole with the
+    --ignore-unsendable-files flag.
+    """
+
 class ServerError(WormholeError):
     """The relay server complained about something we did."""
 
