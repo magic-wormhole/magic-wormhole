@@ -4,9 +4,10 @@ from textwrap import fill, dedent
 from humanize import naturalsize
 import mock
 import click.testing
+from zope.interface import implementer
 from twisted.trial import unittest
 from twisted.python import procutils, log
-from twisted.internet import defer, endpoints, reactor
+from twisted.internet import endpoints, reactor
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from .. import __version__
@@ -14,6 +15,7 @@ from .common import ServerBase, config
 from ..cli import cmd_send, cmd_receive, welcome, cli
 from ..errors import (TransferError, WrongPasswordError, WelcomeError,
                       UnsendableFileError)
+from .._interfaces import ITorManager
 from wormhole.server.cmd_server import MyPlugin
 from wormhole.server.cli import server
 
@@ -297,15 +299,12 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         self.failUnlessEqual(ver.strip(), "magic-wormhole {}".format(__version__))
         self.failUnlessEqual(rc, 0)
 
-class FakeTorManager:
+@implementer(ITorManager)
+class FakeTor:
     # use normal endpoints, but record the fact that we were asked
     def __init__(self):
         self.endpoints = []
-    def tor_available(self):
-        return True
-    def start(self):
-        return defer.succeed(None)
-    def get_endpoint_for(self, host, port):
+    def stream_via(self, host, port):
         self.endpoints.append((host, port))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
@@ -456,16 +455,16 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             if fake_tor:
                 send_cfg.tor = True
                 send_cfg.transit_helper = self.transit
-                tx_tm = FakeTorManager()
-                with mock.patch("wormhole.tor_manager.TorManager",
+                tx_tm = FakeTor()
+                with mock.patch("wormhole.tor_manager.get_tor",
                                 return_value=tx_tm,
                                 ) as mtx_tm:
                     send_d = cmd_send.send(send_cfg)
 
                 recv_cfg.tor = True
                 recv_cfg.transit_helper = self.transit
-                rx_tm = FakeTorManager()
-                with mock.patch("wormhole.tor_manager.TorManager",
+                rx_tm = FakeTor()
+                with mock.patch("wormhole.tor_manager.get_tor",
                                 return_value=rx_tm,
                                 ) as mrx_tm:
                     receive_d = cmd_receive.receive(recv_cfg)
