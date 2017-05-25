@@ -280,7 +280,7 @@ class _DeferredWormhole(object):
 def create(appid, relay_url, reactor, # use keyword args for everything else
            versions={},
            delegate=None, journal=None, tor=None,
-           timing=None,
+           timing=None, mitigation_token=None,
            stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
@@ -292,7 +292,7 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
     b = Boss(w, side, relay_url, appid, wormhole_versions,
-             reactor, journal, tor, timing)
+             reactor, journal, tor, timing, mitigation_token)
     w._set_boss(b)
     b.start()
     return w

@@ -37,6 +37,7 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _mitigation_token = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
 
@@ -59,6 +60,7 @@ class Boss(object):
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
+        self._MT = Mitigation()
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -72,6 +74,7 @@ class Boss(object):
         self._I.wire(self._C, self._L)
         self._C.wire(self, self._A, self._N, self._K, self._I)
         self._T.wire(self, self._RC, self._N, self._M)
+        self._MT.wire(self)
 
     def _init_other_state(self):
         self._did_start_code = False
@@ -179,6 +182,9 @@ class Boss(object):
     # * "error" is when an exception happened while it tried to deliver
     #   something else
     def rx_welcome(self, welcome):
+        print("RX_WELCOME", welcome)
+        if 'permission-token-url' in welcome:
+            print("Token detected!")
         try:
             if "error" in welcome:
                 raise WelcomeError(welcome["error"])

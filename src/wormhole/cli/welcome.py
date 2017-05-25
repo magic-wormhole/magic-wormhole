@@ -7,6 +7,10 @@ def handle_welcome(welcome, relay_url, my_version, stderr):
         print("Server (at %s) says:\n %s" % (relay_url, motd_formatted),
               file=stderr)
 
+    if "permission-token-url" in welcome:
+        token_uri = welcome['permission-token-url']
+        print("got a URL: '{}'".format(token_uri))
+
     # Only warn if we're running a release version (e.g. 0.0.6, not
     # 0.0.6+DISTANCE.gHASH). Only warn once.
     if ("current_cli_version" in welcome

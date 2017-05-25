@@ -162,7 +162,7 @@ class Mailbox:
 
 class AppNamespace(object):
 
-    def __init__(self, db, blur_usage, log_requests, app_id, allow_list):
+    def __init__(self, db, blur_usage, log_requests, app_id, allow_list, token_db):
         self._db = db
         self._blur_usage = blur_usage
         self._log_requests = log_requests
@@ -171,6 +171,10 @@ class AppNamespace(object):
         self._nameplate_counts = collections.defaultdict(int)
         self._mailbox_counts = collections.defaultdict(int)
         self._allow_list = allow_list
+        self._token_db = token_db
+
+    def is_valid_token(self, token):
+        return self._token_db.redeem(token)
 
     def get_nameplate_ids(self):
         if not self._allow_list:
@@ -516,7 +520,7 @@ class AppNamespace(object):
 
 class Rendezvous(service.MultiService):
 
-    def __init__(self, db, welcome, blur_usage, allow_list):
+    def __init__(self, db, welcome, blur_usage, allow_list, mitigation_token_db):
         service.MultiService.__init__(self)
         self._db = db
         self._welcome = welcome
@@ -525,6 +529,7 @@ class Rendezvous(service.MultiService):
         self._log_requests = log_requests
         self._allow_list = allow_list
         self._apps = {}
+        self._mitigation_tokens = mitigation_token_db
 
     def get_welcome(self):
         return self._welcome
@@ -542,8 +547,12 @@ class Rendezvous(service.MultiService):
                 self._log_requests,
                 app_id,
                 self._allow_list,
+                self._mitigation_tokens,
             )
         return self._apps[app_id]
+
+    def is_valid_token(self, token):
+        return self._mitigation_tokens.redeem(token)
 
     def get_all_apps(self):
         apps = set()

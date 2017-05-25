@@ -142,7 +142,8 @@ class RendezvousConnector(object):
         self._debug("R.connected")
         self._ws = proto
         try:
-            self._tx("bind", appid=self._appid, side=self._side)
+            #self._tx("bind", appid=self._appid, side=self._side)
+            self._tx("abilities", mitigation_token=1)
             self._N.connected()
             self._M.connected()
             self._L.connected()
@@ -232,6 +233,17 @@ class RendezvousConnector(object):
         self._B.rx_error(err, orig)
 
     def _response_handle_welcome(self, msg):
+        # XXX should go through MT (mitigation-token) state machine
+        # first, then do BIND later (on receiving "no token required"
+        # or the actual token...
+        kwargs = dict(
+            appid=self._appid,
+            side=self._side,
+        )
+        if True:
+            # XXX FIXME token should come from token state-machine
+            kwargs['token'] = self._B._mitigation_token
+        self._tx("bind", **kwargs)
         self._B.rx_welcome(msg["welcome"])
 
     def _response_handle_claimed(self, msg):

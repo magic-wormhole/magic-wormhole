@@ -32,6 +32,7 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
         self.tor = False  # XXX?
+        self.mitigation_token = None
 
 def _compose(*decorators):
     def decorate(f):
@@ -63,6 +64,11 @@ class AliasedGroup(click.Group):
     help="rendezvous relay to use",
 )
 @click.option(
+    "--token", default=None,
+    metavar="TOKEN",
+    help="DoS mitigation token to send",
+)
+@click.option(
     "--transit-helper", default=public_relay.TRANSIT_RELAY,
     metavar="tcp:HOST:PORT",
     help="transit relay to use",
@@ -78,7 +84,7 @@ class AliasedGroup(click.Group):
     version=__version__,
 )
 @click.pass_context
-def wormhole(context, dump_timing, transit_helper, relay_url, appid):
+def wormhole(context, dump_timing, transit_helper, relay_url, token, appid):
     """
     Create a Magic Wormhole and communicate through it.
 
@@ -91,6 +97,7 @@ def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.dump_timing = dump_timing
+    cfg.mitigation_token = token
 
 
 @inlineCallbacks
