@@ -280,7 +280,7 @@ class _DeferredWormhole(object):
 def create(appid, relay_url, reactor, # use keyword args for everything else
            versions={},
            delegate=None, journal=None, tor=None,
-           timing=None, mitigation_token=None,
+           timing=None, mitigation_token='',
            stderr=sys.stderr):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))

@@ -143,6 +143,8 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 return self.handle_bind(msg)
             if mtype == "abilities":
                 return self.handle_abilities(msg)
+            if mtype == "submit-permission":
+                return self.handle_permission(msg)
 
             if not self._app:
                 raise Error("must bind first")
@@ -176,6 +178,15 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._is_old_client = False
         self.send("welcome", welcome=self.factory.rendezvous.get_welcome())
 
+    def handle_permission(self, msg):
+        token = msg.get("token", None)
+        if not do_mitigation:
+            pass  # XXX error, because we didn't ask for tokens?
+        if not self.factory.rendezvous.is_valid_token(msg["token"]):
+            raise Error("Invalid token")
+        else:
+            self.send("granted", granted={})
+
     def handle_bind(self, msg):
         # XXX shouldn't this go in "app" or something? maybe not
         # .. feels odd to be in "_websocket.py" though
@@ -194,12 +205,6 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 welcome_msg = self.factory.rendezvous.get_welcome()
             print("sending welcome", welcome_msg)
             self.send("welcome", welcome=welcome_msg)
-
-        if do_mitigation:
-            if "token" not in msg:
-                raise Error("No mitigation token sent")
-            if not self.factory.rendezvous.is_valid_token(msg["token"]):
-                raise Error("Invalid token")
 
         if self._app or self._side:
             raise Error("already bound")

@@ -12,7 +12,7 @@ digraph {
         no_dos -> MT0
 
         await_token -> send_token [label="got token"]
-        send_token [shape="box" label="B_mitigation_token\nC-"]
+        send_token [shape="box" label="tx mitigation_token"]
 
         send_token -> sent_token
 

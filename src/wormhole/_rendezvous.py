@@ -221,6 +221,7 @@ class RendezvousConnector(object):
         self._L.rx_nameplates(nids)
 
     def _response_handle_ack(self, msg):
+        print("ACK", msg)
         pass
 
     def _response_handle_error(self, msg):
@@ -233,18 +234,11 @@ class RendezvousConnector(object):
         self._B.rx_error(err, orig)
 
     def _response_handle_welcome(self, msg):
-        # XXX should go through MT (mitigation-token) state machine
-        # first, then do BIND later (on receiving "no token required"
-        # or the actual token...
-        kwargs = dict(
-            appid=self._appid,
-            side=self._side,
-        )
-        if True:
-            # XXX FIXME token should come from token state-machine
-            kwargs['token'] = self._B._mitigation_token
-        self._tx("bind", **kwargs)
         self._B.rx_welcome(msg["welcome"])
+
+    def _response_handle_granted(self, msg):
+        self._tx("bind", appid=self._appid, side=self._side)
+        self._B.rx_granted(msg)
 
     def _response_handle_claimed(self, msg):
         mailbox = msg["mailbox"]

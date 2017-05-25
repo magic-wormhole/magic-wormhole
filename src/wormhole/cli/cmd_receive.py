@@ -65,10 +65,12 @@ class Receiver:
                                       self.args.tor_control_port,
                                       timing=self.args.timing)
 
-        w = create(self.args.appid or APPID, self.args.relay_url,
-                   self._reactor,
-                   tor=self._tor,
-                   timing=self.args.timing)
+        w = create(
+            self.args.appid or APPID, self.args.relay_url, self._reactor,
+            tor_manager=self._tor,
+            timing=self.args.timing,
+            mitigation_token=self.args.mitigation_token,
+        )
         self._w = w # so tests can wait on events too
 
         # I wanted to do this instead:
