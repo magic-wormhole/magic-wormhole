@@ -21,4 +21,5 @@ after_success:
   - codecov
 matrix:
   allow_failures:
+    - python: "3.3"
     - python: "nightly"
