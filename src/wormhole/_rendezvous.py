@@ -221,7 +221,6 @@ class RendezvousConnector(object):
         self._L.rx_nameplates(nids)
 
     def _response_handle_ack(self, msg):
-        print("ACK", msg)
         pass
 
     def _response_handle_error(self, msg):
