@@ -51,6 +51,8 @@ Received file written to README.md
 
 ```$ pip install magic-wormhole```
 
+Or on macOS with `homebrew`: `$ brew install magic-wormhole`
+
 On Debian/Ubuntu systems, you may first need `apt-get install python-pip
 build-essential python-dev libffi-dev libssl-dev`. On Fedora it's `dnf
 install python-pip python-devel libffi-devel openssl-devel gcc-c++
