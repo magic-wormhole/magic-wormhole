@@ -1,9 +1,1 @@
-.appveyor.yml
-.coveragerc
-docs
-.gitattributes
-.gitignore
-misc
-snapcraft.yaml
-tox.ini
-.travis.yml
+dist
