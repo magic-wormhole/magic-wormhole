@@ -1,7 +1,6 @@
 .appveyor.yml
 .coveragerc
 docs
-.git
 .gitattributes
 .gitignore
 misc
