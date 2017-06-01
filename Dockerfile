@@ -29,10 +29,12 @@ RUN apt-get --quiet update && \
 rm -rf /var/lib/apt/lists/*
 
 # libffi-dev should probably be a build-dep for python-nacl and python-openssl
-# but isn't for some reason.
+# but isn't for some reason.  Also, versioneer depends on the git cli to
+# compute the source version.
 RUN apt-get --quiet update && apt-get --quiet install -y \
     libffi-dev \
     python-virtualenv \
+    git \
 && rm -rf /var/lib/apt/lists/*
 
 # Source repositories seem to be disabled on the Xenial image now.  Enable
@@ -59,22 +61,23 @@ ENV WORMHOLE_USER_NAME="wormhole"
 # Force the allocated user to uid 1000 because we hard-code 1000 below.
 RUN adduser --uid 1000 --disabled-password --gecos "" "${WORMHOLE_USER_NAME}"
 
-# Run the application with this working directory.
-WORKDIR /app/run
-
-# And give it to the user the application will run as.
-RUN chown ${WORMHOLE_USER_NAME} /app/run
-
 # Facilitate network connections to the application.  The rendezvous server
 # listens on 4000 by default.  The transit relay server on 4001.
 EXPOSE 4000
 EXPOSE 4001
 
 # Put the source somewhere pip will be able to see it.
-ADD . /src
+ADD . /magic-wormhole
 
 # Get the app we want to run!
-RUN /app/env/bin/pip install /src
+WORKDIR /magic-wormhole
+RUN /app/env/bin/pip install .
+
+# Run the application with this working directory.
+WORKDIR /app/run
+
+# And give it to the user the application will run as.
+RUN chown ${WORMHOLE_USER_NAME} /app/run
 
 # Switch to a non-root user.
 USER 1000
