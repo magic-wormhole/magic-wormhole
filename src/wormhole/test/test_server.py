@@ -11,6 +11,8 @@ from .common import ServerBase
 from ..server import server, rendezvous
 from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
+from ..server.server import _MemoryTokenDatabase
+
 
 class _Util:
     def _nameplate(self, app, name):
@@ -301,7 +303,8 @@ class Prune(unittest.TestCase):
 
     def test_update(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, None, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, None, True, mitigation_db)
         app = rv.get_app("appid")
         mbox_id = "mbox1"
         app.open_mailbox(mbox_id, "side1", 1)
@@ -315,7 +318,8 @@ class Prune(unittest.TestCase):
         self.assertEqual(self._get_mailbox_updated(app, mbox_id), 3)
 
     def test_apps(self):
-        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(get_db(":memory:"), None, None, True, mitigation_db)
         app = rv.get_app("appid")
         app.allocate_nameplate("side", 121)
         app.prune = mock.Mock()
@@ -324,7 +328,8 @@ class Prune(unittest.TestCase):
 
     def test_nameplates(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, 3600, True, mitigation_db)
 
         # timestamps <=50 are "old", >=51 are "new"
         #OLD = "old"; NEW = "new"
@@ -358,7 +363,8 @@ class Prune(unittest.TestCase):
 
     def test_mailboxes(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, 3600, True, mitigation_db)
 
         # timestamps <=50 are "old", >=51 are "new"
         #OLD = "old"; NEW = "new"
@@ -404,7 +410,8 @@ class Prune(unittest.TestCase):
         log.msg(desc)
 
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, 3600, True, mitigation_db)
         APPID = "appid"
         app = rv.get_app(APPID)
 
@@ -470,6 +477,7 @@ class WSClient(websocket.WebSocketClientProtocol):
         self.ping_counter = itertools.count(0)
     def onOpen(self):
         self.factory.d.callback(self)
+        self.send("abilities", **{u"direct-tcp-v1": {}})
     def onMessage(self, payload, isBinary):
         assert not isBinary
         event = json.loads(payload.decode("utf-8"))
@@ -624,8 +632,12 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
 
     def check_welcome(self, data):
         self.failUnlessIn("welcome", data)
-        self.failUnlessEqual(data["welcome"],
-                             {"current_cli_version": __version__})
+        self.failUnlessIn("current_cli_version", data["welcome"])
+        self.failUnlessEqual(
+            data["welcome"]["current_cli_version"],
+            __version__
+        )
+        # self.failUnlessIn("permission-token-url", data["welcome"])
 
     @inlineCallbacks
     def test_welcome(self):
@@ -1174,7 +1186,8 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
 
 class Summary(unittest.TestCase):
     def test_mailbox(self):
-        app = rendezvous.AppNamespace(None, None, False, None, True)
+        mitigation_db = _MemoryTokenDatabase()
+        app = rendezvous.AppNamespace(None, None, False, None, True, mitigation_db)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         def s(rows, pruned=False):
             return app._summarize_mailbox(rows, 5, pruned)
@@ -1217,7 +1230,8 @@ class Summary(unittest.TestCase):
         self.assertEqual(s(rows, pruned=True), Usage(1, 2, 4, "crowded"))
 
     def test_nameplate(self):
-        a = rendezvous.AppNamespace(None, None, False, None, True)
+        mitigation_db = _MemoryTokenDatabase()
+        a = rendezvous.AppNamespace(None, None, False, None, True, mitigation_db)
         # starts at time 1, maybe gets second open at time 3, closes at 5
         def s(rows, pruned=False):
             return a._summarize_nameplate_usage(rows, 5, pruned)
@@ -1235,19 +1249,22 @@ class Summary(unittest.TestCase):
 
     def test_nameplate_disallowed(self):
         db = get_db(":memory:")
-        a = rendezvous.AppNamespace(db, None, False, "some_app_id", False)
+        mitigation_db = _MemoryTokenDatabase()
+        a = rendezvous.AppNamespace(db, None, False, "some_app_id", False, mitigation_db)
         a.allocate_nameplate("side1", "123")
         self.assertEqual([], a.get_nameplate_ids())
 
     def test_nameplate_allowed(self):
         db = get_db(":memory:")
-        a = rendezvous.AppNamespace(db, None, False, "some_app_id", True)
+        mitigation_db = _MemoryTokenDatabase()
+        a = rendezvous.AppNamespace(db, None, False, "some_app_id", True, mitigation_db)
         np = a.allocate_nameplate("side1", "321")
         self.assertEqual(set([np]), a.get_nameplate_ids())
 
     def test_blur(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, 3600, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, 3600, True, mitigation_db)
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10
@@ -1264,7 +1281,8 @@ class Summary(unittest.TestCase):
 
     def test_no_blur(self):
         db = get_db(":memory:")
-        rv = rendezvous.Rendezvous(db, None, None, True)
+        mitigation_db = _MemoryTokenDatabase()
+        rv = rendezvous.Rendezvous(db, None, None, True, mitigation_db)
         APPID = "appid"
         app = rv.get_app(APPID)
         app.claim_nameplate("npid", "side1", 10) # start time is 10

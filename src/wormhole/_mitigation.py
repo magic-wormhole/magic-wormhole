@@ -1,10 +1,8 @@
 from __future__ import print_function, absolute_import, unicode_literals
 from zope.interface import implementer
 from attr import attrs, attrib
-from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
-from types import FunctionType
 from twisted.internet.defer import maybeDeferred
 
 

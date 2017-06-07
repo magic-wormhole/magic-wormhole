@@ -67,7 +67,7 @@ class Receiver:
 
         w = create(
             self.args.appid or APPID, self.args.relay_url, self._reactor,
-            tor_manager=self._tor,
+            tor=self._tor,
             timing=self.args.timing,
             mitigation_token=self.args.mitigation_token,
         )

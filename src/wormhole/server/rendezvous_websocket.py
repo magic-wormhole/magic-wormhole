@@ -122,14 +122,10 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             log.msg("ws client connecting: %s" % (request.peer,))
         self._reactor = self.factory.reactor
 
-    def onOpen(self):
-        print("OPEN", self)
-
     def onMessage(self, payload, isBinary):
         server_rx = time.time()
         msg = bytes_to_dict(payload)
         try:
-            print("MESSAGE", msg)
             if "type" not in msg:
                 raise Error("missing 'type'")
             self.send("ack", id=msg.get("id"))
@@ -182,7 +178,7 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         token = msg.get("token", None)
         if not do_mitigation:
             pass  # XXX error, because we didn't ask for tokens?
-        if not self.factory.rendezvous.is_valid_token(msg["token"]):
+        if not self.factory.rendezvous.is_valid_token(token):
             raise Error("Invalid token")
         else:
             self.send("granted", granted={})
@@ -203,7 +199,6 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 }
             else:
                 welcome_msg = self.factory.rendezvous.get_welcome()
-            print("sending welcome", welcome_msg)
             self.send("welcome", welcome=welcome_msg)
 
         if self._app or self._side:

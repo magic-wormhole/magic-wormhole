@@ -26,6 +26,20 @@ from .errors import (ServerError, LonelyError, WrongPasswordError,
                      WelcomeError, WormholeError)
 from .util import bytes_to_dict
 
+
+
+from twisted.internet import stdio, protocol, defer
+
+class _GetTokenFromStdinProtocol(protocol.Protocol):
+
+    def __init__(self, d):
+        self._d = d
+
+    def dataReceived(self, data):
+        self._d.callback(data.strip())
+#        self.transport.loseConnection()
+
+
 @attrs
 @implementer(_interfaces.IBoss)
 class Boss(object):
@@ -79,11 +93,23 @@ class Boss(object):
         self._MT.wire(self, self._RC)
 
     def _get_token_from_user(self):
+        token_uri = self._welcome['permission-token-url']
         if self._mitigation_token:
             return self._mitigation_token
-        raise WormholeError(
-            "no token, and I don't know how to prompt the user"
-        )
+
+        from sys import stderr
+        print("The server is asking for permission tokens.", file=stderr)
+        print("This likely means the server is under Denial of Service attack", file=stderr)
+        print("You must visit the following URL and either paste the token below", file=stderr)
+        print("or re-run the command with the --token option", file=stderr)
+        print("", file=stderr)
+        print("  {}".format(token_uri), file=stderr)
+        print("", file=stderr)
+        print("paste token: ", end='', file=stderr)
+        stderr.flush()
+        d = defer.Deferred()
+        stdio.StandardIO(_GetTokenFromStdinProtocol(d))
+        return d
 
     def _init_other_state(self):
         self._did_start_code = False
@@ -194,7 +220,6 @@ class Boss(object):
     # * "error" is when an exception happened while it tried to deliver
     #   something else
     def rx_welcome(self, welcome):
-        print("RX_WELCOME", welcome)
         try:
             if "error" in welcome:
                 raise WelcomeError(welcome["error"])
@@ -205,16 +230,14 @@ class Boss(object):
             # middle of processing the rx_welcome input, and I wasn't sure
             # Automat would handle that correctly.
             if 'permission-token-url' in welcome:
-                print("Token detected!")
-                self._MT.get_token()
                 self._welcome = welcome
+                self._MT.get_token()
             else:
                 self._W.got_welcome(welcome) # TODO: let this raise WelcomeError?
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
 
     def rx_granted(self, msg):
-        print("GRANTED", msg)
         self._W.got_welcome(self._welcome)
 
     @m.input()

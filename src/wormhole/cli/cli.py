@@ -32,7 +32,7 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
         self.tor = False  # XXX?
-        self.mitigation_token = None
+        self.mitigation_token = u""
 
 def _compose(*decorators):
     def decorate(f):
@@ -64,7 +64,7 @@ class AliasedGroup(click.Group):
     help="rendezvous relay to use",
 )
 @click.option(
-    "--token", default=None,
+    "--token", default=u"",
     metavar="TOKEN",
     help="DoS mitigation token to send",
 )

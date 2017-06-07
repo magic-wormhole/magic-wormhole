@@ -173,8 +173,8 @@ class AppNamespace(object):
         self._allow_list = allow_list
         self._token_db = token_db
 
-    def is_valid_token(self, token):
-        return self._token_db.redeem(token)
+#    def is_valid_token(self, token):
+#        return self._token_db.redeem(token)
 
     def get_nameplate_ids(self):
         if not self._allow_list:
