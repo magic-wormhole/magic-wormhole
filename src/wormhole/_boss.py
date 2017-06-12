@@ -23,7 +23,7 @@ from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
                      KeyFormatError, OnlyOneCodeError, _UnknownPhaseError,
-                     WelcomeError, WormholeError)
+                     WelcomeError)
 from .util import bytes_to_dict
 
 
