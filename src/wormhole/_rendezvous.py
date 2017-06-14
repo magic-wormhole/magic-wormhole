@@ -5,7 +5,7 @@ from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
-from twisted.internet import defer, endpoints
+from twisted.internet import defer, endpoints, task
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
@@ -69,14 +69,22 @@ class RendezvousConnector(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
 
     def __attrs_post_init__(self):
+        self._have_made_a_successful_connection = False
+        self._stopping = False
+
         self._trace = None
         self._ws = None
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         p = urlparse(self._url)
         ep = self._make_endpoint(p.hostname, p.port or 80)
-        # TODO: change/wrap ClientService to fail if the first attempt fails
         self._connector = internet.ClientService(ep, f)
+        faf = None if self._have_made_a_successful_connection else 1
+        d = self._connector.whenConnected(failAfterFailures=faf)
+        # if the initial connection fails, signal an error and shut down. do
+        # this in a different reactor turn to avoid some hazards
+        d.addBoth(lambda res: task.deferLater(self._reactor, 0.0, lambda: res))
+        d.addErrback(self._initial_connection_failed)
         self._debug_record_inbound_f = None
 
     def set_trace(self, f):
@@ -124,8 +132,11 @@ class RendezvousConnector(object):
     def stop(self):
         # ClientService.stopService is defined to "Stop attempting to
         # reconnect and close any existing connections"
+        self._stopping = True # to catch _initial_connection_failed error
         d = defer.maybeDeferred(self._connector.stopService)
-        d.addErrback(log.err) # TODO: deliver error upstairs?
+        # ClientService.stopService always fires with None, even if the
+        # initial connection failed, so log.err just in case
+        d.addErrback(log.err)
         d.addBoth(self._stopped)
 
 
@@ -137,9 +148,21 @@ class RendezvousConnector(object):
     def tx_allocate(self):
         self._tx("allocate")
 
+    # from our ClientService
+    def _initial_connection_failed(self, f):
+        if not self._stopping:
+            sce = errors.ServerConnectionError(f.value)
+            d = defer.maybeDeferred(self._connector.stopService)
+            # this should happen right away: the ClientService ought to be in
+            # the "_waiting" state, and everything in the _waiting.stop
+            # transition is immediate
+            d.addErrback(log.err) # just in case something goes wrong
+            d.addCallback(lambda _: self._B.error(sce))
+
     # from our WSClient (the WebSocket protocol)
     def ws_open(self, proto):
         self._debug("R.connected")
+        self._have_made_a_successful_connection = True
         self._ws = proto
         try:
             self._tx("bind", appid=self._appid, side=self._side)
