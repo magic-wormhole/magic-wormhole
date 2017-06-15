@@ -1,6 +1,18 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.0 (???)
+
+The client-side code was completely rewritten with proper Automat state
+machines. The only immediate user-visible consequence is that restarting
+the rendezvous server no longer terminates all waiting clients, so
+server upgrades are no longer quite so traumatic. In the future, this
+will enable "Journaled Mode" (see the API docs for details).
+
+The programmatic API has changed (see docs/api.md). Stability is not
+promised until we reach 1.0, but this should be close.
+
+
 ## Release 0.9.2 (16-Jan-2017)
 
 Tor support was rewritten. `wormhole send`, `wormhole receive`,
