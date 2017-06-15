@@ -3,14 +3,49 @@ User-visible changes in "magic-wormhole":
 
 ## Release 0.10.0 (???)
 
-The client-side code was completely rewritten with proper Automat state
-machines. The only immediate user-visible consequence is that restarting
-the rendezvous server no longer terminates all waiting clients, so
-server upgrades are no longer quite so traumatic. In the future, this
-will enable "Journaled Mode" (see the API docs for details).
+The client-side code was completely rewritten, with proper Automat state
+machines. The only immediately user-visible consequence is that
+restarting the rendezvous server no longer terminates all waiting
+clients, so server upgrades won't be quite so traumatic. In the future,
+this will also support "Journaled Mode" (see docs/journal.md for
+details). (#42, #68)
 
 The programmatic API has changed (see docs/api.md). Stability is not
 promised until we reach 1.0, but this should be close.
+
+`wormhole send DIRECTORY` can now handle larger (>2GB) directories.
+However the entire zipfile is built in-RAM before transmission, so the
+maximum size is still limited by available memory (follow #58 for
+progress on fixing this). (#138)
+
+`wormhole rx --output-file=` for a pre-existing file will now overwrite
+the file (noisily), instead of terminating with an error. (#73)
+
+We now test on py3.6. Support for py3.3 was dropped. Magic-wormhole
+should now work on NetBSD. (#158)
+
+Added a Dockerfile to build a rendezvous/transit-relay server. (#149)
+
+`wormhole-server --disallow-list` instructs the rendezvous server to not
+honor "list nameplates" requests, effectively disabling tab-completion
+of the initial numeric portion of the wormhole code, but also making DoS
+attacks slightly easier to detect. (#53, #150)
+
+`wormhole send --ignore-unsendable-files` will skip things that cannot
+be sent (mostly dangling symlinks and files for which you do not have
+read permission, but possibly also unix-domain sockets, device nodes,
+and pipes). (#112, #161)
+
+`txtorcon` is now required by default, so the `magic-wormhole[tor]`
+"extra" was removed. Tor works on py3 now. (#136, #174)
+
+`python -m wormhole` is an alternative way to run the CLI tool. (#159)
+
+Thanks to Alex Gaynor, Atul Varma, dkg, JP Calderone, Kenneth Reitz,
+Kurt Rose, maxalbert, meejah, midnightmagic, Robert Foss, Shannon
+Mulloy, and Shirley Kotian, for patches and bug reports in this release
+cycle. A special thanks to Glyph, Mark Williams, and the whole
+#twisted crew at PyCon for help with the transition to Automat.
 
 
 ## Release 0.9.2 (16-Jan-2017)
