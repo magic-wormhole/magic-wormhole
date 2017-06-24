@@ -1,7 +1,7 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release 0.10.0 (???)
+## Release 0.10.0 (24-Jun-2017)
 
 The client-side code was completely rewritten, with proper Automat state
 machines. The only immediately user-visible consequence is that
@@ -11,7 +11,8 @@ this will also support "Journaled Mode" (see docs/journal.md for
 details). (#42, #68)
 
 The programmatic API has changed (see docs/api.md). Stability is not
-promised until we reach 1.0, but this should be close.
+promised until we reach 1.0, but this should be close, at least for the
+non-Transit portions.
 
 `wormhole send DIRECTORY` can now handle larger (>2GB) directories.
 However the entire zipfile is built in-RAM before transmission, so the
@@ -37,9 +38,14 @@ read permission, but possibly also unix-domain sockets, device nodes,
 and pipes). (#112, #161)
 
 `txtorcon` is now required by default, so the `magic-wormhole[tor]`
-"extra" was removed. Tor works on py3 now. (#136, #174)
+"extra" was removed, and a simple `pip install magic-wormhole` should
+provide tor-based transport as long as Tor itself is available. Also,
+Tor works on py3 now. (#136, #174)
 
 `python -m wormhole` is an alternative way to run the CLI tool. (#159)
+
+`wormhole send` might handle non-ascii (unicode) filenames better now.
+(#157)
 
 Thanks to Alex Gaynor, Atul Varma, dkg, JP Calderone, Kenneth Reitz,
 Kurt Rose, maxalbert, meejah, midnightmagic, Robert Foss, Shannon
