@@ -183,7 +183,7 @@ TorArgs = _compose(
     "--ignore-unsendable-files", default=False, is_flag=True,
     help="Don't raise an error if a file can't be read."
 )
-@click.argument("what", required=False)
+@click.argument("what", required=False, type=click.Path(path_type=type(u"")))
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""

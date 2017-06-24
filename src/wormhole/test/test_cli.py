@@ -350,7 +350,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode in ("file", "empty-file"):
             if mode == "empty-file":
                 message = ""
-            send_filename = "testfile"
+            send_filename = "testfil\u00EB" # e-with-diaeresis
             with open(os.path.join(send_dir, send_filename), "w") as f:
                 f.write(message)
             send_cfg.what = send_filename
