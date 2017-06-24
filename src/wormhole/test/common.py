@@ -6,10 +6,10 @@ from click.testing import CliRunner
 import mock
 from ..cli import cli
 from ..transit import allocate_tcp_port
-from ..server.server import RelayServer
+from ..server.server import RelayServer, _mitigation_token_generator
 from .. import __version__
 
-class ServerBase:
+class ServerBase(object):
     def setUp(self):
         self._setup_relay(None)
 
@@ -28,10 +28,14 @@ class ServerBase:
         self._relay_server = s
         self._rendezvous = s._rendezvous
         self._transit_server = s._transit
+        self._token_generator = _mitigation_token_generator(s._token_db)
         self.relayurl = u"ws://127.0.0.1:%d/v1" % self.relayport
         self.rdv_ws_port = self.relayport
         # ws://127.0.0.1:%d/wormhole-relay/ws
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
+
+    def create_mitigation_token(self):
+        return next(self._token_generator)
 
     def tearDown(self):
         # Unit tests that spawn a (blocking) client in a thread might still

@@ -50,10 +50,12 @@ class Sender:
                                       self._args.tor_control_port,
                                       timing=self._timing)
 
-        w = create(self._args.appid or APPID, self._args.relay_url,
-                   self._reactor,
-                   tor=self._tor,
-                   timing=self._timing)
+        w = create(
+            self._args.appid or APPID, self._args.relay_url, self._reactor,
+            tor=self._tor,
+            timing=self._timing,
+            mitigation_token=self._args.mitigation_token,
+        )
         d = self._go(w)
 
         # if we succeed, we should close and return the w.close results

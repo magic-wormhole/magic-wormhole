@@ -35,10 +35,21 @@ digraph {
 
         C_S_negotiating [label="negotiating" color="orange"]
         C_S_negotiating -> C_P_failed [label="p.onClose"]
-        C_S_negotiating -> C_P_connected [label="p.onOpen" color="orange" fontcolor="orange"]
+        C_S_negotiating -> C_P_send_abilities [label="p.onOpen" color="orange" fontcolor="orange"]
         C_S_negotiating -> C_P_drop2 [label="C_stop()"]
         C_P_drop2 [shape="box" label="p.dropConnection()"]
         C_P_drop2 -> C_S_disconnecting
+
+# "boxes are actions, circles are states"
+
+        C_P_send_abilities [shape="box" label="tx abilities\nMT_get_token()" color="orange"]
+        C_P_send_abilities -> C_P_await_mitigation [color="orange"]
+
+        C_P_await_mitigation [label="await mitigation" color="orange"]
+        C_P_await_mitigation -> C_P_connected [label="CM_token_accepted" color="orange"]
+        C_P_await_mitigation -> C_P_connected [label="CM_no_token_needed" color="orange"]
+        C_P_await_mitigation -> C_P_failed [label="CM_token_rejected" color="red"]
+
         C_P_connected [shape="box" label="tx bind\nM_connected()" color="orange"]
         C_P_connected -> C_S_open [color="orange"]
 

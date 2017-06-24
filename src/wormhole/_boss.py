@@ -18,12 +18,27 @@ from ._lister import Lister
 from ._allocator import Allocator
 from ._input import Input
 from ._code import Code
+from ._mitigation import Mitigation
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
                      KeyFormatError, OnlyOneCodeError, _UnknownPhaseError,
                      WelcomeError)
 from .util import bytes_to_dict
+
+
+
+from twisted.internet import stdio, protocol, defer
+
+class _GetTokenFromStdinProtocol(protocol.Protocol):
+
+    def __init__(self, d):
+        self._d = d
+
+    def dataReceived(self, data):
+        self._d.callback(data.strip())
+#        self.transport.loseConnection()
+
 
 @attrs
 @implementer(_interfaces.IBoss)
@@ -37,6 +52,8 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _mitigation_token = attrib(validator=instance_of(type(u"")))
+    _do_dos_mitigation = attrib(validator=instance_of(bool), default=True)
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
 
@@ -59,6 +76,7 @@ class Boss(object):
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
+        self._MT = Mitigation(self._get_token_from_user)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -72,6 +90,26 @@ class Boss(object):
         self._I.wire(self._C, self._L)
         self._C.wire(self, self._A, self._N, self._K, self._I)
         self._T.wire(self, self._RC, self._N, self._M)
+        self._MT.wire(self, self._RC)
+
+    def _get_token_from_user(self):
+        token_uri = self._welcome['permission-token-url']
+        if self._mitigation_token:
+            return self._mitigation_token
+
+        from sys import stderr
+        print("The server is asking for permission tokens.", file=stderr)
+        print("This likely means the server is under Denial of Service attack", file=stderr)
+        print("You must visit the following URL and either paste the token below", file=stderr)
+        print("or re-run the command with the --token option", file=stderr)
+        print("", file=stderr)
+        print("  {}".format(token_uri), file=stderr)
+        print("", file=stderr)
+        print("paste token: ", end='', file=stderr)
+        stderr.flush()
+        d = defer.Deferred()
+        stdio.StandardIO(_GetTokenFromStdinProtocol(d))
+        return d
 
     def _init_other_state(self):
         self._did_start_code = False
@@ -157,6 +195,9 @@ class Boss(object):
             raise OnlyOneCodeError()
         self._did_start_code = True
         wl = PGPWordList()
+        # XXX ...so, we want to delay this until we've gotten
+        # permission back ...which effectively we do by blocking our
+        # own .got_welcome until we get the permissions back ...
         self._C.allocate_code(code_length, wl)
     def set_code(self, code):
         if ' ' in code:
@@ -188,9 +229,17 @@ class Boss(object):
             # delivering a new input (rx_error or something) while in the
             # middle of processing the rx_welcome input, and I wasn't sure
             # Automat would handle that correctly.
-            self._W.got_welcome(welcome) # TODO: let this raise WelcomeError?
+            if 'permission-token-url' in welcome:
+                self._welcome = welcome
+                self._MT.get_token()
+            else:
+                self._W.got_welcome(welcome) # TODO: let this raise WelcomeError?
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
+
+    def rx_granted(self, msg):
+        self._W.got_welcome(self._welcome)
+
     @m.input()
     def rx_unwelcome(self, welcome_error): pass
     @m.input()

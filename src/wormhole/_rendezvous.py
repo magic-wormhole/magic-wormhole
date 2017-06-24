@@ -165,7 +165,8 @@ class RendezvousConnector(object):
         self._have_made_a_successful_connection = True
         self._ws = proto
         try:
-            self._tx("bind", appid=self._appid, side=self._side)
+            #self._tx("bind", appid=self._appid, side=self._side)
+            self._tx("abilities", mitigation_token=1)
             self._N.connected()
             self._M.connected()
             self._L.connected()
@@ -256,6 +257,10 @@ class RendezvousConnector(object):
 
     def _response_handle_welcome(self, msg):
         self._B.rx_welcome(msg["welcome"])
+
+    def _response_handle_granted(self, msg):
+        self._tx("bind", appid=self._appid, side=self._side)
+        self._B.rx_granted(msg)
 
     def _response_handle_claimed(self, msg):
         mailbox = msg["mailbox"]

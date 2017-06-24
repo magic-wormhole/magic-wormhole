@@ -1,7 +1,7 @@
 # NO unicode_literals or static.Data() will break, because it demands
 # a str on Python 2
 from __future__ import print_function
-import os, time, json
+import os, time, json, base64
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
@@ -25,11 +25,56 @@ class Root(resource.Resource):
         resource.Resource.__init__(self)
         self.putChild(b"", static.Data(b"Wormhole Relay\n", "text/plain"))
 
+
 class PrivacyEnhancedSite(server.Site):
     logRequests = True
     def log(self, request):
         if self.logRequests:
             return server.Site.log(self, request)
+
+
+def _mitigation_token_generator(database):
+    while True:
+        token = base64.b32encode(os.urandom(8)).lower().strip(b"=").decode("ascii")
+        database.add(token)
+        yield token
+
+
+class _MemoryTokenDatabase(object):
+    """
+    Keep DoS mitigation tokens in memory.
+
+    This implementation never cares about the actual tokens, though --
+    every token is valid!
+    """
+
+    def __init__(self):
+        self._tokens = set()
+
+    def add(self, token):
+        self._tokens.add(token)
+
+    def redeem(self, token):
+        try:
+            self._tokens.remove(token)
+            return True
+        except KeyError:
+            return False
+
+
+class MitigationTokenResource(resource.Resource):
+    isLeaf = True
+
+    def __init__(self, token_generator):
+        self._token_generator = token_generator
+
+    def render(self, request):
+        msg = b"This Wormhole Relay may be under a Denial of Service attack."
+        msg += b"\nGive the following token to your client:\n\n"
+        msg += bytes(next(self._token_generator))
+        request.setHeader(b'content-type', 'text/plain')
+        return msg
+
 
 class RelayServer(service.MultiService):
 
@@ -60,7 +105,10 @@ class RelayServer(service.MultiService):
         if signal_error:
             welcome["error"] = signal_error
 
-        self._rendezvous = Rendezvous(db, welcome, blur_usage, self._allow_list)
+        self._token_db = _MemoryTokenDatabase()
+
+        self._rendezvous = Rendezvous(db, welcome, blur_usage, self._allow_list,
+                                      self._token_db)
         self._rendezvous.setServiceParent(self) # for the pruning timer
 
         root = Root()
@@ -70,6 +118,16 @@ class RelayServer(service.MultiService):
         site = PrivacyEnhancedSite(root)
         if blur_usage:
             site.logRequests = False
+
+        if True:
+            welcome["permission-token-url"] = str(rendezvous_web_port) + "/dos_mitigation"
+            root.putChild(
+                "dos_mitigation",
+                MitigationTokenResource(
+                    _mitigation_token_generator(self._token_db)
+                )
+            )
+
 
         r = endpoints.serverFromString(reactor, rendezvous_web_port)
         rendezvous_web_service = internet.StreamServerEndpointService(r, site)

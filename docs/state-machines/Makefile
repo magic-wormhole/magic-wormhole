@@ -1,7 +1,7 @@
 
 default: images
 
-images: boss.png code.png key.png machines.png mailbox.png nameplate.png lister.png order.png receive.png send.png terminator.png
+images: boss.png code.png key.png machines.png mailbox.png nameplate.png lister.png order.png receive.png send.png terminator.png mitigation.png _connection.png
 
 .PHONY: default images
 

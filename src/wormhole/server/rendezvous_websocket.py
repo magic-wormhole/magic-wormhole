@@ -91,6 +91,10 @@ from ..util import dict_to_bytes, bytes_to_dict
 # -> {type: "ping", ping: int} -> pong (does not require bind/claim)
 #  <- {type: "pong", pong: int}
 
+# XXX for now/debugging etc
+do_mitigation = True
+
+
 class Error(Exception):
     def __init__(self, explain):
         self._explain = explain
@@ -109,16 +113,14 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._mailbox = None
         self._mailbox_id = None
         self._did_close = False
+        self._abilities = None
+        self._is_old_client = None
 
     def onConnect(self, request):
         rv = self.factory.rendezvous
         if rv.get_log_requests():
             log.msg("ws client connecting: %s" % (request.peer,))
         self._reactor = self.factory.reactor
-
-    def onOpen(self):
-        rv = self.factory.rendezvous
-        self.send("welcome", welcome=rv.get_welcome())
 
     def onMessage(self, payload, isBinary):
         server_rx = time.time()
@@ -128,11 +130,17 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 raise Error("missing 'type'")
             self.send("ack", id=msg.get("id"))
 
+            # XXX we are relying on BIND looking for mitigation-tokens
+            # and the fact that it must be first...
             mtype = msg["type"]
             if mtype == "ping":
                 return self.handle_ping(msg)
             if mtype == "bind":
                 return self.handle_bind(msg)
+            if mtype == "abilities":
+                return self.handle_abilities(msg)
+            if mtype == "submit-permission":
+                return self.handle_permission(msg)
 
             if not self._app:
                 raise Error("must bind first")
@@ -161,7 +169,38 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
             raise Error("ping requires 'ping'")
         self.send("pong", pong=msg["ping"])
 
+    def handle_abilities(self, msg):
+        self._abilities = msg
+        self._is_old_client = False
+        self.send("welcome", welcome=self.factory.rendezvous.get_welcome())
+
+    def handle_permission(self, msg):
+        token = msg.get("token", None)
+        if not do_mitigation:
+            pass  # XXX error, because we didn't ask for tokens?
+        if not self.factory.rendezvous.is_valid_token(token):
+            raise Error("Invalid token")
+        else:
+            self.send("granted", granted={})
+
     def handle_bind(self, msg):
+        # XXX shouldn't this go in "app" or something? maybe not
+        # .. feels odd to be in "_websocket.py" though
+        if self._abilities is None:
+            self._is_old_client = True
+            self._abilities = dict()
+            # we delay sending "welcome" until we get an ABILITIES
+            # from the client. In this case, we've detected an old
+            # client -- so if we're demanding mitigation-tokens right
+            # now, it's an error.
+            if do_mitigation:
+                welcome_msg = {
+                    u"error": u"We are under denial of service and need a token but your client doesn't support sending such tokens."
+                }
+            else:
+                welcome_msg = self.factory.rendezvous.get_welcome()
+            self.send("welcome", welcome=welcome_msg)
+
         if self._app or self._side:
             raise Error("already bound")
         if "appid" not in msg:

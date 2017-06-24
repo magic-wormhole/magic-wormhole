@@ -338,6 +338,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.code = "1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
+            cfg.mitigation_token = self.create_mitigation_token()
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -409,6 +410,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 content_args = [send_cfg.what]
 
             send_args = [
+                    '--token', send_cfg.mitigation_token,
                     '--relay-url', self.relayurl,
                     '--transit-helper', '',
                     'send',
@@ -422,6 +424,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 env=self._env,
             )
             recv_args = [
+                '--token', recv_cfg.mitigation_token,
                 '--relay-url', self.relayurl,
                 '--transit-helper', '',
                 'receive',
@@ -652,6 +655,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.code = "1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
+            cfg.mitigation_token = self.create_mitigation_token()
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -807,6 +811,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
             cfg.zeromode = True
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
+            cfg.mitigation_token = self.create_mitigation_token()
 
         send_cfg.text = message
 
@@ -940,6 +945,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         cfg.transit_helper = ""
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
+        cfg.mitigation_token = self.create_mitigation_token()
         return cfg
 
     @inlineCallbacks
@@ -949,8 +955,10 @@ class Cleanup(ServerBase, unittest.TestCase):
         cfg = self.make_config()
         cfg.text = "hello"
         cfg.code = "1-abc"
-
         send_d = cmd_send.send(cfg)
+
+        cfg = self.make_config()
+        cfg.code = "1-abc"
         receive_d = cmd_receive.receive(cfg)
 
         yield send_d
@@ -1040,7 +1048,9 @@ class AppID(ServerBase, unittest.TestCase):
         self.cfg.appid = "appid2"
         self.cfg.code = "1-abc"
 
+        self.cfg.mitigation_token = self.create_mitigation_token()
         send_d = cmd_send.send(self.cfg)
+        self.cfg.mitigation_token = self.create_mitigation_token()
         receive_d = cmd_receive.receive(self.cfg)
 
         yield send_d
