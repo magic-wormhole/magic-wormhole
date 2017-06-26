@@ -117,9 +117,13 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
     "--disallow-list", is_flag=True,
     help="never send list of allocated nameplates",
 )
+@_relay_database_path
+@_stats_json_path
 @click.pass_obj
 def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version,
-            transit, rendezvous, disallow_list):
+            transit, rendezvous, disallow_list, relay_database_path,
+            stats_json_path,
+            ):
     """
     Re-start a relay server
     """
@@ -131,6 +135,8 @@ def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version,
     cfg.rendezvous = str(rendezvous)
     cfg.signal_error = signal_error
     cfg.allow_list = not disallow_list
+    cfg.relay_database_path = relay_database_path
+    cfg.stats_json_path = stats_json_path
 
     restart_server(cfg)
 
