@@ -1172,6 +1172,14 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
 
+class FakeConfig(object):
+    no_daemon = True
+    blur_usage = True
+    advertise_version = u"fake.version.1"
+    transit = str('tcp:4321')
+    rendezvous = str('tcp:1234')
+    signal_error = True
+    allow_list = False
 class Server(unittest.TestCase):
 
     def setUp(self):
@@ -1183,15 +1191,6 @@ class Server(unittest.TestCase):
         self.assertEqual(0, result.exit_code)
 
     def test_server_plugin(self):
-        class FakeConfig(object):
-            no_daemon = True
-            blur_usage = True
-            advertise_version = u"fake.version.1"
-            transit = str('tcp:4321')
-            rendezvous = str('tcp:1234')
-            signal_error = True
-            allow_list = False
-
         cfg = FakeConfig()
         plugin = MyPlugin(cfg)
         relay = plugin.makeService(None)
