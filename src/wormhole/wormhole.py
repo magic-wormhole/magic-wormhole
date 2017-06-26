@@ -4,7 +4,7 @@ from attr import attrs, attrib
 from zope.interface import implementer
 from twisted.python import failure
 from twisted.internet import defer
-from ._interfaces import IWormhole
+from ._interfaces import IWormhole, IDeferredWormhole
 from .util import bytes_to_hexstr
 from .timing import DebugTiming
 from .journal import ImmediateJournal
@@ -98,7 +98,7 @@ class _DelegatedWormhole(object):
     def closed(self, result):
         self._delegate.wormhole_closed(result)
 
-@implementer(IWormhole)
+@implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
     def __init__(self):
         self._welcome = None
