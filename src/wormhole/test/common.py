@@ -7,7 +7,6 @@ import mock
 from ..cli import cli
 from ..transit import allocate_tcp_port
 from ..server.server import RelayServer
-from .. import __version__
 
 class ServerBase:
     def setUp(self):
@@ -22,7 +21,7 @@ class ServerBase:
         # endpoints.serverFromString
         s = RelayServer("tcp:%d:interface=127.0.0.1" % self.relayport,
                         "tcp:%s:interface=127.0.0.1" % self.transitport,
-                        advertise_version=__version__,
+                        advertise_version="advertised.version",
                         signal_error=error)
         s.setServiceParent(self.sp)
         self._relay_server = s

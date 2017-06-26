@@ -6,7 +6,6 @@ from twisted.python import log
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from autobahn.twisted import websocket
-from .. import __version__
 from .common import ServerBase
 from ..server import server, rendezvous
 from ..server.rendezvous import Usage, SidedMessage
@@ -625,7 +624,7 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
     def check_welcome(self, data):
         self.failUnlessIn("welcome", data)
         self.failUnlessEqual(data["welcome"],
-                             {"current_cli_version": __version__})
+                             {"current_cli_version": "advertised.version"})
 
     @inlineCallbacks
     def test_welcome(self):
