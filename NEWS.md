@@ -1,6 +1,21 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.2 (26-Jun-2017)
+
+WebSocket connection errors are now reported properly. Previous versions
+crashed with an unhelpful `automat._core.NoTransition` exception when
+the TCP connection was established but WebSocket negotiation could not
+complete (e.g. the URL path was incorrect and the server reported a 404,
+or we connected to an SMTP or other non-HTTP server). (#180)
+
+The unit test suite should now pass: a CLI-version advertisement issue
+caused the 0.10.1 release tests to fail.
+
+Thanks to Fabien "fdev31" Devaux for bug reports addressed in this
+release.
+
+
 ## Release 0.10.1 (26-Jun-2017)
 
 Server-only: the rendezvous server no longer advertises a CLI version
