@@ -1172,6 +1172,18 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
 
+class FakeConfig(object):
+    no_daemon = True
+    blur_usage = True
+    advertise_version = u"fake.version.1"
+    transit = str('tcp:4321')
+    rendezvous = str('tcp:1234')
+    signal_error = True
+    allow_list = False
+    relay_database_path = "relay.sqlite"
+    stats_json_path = "stats.json"
+
+
 class Server(unittest.TestCase):
 
     def setUp(self):
@@ -1183,15 +1195,6 @@ class Server(unittest.TestCase):
         self.assertEqual(0, result.exit_code)
 
     def test_server_plugin(self):
-        class FakeConfig(object):
-            no_daemon = True
-            blur_usage = True
-            advertise_version = u"fake.version.1"
-            transit = str('tcp:4321')
-            rendezvous = str('tcp:1234')
-            signal_error = True
-            allow_list = False
-
         cfg = FakeConfig()
         plugin = MyPlugin(cfg)
         relay = plugin.makeService(None)
@@ -1211,3 +1214,9 @@ class Server(unittest.TestCase):
         cfg = fake_start_reserver.mock_calls[0][1][0]
         MyPlugin(cfg).makeService(None)
 
+    def test_state_locations(self):
+        cfg = FakeConfig()
+        plugin = MyPlugin(cfg)
+        relay = plugin.makeService(None)
+        self.assertEqual('relay.sqlite', relay._db_url)
+        self.assertEqual('stats.json', relay._stats_file)

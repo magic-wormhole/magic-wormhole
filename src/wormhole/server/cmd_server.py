@@ -17,10 +17,10 @@ class MyPlugin(object):
             self.args.rendezvous,
             self.args.transit,
             self.args.advertise_version,
-            "relay.sqlite",
+            self.args.relay_database_path,
             self.args.blur_usage,
             signal_error=self.args.signal_error,
-            stats_file="stats.json",
+            stats_file=self.args.stats_json_path,
             allow_list=self.args.allow_list,
         )
 
