@@ -12,7 +12,7 @@ class ServerBase:
     def setUp(self):
         self._setup_relay(None)
 
-    def _setup_relay(self, error):
+    def _setup_relay(self, error, advertise_version=None):
         self.sp = service.MultiService()
         self.sp.startService()
         self.relayport = allocate_tcp_port()
@@ -21,7 +21,7 @@ class ServerBase:
         # endpoints.serverFromString
         s = RelayServer("tcp:%d:interface=127.0.0.1" % self.relayport,
                         "tcp:%s:interface=127.0.0.1" % self.transitport,
-                        advertise_version="advertised.version",
+                        advertise_version=advertise_version,
                         signal_error=error)
         s.setServiceParent(self.sp)
         self._relay_server = s

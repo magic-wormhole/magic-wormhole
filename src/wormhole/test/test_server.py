@@ -605,7 +605,7 @@ class WSClientSync(unittest.TestCase):
 class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
     def setUp(self):
         self._clients = []
-        return ServerBase.setUp(self)
+        self._setup_relay(None, advertise_version="advertised.version")
 
     def tearDown(self):
         for c in self._clients:

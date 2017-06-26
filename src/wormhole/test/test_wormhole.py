@@ -105,6 +105,10 @@ class Delegated(ServerBase, unittest.TestCase):
 class Wormholes(ServerBase, unittest.TestCase):
     # integration test, with a real server
 
+    def setUp(self):
+        # test_welcome wants to see [current_cli_version]
+        self._setup_relay(None, advertise_version="advertised.version")
+
     def doBoth(self, d1, d2):
         return gatherResults([d1, d2], True)
 
