@@ -18,7 +18,8 @@ class ServerError(WormholeError):
 
 class ServerConnectionError(WormholeError):
     """We had a problem connecting to the relay server:"""
-    def __init__(self, reason):
+    def __init__(self, url, reason):
+        self.url = url
         self.reason = reason
     def __str__(self):
         return str(self.reason)

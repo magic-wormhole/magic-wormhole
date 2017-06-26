@@ -1144,10 +1144,11 @@ class Dispatch(unittest.TestCase):
         cfg = config("send")
         cfg.stderr = io.StringIO()
         def fake():
-            raise ServerConnectionError(ValueError("abcd"))
+            raise ServerConnectionError("URL", ValueError("abcd"))
         yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
                                  SystemExit)
         expected = fill("ERROR: " + dedent(ServerConnectionError.__doc__))+"\n"
+        expected += "(relay URL was URL)\n"
         expected += "abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
