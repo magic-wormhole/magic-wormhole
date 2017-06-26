@@ -1195,3 +1195,18 @@ class Server(unittest.TestCase):
         plugin = MyPlugin(cfg)
         relay = plugin.makeService(None)
         self.assertEqual(False, relay._allow_list)
+
+    @mock.patch("wormhole.server.cmd_server.start_server")
+    def test_start_no_args(self, fake_start_server):
+        result = self.runner.invoke(server, ['start'])
+        self.assertEqual(0, result.exit_code)
+        cfg = fake_start_server.mock_calls[0][1][0]
+        MyPlugin(cfg).makeService(None)
+
+    @mock.patch("wormhole.server.cmd_server.restart_server")
+    def test_restart_no_args(self, fake_start_reserver):
+        result = self.runner.invoke(server, ['restart'])
+        self.assertEqual(0, result.exit_code)
+        cfg = fake_start_reserver.mock_calls[0][1][0]
+        MyPlugin(cfg).makeService(None)
+
