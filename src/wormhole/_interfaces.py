@@ -277,6 +277,117 @@ class IDeferredWormhole(Interface):
         :rtype: ``Deferred``
         """
 
+class IInputHelper(Interface):
+    def refresh_nameplates():
+        """
+        Refresh the nameplates list.
+
+        This asks the server for the set of currently-active nameplates
+        (either from calls to ``allocate_code()`` or referenced by active
+        wormhole clients).  It updates the set available to
+        ``get_nameplate_completions()``.
+
+        :return: None
+        """
+
+    def get_nameplate_completions(prefix):
+        """
+        Return a list of nameplate completions for the given prefix.
+
+        This takes the most-recently-received set of active nameplates from
+        the rendezvous server, finds the subset that start with the given
+        prefix, and returns the result.  The result strings include the
+        prefix and the terminating hyphen, in random order.
+
+        This returns synchronously: it does not wait for a server response.
+        If called before getting any response from the server, it will return
+        an empty set.  If user input causes completion, it may be a good idea
+        to kick off a new ``refresh_nameplates()`` too, in case the user is
+        bouncing on the TAB key in the hopes of seeing their expected
+        nameplate appear in the list eventually.
+
+        :param str prefix: the nameplate as typed so far
+
+        :return: a set of potential completions
+        :rtype: set[str]
+        """
+
+    def choose_nameplate(nameplate):
+        """
+        Commit to a nameplate, allowing the word-completion phase to begin.
+
+        This may only be called once.  Calling it a second time will raise
+        ``AlreadyChoseNameplateError``.
+
+        :param str nameplate: the complete nameplate, without a trailing
+            hyphen
+
+        :return: None
+        """
+
+    def when_wordlist_is_available():
+        """
+        Wait for the wordlist to be available.
+
+        This fires when the wordlist is available, which means
+        ``get_word_completions()`` is able to return a non-empty set.  This
+        requires the nameplate be submitted, and may also require some server
+        interaction (to claim the channel and learn a channel-specific
+        wordlist, e.g. for i18n language selection).
+
+        :return: a ``Deferred`` that fires when the wordlist is available
+        :rtype: Deferred[None]
+        """
+
+    def get_word_completions(prefix):
+        """
+        Return a list of word completions for the given prefix.
+
+        This takes the claimed channel's wordlist, finds the subset that
+        start with the given prefix, and returns the result.  The result
+        strings include the prefix and the terminating hyphen, in random
+        order.
+
+        The prefix should not include the nameplate, but should include
+        whatever words have been selected so far (the default uses separate
+        odd/even wordlists, which means the completion for a single string
+        depends upon how many words have been entered so far).
+
+        This returns synchronously: it does not wait for a server response.
+        If called before getting the wordlist, it will return an empty set.
+
+        If called before ``choose_nameplate()``, this will raise
+        ``MustChooseNameplateFirstError``.  If called after
+        ``choose_words()``, this will raise ``AlreadyChoseWordsError``.
+
+        :param str prefix: the words typed so far
+
+        :return: a set of potential completions
+        :rtype: set[str]
+        """
+
+    def choose_words(words):
+        """
+        Submit the final words.
+
+        This should be called when the user is finished typing in the code,
+        and terminates the code-entry process.  It does not return anything,
+        but will cause the Wormhole's ``w.get_code()`` to fire, and initiates
+        the wormhole connection process.
+
+        It accepts a string like "purple-sausages", without the leading
+        nameplate (which must have been submitted to ``choose_nameplate()``
+        earlier) or its hyphen.  If ``choose_nameplate()`` was not called
+        first, this will raise ``MustChooseNameplateFirstError``.
+
+        This may only be called once, otherwise ``AlreadyChoseWordsError``
+        will be raised.
+
+        :param str words: the 'words' portion of the wormhole code
+
+        :return: None
+        """
+
 
 class IJournal(Interface): # TODO: this needs to be public
     pass
