@@ -38,6 +38,7 @@ class RelayServer(service.MultiService):
         service.MultiService.__init__(self)
         self._blur_usage = blur_usage
         self._allow_list = allow_list
+        self._db_url = db_url
 
         db = get_db(db_url)
         welcome = {
