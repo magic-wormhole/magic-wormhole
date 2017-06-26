@@ -151,7 +151,7 @@ class RendezvousConnector(object):
     # from our ClientService
     def _initial_connection_failed(self, f):
         if not self._stopping:
-            sce = errors.ServerConnectionError(f.value)
+            sce = errors.ServerConnectionError(self._url, f.value)
             d = defer.maybeDeferred(self._connector.stopService)
             # this should happen right away: the ClientService ought to be in
             # the "_waiting" state, and everything in the _waiting.stop
@@ -201,11 +201,35 @@ class RendezvousConnector(object):
 
     def ws_close(self, wasClean, code, reason):
         self._debug("R.lost")
+        was_open = bool(self._ws)
         self._ws = None
-        self._N.lost()
-        self._M.lost()
-        self._L.lost()
-        self._A.lost()
+        # when Autobahn connects to a non-websocket server, it gets a
+        # CLOSE_STATUS_CODE_ABNORMAL_CLOSE, and delivers onClose() without
+        # ever calling onOpen first. This confuses our state machines, so
+        # avoid telling them we've lost the connection unless we'd previously
+        # told them we'd connected.
+        if was_open:
+            self._N.lost()
+            self._M.lost()
+            self._L.lost()
+            self._A.lost()
+
+        # and if this happens on the very first connection, then we treat it
+        # as a failed initial connection, even though ClientService didn't
+        # notice it. There's a Twisted ticket (#8375) about giving
+        # ClientService an extra setup function to use, so it can tell
+        # whether post-connection negotiation was successful or not, and
+        # restart the process if it fails. That would be useful here, so that
+        # failAfterFailures=1 would do the right thing if the initial TCP
+        # connection succeeds but the first WebSocket negotiation fails.
+        if not self._have_made_a_successful_connection:
+            # shut down the ClientService, which currently thinks it has a
+            # valid connection
+            sce = errors.ServerConnectionError(self._url, reason)
+            d = defer.maybeDeferred(self._connector.stopService)
+            d.addErrback(log.err) # just in case something goes wrong
+            # tell the Boss to quit and inform the user
+            d.addCallback(lambda _: self._B.error(sce))
 
     # internal
     def _stopped(self, res):

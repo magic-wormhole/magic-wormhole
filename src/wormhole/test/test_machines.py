@@ -4,13 +4,15 @@ import mock
 from zope.interface import directlyProvides, implementer
 from twisted.trial import unittest
 from .. import (errors, timing, _order, _receive, _key, _code, _lister, _boss,
-                _input, _allocator, _send, _terminator, _nameplate, _mailbox)
+                _input, _allocator, _send, _terminator, _nameplate, _mailbox,
+                _rendezvous)
 from .._interfaces import (IKey, IReceive, IBoss, ISend, IMailbox, IOrder,
                            IRendezvousConnector, ILister, IInput, IAllocator,
                            INameplate, ICode, IWordlist, ITerminator)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
-from ..util import dict_to_bytes, hexstr_to_bytes, bytes_to_hexstr, to_bytes
+from ..util import (dict_to_bytes, bytes_to_dict,
+                    hexstr_to_bytes, bytes_to_hexstr, to_bytes)
 from spake2 import SPAKE2_Symmetric
 from nacl.secret import SecretBox
 
@@ -1379,6 +1381,75 @@ class Boss(unittest.TestCase):
         with self.assertRaises(errors.OnlyOneCodeError):
             b.allocate_code(3)
 
+
+class Rendezvous(unittest.TestCase):
+    def build(self):
+        events = []
+        reactor = object()
+        journal = ImmediateJournal()
+        tor_manager = None
+        rc = _rendezvous.RendezvousConnector("ws://host:4000/v1", "appid",
+                                             "side", reactor,
+                                             journal, tor_manager,
+                                             timing.DebugTiming())
+        b = Dummy("b", events, IBoss, "error")
+        n = Dummy("n", events, INameplate, "connected", "lost")
+        m = Dummy("m", events, IMailbox, "connected", "lost")
+        a = Dummy("a", events, IAllocator, "connected", "lost")
+        l = Dummy("l", events, ILister, "connected", "lost")
+        t = Dummy("t", events, ITerminator)
+        rc.wire(b, n, m, a, l, t)
+        return rc, events
+
+    def test_basic(self):
+        rc, events = self.build()
+        del rc, events
+
+    def test_websocket_failure(self):
+        # if the TCP connection succeeds, but the subsequent WebSocket
+        # negotiation fails, then we'll see an onClose without first seeing
+        # onOpen
+        rc, events = self.build()
+        rc.ws_close(False, 1006, "connection was closed uncleanly")
+        # this should cause the ClientService to be shut down, and an error
+        # delivered to the Boss
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0][0], "b.error")
+        self.assertIsInstance(events[0][1], errors.ServerConnectionError)
+        self.assertEqual(str(events[0][1]), "connection was closed uncleanly")
+
+    def test_websocket_lost(self):
+        # if the TCP connection succeeds, and negotiation completes, then the
+        # connection is lost, several machines should be notified
+        rc, events = self.build()
+
+        ws = mock.Mock()
+        def notrandom(length):
+            return b"\x00" * length
+        with mock.patch("os.urandom", notrandom):
+            rc.ws_open(ws)
+        self.assertEqual(events, [("n.connected", ),
+                                  ("m.connected", ),
+                                  ("l.connected", ),
+                                  ("a.connected", ),
+                                  ])
+        events[:] = []
+        def sent_messages(ws):
+            for c in ws.mock_calls:
+                self.assertEqual(c[0], "sendMessage", ws.mock_calls)
+                self.assertEqual(c[1][1], False, ws.mock_calls)
+                yield bytes_to_dict(c[1][0])
+        self.assertEqual(list(sent_messages(ws)),
+                         [dict(appid="appid", side="side", id="0000",
+                               type="bind"),
+                          ])
+
+        rc.ws_close(True, None, None)
+        self.assertEqual(events, [("n.lost", ),
+                                  ("m.lost", ),
+                                  ("l.lost", ),
+                                  ("a.lost", ),
+                                  ])
 
 
 

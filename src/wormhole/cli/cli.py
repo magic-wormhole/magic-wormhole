@@ -120,8 +120,9 @@ def _dispatch_command(reactor, cfg, command):
         print(u"TransferError: %s" % six.text_type(e), file=cfg.stderr)
         raise SystemExit(1)
     except ServerConnectionError as e:
-        msg = fill("ERROR: " + dedent(e.__doc__))
-        msg += "\n" + six.text_type(e)
+        msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
+        msg += "(relay URL was %s)\n" % e.url
+        msg += six.text_type(e)
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:
