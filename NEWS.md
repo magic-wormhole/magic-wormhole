@@ -1,6 +1,24 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.1 (26-Jun-2017)
+
+Server-only: the rendezvous server no longer advertises a CLI version
+unless specifically requested (by passing --advertise-version= to
+`wormhole-server start`). The public server no longer does this, so e.g.
+0.10.0 clients will not emit a warning about the server recommending the
+0.9.2 release. This feature was useful when the only way to use
+magic-wormhole was to install the CLI tool with pip, however now that
+0.9.1 is in debian Stretch (and we hope to maintain compatibility with
+it), the nag-you-to-upgrade messages probably do more harm than good.
+(#179)
+
+No user-visible client-side changes.
+
+Thanks to ilovezfs and JP Calderone for bug reports addressed in this
+release.
+
+
 ## Release 0.10.0 (24-Jun-2017)
 
 The client-side code was completely rewritten, with proper Automat state
