@@ -22,6 +22,15 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     ctx.obj = Config()
 
 
+_relay_database_path = click.option(
+    "--relay-database-path", default="relay.sqlite", metavar="PATH",
+    help="location for the relay server state database",
+)
+_stats_json_path = click.option(
+    "--stats-json-path", default="stats.json", metavar="PATH",
+    help="location to write the relay stats file",
+)
+
 @server.command()
 @click.option(
     "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
@@ -52,9 +61,13 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     "--disallow-list", is_flag=True,
     help="never send list of allocated nameplates",
 )
+@_relay_database_path
+@_stats_json_path
 @click.pass_obj
 def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
-          transit, rendezvous, disallow_list):
+          transit, rendezvous, disallow_list, relay_database_path,
+          stats_json_path,
+):
     """
     Start a relay server
     """
@@ -66,6 +79,8 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
     cfg.rendezvous = str(rendezvous)
     cfg.signal_error = signal_error
     cfg.allow_list = not disallow_list
+    cfg.relay_database_path = relay_database_path
+    cfg.stats_json_path = stats_json_path
 
     start_server(cfg)
 
