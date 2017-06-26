@@ -22,56 +22,60 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     ctx.obj = Config()
 
 
-_relay_database_path = click.option(
-    "--relay-database-path", default="relay.sqlite", metavar="PATH",
-    help="location for the relay server state database",
-)
-_stats_json_path = click.option(
-    "--stats-json-path", default="stats.json", metavar="PATH",
-    help="location to write the relay stats file",
-)
+_click_decorators = [
+    server.command(),
+    click.option(
+        "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
+        help="endpoint specification for the rendezvous port",
+    ),
+    click.option(
+        "--transit", default="tcp:4001", metavar="tcp:PORT",
+        help="endpoint specification for the transit-relay port",
+    ),
+    click.option(
+        "--advertise-version", metavar="VERSION",
+        help="version to recommend to clients",
+    ),
+    click.option(
+        "--blur-usage", default=None, type=int,
+        metavar="SECONDS",
+        help="round logged access times to improve privacy",
+    ),
+    click.option(
+        "--no-daemon", "-n", is_flag=True,
+        help="Run in the foreground",
+    ),
+    click.option(
+        "--signal-error", is_flag=True,
+        help="force all clients to fail with a message",
+    ),
+    click.option(
+        "--disallow-list", is_flag=True,
+        help="never send list of allocated nameplates",
+    ),
+    click.option(
+        "--relay-database-path", default="relay.sqlite", metavar="PATH",
+        help="location for the relay server state database",
+    ),
+    click.option(
+        "--stats-json-path", default="stats.json", metavar="PATH",
+        help="location to write the relay stats file",
+    ),
+    click.pass_obj,
+]
 
-@server.command()
-@click.option(
-    "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
-    help="endpoint specification for the rendezvous port",
-)
-@click.option(
-    "--transit", default="tcp:4001", metavar="tcp:PORT",
-    help="endpoint specification for the transit-relay port",
-)
-@click.option(
-    "--advertise-version", metavar="VERSION",
-    help="version to recommend to clients",
-)
-@click.option(
-    "--blur-usage", default=None, type=int,
-    metavar="SECONDS",
-    help="round logged access times to improve privacy",
-)
-@click.option(
-    "--no-daemon", "-n", is_flag=True,
-    help="Run in the foreground",
-)
-@click.option(
-    "--signal-error", is_flag=True,
-    help="force all clients to fail with a message",
-)
-@click.option(
-    "--disallow-list", is_flag=True,
-    help="never send list of allocated nameplates",
-)
-@_relay_database_path
-@_stats_json_path
-@click.pass_obj
-def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
-          transit, rendezvous, disallow_list, relay_database_path,
-          stats_json_path,
+
+def _start_command(f):
+    for dec in _click_decorators[::-1]:
+        f = dec(f)
+    return f
+
+
+def arguments_to_config(
+        cfg, signal_error, no_daemon, blur_usage, advertise_version,
+        transit, rendezvous, disallow_list, relay_database_path,
+        stats_json_path,
 ):
-    """
-    Start a relay server
-    """
-    from wormhole.server.cmd_server import start_server
     cfg.no_daemon = no_daemon
     cfg.blur_usage = blur_usage
     cfg.advertise_version = advertise_version
@@ -82,56 +86,24 @@ def start(cfg, signal_error, no_daemon, blur_usage, advertise_version,
     cfg.relay_database_path = relay_database_path
     cfg.stats_json_path = stats_json_path
 
+
+@_start_command
+def start(cfg, **arguments):
+    """
+    Start a relay server
+    """
+    from wormhole.server.cmd_server import start_server
+    arguments_to_config(cfg, **arguments)
     start_server(cfg)
 
 
-# XXX it would be nice to reduce the duplication between 'restart' and
-# 'start' options...
-@server.command()
-@click.option(
-    "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
-    help="endpoint specification for the rendezvous port",
-)
-@click.option(
-    "--transit", default="tcp:4001", metavar="tcp:PORT",
-    help="endpoint specification for the transit-relay port",
-)
-@click.option(
-    "--advertise-version", metavar="VERSION",
-    help="version to recommend to clients",
-)
-@click.option(
-    "--blur-usage", default=None, type=int,
-    metavar="SECONDS",
-    help="round logged access times to improve privacy",
-)
-@click.option(
-    "--no-daemon", "-n", is_flag=True,
-    help="Run in the foreground",
-)
-@click.option(
-    "--signal-error", is_flag=True,
-    help="force all clients to fail with a message",
-)
-@click.option(
-    "--disallow-list", is_flag=True,
-    help="never send list of allocated nameplates",
-)
-@click.pass_obj
-def restart(cfg, signal_error, no_daemon, blur_usage, advertise_version,
-            transit, rendezvous, disallow_list):
+@_start_command
+def restart(cfg, **arguments):
     """
     Re-start a relay server
     """
     from wormhole.server.cmd_server import restart_server
-    cfg.no_daemon = no_daemon
-    cfg.blur_usage = blur_usage
-    cfg.advertise_version = advertise_version
-    cfg.transit = str(transit)
-    cfg.rendezvous = str(rendezvous)
-    cfg.signal_error = signal_error
-    cfg.allow_list = not disallow_list
-
+    arguments_to_config(cfg, **arguments)
     restart_server(cfg)
 
 
