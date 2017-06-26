@@ -1,7 +1,6 @@
 from __future__ import print_function
-
 import click
-
+from ..cli.cli import Config, _compose
 
 # can put this back in to get this command as "wormhole server"
 # instead
@@ -18,12 +17,10 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     # but if we want to keep wormhole-server as a separate command
     # should probably have our own Config without all the options the
     # server commands don't use
-    from ..cli.cli import Config
     ctx.obj = Config()
 
 
-_click_decorators = [
-    server.command(),
+LaunchArgs = _compose(
     click.option(
         "--rendezvous", default="tcp:4000", metavar="tcp:PORT",
         help="endpoint specification for the rendezvous port",
@@ -50,8 +47,8 @@ _click_decorators = [
         help="force all clients to fail with a message",
     ),
     click.option(
-        "--disallow-list", is_flag=True,
-        help="never send list of allocated nameplates",
+        "--allow-list/--disallow-list", default=True,
+        help="always/never send list of allocated nameplates",
     ),
     click.option(
         "--relay-database-path", default="relay.sqlite", metavar="PATH",
@@ -61,49 +58,32 @@ _click_decorators = [
         "--stats-json-path", default="stats.json", metavar="PATH",
         help="location to write the relay stats file",
     ),
-    click.pass_obj,
-]
+)
 
 
-def _start_command(f):
-    for dec in _click_decorators[::-1]:
-        f = dec(f)
-    return f
-
-
-def arguments_to_config(
-        cfg, signal_error, no_daemon, blur_usage, advertise_version,
-        transit, rendezvous, disallow_list, relay_database_path,
-        stats_json_path,
-):
-    cfg.no_daemon = no_daemon
-    cfg.blur_usage = blur_usage
-    cfg.advertise_version = advertise_version
-    cfg.transit = str(transit)
-    cfg.rendezvous = str(rendezvous)
-    cfg.signal_error = signal_error
-    cfg.allow_list = not disallow_list
-    cfg.relay_database_path = relay_database_path
-    cfg.stats_json_path = stats_json_path
-
-
-@_start_command
-def start(cfg, **arguments):
+@server.command()
+@LaunchArgs
+@click.pass_obj
+def start(cfg, **kwargs):
     """
     Start a relay server
     """
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
     from wormhole.server.cmd_server import start_server
-    arguments_to_config(cfg, **arguments)
     start_server(cfg)
 
 
-@_start_command
-def restart(cfg, **arguments):
+@server.command()
+@LaunchArgs
+@click.pass_obj
+def restart(cfg, **kwargs):
     """
     Re-start a relay server
     """
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
     from wormhole.server.cmd_server import restart_server
-    arguments_to_config(cfg, **arguments)
     restart_server(cfg)
 
 

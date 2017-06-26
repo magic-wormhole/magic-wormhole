@@ -14,8 +14,8 @@ class MyPlugin(object):
         # accept --reactor= selection
         from .server import RelayServer
         return RelayServer(
-            self.args.rendezvous,
-            self.args.transit,
+            str(self.args.rendezvous),
+            str(self.args.transit),
             self.args.advertise_version,
             self.args.relay_database_path,
             self.args.blur_usage,
