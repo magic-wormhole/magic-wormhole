@@ -29,7 +29,7 @@ from twisted.internet.defer import inlineCallbacks
 @inlineCallbacks
 def go():
     w = wormhole.create(appid, relay_url, reactor)
-    w.generate_code()
+    w.allocate_code()
     code = yield w.get_code()
     print "code:", code
     w.send_message(b"outbound data")
@@ -59,14 +59,14 @@ class MyDelegate:
         print("got data, %d bytes" % len(msg))
 
 w = wormhole.create(appid, relay_url, reactor, delegate=MyDelegate())
-w.generate_code()
+w.allocate_code()
 ```
 
 Deferred mode:
 
 ```python
 w = wormhole.create(appid, relay_url, reactor)
-w.generate_code()
+w.allocate_code()
 def print_code(code):
     print("code: %s" % code)
 w.get_code().addCallback(print_code)
@@ -158,7 +158,7 @@ completion of allocated channel-ids and known codewords.
 
 The Wormhole object has three APIs for generating or accepting a code:
 
-* `w.generate_code(length=2)`: this contacts the Rendezvous Server, allocates
+* `w.allocate_code(length=2)`: this contacts the Rendezvous Server, allocates
   a short numeric nameplate, chooses a configurable number of random words,
   then assembles them into the code
 * `w.set_code(code)`: this accepts the code as an argument
@@ -170,7 +170,7 @@ The Wormhole object has three APIs for generating or accepting a code:
 
 No matter which mode is used, the `w.get_code()` Deferred (or
 `delegate.wormhole_got_code(code)` callback) will fire when the code is
-known. `get_code` is clearly necessary for `generate_code`, since there's no
+known. `get_code` is clearly necessary for `allocate_code`, since there's no
 other way to learn what code was created, but it may be useful in other modes
 for consistency.
 
@@ -245,20 +245,20 @@ This helper runs python's (raw) `input()` function inside a thread, since
 
 The two machines participating in the wormhole setup are not distinguished:
 it doesn't matter which one goes first, and both use the same Wormhole
-constructor function. However if `w.generate_code()` is used, only one side
+constructor function. However if `w.allocate_code()` is used, only one side
 should use it.
 
 ## Offline Codes
 
 In most situations, the "sending" or "initiating" side will call
-`w.generate_code()` and display the resulting code. The sending human reads
+`w.allocate_code()` and display the resulting code. The sending human reads
 it and speaks, types, performs charades, or otherwise transmits the code to
 the receiving human. The receiving human then types it into the receiving
 computer, where it either calls `w.set_code()` (if the code is passed in via
 argv) or `w.input_code()` (for interactive entry).
 
 Usually one machine generates the code, and a pair of humans transcribes it
-to the second machine (so `w.generate_code()` on one side, and `w.set_code()`
+to the second machine (so `w.allocate_code()` on one side, and `w.set_code()`
 or `w.input_code()` on the other). But it is also possible for the humans to
 generate the code offline, perhaps at a face-to-face meeting, and then take
 the code back to their computers. In this case, `w.set_code()` will be used
@@ -388,11 +388,11 @@ those Deferreds.
 Most applications will only use `code`, `received`, and `close`.
 
 * code (`code = yield w.get_code()` / `dg.wormhole_got_code(code)`): fired
-  when the wormhole code is established, either after `w.generate_code()`
+  when the wormhole code is established, either after `w.allocate_code()`
   finishes the generation process, or when the Input Helper returned by
   `w.input_code()` has been told `h.set_words()`, or immediately after
   `w.set_code(code)` is called. This is most useful after calling
-  `w.generate_code()`, to show the generated code to the user so they can
+  `w.allocate_code()`, to show the generated code to the user so they can
   transcribe it to their peer.
 * key (`yield w.get_unverified_key()` /
   `dg.wormhole_got_unverified_key(key)`): fired (with the raw master SPAKE2
@@ -591,9 +591,9 @@ in python3):
 action              | Deferred-Mode      | Delegated-Mode
 ------------------  | ------------------ | --------------
 .                   | d=w.get_welcome()  | dg.wormhole_got_welcome(welcome)
-  w.generate_code() |                    |
-  w.set_code(code)  |                    |
+  w.allocate_code() |                    |
 h=w.input_code()    |                    |
+  w.set_code(code)  |                    |
 .                   | d=w.get_code()     | dg.wormhole_got_code(code)
 .                   | d=w.get_unverified_key() | dg.wormhole_got_unverified_key(key)
 .                   | d=w.get_verifier() | dg.wormhole_got_verifier(verifier)
