@@ -1,6 +1,8 @@
 from __future__ import print_function, unicode_literals
 import os
+from twisted.python import filepath
 from twisted.trial import unittest
+from ..server import database
 from ..server.database import get_db, TARGET_VERSION, dump_db
 
 class DB(unittest.TestCase):
@@ -10,6 +12,13 @@ class DB(unittest.TestCase):
         rows = db.execute("SELECT * FROM version").fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["version"], TARGET_VERSION)
+
+    def test_failed_create_allows_subsequent_create(self):
+        patch = self.patch(database, "get_schema", lambda version: b"this is a broken schema")
+        dbfile = filepath.FilePath(self.mktemp())
+        self.assertRaises(Exception, lambda: get_db(dbfile.path))
+        patch.restore()
+        get_db(dbfile.path)
 
     def test_upgrade(self):
         basedir = self.mktemp()
