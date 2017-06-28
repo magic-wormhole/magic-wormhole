@@ -59,7 +59,7 @@ On Debian-like systems, if your account is a member of the
 the right SOCKS port. If not, it should fall back to using the default
 SOCKS port on 9050. To add your account to the ``debian-tor`` group, use
 e.g. ``sudo adduser MYUSER debian-tor``. Access to the control-port will
-be more significant in the future, whne ``wormhole`` can listen on
+be more significant in the future, when ``wormhole`` can listen on
 "onion services": see below for details.
 
 ## Other Ways To Reach Tor
