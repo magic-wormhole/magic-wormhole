@@ -1360,3 +1360,17 @@ class Startup(unittest.TestCase):
             )
         finally:
             rs.stopService()
+
+
+class WebSocketProtocolOptions(unittest.TestCase):
+    @mock.patch('wormhole.server.server.WebSocketRendezvousFactory')
+    def test_set(self, fake_factory):
+        easy_relay(
+            websocket_protocol_options=[
+                ("foo", "bar"),
+            ]
+        )
+        self.assertEqual(
+            mock.call().setProtocolOptions(foo="bar"),
+            fake_factory.mock_calls[1],
+        )
