@@ -63,3 +63,4 @@ target/
 
 # Virtual environment stuff
 venv/
+/src/twisted/plugins/dropin.cache

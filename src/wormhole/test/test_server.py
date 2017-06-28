@@ -7,7 +7,7 @@ from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from autobahn.twisted import websocket
 from .common import ServerBase
-from ..server import server, rendezvous
+from ..server import server, rendezvous, service
 from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
 
@@ -1321,3 +1321,23 @@ class Startup(unittest.TestCase):
             )
         finally:
             rs.stopService()
+
+class Arguments(unittest.TestCase):
+    def test_no_args(self):
+        cfg = service.Options()
+        cfg.parseOptions([])
+        s = service.makeService(cfg)
+        self.assertEqual(s._blur_usage, None)
+        self.assertEqual(s._allow_list, True)
+
+    def test_blur(self):
+        cfg = service.Options()
+        cfg.parseOptions(["--blur-usage=60"])
+        s = service.makeService(cfg)
+        self.assertEqual(s._blur_usage, 60)
+
+    def test_disallow_list(self):
+        cfg = service.Options()
+        cfg.parseOptions(["--disallow-list"])
+        s = service.makeService(cfg)
+        self.assertEqual(s._allow_list, False)
