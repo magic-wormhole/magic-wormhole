@@ -16,10 +16,14 @@ class StartOptions(usage.Options):
 class StopOptions(usage.Options):
     pass
 
+class RestartOptions(StartOptions):
+    pass
+
 class Options(usage.Options):
     subCommands = [
         ("start", None, StartOptions, "Start a server"),
         ("stop", None, StopOptions, "Stop a running server"),
+        ("restart", None, RestartOptions, "Restart a running server"),
         ]
 
 def server():
@@ -33,4 +37,8 @@ def server():
         pidfile = os.path.join(os.getcwd(), "twistd.pid")
         from .service import stop_and_wait
         stop_and_wait(pidfile)
+    elif config.subCommand == "restart":
+        sys.argv = ("twistd", "wormhole-server", "--restart-first") + config.subOptions._extra_args
+        run()
+        print("should never get here")
     sys.exit(0)

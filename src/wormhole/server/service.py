@@ -30,6 +30,10 @@ class Options(usage.Options):
 
     def postOptions(self):
         if self["restart-first"]:
+            # twistd would normally complain that there's already a daemon
+            # running with this pidfile (which is fine, that's the one we're
+            # about to kill). So we change the pidfile just before twistd
+            # looks for it, and put it back before daemonization happens.
             self._old_pidfile = self.parent["pidfile"]
             self.parent["pidfile"] = "bypassed-pidfile"
 
