@@ -5,6 +5,8 @@ from .server import RelayServer
 
 class Options(usage.Options):
     optFlags = [
+        ("restart-first", None,
+         "stop the old server before starting a new one"),
         ("disallow-list", None,
          "always/never send list of allocated nameplates"),
         ]
@@ -25,7 +27,40 @@ class Options(usage.Options):
          "location to write the relay stats file"),
         ]
 
+class TimeoutError(Exception):
+    def __init__(self, pid, service_dir):
+        self._pid = pid
+        self._service_dir = service_dir
+
+    def __str__(self):
+        return ("pid %d in %s still running after 10 seconds, giving up"
+                % (self._pid, self._service_dir))
+
+
+def stop_and_wait(service_dir):
+    try:
+        with open(os.path.join(service_dir, "twistd.pid"), "r") as f:
+            pid = int(f.read().strip())
+    except EnvironmentError:
+        print("Unable to find twistd.pid: is this really a server directory?")
+        print("ignoring --restart-first")
+        return
+    print("sending SIGTERM to pid %d in %s" % (pid, service_dir))
+    os.kill(pid, 15)
+    print("waiting for process to exit")
+    timeout = time.time() + 10.0
+    while time.time() < timeout:
+        time.sleep(0.1)
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            print("pid %d has exited" % pid)
+            return
+    raise TimeoutError(pid, service_dir)
+
 def makeService(config):
+    if config["restart-first"]:
+        stop_and_wait(os.getcwd())
     s = RelayServer(
         str(config["rendezvous"]),
         str(config["transit"]),
