@@ -1,5 +1,6 @@
 # twist/twistd will load this file and look for 'Options' and 'makeService'
 
+import time, os.path
 from twisted.python import usage
 from .server import RelayServer
 
@@ -27,6 +28,11 @@ class Options(usage.Options):
          "location to write the relay stats file"),
         ]
 
+    def postOptions(self):
+        if self["restart-first"]:
+            self._old_pidfile = self.parent["pidfile"]
+            self.parent["pidfile"] = "bypassed-pidfile"
+
 class TimeoutError(Exception):
     def __init__(self, pid, service_dir):
         self._pid = pid
@@ -37,12 +43,13 @@ class TimeoutError(Exception):
                 % (self._pid, self._service_dir))
 
 
-def stop_and_wait(service_dir):
+def stop_and_wait(pidfile):
+    service_dir = os.path.dirname(os.path.realpath(pidfile))
     try:
-        with open(os.path.join(service_dir, "twistd.pid"), "r") as f:
+        with open(pidfile, "r") as f:
             pid = int(f.read().strip())
     except EnvironmentError:
-        print("Unable to find twistd.pid: is this really a server directory?")
+        print("Unable to find PID file: is this really a server directory?")
         print("ignoring --restart-first")
         return
     print("sending SIGTERM to pid %d in %s" % (pid, service_dir))
@@ -60,7 +67,9 @@ def stop_and_wait(service_dir):
 
 def makeService(config):
     if config["restart-first"]:
-        stop_and_wait(os.getcwd())
+        pidfile = config._old_pidfile
+        config.parent["pidfile"] = pidfile
+        stop_and_wait(pidfile)
     s = RelayServer(
         str(config["rendezvous"]),
         str(config["transit"]),
