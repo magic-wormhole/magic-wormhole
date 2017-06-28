@@ -1,5 +1,5 @@
 name: wormhole
-version: master
+version: git
 summary: get things from one computer to another, safely
 description: |
   This package provides a library and a command-line tool named wormhole,
