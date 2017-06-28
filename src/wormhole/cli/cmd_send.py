@@ -233,21 +233,18 @@ class Sender:
             return offer, fd_to_send
 
         # click.Path (with resolve_path=False, the default) does not do path
-        # resolution, so we must join it to cwd ourselves. We could use
-        # resolve_path=True, but then it would also do os.path.realpath(),
-        # which would replace the basename with the target of a symlink (if
-        # any), which is not what I think users would want: if you symlink
-        # X->Y and send X, you expect the recipient to save it in X, not Y.
-        #
-        # TODO: an open question is whether args.cwd (i.e. os.getcwd()) will
-        # be unicode or bytes. We need it to be something that can be
-        # os.path.joined with the unicode args.what .
-        what = os.path.join(args.cwd, args.what)
-        what = what.rstrip(os.sep)
+        # resolution, so we must join it to cwd ourselves, which we do with
+        # os.path.realpath(). We stash the basename before realpath(), so the
+        # recipient gets the original name that the sender typed, rather than
+        # the target of a symlink (if any).
+
+        what = args.what.rstrip(os.sep)
+        basename = os.path.basename(what)
+        what = os.path.realpath(what)
+        print(what, type(what), basename, type(basename), args.what, type(args.what))
         if not os.path.exists(what):
             raise TransferError("Cannot send: no file/directory named '%s'" %
-                                args.what)
-        basename = os.path.basename(what)
+                                args.what.encode("utf-8"))
 
         if os.path.isfile(what):
             # we're sending a file
