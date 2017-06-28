@@ -50,8 +50,7 @@ def stop_and_wait(pidfile):
             pid = int(f.read().strip())
     except EnvironmentError:
         print("Unable to find PID file: is this really a server directory?")
-        print("ignoring --restart-first")
-        return
+        return False
     print("sending SIGTERM to pid %d in %s" % (pid, service_dir))
     os.kill(pid, 15)
     print("waiting for process to exit")
@@ -62,14 +61,16 @@ def stop_and_wait(pidfile):
             os.kill(pid, 0)
         except OSError:
             print("pid %d has exited" % pid)
-            return
+            return True
     raise TimeoutError(pid, service_dir)
 
 def makeService(config):
     if config["restart-first"]:
         pidfile = config._old_pidfile
         config.parent["pidfile"] = pidfile
-        stop_and_wait(pidfile)
+        stopped = stop_and_wait(pidfile)
+        if not stopped:
+            print("ignoring --restart-first")
     s = RelayServer(
         str(config["rendezvous"]),
         str(config["transit"]),
