@@ -1,58 +1,36 @@
 from __future__ import print_function
-import click
-from ..cli.cli import Config
+import os, sys
+from twisted.python import usage
+from twisted.scripts.twistd import run
 
-# can put this back in to get this command as "wormhole server"
-# instead
-#from ..cli.cli import wormhole
-#@wormhole.group()
-@click.group()
-@click.pass_context
-def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
-    """
-    Control a relay server (most users shouldn't need to worry
-    about this and can use the default server).
-    """
-    # just leaving this pointing to wormhole.cli.cli.Config for now,
-    # but if we want to keep wormhole-server as a separate command
-    # should probably have our own Config without all the options the
-    # server commands don't use
-    ctx.obj = Config()
+class StartOptions(usage.Options):
+    # replace the normal parseOptions with one that just records everything,
+    # since we want "wormhole-server start ARGS" to build a "twistd
+    # wormhole-server ARGS" without complaining that StartOptions doesn't
+    # understand things like --blur-usage. We want to leave these args as
+    # strings. Besides, to parse them here we'd need to copy everything from
+    # .service.Options .
+    def parseOptions(self, options):
+        self._extra_args = tuple(options)
 
+class StopOptions(usage.Options):
+    pass
 
-@server.command(name="tail-usage")
-@click.pass_obj
-def tail_usage(cfg):
-    """
-    Follow the latest usage
-    """
-    from wormhole.server.cmd_usage import tail_usage
-    tail_usage(cfg)
+class Options(usage.Options):
+    subCommands = [
+        ("start", None, StartOptions, "Start a server"),
+        ("stop", None, StopOptions, "Stop a running server"),
+        ]
 
-
-@server.command(name='count-channels')
-@click.option(
-    "--json", is_flag=True,
-)
-@click.pass_obj
-def count_channels(cfg, json):
-    """
-    Count active channels
-    """
-    from wormhole.server.cmd_usage import count_channels
-    cfg.json = json
-    count_channels(cfg)
-
-
-@server.command(name='count-events')
-@click.option(
-    "--json", is_flag=True,
-)
-@click.pass_obj
-def count_events(cfg, json):
-    """
-    Count events
-    """
-    from wormhole.server.cmd_usage import count_events
-    cfg.json = json
-    count_events(cfg)
+def server():
+    config = Options()
+    config.parseOptions() # uses sys.argv[1:]
+    if config.subCommand == "start":
+        sys.argv = ("twistd", "wormhole-server") + config.subOptions._extra_args
+        run()
+        print("should never get here")
+    elif config.subCommand == "stop":
+        pidfile = os.path.join(os.getcwd(), "twistd.pid")
+        from .service import stop_and_wait
+        stop_and_wait(pidfile)
+    sys.exit(0)
