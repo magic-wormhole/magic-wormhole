@@ -11,6 +11,19 @@ from ..server import server, rendezvous
 from ..server.rendezvous import Usage, SidedMessage
 from ..server.database import get_db
 
+def easy_relay(
+        rendezvous_web_port=str("tcp:0"),
+        transit_port=str("tcp:0"),
+        advertise_version=None,
+        **kwargs
+):
+    return server.RelayServer(
+        rendezvous_web_port,
+        transit_port,
+        advertise_version,
+        **kwargs
+    )
+
 class _Util:
     def _nameplate(self, app, name):
         np_row = app._db.execute("SELECT * FROM `nameplates`"
@@ -1313,7 +1326,7 @@ class Summary(unittest.TestCase):
 
 class DumpStats(unittest.TestCase):
     def test_nostats(self):
-        rs = server.RelayServer(str("tcp:0"), str("tcp:0"), None)
+        rs = easy_relay()
         # with no ._stats_file, this should do nothing
         rs.dump_stats(1, 1)
 
@@ -1321,8 +1334,7 @@ class DumpStats(unittest.TestCase):
         basedir = self.mktemp()
         os.mkdir(basedir)
         fn = os.path.join(basedir, "stats.json")
-        rs = server.RelayServer(str("tcp:0"), str("tcp:0"), None,
-                                stats_file=fn)
+        rs = easy_relay(stats_file=fn)
         now = 1234
         validity = 500
         rs.dump_stats(now, validity)
@@ -1339,12 +1351,7 @@ class Startup(unittest.TestCase):
 
     @mock.patch('wormhole.server.server.log')
     def test_empty(self, fake_log):
-        rs = server.RelayServer(
-            str("tcp:0"),
-            str("tcp:0"),
-            None,
-            allow_list=False,
-        )
+        rs = easy_relay(allow_list=False)
         rs.startService()
         try:
             logs = '\n'.join([call[1][0] for call in fake_log.mock_calls])
