@@ -51,21 +51,38 @@ Received file written to README.md
 
 ```$ pip install magic-wormhole```
 
-Or on macOS with `homebrew`: `$ brew install magic-wormhole`
 
-On Debian/Ubuntu systems, you may first need `apt-get install python-pip
-build-essential python-dev libffi-dev libssl-dev`. On Fedora it's `dnf
-install python-pip python-devel libffi-devel openssl-devel gcc-c++
-libtool redhat-rpm-config`. On OS-X, you may need to install `pip` and
-run `xcode-select --install` to get GCC. On Windows, python2 may work
-better than python3. On older systems, `pip install --upgrade pip` may
-be necessary to get a version that can compile all the dependencies.
+### OS X
 
-If you get errors like `fatal error: sodium.h: No such file or directory` on
+On OS X, you may need to install `pip` and
+run `$ xcode-select --install` to get GCC. 
+
+Or with `homebrew`:
+
+`$ brew install magic-wormhole`
+
+### Linux
+On Debian/Ubuntu systems, you may first need:
+
+`$ apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`. 
+
+On Fedora:
+
+`$ dnf install python-pip python-devel libffi-devel openssl-devel gcc-c++
+libtool redhat-rpm-config`.
+
+Note: If you get errors like `fatal error: sodium.h: No such file or directory` on
 Linux, either use `SODIUM_INSTALL=bundled pip install magic-wormhole`, or try
 installing the `libsodium-dev` / `libsodium-devel` package. These work around
 a bug in pynacl which gets confused when the libsodium runtime is installed
 (e.g. `libsodium13`) but not the development package.
+
+### Windows
+
+On Windows, python2 may work
+better than python3. On older systems, `$ pip install --upgrade pip` may
+be necessary to get a version that can compile all the dependencies.
+
 
 Developers can clone the source tree and run `tox` to run the unit tests on
 all supported (and installed) versions of python: 2.7, 3.4, 3.5, and 3.6.
