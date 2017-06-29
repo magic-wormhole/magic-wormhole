@@ -174,7 +174,7 @@ The file-transfer protocol will be extended too:
   This is to support a GUI that lets you open the wormhole, then drop files
   into it on either end.
 * some Transit messages being sent early, so ports and Onion services can be
-  spun up earier, to reduce overall waiting time
+  spun up earlier, to reduce overall waiting time
 * transit messages being sent in multiple phases: maybe the transit
   connection can progress while waiting for the user to confirm the transfer
 

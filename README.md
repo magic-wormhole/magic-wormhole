@@ -62,7 +62,13 @@ Or with `homebrew`:
 `$ brew install magic-wormhole`
 
 ### Linux
-On Debian/Ubuntu systems, you may first need:
+
+On Debian 9 and Ubuntu 17.04+ with `apt`:
+
+```$ sudo apt install magic-wormhole```
+
+On previous versions of the Debian/Ubuntu systems, or if you want to install
+the latest version, you may first need:
 
 `$ apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`. 
 
@@ -247,6 +253,10 @@ pkg_resources.DistributionNotFound: The 'magic-wormhole==0.9.1-268.g66e0d86.dirt
 If this happens, run `pip install -e .[dev]` again.
 
 [virtualenv]: http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/
+
+### Other
+
+Relevant [xkcd|https://xkcd.com/949/] :-)
 
 ## License, Compatibility
 

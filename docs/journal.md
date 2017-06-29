@@ -13,7 +13,7 @@ independent of this stop/restart timing.
 This is the style encouraged by the E event loop, the
 original [Waterken Server](http://waterken.sourceforge.net/), and the more
 modern [Ken Platform](http://web.eecs.umich.edu/~tpkelly/Ken/), all
-influencial in the object-capability security community.
+influential in the object-capability security community.
 
 ## Requirements
 
