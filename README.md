@@ -235,6 +235,10 @@ If this happens, run `pip install -e .[dev]` again.
 
 [virtualenv]: http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/
 
+### Other
+
+Relevant [xkcd|https://xkcd.com/949/] :-)
+
 ## License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
