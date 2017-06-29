@@ -51,28 +51,44 @@ Received file written to README.md
 
 ```$ pip install magic-wormhole```
 
-Or on macOS with `homebrew`: `$ brew install magic-wormhole`
 
-Or on Debian 9 and Ubuntu 17.04+ with `apt`:
+### OS X
+
+On OS X, you may need to install `pip` and run `$ xcode-select --install` to
+get GCC.
+
+Or with `homebrew`:
+
+`$ brew install magic-wormhole`
+
+### Linux
+
+On Debian 9 and Ubuntu 17.04+ with `apt`:
+
 ```$ sudo apt install magic-wormhole```
 
 On previous versions of the Debian/Ubuntu systems, or if you want to install
-the latest version, you may first need `apt-get install python-pip
-build-essential python-dev libffi-dev libssl-dev` before running `pip`. On
-Fedora it's `dnf install python-pip python-devel libffi-devel openssl-devel
-gcc-c++ libtool redhat-rpm-config`. On OS-X, you may need to install `pip`
-and run `xcode-select --install` to get GCC. On Windows, python2 may work
-better than python3. On older systems, `pip install --upgrade pip` may be
-necessary to get a version that can compile all the dependencies.
+the latest version, you may first need:
 
-If you get errors like `fatal error: sodium.h: No such file or directory` on
-Linux, either use `SODIUM_INSTALL=bundled pip install magic-wormhole`, or try
-installing the `libsodium-dev` / `libsodium-devel` package. These work around
-a bug in pynacl which gets confused when the libsodium runtime is installed
-(e.g. `libsodium13`) but not the development package.
+`$ apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`
 
-Developers can clone the source tree and run `tox` to run the unit tests on
-all supported (and installed) versions of python: 2.7, 3.4, 3.5, and 3.6.
+On Fedora:
+
+`$ dnf install python-pip python-devel libffi-devel openssl-devel gcc-c++
+libtool redhat-rpm-config`.
+
+Note: If you get errors like `fatal error: sodium.h: No such file or
+directory` on Linux, either use `SODIUM_INSTALL=bundled pip install
+magic-wormhole`, or try installing the `libsodium-dev` / `libsodium-devel`
+package. These work around a bug in pynacl which gets confused when the
+libsodium runtime is installed (e.g. `libsodium13`) but not the development
+package.
+
+### Windows
+
+On Windows, python2 may work better than python3. On older systems, `$ pip
+install --upgrade pip` may be necessary to get a version that can compile all
+the dependencies.
 
 ## Motivation
 
@@ -206,6 +222,7 @@ pip install -e .[dev]
 
 ### Running Tests
 
+
 Within your virtualenv, the command-line program `trial` will
 run the test suite:
 
@@ -221,6 +238,10 @@ import notation, e.g.:
 ```
 trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
 ```
+
+Developers can also just clone the source tree and run `tox` to run the unit
+tests on all supported (and installed) versions of python: 2.7, 3.4, 3.5, and
+3.6.
 
 ### Troubleshooting
 
