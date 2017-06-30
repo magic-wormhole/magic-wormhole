@@ -468,10 +468,10 @@ class AppNamespace(object):
             mailbox_id = row["mailbox_id"]
             if mailbox_id in old_mailboxes:
                 old_nameplates.add(npid)
-        log.msg(" 3: old_nameplates", old_nameplates)
+        log.msg(" 3: old_nameplates dbids", old_nameplates)
 
         for npid in old_nameplates:
-            log.msg("  deleting nameplate", npid)
+            log.msg("  deleting nameplate with dbid", npid)
             side_rows = db.execute("SELECT * FROM `nameplate_sides`"
                                    " WHERE `nameplates_id`=?",
                                    (npid,)).fetchall()
