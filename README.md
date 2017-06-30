@@ -258,7 +258,7 @@ If this happens, run `pip install -e .[dev]` again.
 
 ### Other
 
-Relevant [xkcd|https://xkcd.com/949/] :-)
+Relevant [xkcd](https://xkcd.com/949/) :-)
 
 ## License, Compatibility
 
