@@ -893,6 +893,22 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         self.assertEqual(err["error"], "only one open per connection")
 
     @inlineCallbacks
+    def test_open_crowded(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+
+        mbid = app.claim_nameplate("np1", "side1", 0)
+        app.claim_nameplate("np1", "side2", 0)
+
+        # the third open will signal crowding
+        c1.send("open", mailbox=mbid)
+        err = yield c1.next_non_ack()
+        self.assertEqual(err["type"], "error")
+        self.assertEqual(err["error"], "crowded")
+
+    @inlineCallbacks
     def test_add(self):
         c1 = yield self.make_client()
         yield c1.next_non_ack()
@@ -990,6 +1006,22 @@ class WebSocketAPI(_Util, ServerBase, unittest.TestCase):
         err = yield c1.next_non_ack()
         self.assertEqual(err["type"], "error")
         self.assertEqual(err["error"], "open and close must use same mailbox")
+
+    @inlineCallbacks
+    def test_close_crowded(self):
+        c1 = yield self.make_client()
+        yield c1.next_non_ack()
+        c1.send("bind", appid="appid", side="side")
+        app = self._rendezvous.get_app("appid")
+
+        mbid = app.claim_nameplate("np1", "side1", 0)
+        app.claim_nameplate("np1", "side2", 0)
+
+        # a close that allocates a third side will signal crowding
+        c1.send("close", mailbox=mbid)
+        err = yield c1.next_non_ack()
+        self.assertEqual(err["type"], "error")
+        self.assertEqual(err["error"], "crowded")
 
 
     @inlineCallbacks

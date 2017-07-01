@@ -231,8 +231,11 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         mailbox_id = msg["mailbox"]
         assert isinstance(mailbox_id, type(""))
         self._mailbox_id = mailbox_id
-        self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
-                                               server_rx)
+        try:
+            self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
+                                                   server_rx)
+        except CrowdedError:
+            raise Error("crowded")
         def _send(sm):
             self.send("message", side=sm.side, phase=sm.phase,
                       body=sm.body, server_rx=sm.server_rx, id=sm.msg_id)
@@ -268,8 +271,11 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
                 raise Error("close without mailbox must follow open")
             mailbox_id = self._mailbox_id
         if not self._mailbox:
-            self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
-                                                   server_rx)
+            try:
+                self._mailbox = self._app.open_mailbox(mailbox_id, self._side,
+                                                       server_rx)
+            except CrowdedError:
+                raise Error("crowded")
         if self._listening:
             self._mailbox.remove_listener(self)
             self._listening = False
