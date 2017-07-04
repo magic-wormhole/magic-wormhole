@@ -313,6 +313,26 @@ class Code(unittest.TestCase):
                                   ("k.got_code", u"1-code"),
                                   ])
 
+    def test_set_code_invalid(self):
+        c, b, a, n, k, i, events = self.build()
+        with self.assertRaises(errors.KeyFormatError) as e:
+            c.set_code(u"1-code ")
+        self.assertEqual(str(e.exception), "Code '1-code ' contains spaces.")
+        with self.assertRaises(errors.KeyFormatError) as e:
+            c.set_code(u" 1-code")
+        self.assertEqual(str(e.exception), "Code ' 1-code' contains spaces.")
+        with self.assertRaises(errors.KeyFormatError) as e:
+            c.set_code(u"code-code")
+        self.assertEqual(str(e.exception),
+                         "Nameplate 'code' must be numeric, with no spaces.")
+
+        # it should still be possible to use the wormhole at this point
+        c.set_code(u"1-code")
+        self.assertEqual(events, [("n.set_nameplate", u"1"),
+                                  ("b.got_code", u"1-code"),
+                                  ("k.got_code", u"1-code"),
+                                  ])
+
     def test_allocate_code(self):
         c, b, a, n, k, i, events = self.build()
         wl = FakeWordList()
@@ -356,6 +376,27 @@ class Input(unittest.TestCase):
         events[:] = []
         with self.assertRaises(errors.MustChooseNameplateFirstError):
             helper.choose_words("word-word")
+        helper.choose_nameplate("1")
+        self.assertEqual(events, [("c.got_nameplate", "1")])
+        events[:] = []
+        with self.assertRaises(errors.AlreadyChoseNameplateError):
+            helper.choose_nameplate("2")
+        helper.choose_words("word-word")
+        with self.assertRaises(errors.AlreadyChoseWordsError):
+            helper.choose_words("word-word")
+        self.assertEqual(events, [("c.finished_input", "1-word-word")])
+
+    def test_bad_nameplate(self):
+        i, c, l, events = self.build()
+        helper = i.start()
+        self.assertIsInstance(helper, _input.Helper)
+        self.assertEqual(events, [("l.refresh",)])
+        events[:] = []
+        with self.assertRaises(errors.MustChooseNameplateFirstError):
+            helper.choose_words("word-word")
+        with self.assertRaises(errors.KeyFormatError):
+            helper.choose_nameplate(" 1")
+        # should still work afterwards
         helper.choose_nameplate("1")
         self.assertEqual(events, [("c.got_nameplate", "1")])
         events[:] = []
@@ -565,6 +606,23 @@ class Nameplate(unittest.TestCase):
         t = Dummy("t", events, ITerminator, "nameplate_done")
         n.wire(m, i, rc, t)
         return n, m, i, rc, t, events
+
+    def test_set_invalid(self):
+        n, m, i, rc, t, events = self.build()
+        with self.assertRaises(errors.KeyFormatError) as e:
+            n.set_nameplate(" 1")
+        self.assertEqual(str(e.exception),
+                         "Nameplate ' 1' must be numeric, with no spaces.")
+        with self.assertRaises(errors.KeyFormatError) as e:
+            n.set_nameplate("one")
+        self.assertEqual(str(e.exception),
+                         "Nameplate 'one' must be numeric, with no spaces.")
+
+        # wormhole should still be usable
+        n.set_nameplate("1")
+        self.assertEqual(events, [])
+        n.connected()
+        self.assertEqual(events, [("rc.tx_claim", "1")])
 
     def test_set_first(self):
         # connection remains up throughout
@@ -1356,8 +1414,11 @@ class Boss(unittest.TestCase):
         b, events = self.build()
         with self.assertRaises(errors.KeyFormatError):
             b.set_code("1 code")
+        # wormhole should still be usable
+        b.set_code("1-code")
+        self.assertEqual(events, [("c.set_code", "1-code")])
 
-    def test_set_code_bad_twice(self):
+    def test_set_code_twice(self):
         b, events = self.build()
         b.set_code("1-code")
         with self.assertRaises(errors.OnlyOneCodeError):

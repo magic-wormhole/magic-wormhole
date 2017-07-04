@@ -17,12 +17,11 @@ from ._rendezvous import RendezvousConnector
 from ._lister import Lister
 from ._allocator import Allocator
 from ._input import Input
-from ._code import Code
+from ._code import Code, validate_code
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (ServerError, LonelyError, WrongPasswordError,
-                     KeyFormatError, OnlyOneCodeError, _UnknownPhaseError,
-                     WelcomeError)
+                     OnlyOneCodeError, _UnknownPhaseError, WelcomeError)
 from .util import bytes_to_dict
 
 @attrs
@@ -159,8 +158,7 @@ class Boss(object):
         wl = PGPWordList()
         self._C.allocate_code(code_length, wl)
     def set_code(self, code):
-        if ' ' in code:
-            raise KeyFormatError("code (%s) contains spaces." % code)
+        validate_code(code) # can raise KeyFormatError
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True

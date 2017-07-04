@@ -106,11 +106,11 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
-    except (WrongPasswordError, KeyFormatError, NoTorError) as e:
+    except (WrongPasswordError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
-    except (WelcomeError, UnsendableFileError) as e:
+    except (WelcomeError, UnsendableFileError, KeyFormatError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
         print(six.u(""), file=cfg.stderr)

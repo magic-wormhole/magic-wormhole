@@ -1,8 +1,16 @@
 from __future__ import print_function, absolute_import, unicode_literals
+import re
 from zope.interface import implementer
 from automat import MethodicalMachine
 from . import _interfaces
 from ._wordlist import PGPWordList
+from .errors import KeyFormatError
+
+
+def validate_nameplate(nameplate):
+    if not re.search(r'^\d+$', nameplate):
+        raise KeyFormatError("Nameplate '%s' must be numeric, with no spaces."
+                             % nameplate)
 
 @implementer(_interfaces.INameplate)
 class Nameplate(object):
@@ -62,8 +70,11 @@ class Nameplate(object):
     S5B = S5
 
     # from Boss
+    def set_nameplate(self, nameplate):
+        validate_nameplate(nameplate) # can raise KeyFormatError
+        self._set_nameplate(nameplate)
     @m.input()
-    def set_nameplate(self, nameplate): pass
+    def _set_nameplate(self, nameplate): pass
 
     # from Mailbox
     @m.input()
@@ -84,12 +95,13 @@ class Nameplate(object):
     @m.input()
     def rx_released(self): pass
 
-
     @m.output()
     def record_nameplate(self, nameplate):
+        validate_nameplate(nameplate)
         self._nameplate = nameplate
     @m.output()
     def record_nameplate_and_RC_tx_claim(self, nameplate):
+        validate_nameplate(nameplate)
         self._nameplate = nameplate
         self._RC.tx_claim(self._nameplate)
     @m.output()
@@ -112,10 +124,10 @@ class Nameplate(object):
     def T_nameplate_done(self):
         self._T.nameplate_done()
 
-    S0A.upon(set_nameplate, enter=S1A, outputs=[record_nameplate])
+    S0A.upon(_set_nameplate, enter=S1A, outputs=[record_nameplate])
     S0A.upon(connected, enter=S0B, outputs=[])
     S0A.upon(close, enter=S5A, outputs=[T_nameplate_done])
-    S0B.upon(set_nameplate, enter=S2B,
+    S0B.upon(_set_nameplate, enter=S2B,
              outputs=[record_nameplate_and_RC_tx_claim])
     S0B.upon(lost, enter=S0A, outputs=[])
     S0B.upon(close, enter=S5A, outputs=[T_nameplate_done])

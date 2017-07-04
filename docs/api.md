@@ -248,6 +248,11 @@ it doesn't matter which one goes first, and both use the same Wormhole
 constructor function. However if `w.allocate_code()` is used, only one side
 should use it.
 
+Providing an invalid nameplate (which is easily caused by cut-and-paste
+errors that include an extra space at the beginning, or which copy the words
+but not the number) will raise a `KeyFormatError`, either in
+`w.set_code(code)` or in `h.choose_nameplate()`.
+
 ## Offline Codes
 
 In most situations, the "sending" or "initiating" side will call

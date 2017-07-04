@@ -5,6 +5,7 @@ from attr.validators import provides
 from twisted.internet import defer
 from automat import MethodicalMachine
 from . import _interfaces, errors
+from ._nameplate import validate_nameplate
 
 def first(outputs):
     return list(outputs)[0]
@@ -61,8 +62,11 @@ class Input(object):
     def refresh_nameplates(self): pass
     @m.input()
     def get_nameplate_completions(self, prefix): pass
+    def choose_nameplate(self, nameplate):
+        validate_nameplate(nameplate) # can raise KeyFormatError
+        self._choose_nameplate(nameplate)
     @m.input()
-    def choose_nameplate(self, nameplate): pass
+    def _choose_nameplate(self, nameplate): pass
     @m.input()
     def get_word_completions(self, prefix): pass
     @m.input()
@@ -158,7 +162,7 @@ class Input(object):
                              enter=S1_typing_nameplate,
                              outputs=[_get_nameplate_completions],
                              collector=first)
-    S1_typing_nameplate.upon(choose_nameplate, enter=S2_typing_code_no_wordlist,
+    S1_typing_nameplate.upon(_choose_nameplate, enter=S2_typing_code_no_wordlist,
                              outputs=[record_all_nameplates])
     S1_typing_nameplate.upon(get_word_completions,
                              enter=S1_typing_nameplate,
@@ -178,7 +182,7 @@ class Input(object):
     S2_typing_code_no_wordlist.upon(get_nameplate_completions,
                                     enter=S2_typing_code_no_wordlist,
                                     outputs=[raise_already_chose_nameplate2])
-    S2_typing_code_no_wordlist.upon(choose_nameplate,
+    S2_typing_code_no_wordlist.upon(_choose_nameplate,
                                     enter=S2_typing_code_no_wordlist,
                                     outputs=[raise_already_chose_nameplate3])
     S2_typing_code_no_wordlist.upon(get_word_completions,
@@ -198,7 +202,7 @@ class Input(object):
     S3_typing_code_yes_wordlist.upon(get_nameplate_completions,
                                      enter=S3_typing_code_yes_wordlist,
                                      outputs=[raise_already_chose_nameplate2])
-    S3_typing_code_yes_wordlist.upon(choose_nameplate,
+    S3_typing_code_yes_wordlist.upon(_choose_nameplate,
                                      enter=S3_typing_code_yes_wordlist,
                                      outputs=[raise_already_chose_nameplate3])
     S3_typing_code_yes_wordlist.upon(get_word_completions,
@@ -216,7 +220,7 @@ class Input(object):
     S4_done.upon(get_nameplate_completions,
                  enter=S4_done,
                  outputs=[raise_already_chose_nameplate2])
-    S4_done.upon(choose_nameplate, enter=S4_done,
+    S4_done.upon(_choose_nameplate, enter=S4_done,
                  outputs=[raise_already_chose_nameplate3])
     S4_done.upon(get_word_completions, enter=S4_done,
                  outputs=[raise_already_chose_words1])
