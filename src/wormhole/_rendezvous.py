@@ -112,8 +112,8 @@ class RendezvousConnector(object):
         self._connector.startService()
 
     # from Mailbox
-    def tx_claim(self, nameplate):
-        self._tx("claim", nameplate=nameplate)
+    def tx_claim(self, nameplate, enumerable=True):
+        self._tx("claim", nameplate=nameplate, enumerable=enumerable)
 
     def tx_open(self, mailbox):
         self._tx("open", mailbox=mailbox)
