@@ -3,7 +3,7 @@ import os, sys, re, io, zipfile, six, stat
 from textwrap import fill, dedent
 from humanize import naturalsize
 import mock
-import click.testing
+from click.testing import CliRunner
 from zope.interface import implementer
 from twisted.trial import unittest
 from twisted.python import procutils, log
@@ -1171,6 +1171,24 @@ class Dispatch(unittest.TestCase):
         expected = "<TRACEBACK>\nERROR: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
+class Help(unittest.TestCase):
+    def _check_top_level_help(self, got):
+        # the main wormhole.cli.cli.wormhole docstring should be in the
+        # output, but formatted differently
+        self.assertIn("Create a Magic Wormhole and communicate through it.",
+                      got)
+        self.assertIn("--relay-url", got)
+        self.assertIn("Receive a text message, file, or directory", got)
+
+    def test_help(self):
+        result = CliRunner().invoke(cli.wormhole, ["help"])
+        self._check_top_level_help(result.output)
+        self.assertEqual(result.exit_code, 0)
+
+    def test_dash_dash_help(self):
+        result = CliRunner().invoke(cli.wormhole, ["--help"])
+        self._check_top_level_help(result.output)
+        self.assertEqual(result.exit_code, 0)
 
 class FakeConfig(object):
     no_daemon = True
@@ -1187,7 +1205,7 @@ class FakeConfig(object):
 class Server(unittest.TestCase):
 
     def setUp(self):
-        self.runner = click.testing.CliRunner()
+        self.runner = CliRunner()
 
     @mock.patch('wormhole.server.cmd_server.twistd')
     def test_server_disallow_list(self, fake_twistd):
