@@ -181,7 +181,8 @@ class AppNamespace(object):
         db = self._db
         # TODO: filter this to numeric ids?
         c = db.execute("SELECT DISTINCT `name` FROM `nameplates`"
-                       " WHERE `app_id`=?", (self._app_id,))
+                       " WHERE `app_id`=? AND `enumerable`=?",
+                       (self._app_id, True))
         return set([row["name"] for row in c.fetchall()])
 
     def _find_available_nameplate_id(self):
@@ -208,7 +209,7 @@ class AppNamespace(object):
         del mailbox_id # ignored, they'll learn it from claim()
         return nameplate_id
 
-    def claim_nameplate(self, name, side, when):
+    def claim_nameplate(self, name, side, when, enumerable=True):
         # when we're done:
         # * there will be one row for the nameplate
         #  * there will be one 'side' attached to it, with claimed=True
@@ -227,8 +228,8 @@ class AppNamespace(object):
             mailbox_id = generate_mailbox_id()
             self._add_mailbox(mailbox_id, True, side, when) # ensure row exists
             sql = ("INSERT INTO `nameplates`"
-                   " (`app_id`, `name`, `mailbox_id`)"
-                   " VALUES(?,?,?)")
+                   " (`app_id`, `name`, `mailbox_id`, `enumerable`)"
+                   " VALUES(?,?,?,?)")
             npid = db.execute(sql, (self._app_id, name, mailbox_id)
                               ).lastrowid
         else:
