@@ -195,10 +195,12 @@ class WebSocketRendezvous(websocket.WebSocketServerProtocol):
         self._did_claim = True
         nameplate_id = msg["nameplate"]
         assert isinstance(nameplate_id, type("")), type(nameplate_id)
+        enumerable = bool(msg.get("enumerable", True))
         self._nameplate_id = nameplate_id
         try:
             mailbox_id = self._app.claim_nameplate(nameplate_id, self._side,
-                                                   server_rx)
+                                                   server_rx,
+                                                   enumerable=enumerable)
         except CrowdedError:
             raise Error("crowded")
         except ReclaimedError:
