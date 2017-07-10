@@ -1,4 +1,4 @@
-from __future__ import print_function, unicode_literals
+from __future__ import print_function
 import os, sys, re, io, zipfile, six, stat
 from textwrap import fill, dedent
 from humanize import naturalsize
@@ -335,7 +335,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.relay_url = self.relayurl
             cfg.transit_helper = ""
             cfg.listen = True
-            cfg.code = "1-abc"
+            cfg.code = u"1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
 
@@ -649,7 +649,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.relay_url = self.relayurl
             cfg.transit_helper = ""
             cfg.listen = False
-            cfg.code = "1-abc"
+            cfg.code = u"1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
 
@@ -861,7 +861,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def test_sender(self):
         self.cfg.text = "hi"
-        self.cfg.code = "1-abc"
+        self.cfg.code = u"1-abc"
 
         send_d = cmd_send.send(self.cfg)
         f = yield self.assertFailure(send_d, WelcomeError)
@@ -869,7 +869,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_receiver(self):
-        self.cfg.code = "1-abc"
+        self.cfg.code = u"1-abc"
 
         receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
@@ -892,7 +892,7 @@ class NoServer(ServerBase, unittest.TestCase):
         cfg.stderr = io.StringIO()
 
         cfg.text = "hi"
-        cfg.code = "1-abc"
+        cfg.code = u"1-abc"
 
         send_d = cmd_send.send(cfg)
         e = yield self.assertFailure(send_d, ServerConnectionError)
@@ -924,7 +924,7 @@ class NoServer(ServerBase, unittest.TestCase):
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
-        cfg.code = "1-abc"
+        cfg.code = u"1-abc"
 
         receive_d = cmd_receive.receive(cfg)
         e = yield self.assertFailure(receive_d, ServerConnectionError)
@@ -948,7 +948,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         # the rendezvous channel should be deleted after success
         cfg = self.make_config()
         cfg.text = "hello"
-        cfg.code = "1-abc"
+        cfg.code = u"1-abc"
 
         send_d = cmd_send.send(cfg)
         receive_d = cmd_receive.receive(cfg)
@@ -965,11 +965,11 @@ class Cleanup(ServerBase, unittest.TestCase):
         # deleted
         send_cfg = self.make_config()
         send_cfg.text = "secret message"
-        send_cfg.code = "1-abc"
+        send_cfg.code = u"1-abc"
         send_d = cmd_send.send(send_cfg)
 
         rx_cfg = self.make_config()
-        rx_cfg.code = "1-WRONG"
+        rx_cfg.code = u"1-WRONG"
         receive_d = cmd_receive.receive(rx_cfg)
 
         # both sides should be capable of detecting the mismatch
@@ -982,7 +982,7 @@ class Cleanup(ServerBase, unittest.TestCase):
 class ExtractFile(unittest.TestCase):
     def test_filenames(self):
         args = mock.Mock()
-        args.relay_url = ""
+        args.relay_url = u""
         ef = cmd_receive.Receiver(args)._extract_file
         extract_dir = os.path.abspath(self.mktemp())
 
@@ -1037,8 +1037,8 @@ class AppID(ServerBase, unittest.TestCase):
     def test_override(self):
         # make sure we use the overridden appid, not the default
         self.cfg.text = "hello"
-        self.cfg.appid = "appid2"
-        self.cfg.code = "1-abc"
+        self.cfg.appid = u"appid2"
+        self.cfg.code = u"1-abc"
 
         send_d = cmd_send.send(self.cfg)
         receive_d = cmd_receive.receive(self.cfg)
@@ -1163,7 +1163,7 @@ class Dispatch(unittest.TestCase):
         # out here.
         f = mock.Mock()
         def mock_print(file):
-            file.write("<TRACEBACK>\n")
+            file.write(u"<TRACEBACK>\n")
         f.printTraceback = mock_print
         with mock.patch("wormhole.cli.cli.Failure", return_value=f):
             yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
