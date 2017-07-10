@@ -54,7 +54,7 @@ class Code(object):
     @m.output()
     def do_set_code(self, code):
         nameplate = code.split("-", 2)[0]
-        self._N.set_nameplate(nameplate)
+        self._N.set_nameplate(nameplate, enumerable=False)
         self._B.got_code(code)
         self._K.got_code(code)
 
@@ -63,7 +63,7 @@ class Code(object):
         return self._I.start()
     @m.output()
     def do_middle_input(self, nameplate):
-        self._N.set_nameplate(nameplate)
+        self._N.set_nameplate(nameplate, enumerable=False)
     @m.output()
     def do_finish_input(self, code):
         self._B.got_code(code)
@@ -75,7 +75,7 @@ class Code(object):
     @m.output()
     def do_finish_allocate(self, nameplate, code):
         assert code.startswith(nameplate+"-"), (nameplate, code)
-        self._N.set_nameplate(nameplate)
+        self._N.set_nameplate(nameplate, enumerable=True)
         self._B.got_code(code)
         self._K.got_code(code)
 

@@ -61,9 +61,9 @@ class Nameplate(object):
     S5A = S5
     S5B = S5
 
-    # from Boss
+    # from Code
     @m.input()
-    def set_nameplate(self, nameplate): pass
+    def set_nameplate(self, nameplate, enumerable): pass
 
     # from Mailbox
     @m.input()
@@ -86,16 +86,18 @@ class Nameplate(object):
 
 
     @m.output()
-    def record_nameplate(self, nameplate):
+    def record_nameplate(self, nameplate, enumerable):
         self._nameplate = nameplate
+        self._enumerable = enumerable
     @m.output()
-    def record_nameplate_and_RC_tx_claim(self, nameplate):
+    def record_nameplate_and_RC_tx_claim(self, nameplate, enumerable):
         self._nameplate = nameplate
-        self._RC.tx_claim(self._nameplate)
+        self._enumerable = enumerable
+        self._RC.tx_claim(self._nameplate, self._enumerable)
     @m.output()
     def RC_tx_claim(self):
         # when invoked via M.connected(), we must use the stored nameplate
-        self._RC.tx_claim(self._nameplate)
+        self._RC.tx_claim(self._nameplate, self._enumerable)
     @m.output()
     def I_got_wordlist(self, mailbox):
         # TODO select wordlist based on nameplate properties, in rx_claimed
