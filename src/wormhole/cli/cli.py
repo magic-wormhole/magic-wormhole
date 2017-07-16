@@ -168,6 +168,11 @@ TorArgs = _compose(
                  ),
 )
 
+@wormhole.command()
+@click.pass_context
+def help(context, **kwargs):
+    print(context.find_root().get_help())
+
 # wormhole send (or "wormhole tx")
 @wormhole.command()
 @CommonArgs
