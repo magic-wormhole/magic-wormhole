@@ -18,8 +18,7 @@ install:
 before_script:
   - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then
       pip install -U flake8 ;
-      flake8 src --count --select=E901,E999,F821,F822,F823 --statistics ;
-      flake8 *.py --count --select=E901,E999,F821,F822,F823 --statistics ;
+      flake8 *py src --count --select=E901,E999,F821,F822,F823 --statistics ;
     fi
 script:
   - tox -e coverage
