@@ -12,6 +12,12 @@ from wormhole import journal, wormhole
 #   to use for everything. App should only hold objects that are active
 #   (Services, subscribers, etc). App must wire up these objects each time.
 
+def parse(args):
+    rasie NotImplementedError
+
+def update_my_state():
+    rasie NotImplementedError
+
 class State(object):
     @classmethod
     def create_empty(klass):
