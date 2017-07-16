@@ -1238,3 +1238,48 @@ class Server(unittest.TestCase):
         relay = plugin.makeService(None)
         self.assertEqual('relay.sqlite', relay._db_url)
         self.assertEqual('stats.json', relay._stats_file)
+
+    @mock.patch("wormhole.server.cmd_server.start_server")
+    def test_websocket_protocol_options(self, fake_start_server):
+        result = self.runner.invoke(
+            server, [
+                'start',
+                '--websocket-protocol-option=a=3',
+                '--websocket-protocol-option=b=true',
+                '--websocket-protocol-option=c=3.5',
+                '--websocket-protocol-option=d=["foo","bar"]',
+                '--websocket-protocol-option', 'e=["foof","barf"]',
+            ])
+        self.assertEqual(0, result.exit_code)
+        cfg = fake_start_server.mock_calls[0][1][0]
+        self.assertEqual(
+            cfg.websocket_protocol_option,
+            [("a", 3), ("b", True), ("c", 3.5), ("d", ['foo', 'bar']),
+             ("e", ['foof', 'barf']),
+             ],
+        )
+
+    def test_broken_websocket_protocol_options(self):
+        result = self.runner.invoke(
+            server, [
+                'start',
+                '--websocket-protocol-option=a',
+            ])
+        self.assertNotEqual(0, result.exit_code)
+        self.assertIn(
+            'Error: Invalid value for "--websocket-protocol-option": '
+            'format options as OPTION=VALUE',
+            result.output,
+        )
+
+        result = self.runner.invoke(
+            server, [
+                'start',
+                '--websocket-protocol-option=a=foo',
+            ])
+        self.assertNotEqual(0, result.exit_code)
+        self.assertIn(
+            'Error: Invalid value for "--websocket-protocol-option": '
+            'could not parse JSON value for a',
+            result.output,
+        )

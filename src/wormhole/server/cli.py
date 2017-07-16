@@ -1,4 +1,5 @@
 from __future__ import print_function
+import json
 import click
 from ..cli.cli import Config, _compose
 
@@ -19,6 +20,21 @@ def server(ctx): # this is the setuptools entrypoint for bin/wormhole-server
     # server commands don't use
     ctx.obj = Config()
 
+def _validate_websocket_protocol_options(ctx, param, value):
+    return list(_validate_websocket_protocol_option(option) for option in value)
+
+def _validate_websocket_protocol_option(option):
+    try:
+        key, value = option.split("=", 1)
+    except ValueError:
+        raise click.BadParameter("format options as OPTION=VALUE")
+
+    try:
+        value = json.loads(value)
+    except:
+        raise click.BadParameter("could not parse JSON value for {}".format(key))
+
+    return (key, value)
 
 LaunchArgs = _compose(
     click.option(
@@ -57,6 +73,11 @@ LaunchArgs = _compose(
     click.option(
         "--stats-json-path", default="stats.json", metavar="PATH",
         help="location to write the relay stats file",
+    ),
+    click.option(
+        "--websocket-protocol-option", multiple=True, metavar="OPTION=VALUE",
+        callback=_validate_websocket_protocol_options,
+        help="a websocket server protocol option to configure",
     ),
 )
 
