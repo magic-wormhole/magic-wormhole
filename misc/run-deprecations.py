@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys, os, io
 from twisted.internet import reactor, protocol, task, defer
 from twisted.python.procutils import which
@@ -8,8 +9,12 @@ from twisted.python import usage
 # logfile (so the buildbot can see them), and return rc=1 if there were any.
 
 class Options(usage.Options):
+    optFlags = [
+        ("print-warnings", None,
+         "print all warnings to stdout after tests have finished"),
+        ]
     optParameters = [
-        ["warnings", None, None, "file to write warnings into at end of test run"],
+        ("warnings", None, None, "file to write warnings into at end of test run"),
         ]
 
     def parseArgs(self, command, *args):
@@ -51,7 +56,7 @@ def run_command(main):
     pw = os.environ.get("PYTHONWARNINGS")
     DDW = "default::DeprecationWarning"
     if pw != DDW:
-        print "note: $PYTHONWARNINGS is '%s', not the expected %s" % (pw, DDW)
+        print("note: $PYTHONWARNINGS is '%s', not the expected %s" % (pw, DDW))
         sys.stdout.flush()
 
     pp = RunPP()
@@ -84,11 +89,16 @@ def run_command(main):
     if warnings:
         if config["warnings"]:
             with open(config["warnings"], "wb") as f:
-                print >>f, "".join(warnings)
-        print "ERROR: %d deprecation warnings found" % len(warnings)
+                print("".join(warnings), file=f)
+        print("ERROR: %d deprecation warnings found" % len(warnings))
+        if config["print-warnings"]:
+            print("--- %d warnings follow: ---" % len(warnings))
+            for w in warnings:
+                print(w)
+            print("--- %d deprecation warnings printed ---" % len(warnings))
         sys.exit(1)
 
-    print "no deprecation warnings"
+    print("no deprecation warnings: yay")
     if signal:
         sys.exit(signal)
     sys.exit(rc)
