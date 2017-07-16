@@ -1248,12 +1248,15 @@ class Server(unittest.TestCase):
                 '--websocket-protocol-option=b=true',
                 '--websocket-protocol-option=c=3.5',
                 '--websocket-protocol-option=d=["foo","bar"]',
+                '--websocket-protocol-option', 'e=["foof","barf"]',
             ])
         self.assertEqual(0, result.exit_code)
         cfg = fake_start_server.mock_calls[0][1][0]
         self.assertEqual(
             cfg.websocket_protocol_option,
-            [("a", 3), ("b", True), ("c", 3.5), ("d", ['foo', 'bar'])],
+            [("a", 3), ("b", True), ("c", 3.5), ("d", ['foo', 'bar']),
+             ("e", ['foof', 'barf']),
+             ],
         )
 
     def test_broken_websocket_protocol_options(self):
