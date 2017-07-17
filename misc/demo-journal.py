@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os, sys, json
 from twisted.internet import task, defer, endpoints
 from twisted.application import service, internet
@@ -147,7 +148,7 @@ class Agent(service.MultiService):
         return b"\n".join(lines)+b"\n"
 
     def _invite(self, args):
-        print "invite", args
+        print("invite", args)
         petname = args["petname"]
         # it'd be better to use a unique object for the event_handler
         # correlation, but we can't store them into the state database. I'm
@@ -172,7 +173,7 @@ class Agent(service.MultiService):
         return b"ok"
 
     def _accept(self, args):
-        print "accept", args
+        print("accept", args)
         petname = args["petname"]
         code = args["code"]
         iid = random.randint(1,1000)
@@ -256,7 +257,7 @@ def create(reactor, basedir):
 def run(reactor, basedir):
     a = Agent(basedir, reactor)
     a.startService()
-    print "agent listening on http://localhost:8220/"
+    print("agent listening on http://localhost:8220/")
     d = defer.Deferred()
     return d
 
@@ -270,7 +271,5 @@ if __name__ == "__main__":
     elif command == "run":
         task.react(run, (basedir,))
     else:
-        print "Unrecognized subcommand '%s'" % command
+        print("Unrecognized subcommand '%s'" % command)
         sys.exit(1)
-
-
