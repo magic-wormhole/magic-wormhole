@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os, sys, json, contextlib, random
 from twisted.internet import task, defer, endpoints
 from twisted.application import service, internet
