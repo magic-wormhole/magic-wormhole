@@ -4,6 +4,14 @@ from attr import attrs, attrib
 from attr.validators import provides
 from automat import MethodicalMachine
 from . import _interfaces
+from ._nameplate import validate_nameplate
+from .errors import KeyFormatError
+
+def validate_code(code):
+    if ' ' in code:
+        raise KeyFormatError("Code '%s' contains spaces." % code)
+    nameplate = code.split("-", 2)[0]
+    validate_nameplate(nameplate) # can raise KeyFormatError
 
 def first(outputs):
     return list(outputs)[0]
@@ -38,8 +46,11 @@ class Code(object):
     def allocate_code(self, length, wordlist): pass
     @m.input()
     def input_code(self): pass
+    def set_code(self, code):
+        validate_code(code) # can raise KeyFormatError
+        self._set_code(code)
     @m.input()
-    def set_code(self, code): pass
+    def _set_code(self, code): pass
 
     # from Allocator
     @m.input()
@@ -79,7 +90,7 @@ class Code(object):
         self._B.got_code(code)
         self._K.got_code(code)
 
-    S0_idle.upon(set_code, enter=S4_known, outputs=[do_set_code])
+    S0_idle.upon(_set_code, enter=S4_known, outputs=[do_set_code])
     S0_idle.upon(input_code, enter=S1_inputting_nameplate,
                  outputs=[do_start_input], collector=first)
     S1_inputting_nameplate.upon(got_nameplate, enter=S2_inputting_words,

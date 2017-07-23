@@ -448,7 +448,27 @@ class Wormholes(ServerBase, unittest.TestCase):
         badcode = "4 oops spaces"
         with self.assertRaises(KeyFormatError) as ex:
             w.set_code(badcode)
-        expected_msg = "code (%s) contains spaces." % (badcode,)
+        expected_msg = "Code '%s' contains spaces." % (badcode,)
+        self.assertEqual(expected_msg, str(ex.exception))
+        yield self.assertFailure(w.close(), LonelyError)
+
+    @inlineCallbacks
+    def test_wrong_password_with_leading_space(self):
+        w = wormhole.create(APPID, self.relayurl, reactor)
+        badcode = " 4-oops-space"
+        with self.assertRaises(KeyFormatError) as ex:
+            w.set_code(badcode)
+        expected_msg = "Code '%s' contains spaces." % (badcode,)
+        self.assertEqual(expected_msg, str(ex.exception))
+        yield self.assertFailure(w.close(), LonelyError)
+
+    @inlineCallbacks
+    def test_wrong_password_with_non_numeric_nameplate(self):
+        w = wormhole.create(APPID, self.relayurl, reactor)
+        badcode = "four-oops-space"
+        with self.assertRaises(KeyFormatError) as ex:
+            w.set_code(badcode)
+        expected_msg = "Nameplate 'four' must be numeric, with no spaces."
         self.assertEqual(expected_msg, str(ex.exception))
         yield self.assertFailure(w.close(), LonelyError)
 
