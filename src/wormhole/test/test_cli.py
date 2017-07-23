@@ -350,7 +350,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode in ("file", "empty-file"):
             if mode == "empty-file":
                 message = ""
-            send_filename = "testfil\u00EB" # e-with-diaeresis
+            send_filename = u"testfil\u00EB" # e-with-diaeresis
             with open(os.path.join(send_dir, send_filename), "w") as f:
                 f.write(message)
             send_cfg.what = send_filename
@@ -358,7 +358,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
             recv_cfg.accept_file = False if mock_accept else True
             if override_filename:
-                recv_cfg.output_file = receive_filename = "outfile"
+                recv_cfg.output_file = receive_filename = u"outfile"
             if overwrite:
                 recv_cfg.output_file = receive_filename
                 existing_file = os.path.join(receive_dir, receive_filename)
@@ -374,11 +374,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             # cd $receive_dir && wormhole receive
             # expect: $receive_dir/$dirname/[12345]
 
-            send_dirname = "testdir"
+            send_dirname = u"testdir"
             def message(i):
                 return "test message %d\n" % i
-            os.mkdir(os.path.join(send_dir, "middle"))
-            source_dir = os.path.join(send_dir, "middle", send_dirname)
+            os.mkdir(os.path.join(send_dir, u"middle"))
+            source_dir = os.path.join(send_dir, u"middle", send_dirname)
             os.mkdir(source_dir)
             modes = {}
             for i in range(5):
@@ -388,7 +388,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 if i == 3:
                     os.chmod(path, 0o755)
                 modes[i] = stat.S_IMODE(os.stat(path).st_mode)
-            send_dirname_arg = os.path.join("middle", send_dirname)
+            send_dirname_arg = os.path.join(u"middle", send_dirname)
             if addslash:
                 send_dirname_arg += os.sep
             send_cfg.what = send_dirname_arg
@@ -396,7 +396,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
             recv_cfg.accept_file = False if mock_accept else True
             if override_filename:
-                recv_cfg.output_file = receive_dirname = "outdir"
+                recv_cfg.output_file = receive_dirname = u"outdir"
             if overwrite:
                 recv_cfg.output_file = receive_dirname
                 os.mkdir(os.path.join(receive_dir, receive_dirname))
@@ -539,26 +539,26 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                                         KE=key_established)
             self.failUnlessEqual(send_stderr, expected)
         elif mode == "file":
-            self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
+            self.failUnlessIn(u"Sending {size:s} file named '{name}'{NL}"
                               .format(size=naturalsize(len(message)),
                                       name=send_filename,
                                       NL=NL), send_stderr)
-            self.failUnlessIn("On the other computer, please run: "
+            self.failUnlessIn(u"On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
                               .format(code=send_cfg.code, NL=NL),
                               send_stderr)
-            self.failUnlessIn("File sent.. waiting for confirmation{NL}"
+            self.failUnlessIn(u"File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
                               .format(NL=NL), send_stderr)
         elif mode == "directory":
-            self.failUnlessIn("Sending directory", send_stderr)
-            self.failUnlessIn("named 'testdir'", send_stderr)
-            self.failUnlessIn("On the other computer, please run: "
+            self.failUnlessIn(u"Sending directory", send_stderr)
+            self.failUnlessIn(u"named 'testdir'", send_stderr)
+            self.failUnlessIn(u"On the other computer, please run: "
                               "wormhole receive{NL}"
                               "Wormhole code is: {code}{NL}{NL}"
                               .format(code=send_cfg.code, NL=NL), send_stderr)
-            self.failUnlessIn("File sent.. waiting for confirmation{NL}"
+            self.failUnlessIn(u"File sent.. waiting for confirmation{NL}"
                               "Confirmation received. Transfer complete.{NL}"
                               .format(NL=NL), send_stderr)
 
@@ -573,10 +573,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
-            self.failUnlessIn("Receiving file ({size:s}) into: {name}"
+            self.failUnlessIn(u"Receiving file ({size:s}) into: {name}"
                               .format(size=naturalsize(len(message)),
                                       name=receive_filename), receive_stderr)
-            self.failUnlessIn("Received file written to ", receive_stderr)
+            self.failUnlessIn(u"Received file written to ", receive_stderr)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))
             with open(fn, "r") as f:
@@ -587,7 +587,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     .format(name=receive_dirname))
             self.failUnless(re.search(want, receive_stderr),
                             (want, receive_stderr))
-            self.failUnlessIn("Received files written to {name}"
+            self.failUnlessIn(u"Received files written to {name}"
                               .format(name=receive_dirname), receive_stderr)
             fn = os.path.join(receive_dir, receive_dirname)
             self.failUnless(os.path.exists(fn), fn)
