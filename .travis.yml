@@ -15,6 +15,11 @@ python:
   - "nightly"
 install:
   - pip install -U pip tox virtualenv codecov
+before_script:
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then
+      pip install -U flake8 ;
+      flake8 *.py src --count --select=E901,E999,F821,F822,F823 --statistics ;
+    fi
 script:
   - tox -e coverage
 after_success:
