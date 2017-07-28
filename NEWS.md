@@ -1,6 +1,33 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.3 (??)
+
+'wormhole-server start' adds --relay-database-path and --stats-json-path
+(#186)
+
+snapcraft packaging was updated (#202)
+
+docs improvements
+
+server: "crowded" mailboxes now deliver an error to clients, so they
+should give up instead of reconnecting (#211)
+
+server: construct relay DB more safely (#189)
+
+"wormhole help" should behave like "wormhole --help" (#61)
+
+server: accept --websocket-protocol-option= (#196, #197)
+
+accept unicode pathnames (#223)
+
+reject invalid codes (with space, or non-numeric prefix) at entry (#212)
+
+Thanks to cclauss, JP Calderone, Pablo Oliveira, Leo Arias, Johan
+Lindskogen, lanzelot1989, Chandan Rai, Alex Gaynor, and Quentin Hibon
+for patches and bug reports fixed in this release.
+
+
 ## Release 0.10.2 (26-Jun-2017)
 
 WebSocket connection errors are now reported properly. Previous versions
