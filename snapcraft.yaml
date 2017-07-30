@@ -24,6 +24,7 @@ apps:
 parts:
   magic-wormhole:
     source: .
+    source-type: git
     plugin: python
     build-packages:
       - gcc
@@ -31,3 +32,7 @@ parts:
       - libsodium-dev
       - libssl-dev
       - make
+    prepare: |
+      # FIXME make sure that the build dir has all the files from the repo,
+      # so the version is not tagged as dirty. --elopio - 20170730
+      cp ../src/snapcraft.yaml .
