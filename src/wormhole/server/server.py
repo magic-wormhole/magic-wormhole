@@ -5,7 +5,8 @@ import os, time, json
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
-from twisted.web import server, static, resource
+from twisted.web import server, static
+from twisted.web.resource import Resource
 from autobahn.twisted.resource import WebSocketResource
 from .database import get_db
 from .rendezvous import Rendezvous
@@ -18,10 +19,10 @@ MINUTE = 60*SECONDS
 CHANNEL_EXPIRATION_TIME = 11*MINUTE
 EXPIRATION_CHECK_PERIOD = 10*MINUTE
 
-class Root(resource.Resource):
+class Root(Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self):
-        resource.Resource.__init__(self)
+        Resource.__init__(self)
         self.putChild(b"", static.Data(b"Wormhole Relay\n", "text/plain"))
 
 class PrivacyEnhancedSite(server.Site):
