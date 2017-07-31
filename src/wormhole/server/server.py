@@ -2,7 +2,11 @@
 # a str on Python 2
 from __future__ import print_function
 import os, time, json
-import resource
+try:
+    # 'resource' is unix-only
+    from resource import getrlimit, setrlimit, RLIMIT_NOFILE
+except ImportError: # pragma: nocover
+    getrlimit, setrlimit, RLIMIT_NOFILE = None, None, None # pragma: nocover
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
@@ -105,11 +109,10 @@ class RelayServer(service.MultiService):
             self._transit_service = transit_service
 
     def increase_rlimits(self):
-        try:
-            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-        except AttributeError:
-            log.msg("AttributeError during getrlimit, leaving it alone")
+        if getrlimit is None:
+            log.msg("unable to import 'resource', leaving rlimit alone")
             return
+        soft, hard = getrlimit(RLIMIT_NOFILE)
         if soft >= 10000:
             log.msg("RLIMIT_NOFILE.soft was %d, leaving it alone" % soft)
             return
@@ -122,7 +125,7 @@ class RelayServer(service.MultiService):
             log.msg("changing RLIMIT_NOFILE from (%s,%s) to (%s,%s)" %
                     (soft, hard, newlimit, hard))
             try:
-                resource.setrlimit(resource.RLIMIT_NOFILE, (newlimit, hard))
+                setrlimit(RLIMIT_NOFILE, (newlimit, hard))
                 log.msg("setrlimit successful")
                 return
             except ValueError as e:

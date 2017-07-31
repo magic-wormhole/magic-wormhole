@@ -34,30 +34,26 @@ class RLimits(unittest.TestCase):
         ep = endpoints.TCP4ServerEndpoint(None, 0)
         with patch_s("endpoints.serverFromString", return_value=ep):
             s = server.RelayServer("fake", None, None)
-        noattrs = object()
         fakelog = []
         def checklog(*expected):
             self.assertEqual(fakelog, list(expected))
             fakelog[:] = []
         NF = "NOFILE"
-        mock_NF = patch_s("resource.RLIMIT_NOFILE", NF)
+        mock_NF = patch_s("RLIMIT_NOFILE", NF)
 
         with patch_s("log.msg", fakelog.append):
-            with patch_s("resource", noattrs):
+            with patch_s("getrlimit", None):
                 s.increase_rlimits()
-            checklog("AttributeError during getrlimit, leaving it alone")
+            checklog("unable to import 'resource', leaving rlimit alone")
 
             with mock_NF:
-                with patch_s("resource.getrlimit",
-                             return_value=(20000, 30000)) as gr:
+                with patch_s("getrlimit", return_value=(20000, 30000)) as gr:
                     s.increase_rlimits()
                     self.assertEqual(gr.mock_calls, [mock.call(NF)])
                     checklog("RLIMIT_NOFILE.soft was 20000, leaving it alone")
 
-                with patch_s("resource.getrlimit",
-                             return_value=(10, 30000)) as gr:
-                    with patch_s("resource.setrlimit",
-                                 side_effect=TypeError("other")):
+                with patch_s("getrlimit", return_value=(10, 30000)) as gr:
+                    with patch_s("setrlimit", side_effect=TypeError("other")):
                         with patch_s("log.err") as err:
                             s.increase_rlimits()
                         self.assertEqual(err.mock_calls, [mock.call()])
@@ -82,8 +78,7 @@ class RLimits(unittest.TestCase):
                         else:
                             expected.append("unable to change rlimit, leaving it alone")
 
-                        with patch_s("resource.setrlimit",
-                                     side_effect=setrlimit) as sr:
+                        with patch_s("setrlimit", side_effect=setrlimit) as sr:
                             s.increase_rlimits()
                         self.assertEqual(sr.mock_calls, calls)
                         checklog(*expected)
