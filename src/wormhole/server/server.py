@@ -2,6 +2,7 @@
 # a str on Python 2
 from __future__ import print_function
 import os, time, json
+import resource
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
@@ -103,8 +104,39 @@ class RelayServer(service.MultiService):
             self._transit = transit
             self._transit_service = transit_service
 
+    def increase_rlimits(self):
+        try:
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        except AttributeError:
+            log.msg("AttributeError during getrlimit, leaving it alone")
+            return
+        if soft >= 10000:
+            log.msg("RLIMIT_NOFILE.soft was %d, leaving it alone" % soft)
+            return
+        # OS-X defaults to soft=7168, and reports a huge number for 'hard',
+        # but won't accept anything more than soft=10240, so we can't just
+        # set soft=hard. Linux returns (1024, 1048576) and is fine with
+        # soft=hard. Cygwin is reported to return (256,-1) and accepts up to
+        # soft=3200. So we try multiple values until something works.
+        for newlimit in [hard, 10000, 3200, 1024]:
+            log.msg("changing RLIMIT_NOFILE from (%s,%s) to (%s,%s)" %
+                    (soft, hard, newlimit, hard))
+            try:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (newlimit, hard))
+                log.msg("setrlimit successful")
+                return
+            except ValueError as e:
+                log.msg("error during setrlimit: %s" % e)
+                continue
+            except:
+                log.msg("other error during setrlimit, leaving it alone")
+                log.err()
+                return
+        log.msg("unable to change rlimit, leaving it alone")
+
     def startService(self):
         service.MultiService.startService(self)
+        self.increase_rlimits()
         log.msg("websocket listening on /wormhole-relay/ws")
         log.msg("Wormhole relay server (Rendezvous and Transit) running")
         if self._blur_usage:

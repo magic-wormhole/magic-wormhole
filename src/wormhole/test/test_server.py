@@ -3,7 +3,7 @@ import os, json, itertools, time
 import mock
 from twisted.trial import unittest
 from twisted.python import log
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, endpoints
 from twisted.internet.defer import inlineCallbacks, returnValue
 from autobahn.twisted import websocket
 from .common import ServerBase
@@ -23,6 +23,70 @@ def easy_relay(
         advertise_version,
         **kwargs
     )
+
+class RLimits(unittest.TestCase):
+    def test_rlimit(self):
+        def patch_s(name, *args, **kwargs):
+            return mock.patch("wormhole.server.server." + name, *args, **kwargs)
+        # We never start this, so the endpoints can be fake.
+        # serverFromString() requires bytes on py2 and str on py3, so this
+        # is easier than just passing "tcp:0"
+        ep = endpoints.TCP4ServerEndpoint(None, 0)
+        with patch_s("endpoints.serverFromString", return_value=ep):
+            s = server.RelayServer("fake", None, None)
+        noattrs = object()
+        fakelog = []
+        def checklog(*expected):
+            self.assertEqual(fakelog, list(expected))
+            fakelog[:] = []
+        NF = "NOFILE"
+        mock_NF = patch_s("resource.RLIMIT_NOFILE", NF)
+
+        with patch_s("log.msg", fakelog.append):
+            with patch_s("resource", noattrs):
+                s.increase_rlimits()
+            checklog("AttributeError during getrlimit, leaving it alone")
+
+            with mock_NF:
+                with patch_s("resource.getrlimit",
+                             return_value=(20000, 30000)) as gr:
+                    s.increase_rlimits()
+                    self.assertEqual(gr.mock_calls, [mock.call(NF)])
+                    checklog("RLIMIT_NOFILE.soft was 20000, leaving it alone")
+
+                with patch_s("resource.getrlimit",
+                             return_value=(10, 30000)) as gr:
+                    with patch_s("resource.setrlimit",
+                                 side_effect=TypeError("other")):
+                        with patch_s("log.err") as err:
+                            s.increase_rlimits()
+                        self.assertEqual(err.mock_calls, [mock.call()])
+                        checklog("changing RLIMIT_NOFILE from (10,30000) to (30000,30000)",
+                                 "other error during setrlimit, leaving it alone")
+
+                    for maxlimit in [40000, 20000, 9000, 2000, 1000]:
+                        def setrlimit(which, newlimit):
+                            if newlimit[0] > maxlimit:
+                                raise ValueError("nope")
+                            return None
+                        calls = []
+                        expected = []
+                        for tries in [30000, 10000, 3200, 1024]:
+                            calls.append(mock.call(NF, (tries, 30000)))
+                            expected.append("changing RLIMIT_NOFILE from (10,30000) to (%d,30000)" % tries)
+                            if tries > maxlimit:
+                                expected.append("error during setrlimit: nope")
+                            else:
+                                expected.append("setrlimit successful")
+                                break
+                        else:
+                            expected.append("unable to change rlimit, leaving it alone")
+
+                        with patch_s("resource.setrlimit",
+                                     side_effect=setrlimit) as sr:
+                            s.increase_rlimits()
+                        self.assertEqual(sr.mock_calls, calls)
+                        checklog(*expected)
 
 class _Util:
     def _nameplate(self, app, name):
