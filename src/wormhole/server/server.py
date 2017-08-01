@@ -2,10 +2,16 @@
 # a str on Python 2
 from __future__ import print_function
 import os, time, json
+try:
+    # 'resource' is unix-only
+    from resource import getrlimit, setrlimit, RLIMIT_NOFILE
+except ImportError: # pragma: nocover
+    getrlimit, setrlimit, RLIMIT_NOFILE = None, None, None # pragma: nocover
 from twisted.python import log
 from twisted.internet import reactor, endpoints
 from twisted.application import service, internet
-from twisted.web import server, static, resource
+from twisted.web import server, static
+from twisted.web.resource import Resource
 from autobahn.twisted.resource import WebSocketResource
 from .database import get_db
 from .rendezvous import Rendezvous
@@ -18,10 +24,10 @@ MINUTE = 60*SECONDS
 CHANNEL_EXPIRATION_TIME = 11*MINUTE
 EXPIRATION_CHECK_PERIOD = 10*MINUTE
 
-class Root(resource.Resource):
+class Root(Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self):
-        resource.Resource.__init__(self)
+        Resource.__init__(self)
         self.putChild(b"", static.Data(b"Wormhole Relay\n", "text/plain"))
 
 class PrivacyEnhancedSite(server.Site):
@@ -102,8 +108,38 @@ class RelayServer(service.MultiService):
             self._transit = transit
             self._transit_service = transit_service
 
+    def increase_rlimits(self):
+        if getrlimit is None:
+            log.msg("unable to import 'resource', leaving rlimit alone")
+            return
+        soft, hard = getrlimit(RLIMIT_NOFILE)
+        if soft >= 10000:
+            log.msg("RLIMIT_NOFILE.soft was %d, leaving it alone" % soft)
+            return
+        # OS-X defaults to soft=7168, and reports a huge number for 'hard',
+        # but won't accept anything more than soft=10240, so we can't just
+        # set soft=hard. Linux returns (1024, 1048576) and is fine with
+        # soft=hard. Cygwin is reported to return (256,-1) and accepts up to
+        # soft=3200. So we try multiple values until something works.
+        for newlimit in [hard, 10000, 3200, 1024]:
+            log.msg("changing RLIMIT_NOFILE from (%s,%s) to (%s,%s)" %
+                    (soft, hard, newlimit, hard))
+            try:
+                setrlimit(RLIMIT_NOFILE, (newlimit, hard))
+                log.msg("setrlimit successful")
+                return
+            except ValueError as e:
+                log.msg("error during setrlimit: %s" % e)
+                continue
+            except:
+                log.msg("other error during setrlimit, leaving it alone")
+                log.err()
+                return
+        log.msg("unable to change rlimit, leaving it alone")
+
     def startService(self):
         service.MultiService.startService(self)
+        self.increase_rlimits()
         log.msg("websocket listening on /wormhole-relay/ws")
         log.msg("Wormhole relay server (Rendezvous and Transit) running")
         if self._blur_usage:
