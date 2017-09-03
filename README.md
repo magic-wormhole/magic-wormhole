@@ -88,7 +88,10 @@ package.
 
 On Windows, python2 may work better than python3. On older systems, `$ pip
 install --upgrade pip` may be necessary to get a version that can compile all
-the dependencies.
+the dependencies. Most of the dependencies are published as binary wheels,
+but in case your system is unable to find these, it will have to compile
+them, for which Microsoft Visual C++ 9.0 may be required. Get it from
+http://aka.ms/vcpython27 .
 
 ## Motivation
 
