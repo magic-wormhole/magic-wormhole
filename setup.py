@@ -28,6 +28,7 @@ setup(name="magic-wormhole",
       install_requires=[
           "spake2==0.7", "pynacl",
           "six",
+          "attrs >= 16.3.0", # 16.3.0 adds __attrs_post_init__
           "twisted[tls] >= 17.5.0", # 17.5.0 adds failAfterFailures=
           "autobahn[twisted] >= 0.14.1",
           "automat",
