@@ -40,7 +40,7 @@ class CodeInputter(object):
             # makes debugging challenging
             print("completer exception: %s" % e)
             traceback.print_exc()
-            raise e
+            raise
 
     def _wrapped_completer(self, text, state):
         self.used_completion = True
