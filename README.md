@@ -70,11 +70,11 @@ On Debian 9 and Ubuntu 17.04+ with `apt`:
 On previous versions of the Debian/Ubuntu systems, or if you want to install
 the latest version, you may first need:
 
-`$ apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`
+`$ sudo apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`
 
 On Fedora:
 
-`$ dnf install python-pip python-devel libffi-devel openssl-devel gcc-c++
+`$ sudo dnf install python-pip python-devel libffi-devel openssl-devel gcc-c++
 libtool redhat-rpm-config`.
 
 Note: If you get errors like `fatal error: sodium.h: No such file or
