@@ -51,6 +51,23 @@ Received file written to README.md
 
 ```$ pip install magic-wormhole```
 
+You either want to do this into a "user" environment (putting the
+``wormhole`` executable in ``~/.local/bin/wormhole``) like this:
+
+```
+pip install --user magic-wormhole
+```
+
+or put it into a virtualenv, to avoid modifying the system python's
+libraries, like this:
+
+```
+virtualenv venv
+source venv/bin/activate
+pip install magic-wormhole
+```
+
+You probably *don't* want to use ``sudo`` when you run ``pip``.
 
 ### OS X
 
@@ -208,7 +225,8 @@ PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 To set up Magic Wormhole for development, you will first need to
 install [virtualenv][].
 
-Once you've done that, `cd` into the root of the repository and run:
+Once you've done that, ``git clone`` the repo, ``cd`` into the root of the
+repository, and run:
 
 ```
 virtualenv venv
@@ -225,6 +243,9 @@ virtualenv, run:
 ```
 pip install -e .[dev]
 ```
+
+While the virtualenv is active, running ``wormhole`` will get you the
+development version.
 
 ### Running Tests
 
