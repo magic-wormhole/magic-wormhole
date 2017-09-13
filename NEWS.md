@@ -1,31 +1,31 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release 0.10.3 (??)
+## Release 0.10.3 (12-Sep-2017)
 
-'wormhole-server start' adds --relay-database-path and --stats-json-path
-(#186)
+Minor client changes:
 
-snapcraft packaging was updated (#202)
+* `wormhole help` should behave like `wormhole --help` (#61)
+* accept unicode pathnames (although bugs likely remain) (#223)
+* reject invalid codes (with space, or non-numeric prefix) at entry (#212)
+* docs improvements (#225, #249)
 
-docs improvements
+Server changes:
 
-server: "crowded" mailboxes now deliver an error to clients, so they
-should give up instead of reconnecting (#211)
+* `wormhole-server start` adds `--relay-database-path` and
+  `--stats-json-path` (#186)
+* accept `--websocket-protocol-option=` (#196, #197)
+* increase RLIMIT_NOFILE to allow more simultaneous client connections (#238)
+* "crowded" mailboxes now deliver an error to clients, so they should give up
+  instead of reconnecting (#211)
+* construct relay DB more safely (#189)
 
-server: construct relay DB more safely (#189)
+In addition, the snapcraft packaging was updated (#202), and `setup.py` now
+properly marks the dependency on `attrs` (#248).
 
-"wormhole help" should behave like "wormhole --help" (#61)
-
-server: accept --websocket-protocol-option= (#196, #197)
-
-accept unicode pathnames (#223)
-
-reject invalid codes (with space, or non-numeric prefix) at entry (#212)
-
-Thanks to cclauss, JP Calderone, Pablo Oliveira, Leo Arias, Johan
-Lindskogen, lanzelot1989, Chandan Rai, Alex Gaynor, and Quentin Hibon
-for patches and bug reports fixed in this release.
+Thanks to cclauss, Buckaroo9, JP Calderone, Pablo Oliveira, Leo Arias, Johan
+Lindskogen, lanzelot1989, CottonEaster, Chandan Rai, Jaakko Luttinen, Alex
+Gaynor, and Quentin Hibon for patches and bug reports fixed in this release.
 
 
 ## Release 0.10.2 (26-Jun-2017)
