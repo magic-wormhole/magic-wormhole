@@ -3,6 +3,7 @@ import sys
 from attr import attrs, attrib
 from zope.interface.declarations import directlyProvides
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.endpoints import clientFromString
 try:
     import txtorcon
 except ImportError:
@@ -86,6 +87,9 @@ def get_tor(reactor, launch_tor=False, tor_control_port=None,
                 # If tor_control_port is None (the default), txtorcon
                 # will look through a list of usual places. If it is set,
                 # it will look only in the place we tell it to.
+                if tor_control_port is not None:
+                    tor_control_port = clientFromString(reactor,
+                                                        tor_control_port)
                 tor = yield txtorcon.connect(reactor, tor_control_port)
                 print(" using Tor via control port", file=stderr)
             except Exception:

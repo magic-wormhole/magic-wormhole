@@ -51,29 +51,37 @@ class Tor(unittest.TestCase):
         reactor = object()
         my_tor = X() # object() didn't like providedBy()
         tcp = "port"
+        ep = object()
         connect_d = defer.Deferred()
         stderr = io.StringIO()
         with mock.patch("wormhole.tor_manager.txtorcon.connect",
                         side_effect=connect_d) as connect:
-            d = get_tor(reactor, tor_control_port=tcp, stderr=stderr)
-            self.assertNoResult(d)
-            self.assertEqual(connect.mock_calls, [mock.call(reactor, tcp)])
-            connect_d.callback(my_tor)
-            tor = self.successResultOf(d)
-            self.assertIs(tor, my_tor)
-            self.assert_(ITorManager.providedBy(tor))
-            self.assertEqual(stderr.getvalue(), " using Tor via control port\n")
+            with mock.patch("wormhole.tor_manager.clientFromString",
+                            side_effect=[ep]) as sfs:
+                d = get_tor(reactor, tor_control_port=tcp, stderr=stderr)
+        self.assertEqual(sfs.mock_calls, [mock.call(reactor, tcp)])
+        self.assertNoResult(d)
+        self.assertEqual(connect.mock_calls, [mock.call(reactor, ep)])
+        connect_d.callback(my_tor)
+        tor = self.successResultOf(d)
+        self.assertIs(tor, my_tor)
+        self.assert_(ITorManager.providedBy(tor))
+        self.assertEqual(stderr.getvalue(), " using Tor via control port\n")
 
     def test_connect_fails(self):
         reactor = object()
         tcp = "port"
+        ep = object()
         connect_d = defer.Deferred()
         stderr = io.StringIO()
         with mock.patch("wormhole.tor_manager.txtorcon.connect",
                         side_effect=connect_d) as connect:
-            d = get_tor(reactor, tor_control_port=tcp, stderr=stderr)
-            self.assertNoResult(d)
-            self.assertEqual(connect.mock_calls, [mock.call(reactor, tcp)])
+            with mock.patch("wormhole.tor_manager.clientFromString",
+                            side_effect=[ep]) as sfs:
+                d = get_tor(reactor, tor_control_port=tcp, stderr=stderr)
+        self.assertEqual(sfs.mock_calls, [mock.call(reactor, tcp)])
+        self.assertNoResult(d)
+        self.assertEqual(connect.mock_calls, [mock.call(reactor, ep)])
 
         connect_d.errback(ConnectError())
         tor = self.successResultOf(d)
