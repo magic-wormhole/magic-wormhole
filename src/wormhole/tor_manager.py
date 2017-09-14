@@ -81,22 +81,24 @@ def get_tor(reactor, launch_tor=False, tor_control_port=None,
                                         #data_directory=,
                                         #tor_binary=,
                                         )
+    elif tor_control_port:
+        with timing.add("find tor"):
+            control_ep = clientFromString(reactor, tor_control_port)
+            tor = yield txtorcon.connect(reactor, control_ep) # might raise
+            print(" using Tor via control port at %s" % tor_control_port,
+                  file=stderr)
     else:
+        # Let txtorcon look through a list of usual places. If that fails,
+        # we'll arrange to attempt the default SOCKS port
         with timing.add("find tor"):
             try:
-                # If tor_control_port is None (the default), txtorcon
-                # will look through a list of usual places. If it is set,
-                # it will look only in the place we tell it to.
-                if tor_control_port is not None:
-                    tor_control_port = clientFromString(reactor,
-                                                        tor_control_port)
-                tor = yield txtorcon.connect(reactor, tor_control_port)
-                print(" using Tor via control port", file=stderr)
+                tor = yield txtorcon.connect(reactor)
+                print(" using Tor via default control port", file=stderr)
             except Exception:
                 # TODO: make this more specific. I think connect() is
                 # likely to throw a reactor.connectTCP -type error, like
                 # ConnectionFailed or ConnectionRefused or something
-                print(" unable to find Tor control port, using SOCKS",
+                print(" unable to find default Tor control port, using SOCKS",
                       file=stderr)
                 tor = SocksOnlyTor(reactor)
     directlyProvides(tor, _interfaces.ITorManager)

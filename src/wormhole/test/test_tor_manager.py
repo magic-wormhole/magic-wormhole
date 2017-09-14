@@ -50,7 +50,48 @@ class Tor(unittest.TestCase):
     def test_connect(self):
         reactor = object()
         my_tor = X() # object() didn't like providedBy()
-        tcp = "port"
+        connect_d = defer.Deferred()
+        stderr = io.StringIO()
+        with mock.patch("wormhole.tor_manager.txtorcon.connect",
+                        side_effect=connect_d) as connect:
+            with mock.patch("wormhole.tor_manager.clientFromString",
+                            side_effect=["foo"]) as sfs:
+                d = get_tor(reactor, stderr=stderr)
+        self.assertEqual(sfs.mock_calls, [])
+        self.assertNoResult(d)
+        self.assertEqual(connect.mock_calls, [mock.call(reactor)])
+        connect_d.callback(my_tor)
+        tor = self.successResultOf(d)
+        self.assertIs(tor, my_tor)
+        self.assert_(ITorManager.providedBy(tor))
+        self.assertEqual(stderr.getvalue(),
+                         " using Tor via default control port\n")
+
+    def test_connect_fails(self):
+        reactor = object()
+        connect_d = defer.Deferred()
+        stderr = io.StringIO()
+        with mock.patch("wormhole.tor_manager.txtorcon.connect",
+                        side_effect=connect_d) as connect:
+            with mock.patch("wormhole.tor_manager.clientFromString",
+                            side_effect=["foo"]) as sfs:
+                d = get_tor(reactor, stderr=stderr)
+        self.assertEqual(sfs.mock_calls, [])
+        self.assertNoResult(d)
+        self.assertEqual(connect.mock_calls, [mock.call(reactor)])
+
+        connect_d.errback(ConnectError())
+        tor = self.successResultOf(d)
+        self.assertIsInstance(tor, SocksOnlyTor)
+        self.assert_(ITorManager.providedBy(tor))
+        self.assertEqual(tor._reactor, reactor)
+        self.assertEqual(stderr.getvalue(),
+                         " unable to find default Tor control port, using SOCKS\n")
+
+    def test_connect_custom_control_port(self):
+        reactor = object()
+        my_tor = X() # object() didn't like providedBy()
+        tcp = "PORT"
         ep = object()
         connect_d = defer.Deferred()
         stderr = io.StringIO()
@@ -66,9 +107,10 @@ class Tor(unittest.TestCase):
         tor = self.successResultOf(d)
         self.assertIs(tor, my_tor)
         self.assert_(ITorManager.providedBy(tor))
-        self.assertEqual(stderr.getvalue(), " using Tor via control port\n")
+        self.assertEqual(stderr.getvalue(),
+                         " using Tor via control port at PORT\n")
 
-    def test_connect_fails(self):
+    def test_connect_custom_control_port_fails(self):
         reactor = object()
         tcp = "port"
         ep = object()
@@ -84,12 +126,8 @@ class Tor(unittest.TestCase):
         self.assertEqual(connect.mock_calls, [mock.call(reactor, ep)])
 
         connect_d.errback(ConnectError())
-        tor = self.successResultOf(d)
-        self.assertIsInstance(tor, SocksOnlyTor)
-        self.assert_(ITorManager.providedBy(tor))
-        self.assertEqual(tor._reactor, reactor)
-        self.assertEqual(stderr.getvalue(),
-                         " unable to find Tor control port, using SOCKS\n")
+        self.failureResultOf(d, ConnectError)
+        self.assertEqual(stderr.getvalue(), "")
 
 class SocksOnly(unittest.TestCase):
     def test_tor(self):
