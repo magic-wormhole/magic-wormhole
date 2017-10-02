@@ -1,4 +1,6 @@
+import os
 import sys
+import mock
 from twisted.trial import unittest
 from ..cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
 from .common import config
@@ -71,6 +73,31 @@ class Send(unittest.TestCase):
         cfg = config("send", "-0", "fn")
         self.assertEqual(cfg.zeromode, True)
 
+    def test_relay_env_var(self):
+        relay_url = str(mock.sentinel.relay_url)
+        with mock.patch.dict(os.environ, WORMHOLE_RELAY_URL=relay_url):
+            cfg = config("send")
+        self.assertEqual(cfg.relay_url, relay_url)
+
+        # Make sure cmd line option overrides environment variable
+        relay_url_2 = str(mock.sentinel.relay_url_2)
+        with mock.patch.dict(os.environ, WORMHOLE_RELAY_URL=relay_url):
+            cfg = config("--relay-url", relay_url_2, "send")
+        self.assertEqual(cfg.relay_url, relay_url_2)
+
+    def test_transit_env_var(self):
+        transit_url = str(mock.sentinel.transit_url)
+        with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
+            cfg = config("send")
+        self.assertEqual(cfg.transit_helper, transit_url)
+
+        # Make sure cmd line option overrides environment variable
+        transit_url_2 = str(mock.sentinel.transit_url_2)
+        with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
+            cfg = config("--transit-helper", transit_url_2, "send")
+        self.assertEqual(cfg.transit_helper, transit_url_2)
+
+
 class Receive(unittest.TestCase):
     def test_baseline(self):
         cfg = config("receive")
@@ -139,6 +166,30 @@ class Receive(unittest.TestCase):
     def test_output_file(self):
         cfg = config("receive", "--output-file", "fn")
         self.assertEqual(cfg.output_file, u"fn")
+
+    def test_relay_env_var(self):
+        relay_url = str(mock.sentinel.relay_url)
+        with mock.patch.dict(os.environ, WORMHOLE_RELAY_URL=relay_url):
+            cfg = config("receive")
+        self.assertEqual(cfg.relay_url, relay_url)
+
+        # Make sure cmd line option overrides environment variable
+        relay_url_2 = str(mock.sentinel.relay_url_2)
+        with mock.patch.dict(os.environ, WORMHOLE_RELAY_URL=relay_url):
+            cfg = config("--relay-url", relay_url_2, "receive")
+        self.assertEqual(cfg.relay_url, relay_url_2)
+
+    def test_transit_env_var(self):
+        transit_url = str(mock.sentinel.transit_url)
+        with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
+            cfg = config("receive")
+        self.assertEqual(cfg.transit_helper, transit_url)
+
+        # Make sure cmd line option overrides environment variable
+        transit_url_2 = str(mock.sentinel.transit_url_2)
+        with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
+            cfg = config("--transit-helper", transit_url_2, "receive")
+        self.assertEqual(cfg.transit_helper, transit_url_2)
 
 class Config(unittest.TestCase):
     def test_send(self):

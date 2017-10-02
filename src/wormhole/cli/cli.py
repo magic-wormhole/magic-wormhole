@@ -60,11 +60,13 @@ class AliasedGroup(click.Group):
     "--appid", default=None, metavar="APPID", help="appid to use")
 @click.option(
     "--relay-url", default=public_relay.RENDEZVOUS_RELAY,
+    envvar='WORMHOLE_RELAY_URL',
     metavar="URL",
     help="rendezvous relay to use",
 )
 @click.option(
     "--transit-helper", default=public_relay.TRANSIT_RELAY,
+    envvar='WORMHOLE_TRANSIT_HELPER',
     metavar="tcp:HOST:PORT",
     help="transit relay to use",
 )
