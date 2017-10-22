@@ -183,6 +183,63 @@ class OfferData(unittest.TestCase):
         self.assertEqual(str(e),
                          "'%s' is neither file nor directory" % filename)
 
+    def test_symlink(self):
+        if not hasattr(os, 'symlink'):
+            raise unittest.SkipTest("host OS does not support symlinks")
+        # build A/B1 -> B2 (==A/B2), and A/B2/C.txt
+        parent_dir = self.mktemp()
+        os.mkdir(parent_dir)
+        os.mkdir(os.path.join(parent_dir, "B2"))
+        with open(os.path.join(parent_dir, "B2", "C.txt"), "wb") as f:
+            f.write(b"success")
+        os.symlink("B2", os.path.join(parent_dir, "B1"))
+        # now send "B1/C.txt" from A, and it should get the right file
+        self.cfg.cwd = parent_dir
+        self.cfg.what = os.path.join("B1", "C.txt")
+        d, fd_to_send = build_offer(self.cfg)
+        self.assertEqual(d["file"]["filename"], "C.txt")
+        self.assertEqual(fd_to_send.read(), b"success")
+
+    def test_symlink_collapse(self):
+        if not hasattr(os, 'symlink'):
+            raise unittest.SkipTest("host OS does not support symlinks")
+        if os.name == "nt":
+            # ntpath.py's realpath() is built out of normpath(), and does not
+            # follow symlinks properly, so this test always fails. "wormhole
+            # send PATH" on windows will do the wrong thing. See
+            # https://bugs.python.org/issue9949" for details.
+            raise unittest.SkipTest("host OS has broken os.path.realpath(), see https://bugs.python.org/issue9949")
+        # build A/B1, A/B1/D.txt
+        # A/B2/C2, A/B2/D.txt
+        # symlink A/B1/C1 -> A/B2/C2
+        parent_dir = self.mktemp()
+        os.mkdir(parent_dir)
+        os.mkdir(os.path.join(parent_dir, "B1"))
+        with open(os.path.join(parent_dir, "B1", "D.txt"), "wb") as f:
+            f.write(b"fail")
+        os.mkdir(os.path.join(parent_dir, "B2"))
+        os.mkdir(os.path.join(parent_dir, "B2", "C2"))
+        with open(os.path.join(parent_dir, "B2", "D.txt"), "wb") as f:
+            f.write(b"success")
+        os.symlink(os.path.abspath(os.path.join(parent_dir, "B2", "C2")),
+                   os.path.join(parent_dir, "B1", "C1"))
+        # Now send "B1/C1/../D.txt" from A. The correct traversal will be:
+        # * start: A
+        # * B1: A/B1
+        # * C1: follow symlink to A/B2/C2
+        # * ..: climb to A/B2
+        # * D.txt: open A/B2/D.txt, which contains "success"
+        # If the code mistakenly uses normpath(), it would do:
+        # * normpath turns B1/C1/../D.txt into B1/D.txt
+        # * start: A
+        # * B1: A/B1
+        # * D.txt: open A/B1/D.txt , which contains "fail"
+        self.cfg.cwd = parent_dir
+        self.cfg.what = os.path.join("B1", "C1", os.pardir, "D.txt")
+        d, fd_to_send = build_offer(self.cfg)
+        self.assertEqual(d["file"]["filename"], "D.txt")
+        self.assertEqual(fd_to_send.read(), b"success")
+
 class LocaleFinder:
     def __init__(self):
         self._run_once = False
