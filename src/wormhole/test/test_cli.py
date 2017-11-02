@@ -203,12 +203,6 @@ class OfferData(unittest.TestCase):
     def test_symlink_collapse(self):
         if not hasattr(os, 'symlink'):
             raise unittest.SkipTest("host OS does not support symlinks")
-        if os.name == "nt":
-            # ntpath.py's realpath() is built out of normpath(), and does not
-            # follow symlinks properly, so this test always fails. "wormhole
-            # send PATH" on windows will do the wrong thing. See
-            # https://bugs.python.org/issue9949" for details.
-            raise unittest.SkipTest("host OS has broken os.path.realpath(), see https://bugs.python.org/issue9949")
         # build A/B1, A/B1/D.txt
         # A/B2/C2, A/B2/D.txt
         # symlink A/B1/C1 -> A/B2/C2
@@ -239,6 +233,15 @@ class OfferData(unittest.TestCase):
         d, fd_to_send = build_offer(self.cfg)
         self.assertEqual(d["file"]["filename"], "D.txt")
         self.assertEqual(fd_to_send.read(), b"success")
+    if os.name == "nt":
+        test_symlink_collapse.todo = "host OS has broken os.path.realpath()"
+        # ntpath.py's realpath() is built out of normpath(), and does not
+        # follow symlinks properly, so this test always fails. "wormhole send
+        # PATH" on windows will do the wrong thing. See
+        # https://bugs.python.org/issue9949" for details. I'm making this a
+        # TODO instead of a SKIP because 1: this causes an observable
+        # misbehavior (albeit in rare circumstances), 2: it probably used to
+        # work (sometimes, but not in #251). See cmd_send.py for more notes.
 
 class LocaleFinder:
     def __init__(self):

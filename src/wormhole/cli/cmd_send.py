@@ -254,17 +254,27 @@ class Sender:
         # We use realpath() instead of normpath() to locate the actual
         # file/directory, because the path might contain symlinks, and
         # normpath() would collapse those before resolving them.
+        # test_cli.OfferData.test_symlink_collapse tests this.
 
-        # Unfortunately on windows, realpath() is built out of normpath()
-        # because of a no-longer-true belief that windows does not have a
-        # working os.path.islink(): see https://bugs.python.org/issue9949
-        # The consequence is that "wormhole send PATH" might send the wrong
-        # file, if:
+        # Unfortunately on windows, realpath() (on py3) is built out of
+        # normpath() because of a py2-era belief that windows lacks a working
+        # os.path.islink(): see https://bugs.python.org/issue9949 . The
+        # consequence is that "wormhole send PATH" might send the wrong file,
+        # if:
         # * we're running on windows
         # * PATH goes down through a symlink and then up with parent-directory
         #   navigation (".."), then back down again
         # * the back-down-again portion of the path also exists under the
         #   original directory (an error is thrown if not)
+
+        # I'd like to fix this. The core issue is sending directories with a
+        # trailing slash: we need to 1: open the right directory, and 2: strip
+        # the right parent path out of the filenames we get from os.walk(). We
+        # used to use what.rstrip() for this, but bug #251 reported this
+        # failing on windows-with-bash. realpath() works in both those cases,
+        # but fails with the up-down symlinks situation. I think we'll need to
+        # find a third way to strip the trailing slash reliably in all
+        # environments.
 
         what = os.path.realpath(what)
         if not os.path.exists(what):
