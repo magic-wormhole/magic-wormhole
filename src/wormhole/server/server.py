@@ -167,7 +167,8 @@ class RelayServer(service.MultiService):
 
         start = time.time()
         data["rendezvous"] = self._rendezvous.get_stats()
-        data["transit"] = self._transit.get_stats()
+        if self._transit:
+            data["transit"] = self._transit.get_stats()
         log.msg("get_stats took:", time.time() - start)
 
         with open(tmpfn, "wb") as f:
