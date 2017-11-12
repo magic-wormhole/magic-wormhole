@@ -1,4 +1,4 @@
-# Magic-Wormhole
+# Introduction
 
 The magic-wormhole (Python) distribution provides several things: an
 executable tool ("bin/wormhole"), an importable library (`import wormhole`),

@@ -220,7 +220,7 @@ any), and which ones provoke direct responses:
 * S->C pong {pong: int}
 * S->C error {error: str, orig:}
 
-# Persistence
+## Persistence
 
 The server stores all messages in a database, so it should not lose any
 information when it is restarted. The server will not send a direct
