@@ -10,16 +10,17 @@ Magic-Wormhole: Get Things From One Computer To Another, Safely
    :maxdepth: 2
    :caption: Contents:
 
-   introduction
-   attacks
+   welcome
    tor
 
+   introduction
    api
    transit
    server-protocol
    client-protocol
    file-transfer-protocol
 
+   attacks
    journal
 
 
