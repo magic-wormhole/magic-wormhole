@@ -1,4 +1,4 @@
-# Magic-Wormhole
+# The Magic-Wormhole API
 
 This library provides a mechanism to securely transfer small amounts
 of data between two computers. Both machines must be connected to the

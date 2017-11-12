@@ -1,4 +1,4 @@
-= Transit Protocol =
+# Transit Protocol
 
 The Transit protocol is responsible for establishing an encrypted
 bidirectional record stream between two programs. It must be given a "transit
@@ -19,7 +19,7 @@ The other side will attempt to connect to each of those ports, as well as
 listening on its own socket. After a few seconds without success, they will
 both connect to a relay server.
 
-== Roles ==
+## Roles
 
 The Transit protocol has pre-defined "Sender" and "Receiver" roles (unlike
 Wormhole, which is symmetric/nobody-goes-first). Each connection must have
@@ -32,7 +32,7 @@ each side..
 
 This may be relaxed in the future, much as Wormhole was.
 
-== Records ==
+## Records
 
 Transit establishes a **record-pipe**, so the two sides can send and receive
 whole records, rather than unframed bytes. This is a side-effect of the
@@ -62,7 +62,7 @@ dropped. If a record is lost (e.g. the receiver observers records #1,#2,#4,
 but not #3), the connection is dropped when the unexpected sequence number is
 received.
 
-== Handshake ==
+## Handshake
 
 The transit key is used to derive several secondary keys. Two of them are
 used as a "handshake", to distinguish correct Transit connections from other
@@ -111,7 +111,7 @@ two handshakes), then making new connections to play back the recorded
 handshakes, but this level of attacker could simply drop the user's packets
 directly.
 
-== Relay ==
+## Relay
 
 The **Transit Relay** is a host which offers TURN-like services for
 magic-wormhole instances. It uses a TCP-based protocol with a handshake to
@@ -139,7 +139,7 @@ attempting to use the relay. If it has no viable direct hints, it will start
 using the relay right away. This prefers direct connections, but doesn't
 introduce completely unnecessary stalls.
 
-== API ==
+## API
 
 First, create a Transit instance, giving it the connection information of the
 transit relay. The application must know whether it should use a Sender or a
@@ -196,7 +196,7 @@ turns). However the blocking API does not provide a way to send records while
 waiting for an inbound record. This *might* work with threads, but it has not
 been tested.
 
-== Twisted API ==
+## Twisted API
 
 The same facilities are available in the asynchronous Twisted environment.
 The difference is that some functions return Deferreds instead of immediate
