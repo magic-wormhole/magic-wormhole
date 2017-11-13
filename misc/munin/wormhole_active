@@ -22,12 +22,6 @@ mailboxes.type GAUGE
 messages.label Messages
 messages.draw LINE1
 messages.type GAUGE
-transit_waiting.label Transit Waiting
-transit_waiting.draw LINE1
-transit_waiting.type GAUGE
-transit_connected.label Transit Connected
-transit_connected.draw LINE1
-transit_connected.type GAUGE
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
@@ -45,6 +39,3 @@ ra = data["rendezvous"]["active"]
 print "nameplates.value", ra["nameplates_total"]
 print "mailboxes.value", ra["mailboxes_total"]
 print "messages.value", ra["messages_total"]
-ta = data["transit"]["active"]
-print "transit_waiting.value", ta["waiting"]
-print "transit_connected.value", ta["connected"]

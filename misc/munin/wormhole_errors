@@ -22,9 +22,6 @@ mailboxes.type GAUGE
 mailboxes_scary.label Mailboxes (scary)
 mailboxes_scary.draw LINE1
 mailboxes_scary.type GAUGE
-transit.label Transit
-transit.draw LINE1
-transit.type GAUGE
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
@@ -44,5 +41,3 @@ print "nameplates.value", (r["nameplates_total"]
 print "mailboxes.value", (r["mailboxes_total"]
                           - r["mailbox_moods"].get("happy", 0))
 print "mailboxes_scary.value", r["mailbox_moods"].get("scary", 0)
-t = data["transit"]["since_reboot"]
-print "transit.value", (t["total"] - t["moods"].get("happy", 0))
