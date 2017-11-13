@@ -41,7 +41,7 @@ setup(name="magic-wormhole",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
-          "dev": ["mock", "tox", "pyflakes"],
+          "dev": ["mock", "tox", "pyflakes", "magic-wormhole-transit-relay"],
       },
       test_suite="wormhole.test",
       cmdclass=commands,

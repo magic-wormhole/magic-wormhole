@@ -1,12 +1,13 @@
 # no unicode_literals untill twisted update
-from twisted.application import service
-from twisted.internet import defer, task, reactor
+from twisted.application import service, internet
+from twisted.internet import defer, task, reactor, endpoints
 from twisted.python import log
 from click.testing import CliRunner
 import mock
 from ..cli import cli
 from ..transit import allocate_tcp_port
 from ..server.server import RelayServer
+from wormhole_transit_relay.transit_server import Transit
 
 class ServerBase:
     def setUp(self):
@@ -16,20 +17,26 @@ class ServerBase:
         self.sp = service.MultiService()
         self.sp.startService()
         self.relayport = allocate_tcp_port()
-        self.transitport = allocate_tcp_port()
         # need to talk to twisted team about only using unicode in
         # endpoints.serverFromString
         s = RelayServer("tcp:%d:interface=127.0.0.1" % self.relayport,
-                        "tcp:%s:interface=127.0.0.1" % self.transitport,
+                        "XXXremovemytransit",
                         advertise_version=advertise_version,
                         signal_error=error)
         s.setServiceParent(self.sp)
         self._relay_server = s
         self._rendezvous = s._rendezvous
-        self._transit_server = s._transit
         self.relayurl = u"ws://127.0.0.1:%d/v1" % self.relayport
         self.rdv_ws_port = self.relayport
         # ws://127.0.0.1:%d/wormhole-relay/ws
+
+        self.transitport = allocate_tcp_port()
+        ep = endpoints.serverFromString(reactor,
+                                        "tcp:%d:interface=127.0.0.1" %
+                                        self.transitport)
+        self._transit_server = f = Transit(blur_usage=None, log_file=None,
+                                           usage_db=None)
+        internet.StreamServerEndpointService(ep, f).setServiceParent(self.sp)
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
 
     def tearDown(self):

@@ -1403,7 +1403,6 @@ class DumpStats(unittest.TestCase):
         self.assertEqual(data["created"], now)
         self.assertEqual(data["valid_until"], now+validity)
         self.assertEqual(data["rendezvous"]["all_time"]["mailboxes_total"], 0)
-        self.assertEqual(data["transit"]["all_time"]["total"], 0)
 
 
 class Startup(unittest.TestCase):

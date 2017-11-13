@@ -10,9 +10,9 @@ from twisted.internet import defer, task, endpoints, protocol, address, error
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.python import log, failure
 from twisted.test import proto_helpers
+from wormhole_transit_relay import transit_server
 from ..errors import InternalError
 from .. import transit
-from ..server import transit_server
 from .common import ServerBase
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
