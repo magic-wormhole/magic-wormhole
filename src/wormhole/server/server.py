@@ -37,7 +37,7 @@ class PrivacyEnhancedSite(server.Site):
 
 class RelayServer(service.MultiService):
 
-    def __init__(self, rendezvous_web_port, transit_port,
+    def __init__(self, rendezvous_web_port,
                  advertise_version, db_url=":memory:", blur_usage=None,
                  signal_error=None, stats_file=None, allow_list=True,
                  websocket_protocol_options=()):

@@ -20,7 +20,6 @@ class ServerBase:
         # need to talk to twisted team about only using unicode in
         # endpoints.serverFromString
         s = RelayServer("tcp:%d:interface=127.0.0.1" % self.relayport,
-                        "XXXremovemytransit",
                         advertise_version=advertise_version,
                         signal_error=error)
         s.setServiceParent(self.sp)

@@ -42,10 +42,6 @@ LaunchArgs = _compose(
         help="endpoint specification for the rendezvous port",
     ),
     click.option(
-        "--transit", default="tcp:4001", metavar="tcp:PORT",
-        help="endpoint specification for the transit-relay port",
-    ),
-    click.option(
         "--advertise-version", metavar="VERSION",
         help="version to recommend to clients",
     ),
