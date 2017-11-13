@@ -13,13 +13,11 @@ from ..server.database import get_db
 
 def easy_relay(
         rendezvous_web_port=str("tcp:0"),
-        transit_port=str("tcp:0"),
         advertise_version=None,
         **kwargs
 ):
     return server.RelayServer(
         rendezvous_web_port,
-        transit_port,
         advertise_version,
         **kwargs
     )
@@ -33,7 +31,7 @@ class RLimits(unittest.TestCase):
         # is easier than just passing "tcp:0"
         ep = endpoints.TCP4ServerEndpoint(None, 0)
         with patch_s("endpoints.serverFromString", return_value=ep):
-            s = server.RelayServer("fake", None, None)
+            s = server.RelayServer("fake", None)
         fakelog = []
         def checklog(*expected):
             self.assertEqual(fakelog, list(expected))
@@ -1403,7 +1401,6 @@ class DumpStats(unittest.TestCase):
         self.assertEqual(data["created"], now)
         self.assertEqual(data["valid_until"], now+validity)
         self.assertEqual(data["rendezvous"]["all_time"]["mailboxes_total"], 0)
-        self.assertEqual(data["transit"]["all_time"]["total"], 0)
 
 
 class Startup(unittest.TestCase):

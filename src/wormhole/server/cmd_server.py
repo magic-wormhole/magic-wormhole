@@ -15,7 +15,6 @@ class MyPlugin(object):
         from .server import RelayServer
         return RelayServer(
             str(self.args.rendezvous),
-            str(self.args.transit),
             self.args.advertise_version,
             self.args.relay_database_path,
             self.args.blur_usage,

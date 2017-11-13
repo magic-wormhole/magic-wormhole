@@ -11,5 +11,3 @@ include misc/munin/wormhole_errors
 include misc/munin/wormhole_event_rate
 include misc/munin/wormhole_events
 include misc/munin/wormhole_events_alltime
-include misc/munin/wormhole_transit
-include misc/munin/wormhole_transit_alltime

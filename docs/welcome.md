@@ -184,6 +184,8 @@ addresses of each client with the other (inside the encrypted message), and
 both clients first attempt to connect directly. If this fails, they fall back
 to using the transit relay. As before, the host/port of a public server is
 baked into the library, and should be sufficient to handle moderate traffic.
+Code for the Transit Relay is provided a separate package named
+`magic-wormhole-transit-relay`.
 
 The protocol includes provisions to deliver notices and error messages to
 clients: if either relay must be shut down, these channels will be used to
