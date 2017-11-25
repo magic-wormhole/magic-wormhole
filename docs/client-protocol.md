@@ -8,9 +8,12 @@ messages.
 
 Each such message contains a "phase" string, and a hex-encoded binary "body".
 
-Any phase which is purely numeric (`^\d+$`) is reserved for application data,
-and will be delivered in numeric order. All other phases are reserved for the
-Wormhole client itself. Clients will ignore any phase they do not recognize.
+Any phase which is purely numeric (`^\d+$`) is reserved for encrypted
+application data. The Rendezvous server may deliver these messages multiple
+times, or out-of-order, but the wormhole client will deliver the
+corresponding decrypted data to the application in strict numeric order. All
+other (non-numeric) phases are reserved for the Wormhole client itself.
+Clients will ignore any phase they do not recognize.
 
 Immediately upon opening the mailbox, clients send the `pake` phase, which
 contains the binary SPAKE2 message (the one computed as `X+M*pw` or
