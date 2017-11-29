@@ -619,11 +619,9 @@ class WSClientSync(unittest.TestCase):
             kwargs["type"] = mtype
             c.onMessage(json.dumps(kwargs).encode("utf-8"), False)
         # no queued messages
-        sunc = []
         d = c.sync()
-        d.addBoth(sunc.append)
         self.assertEqual(sent, [("ping", {"ping": 0})])
-        self.assertEqual(sunc, [])
+        self.assertNoResult(d)
         add("pong", pong=0)
         yield d
         self.assertEqual(c.events, [])
@@ -631,9 +629,7 @@ class WSClientSync(unittest.TestCase):
         # one,two,ping,pong
         add("one")
         add("two", two=2)
-        sunc = []
         d = c.sync()
-        d.addBoth(sunc.append)
         add("pong", pong=1)
         yield d
         m = yield c.next_non_ack()
@@ -644,9 +640,7 @@ class WSClientSync(unittest.TestCase):
 
         # one,ping,two,pong
         add("one")
-        sunc = []
         d = c.sync()
-        d.addBoth(sunc.append)
         add("two", two=2)
         add("pong", pong=2)
         yield d
@@ -657,9 +651,7 @@ class WSClientSync(unittest.TestCase):
         self.assertEqual(c.events, [])
 
         # ping,one,two,pong
-        sunc = []
         d = c.sync()
-        d.addBoth(sunc.append)
         add("one")
         add("two", two=2)
         add("pong", pong=3)
