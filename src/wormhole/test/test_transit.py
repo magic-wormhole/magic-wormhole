@@ -20,8 +20,8 @@ from nacl.exceptions import CryptoError
 class Highlander(unittest.TestCase):
     def test_one_winner(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d: cancelled.add(i))
-                      for i in range(4)]
+        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
+                      for i in range(5)]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
         contenders[0].errback(ValueError())
@@ -30,11 +30,11 @@ class Highlander(unittest.TestCase):
         self.assertNoResult(d)
         contenders[2].callback("yay")
         self.assertEqual(self.successResultOf(d), "yay")
-        self.assertEqual(cancelled, set([3]))
+        self.assertEqual(cancelled, set([3,4]))
 
     def test_there_might_also_be_none(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d: cancelled.add(i))
+        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
                       for i in range(4)]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
