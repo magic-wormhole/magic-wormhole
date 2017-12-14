@@ -100,9 +100,6 @@ class Sender:
             args.code = u"0-"
             other_cmd += " -0"
 
-        print(u"On the other computer, please run: %s" % other_cmd,
-              file=args.stderr)
-
         if args.code:
             w.set_code(args.code)
         else:
@@ -111,9 +108,12 @@ class Sender:
         code = yield w.get_code()
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
+            print(u"On the other computer, please run:", file=args.stderr)
+            print(u"", file=args.stderr)
+            print(u"%s %s" % (other_cmd, code), file=args.stderr)
+            print(u"", file=args.stderr)
             # flush stderr so the code is displayed immediately
             args.stderr.flush()
-        print(u"", file=args.stderr)
 
         # We don't print a "waiting" message for get_unverified_key() here,
         # even though we do that in cmd_receive.py, because it's not at all
