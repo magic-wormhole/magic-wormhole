@@ -530,7 +530,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                 ) as mrx_tm:
                     receive_d = cmd_receive.receive(recv_cfg)
             else:
-                KEY_TIMER = 0 if mode == "slow-sender-text" else 1.0
+                KEY_TIMER = 0 if mode == "slow-sender-text" else 99999
                 rxw = []
                 with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
                     send_d = cmd_send.send(send_cfg)
@@ -544,7 +544,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
-            VERIFY_TIMER = 0 if mode == "slow-text" else 1.0
+            VERIFY_TIMER = 0 if mode == "slow-text" else 99999
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept:
