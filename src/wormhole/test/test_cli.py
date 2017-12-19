@@ -893,6 +893,10 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
         # check sender
         expected = ("Sending text message ({bytes:d} Bytes){NL}"
+                    "On the other computer, please run:{NL}"
+                    "{NL}"
+                    "wormhole receive -0{NL}"
+                    "{NL}"
                     "text message sent{NL}").format(bytes=len(message),
                                                     code=send_cfg.code,
                                                     NL=NL)

@@ -92,13 +92,13 @@ class Sender:
         offer, self._fd_to_send = self._build_offer()
         args = self._args
 
-        other_cmd = "wormhole receive"
+        other_cmd = u"wormhole receive"
         if args.verify:
-            other_cmd = "wormhole receive --verify"
+            other_cmd = u"wormhole receive --verify"
         if args.zeromode:
             assert not args.code
             args.code = u"0-"
-            other_cmd += " -0"
+            other_cmd += u" -0"
 
         if args.code:
             w.set_code(args.code)
@@ -108,12 +108,13 @@ class Sender:
         code = yield w.get_code()
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
-            print(u"On the other computer, please run:", file=args.stderr)
-            print(u"", file=args.stderr)
-            print(u"%s %s" % (other_cmd, code), file=args.stderr)
-            print(u"", file=args.stderr)
-            # flush stderr so the code is displayed immediately
-            args.stderr.flush()
+            other_cmd += u" " + code
+        print(u"On the other computer, please run:", file=args.stderr)
+        print(u"", file=args.stderr)
+        print(other_cmd, file=args.stderr)
+        print(u"", file=args.stderr)
+        # flush stderr so the code is displayed immediately
+        args.stderr.flush()
 
         # We don't print a "waiting" message for get_unverified_key() here,
         # even though we do that in cmd_receive.py, because it's not at all
