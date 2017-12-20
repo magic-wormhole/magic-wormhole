@@ -16,6 +16,7 @@ APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
 KEY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_KEY_TIMER", 1.0))
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
+KEY_TIMER = .000
 
 class RespondError(Exception):
     def __init__(self, response):
