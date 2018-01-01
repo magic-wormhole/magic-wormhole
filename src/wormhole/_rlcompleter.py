@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import os, traceback
+import traceback
 from sys import stderr
 try:
     import readline
@@ -12,8 +12,8 @@ from twisted.internet.threads import deferToThread, blockingCallFromThread
 from .errors import KeyFormatError, AlreadyInputNameplateError
 
 errf = None
-if 0:
-    errf = open("err", "w") if os.path.exists("err") else None
+# uncomment this to enable tab-completion debugging
+#import os ; errf = open("err", "w") if os.path.exists("err") else None
 def debug(*args, **kwargs):
     if errf:
         print(*args, file=errf, **kwargs)
@@ -150,7 +150,6 @@ def _input_code_with_completion(prompt, input_helper, reactor):
         debug("==== readline-based completion is prepared")
     else:
         debug("==== unable to import readline, disabling completion")
-        pass
     code = input(prompt)
     # Code is str(bytes) on py2, and str(unicode) on py3. We want unicode.
     if isinstance(code, bytes):

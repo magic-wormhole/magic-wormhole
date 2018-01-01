@@ -1,6 +1,5 @@
 from __future__ import print_function, unicode_literals
 import os, time, json
-from collections import defaultdict
 import click
 from humanize import naturalsize
 from .database import get_db
@@ -32,65 +31,6 @@ def print_event(event):
 def show_usage(args):
     print("closed for renovation")
     return 0
-    if not os.path.exists("relay.sqlite"):
-        raise click.UsageError(
-            "cannot find relay.sqlite, please run from the server directory"
-        )
-    oldest = None
-    newest = None
-    rendezvous_counters = defaultdict(int)
-    transit_counters = defaultdict(int)
-    total_transit_bytes = 0
-    db = get_db("relay.sqlite")
-    c = db.execute("SELECT * FROM `usage`"
-                   " ORDER BY `started` ASC LIMIT ?",
-                   (args.n,))
-    for row in c.fetchall():
-        if row["type"] == "rendezvous":
-            counters = rendezvous_counters
-        elif row["type"] == "transit":
-            counters = transit_counters
-            total_transit_bytes += row["total_bytes"]
-        else:
-            continue
-        counters["total"] += 1
-        counters[row["result"]] += 1
-        if oldest is None or row["started"] < oldest:
-            oldest = row["started"]
-        if newest is None or row["started"] > newest:
-            newest = row["started"]
-        event = (row["type"], row["started"], row["result"],
-                 row["total_bytes"], row["waiting_time"], row["total_time"])
-        print_event(event)
-    if rendezvous_counters["total"] or transit_counters["total"]:
-        print("---")
-        print("(most recent started %s ago)" % abbrev(time.time() - newest))
-    if rendezvous_counters["total"]:
-        print("rendezvous events:")
-        counters = rendezvous_counters
-        elapsed = time.time() - oldest
-        total = counters["total"]
-        print(" %d events in %s (%.2f per hour)" % (total, abbrev(elapsed),
-                                                    (3600 * total / elapsed)))
-        print("", ", ".join(["%s=%d (%d%%)" %
-                             (k, counters[k], (100.0 * counters[k] / total))
-                             for k in sorted(counters)
-                             if k != "total"]))
-    if transit_counters["total"]:
-        print("transit events:")
-        counters = transit_counters
-        elapsed = time.time() - oldest
-        total = counters["total"]
-        print(" %d events in %s (%.2f per hour)" % (total, abbrev(elapsed),
-                                                    (3600 * total / elapsed)))
-        rate = total_transit_bytes / elapsed
-        print(" %s total bytes, %sps" % (naturalsize(total_transit_bytes),
-                                         naturalsize(rate)))
-        print("", ", ".join(["%s=%d (%d%%)" %
-                             (k, counters[k], (100.0 * counters[k] / total))
-                             for k in sorted(counters)
-                             if k != "total"]))
-    return 0
 
 def tail_usage(args):
     if not os.path.exists("relay.sqlite"):
@@ -117,7 +57,6 @@ def tail_usage(args):
             time.sleep(2)
     except KeyboardInterrupt:
         return 0
-    return 0
 
 def count_channels(args):
     if not os.path.exists("relay.sqlite"):

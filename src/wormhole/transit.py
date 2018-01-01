@@ -510,7 +510,6 @@ class InboundConnectionFactory(protocol.ClientFactory):
     def _proto_failed(self, f):
         # ignore these two, let Twisted log everything else
         f.trap(BadHandshake, defer.CancelledError)
-        pass
 
 def allocate_tcp_port():
     """Return an (integer) available TCP port on localhost. This briefly

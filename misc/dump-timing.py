@@ -43,9 +43,8 @@ def web():
     root.putChild("lib", static.File(lib_root))
     class Shutdown(resource.Resource):
         def render_GET(self, request):
-            if 0:
-                print("timeline ready, server shutting down")
-                reactor.stop()
+            #print("timeline ready, server shutting down")
+            #reactor.stop()
             return "shutting down"
     root.putChild("done", Shutdown())
     site = server.Site(root)
