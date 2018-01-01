@@ -7,7 +7,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
 from wormhole import create, input_with_completion, __version__
 from ..transit import TransitReceiver
-from ..errors import TransferError, WormholeClosedError
+from ..errors import TransferError
 from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
                     estimate_free_space)
 from .welcome import handle_welcome
@@ -152,15 +152,9 @@ class Receiver:
         self._show_verifier(verifier_bytes)
 
         want_offer = True
-        done = False
 
         while True:
-            try:
-                them_d = yield self._get_data(w)
-            except WormholeClosedError:
-                if done:
-                    returnValue(None)
-                raise TransferError("unexpected close")
+            them_d = yield self._get_data(w)
             #print("GOT", them_d)
             recognized = False
             if u"transit" in them_d:

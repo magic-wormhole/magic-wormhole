@@ -6,7 +6,7 @@ from twisted.python import log
 from twisted.protocols import basic
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from ..errors import (TransferError, WormholeClosedError, UnsendableFileError)
+from ..errors import TransferError, UnsendableFileError
 from wormhole import create, __version__
 from ..transit import TransitSender
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -169,15 +169,9 @@ class Sender:
         self._send_data({"offer": offer}, w)
 
         want_answer = True
-        done = False
 
         while True:
-            try:
-                them_d_bytes = yield w.get_message()
-            except WormholeClosedError:
-                if done:
-                    returnValue(None)
-                raise TransferError("unexpected close")
+            them_d_bytes = yield w.get_message()
             # TODO: get_message() fired, so get_verifier must have fired, so
             # now it's safe to use w.derive_key()
             them_d = bytes_to_dict(them_d_bytes)
@@ -193,8 +187,8 @@ class Sender:
                 recognized = True
                 if not want_answer:
                     raise TransferError("duplicate answer")
+                want_answer = True
                 yield self._handle_answer(them_d[u"answer"])
-                done = True
                 returnValue(None)
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d,))

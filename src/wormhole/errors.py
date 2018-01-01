@@ -61,9 +61,6 @@ class ReflectionAttack(WormholeError):
 class InternalError(WormholeError):
     """The programmer did something wrong."""
 
-class WormholeClosedError(InternalError):
-    """API calls may not be made after close() is called."""
-
 class TransferError(WormholeError):
     """Something bad happened and the transfer failed."""
 
