@@ -56,8 +56,9 @@ def find_addresses():
 
 def _query(path, args, regex):
     env = {'LANG': 'en_US.UTF-8'}
-    TRIES = 5
-    for trial in range(TRIES):
+    trial = 0
+    while True:
+        trial += 1
         try:
             p = subprocess.Popen([path] + list(args),
                                  stdout=subprocess.PIPE,
@@ -67,7 +68,7 @@ def _query(path, args, regex):
             (output, err) = p.communicate()
             break
         except OSError as e:
-            if e.errno == errno.EINTR and trial < TRIES-1:
+            if e.errno == errno.EINTR and trial < 5:
                 continue
             raise
 

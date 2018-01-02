@@ -164,6 +164,7 @@ class Receiver:
                 recognized = True
                 if not want_offer:
                     raise TransferError("duplicate offer")
+                want_offer = False
                 try:
                     yield self._parse_offer(them_d[u"offer"], w)
                 except RespondError as r:
