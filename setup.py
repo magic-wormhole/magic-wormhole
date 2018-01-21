@@ -25,6 +25,7 @@ setup(name="magic-wormhole",
               "wormhole-server = wormhole.server.cli:server",
           ]
       },
+      setup_requires="setuptools>=36.2",
       install_requires=[
           "spake2==0.7", "pynacl",
           "six",
@@ -36,7 +37,7 @@ setup(name="magic-wormhole",
           "tqdm >= 4.13.0", # 4.13.0 fixes crash on NetBSD
           "click",
           "humanize",
-          "ipaddress",
+          "ipaddress; python_version<'3'", # ipaddress unnecessary in Py3
           "txtorcon >= 0.19.3",
       ],
       extras_require={
