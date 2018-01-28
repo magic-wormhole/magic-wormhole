@@ -1,6 +1,35 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.4 (28-Jan-2018)
+
+Minor client changes:
+
+* accept `$WORMHOLE_RELAY_URL` and `$WORMHOLE_TRANSIT_HELPER` environment
+  variables, in addition to command-line arguments (#256)
+* fix --tor-control-port=, which was completely broken before. If you use
+  --tor but not --tor-control-port=, we'll try the default control ports
+  before falling back to the default SOCKS port (#252)
+* fix more directory-separator pathname problems, especially for
+  bash-on-windows (#251)
+* change `send` output format to make copy-paste easier (#266, #267)
+
+We also moved the docs to readthedocs
+(https://magic-wormhole.readthedocs.io/), rather than pointing folks at the
+GitHub rendered markdown files. This should encourage us to write more
+instructional text in the future.
+
+Finally, we removed the Transit Relay server code from the `magic-wormhole`
+package and repository. It now lives in a separate repository named
+`magic-wormhole-transit-relay`, and we only import it for tests. If you'd
+like to run a transit relay, you'll want to use `pip install
+magic-wormhole-transit-relay`.
+
+Thanks to meejah, Jonathan "jml" Lange, Alex Gaynor, David "dharrigan"
+Harrigan, and Jaye "jtdoepke" Doepke, for patches and bug reports in this
+release.
+
+
 ## Release 0.10.3 (12-Sep-2017)
 
 Minor client changes:
