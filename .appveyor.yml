@@ -51,7 +51,7 @@ after_test:
 
 artifacts:
   # bdist_wheel puts your built wheel in the dist directory
-  - path: dist\*
+  - path: 'dist\*'
 
 #on_success:
 #  You can use this step to upload your artifacts to a public website.
