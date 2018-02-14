@@ -147,11 +147,15 @@ def get_completions(c, prefix):
             return completions
         completions.append(text)
 
+def fake_blockingCallFromThread(f, *a, **kw):
+    return f(*a, **kw)
+
 class Completion(unittest.TestCase):
     def test_simple(self):
         # no actual completion
         helper = mock.Mock()
         c = CodeInputter(helper, "reactor")
+        c.bcft = fake_blockingCallFromThread
         c.finish("1-code-ghost")
         self.assertFalse(c.used_completion)
         self.assertEqual(helper.mock_calls,
@@ -164,6 +168,7 @@ class Completion(unittest.TestCase):
         # check that it calls _commit_and_build_completions correctly
         helper = mock.Mock()
         c = CodeInputter(helper, "reactor")
+        c.bcft = fake_blockingCallFromThread
 
         # pretend nameplates: 1, 12, 34
 
@@ -304,12 +309,13 @@ class Completion(unittest.TestCase):
         self.assertEqual(gwc.mock_calls, [mock.call("and-b")])
         gwc.reset_mock()
 
-        c.finish("12-and-bat")
+        yield deferToThread(c.finish, "12-and-bat")
         self.assertEqual(cw.mock_calls, [mock.call("and-bat")])
 
     def test_incomplete_code(self):
         helper = mock.Mock()
         c = CodeInputter(helper, "reactor")
+        c.bcft = fake_blockingCallFromThread
         with self.assertRaises(KeyFormatError) as e:
             c.finish("1")
         self.assertEqual(str(e.exception), "incomplete wormhole code")
@@ -349,7 +355,7 @@ class Completion(unittest.TestCase):
         self.assertEqual(matches, ["1-code", "1-court"])
         helper.reset_mock()
         with self.assertRaises(AlreadyInputNameplateError) as e:
-            c.finish("2-code")
+            yield deferToThread(c.finish, "2-code")
         self.assertEqual(str(e.exception),
                          "nameplate (1-) already entered, cannot go back")
         self.assertEqual(helper.mock_calls, [])

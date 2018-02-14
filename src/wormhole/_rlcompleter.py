@@ -134,11 +134,13 @@ class CodeInputter(object):
                 raise AlreadyInputNameplateError("nameplate (%s-) already entered, cannot go back" % self._committed_nameplate)
         else:
             debug("  choose_nameplate(%s)" % nameplate)
-            self._input_helper.choose_nameplate(nameplate)
+            self.bcft(self._input_helper.choose_nameplate, nameplate)
         debug("  choose_words(%s)" % words)
-        self._input_helper.choose_words(words)
+        self.bcft(self._input_helper.choose_words, words)
 
 def _input_code_with_completion(prompt, input_helper, reactor):
+    # reminder: this all occurs in a separate thread. All calls to input_helper
+    # must go through blockingCallFromThread()
     c = CodeInputter(input_helper, reactor)
     if readline is not None:
         if readline.__doc__ and "libedit" in readline.__doc__:
