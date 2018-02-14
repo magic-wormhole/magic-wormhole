@@ -1,4 +1,8 @@
 from __future__ import print_function, absolute_import, unicode_literals
+# We use 'threading' defensively here, to detect if we're being called from a
+# non-main thread. _rlcompleter.py is the only internal Wormhole code that
+# deliberately creates a new thread.
+import threading
 from zope.interface import implementer
 from attr import attrs, attrib
 from attr.validators import provides
@@ -240,19 +244,28 @@ class Input(object):
 class Helper(object):
     _input = attrib()
 
+    def __attrs_post_init__(self):
+        self._main_thread = threading.current_thread().ident
+
     def refresh_nameplates(self):
+        assert threading.current_thread().ident == self._main_thread
         self._input.refresh_nameplates()
     def get_nameplate_completions(self, prefix):
+        assert threading.current_thread().ident == self._main_thread
         return self._input.get_nameplate_completions(prefix)
     def choose_nameplate(self, nameplate):
+        assert threading.current_thread().ident == self._main_thread
         self._input._debug("I.choose_nameplate")
         self._input.choose_nameplate(nameplate)
         self._input._debug("I.choose_nameplate finished")
     def when_wordlist_is_available(self):
+        assert threading.current_thread().ident == self._main_thread
         return self._input.when_wordlist_is_available()
     def get_word_completions(self, prefix):
+        assert threading.current_thread().ident == self._main_thread
         return self._input.get_word_completions(prefix)
     def choose_words(self, words):
+        assert threading.current_thread().ident == self._main_thread
         self._input._debug("I.choose_words")
         self._input.choose_words(words)
         self._input._debug("I.choose_words finished")
