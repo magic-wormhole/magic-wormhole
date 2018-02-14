@@ -214,7 +214,8 @@ class _DeferredWormhole(object):
         self._boss.close() # only need to close if it wasn't already
         return d
 
-    def debug_set_trace(self, client_name, which="B N M S O K SK R RC L C T",
+    def debug_set_trace(self, client_name,
+                        which="B N M S O K SK R RC L A I C T",
                         file=sys.stderr):
         self._boss._set_trace(client_name, which, file)
 
