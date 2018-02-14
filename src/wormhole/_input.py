@@ -22,6 +22,13 @@ class Input(object):
         self._nameplate = None
         self._wordlist = None
         self._wordlist_waiters = []
+        self._trace = None
+
+    def set_debug(self, f):
+        self._trace = f
+    def _debug(self, what):
+        if self._trace:
+            self._trace(old_state="", input=what, new_state="")
 
     def wire(self, code, lister):
         self._C = _interfaces.ICode(code)
@@ -238,10 +245,14 @@ class Helper(object):
     def get_nameplate_completions(self, prefix):
         return self._input.get_nameplate_completions(prefix)
     def choose_nameplate(self, nameplate):
+        self._input._debug("I.choose_nameplate")
         self._input.choose_nameplate(nameplate)
+        self._input._debug("I.choose_nameplate finished")
     def when_wordlist_is_available(self):
         return self._input.when_wordlist_is_available()
     def get_word_completions(self, prefix):
         return self._input.get_word_completions(prefix)
     def choose_words(self, words):
+        self._input._debug("I.choose_words")
         self._input.choose_words(words)
+        self._input._debug("I.choose_words finished")

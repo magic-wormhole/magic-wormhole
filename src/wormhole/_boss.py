@@ -108,14 +108,16 @@ class Boss(object):
     def _set_trace(self, client_name, which, file):
         names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
                  "O": self._O, "K": self._K, "SK": self._K._SK, "R": self._R,
-                 "RC": self._RC, "L": self._L, "C": self._C,
-                 "T": self._T}
+                 "RC": self._RC, "L": self._L, "A": self._A, "I": self._I,
+                 "C": self._C, "T": self._T}
         for machine in which.split():
             t = (lambda old_state, input, new_state, machine=machine:
                  self._print_trace(old_state, input, new_state,
                                    client_name=client_name,
                                    machine=machine, file=file))
             names[machine].set_trace(t)
+            if machine == "I":
+                self._I.set_debug(t)
 
     ## def serialize(self):
     ##     raise NotImplemented
