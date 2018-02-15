@@ -1,6 +1,15 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.10.5 (14-Feb-2018)
+
+* Upgrade to newer python-spake2, to improve startup speed by not computing
+  blinding factors for unused parameter sets. On a Raspberry Pi 3, this
+  reduces "wormhole --version" time from ~19s to 7s.
+* Fix a concurrency bug that could cause a crash if the server responded too
+  quickly. (#280)
+
+
 ## Release 0.10.4 (28-Jan-2018)
 
 Minor client changes:
