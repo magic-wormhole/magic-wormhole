@@ -24,13 +24,13 @@ incomplete.draw LINE
 incomplete.type DERIVE
 incomplete.min 0
 incomplete.max 60
-incomplete.cdef happy,3600,*
+incomplete.cdef incomplete,3600,*
 scary.label Scary
 scary.draw LINE
 scary.type DERIVE
 scary.min 0
 scary.max 60
-scary.cdef happy,3600,*
+scary.cdef scary,3600,*
 """
 
 if len(sys.argv) > 1 and sys.argv[1] == "config":
