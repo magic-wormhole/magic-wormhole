@@ -1,4 +1,5 @@
 # Magic Wormhole
+[![PyPI](http://img.shields.io/pypi/v/magic-wormhole.svg)](https://pypi.python.org/pypi/zfec)
 [![Build Status](https://travis-ci.org/warner/magic-wormhole.svg?branch=master)](https://travis-ci.org/warner/magic-wormhole)
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/mfnn5rsyfnrq576a/branch/master?svg=true)](https://ci.appveyor.com/project/warner/magic-wormhole)
 [![codecov.io](https://codecov.io/github/warner/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/warner/magic-wormhole?branch=master)
