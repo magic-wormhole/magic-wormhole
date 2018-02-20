@@ -6,7 +6,8 @@ from click.testing import CliRunner
 import mock
 from ..cli import cli
 from ..transit import allocate_tcp_port
-from ..server.server import RelayServer
+from wormhole_mailbox_server.server import make_server
+from wormhole_mailbox_server.database import create_channel_db
 from wormhole_transit_relay.transit_server import Transit
 
 class ServerBase:
@@ -16,17 +17,20 @@ class ServerBase:
     def _setup_relay(self, error, advertise_version=None):
         self.sp = service.MultiService()
         self.sp.startService()
-        self.relayport = allocate_tcp_port()
         # need to talk to twisted team about only using unicode in
         # endpoints.serverFromString
-        s = RelayServer("tcp:%d:interface=127.0.0.1" % self.relayport,
-                        advertise_version=advertise_version,
-                        signal_error=error)
+        db = create_channel_db(":memory:")
+        self._rendezvous = make_server(db,
+                                       advertise_version=advertise_version,
+                                       signal_error=error)
+        ep = endpoints.TCP4ServerEndpoint(reactor 0, interface="127.0.01")
+        site = make_web_server(self._rendezvous)
+        s = StreamServerEndpointService(ep, site)
         s.setServiceParent(self.sp)
+        self.rdv_ws_port = s.__lp.getHost().port
         self._relay_server = s
-        self._rendezvous = s._rendezvous
-        self.relayurl = u"ws://127.0.0.1:%d/v1" % self.relayport
-        self.rdv_ws_port = self.relayport
+        #self._rendezvous = s._rendezvous
+        self.relayurl = u"ws://127.0.0.1:%d/v1" % self.rdv_ws_port
         # ws://127.0.0.1:%d/wormhole-relay/ws
 
         self.transitport = allocate_tcp_port()
