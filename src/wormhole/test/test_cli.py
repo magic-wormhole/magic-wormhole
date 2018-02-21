@@ -562,7 +562,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         yield gatherResults([send_d, receive_d], True)
 
             if fake_tor:
-                expected_endpoints = [("127.0.0.1", self.relayport)]
+                expected_endpoints = [("127.0.0.1", self.rdv_ws_port)]
                 if mode in ("file", "directory"):
                     expected_endpoints.append(("127.0.0.1", self.transitport))
                 tx_timing = mtx_tm.call_args[1]["timing"]
@@ -664,9 +664,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     self.failUnlessEqual(f.read(), message(i))
                 self.failUnlessEqual(modes[i],
                                      stat.S_IMODE(os.stat(fn).st_mode))
-
-        # check server stats
-        self._rendezvous.get_stats()
 
     def test_text(self):
         return self._do_test()
@@ -847,9 +844,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), PRESERVE)
 
-        # check server stats
-        self._rendezvous.get_stats()
-
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
     def test_fail_directory_noclobber(self):
@@ -913,12 +907,10 @@ class ZeroMode(ServerBase, unittest.TestCase):
         self.assertEqual(receive_stdout, message+NL)
         self.assertEqual(receive_stderr, "")
 
-        # check server stats
-        self._rendezvous.get_stats()
-
 class NotWelcome(ServerBase, unittest.TestCase):
+    @inlineCallbacks
     def setUp(self):
-        self._setup_relay(error="please upgrade XYZ")
+        yield self._setup_relay(error="please upgrade XYZ")
         self.cfg = cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
@@ -947,7 +939,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
 class NoServer(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def setUp(self):
-        self._setup_relay(None)
+        yield self._setup_relay(None)
         yield self._relay_server.disownServiceParent()
 
     @inlineCallbacks
@@ -1091,8 +1083,9 @@ class ExtractFile(unittest.TestCase):
         self.assertIn("malicious zipfile", str(e))
 
 class AppID(ServerBase, unittest.TestCase):
+    @inlineCallbacks
     def setUp(self):
-        d = super(AppID, self).setUp()
+        yield super(AppID, self).setUp()
         self.cfg = cfg = config("send")
         # common options for all tests in this suite
         cfg.hide_progress = True
@@ -1100,7 +1093,6 @@ class AppID(ServerBase, unittest.TestCase):
         cfg.transit_helper = ""
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
-        return d
 
     @inlineCallbacks
     def test_override(self):
@@ -1115,9 +1107,9 @@ class AppID(ServerBase, unittest.TestCase):
         yield send_d
         yield receive_d
 
-        used = self._rendezvous._db.execute("SELECT DISTINCT `app_id`"
-                                            " FROM `nameplate_usage`"
-                                            ).fetchall()
+        used = self._usage_db.execute("SELECT DISTINCT `app_id`"
+                                      " FROM `nameplates`"
+                                      ).fetchall()
         self.assertEqual(len(used), 1, used)
         self.assertEqual(used[0]["app_id"], u"appid2")
 
