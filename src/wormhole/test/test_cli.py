@@ -17,8 +17,6 @@ from ..cli import cmd_send, cmd_receive, welcome, cli
 from ..errors import (TransferError, WrongPasswordError, WelcomeError,
                       UnsendableFileError, ServerConnectionError)
 from .._interfaces import ITorManager
-from wormhole.server.cmd_server import MyPlugin
-from wormhole.server.cli import server
 
 
 def build_offer(args):
@@ -564,7 +562,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         yield gatherResults([send_d, receive_d], True)
 
             if fake_tor:
-                expected_endpoints = [("127.0.0.1", self.relayport)]
+                expected_endpoints = [("127.0.0.1", self.rdv_ws_port)]
                 if mode in ("file", "directory"):
                     expected_endpoints.append(("127.0.0.1", self.transitport))
                 tx_timing = mtx_tm.call_args[1]["timing"]
@@ -666,9 +664,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     self.failUnlessEqual(f.read(), message(i))
                 self.failUnlessEqual(modes[i],
                                      stat.S_IMODE(os.stat(fn).st_mode))
-
-        # check server stats
-        self._rendezvous.get_stats()
 
     def test_text(self):
         return self._do_test()
@@ -849,9 +844,6 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with open(fn, "r") as f:
                 self.failUnlessEqual(f.read(), PRESERVE)
 
-        # check server stats
-        self._rendezvous.get_stats()
-
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
     def test_fail_directory_noclobber(self):
@@ -915,12 +907,10 @@ class ZeroMode(ServerBase, unittest.TestCase):
         self.assertEqual(receive_stdout, message+NL)
         self.assertEqual(receive_stderr, "")
 
-        # check server stats
-        self._rendezvous.get_stats()
-
 class NotWelcome(ServerBase, unittest.TestCase):
+    @inlineCallbacks
     def setUp(self):
-        self._setup_relay(error="please upgrade XYZ")
+        yield self._setup_relay(error="please upgrade XYZ")
         self.cfg = cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
@@ -949,7 +939,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
 class NoServer(ServerBase, unittest.TestCase):
     @inlineCallbacks
     def setUp(self):
-        self._setup_relay(None)
+        yield self._setup_relay(None)
         yield self._relay_server.disownServiceParent()
 
     @inlineCallbacks
@@ -1093,8 +1083,9 @@ class ExtractFile(unittest.TestCase):
         self.assertIn("malicious zipfile", str(e))
 
 class AppID(ServerBase, unittest.TestCase):
+    @inlineCallbacks
     def setUp(self):
-        d = super(AppID, self).setUp()
+        yield super(AppID, self).setUp()
         self.cfg = cfg = config("send")
         # common options for all tests in this suite
         cfg.hide_progress = True
@@ -1102,7 +1093,6 @@ class AppID(ServerBase, unittest.TestCase):
         cfg.transit_helper = ""
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
-        return d
 
     @inlineCallbacks
     def test_override(self):
@@ -1117,9 +1107,9 @@ class AppID(ServerBase, unittest.TestCase):
         yield send_d
         yield receive_d
 
-        used = self._rendezvous._db.execute("SELECT DISTINCT `app_id`"
-                                            " FROM `nameplate_usage`"
-                                            ).fetchall()
+        used = self._usage_db.execute("SELECT DISTINCT `app_id`"
+                                      " FROM `nameplates`"
+                                      ).fetchall()
         self.assertEqual(len(used), 1, used)
         self.assertEqual(used[0]["app_id"], u"appid2")
 
@@ -1260,97 +1250,3 @@ class Help(unittest.TestCase):
         result = CliRunner().invoke(cli.wormhole, ["--help"])
         self._check_top_level_help(result.output)
         self.assertEqual(result.exit_code, 0)
-
-class FakeConfig(object):
-    no_daemon = True
-    blur_usage = True
-    advertise_version = u"fake.version.1"
-    transit = str('tcp:4321')
-    rendezvous = str('tcp:1234')
-    signal_error = True
-    allow_list = False
-    relay_database_path = "relay.sqlite"
-    stats_json_path = "stats.json"
-
-
-class Server(unittest.TestCase):
-
-    def setUp(self):
-        self.runner = CliRunner()
-
-    @mock.patch('wormhole.server.cmd_server.twistd')
-    def test_server_disallow_list(self, fake_twistd):
-        result = self.runner.invoke(server, ['start', '--no-daemon', '--disallow-list'])
-        self.assertEqual(0, result.exit_code)
-
-    def test_server_plugin(self):
-        cfg = FakeConfig()
-        plugin = MyPlugin(cfg)
-        relay = plugin.makeService(None)
-        self.assertEqual(False, relay._allow_list)
-
-    @mock.patch("wormhole.server.cmd_server.start_server")
-    def test_start_no_args(self, fake_start_server):
-        result = self.runner.invoke(server, ['start'])
-        self.assertEqual(0, result.exit_code)
-        cfg = fake_start_server.mock_calls[0][1][0]
-        MyPlugin(cfg).makeService(None)
-
-    @mock.patch("wormhole.server.cmd_server.restart_server")
-    def test_restart_no_args(self, fake_start_reserver):
-        result = self.runner.invoke(server, ['restart'])
-        self.assertEqual(0, result.exit_code)
-        cfg = fake_start_reserver.mock_calls[0][1][0]
-        MyPlugin(cfg).makeService(None)
-
-    def test_state_locations(self):
-        cfg = FakeConfig()
-        plugin = MyPlugin(cfg)
-        relay = plugin.makeService(None)
-        self.assertEqual('relay.sqlite', relay._db_url)
-        self.assertEqual('stats.json', relay._stats_file)
-
-    @mock.patch("wormhole.server.cmd_server.start_server")
-    def test_websocket_protocol_options(self, fake_start_server):
-        result = self.runner.invoke(
-            server, [
-                'start',
-                '--websocket-protocol-option=a=3',
-                '--websocket-protocol-option=b=true',
-                '--websocket-protocol-option=c=3.5',
-                '--websocket-protocol-option=d=["foo","bar"]',
-                '--websocket-protocol-option', 'e=["foof","barf"]',
-            ])
-        self.assertEqual(0, result.exit_code)
-        cfg = fake_start_server.mock_calls[0][1][0]
-        self.assertEqual(
-            cfg.websocket_protocol_option,
-            [("a", 3), ("b", True), ("c", 3.5), ("d", ['foo', 'bar']),
-             ("e", ['foof', 'barf']),
-             ],
-        )
-
-    def test_broken_websocket_protocol_options(self):
-        result = self.runner.invoke(
-            server, [
-                'start',
-                '--websocket-protocol-option=a',
-            ])
-        self.assertNotEqual(0, result.exit_code)
-        self.assertIn(
-            'Error: Invalid value for "--websocket-protocol-option": '
-            'format options as OPTION=VALUE',
-            result.output,
-        )
-
-        result = self.runner.invoke(
-            server, [
-                'start',
-                '--websocket-protocol-option=a=foo',
-            ])
-        self.assertNotEqual(0, result.exit_code)
-        self.assertIn(
-            'Error: Invalid value for "--websocket-protocol-option": '
-            'could not parse JSON value for a',
-            result.output,
-        )

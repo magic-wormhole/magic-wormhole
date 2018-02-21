@@ -2,12 +2,7 @@ include versioneer.py
 include src/wormhole/_version.py
 include LICENSE README.md NEWS.md
 recursive-include docs *.md *.rst *.dot
-include docs/wormhole.1 docs/wormhole-server.8
+include docs/wormhole.1
 include .coveragerc tox.ini snapcraft.yaml
 include misc/windows-build.cmd
 include misc/*.py misc/web/*.html misc/web/*.js misc/web/*.css
-include misc/munin/wormhole_active
-include misc/munin/wormhole_errors
-include misc/munin/wormhole_event_rate
-include misc/munin/wormhole_events
-include misc/munin/wormhole_events_alltime

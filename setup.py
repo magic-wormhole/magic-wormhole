@@ -14,15 +14,12 @@ setup(name="magic-wormhole",
       package_dir={"": "src"},
       packages=["wormhole",
                 "wormhole.cli",
-                "wormhole.server",
                 "wormhole.test",
                 ],
-      package_data={"wormhole.server": ["db-schemas/*.sql"]},
       entry_points={
           "console_scripts":
           [
               "wormhole = wormhole.cli.cli:wormhole",
-              "wormhole-server = wormhole.server.cli:server",
           ]
       },
       install_requires=[
@@ -41,7 +38,8 @@ setup(name="magic-wormhole",
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
           "dev": ["mock", "tox", "pyflakes",
-                  "magic-wormhole-transit-relay==0.1.1"],
+                  "magic-wormhole-transit-relay==0.1.1",
+                  "magic-wormhole-mailbox-server==0.1.0"],
       },
       test_suite="wormhole.test",
       cmdclass=commands,
