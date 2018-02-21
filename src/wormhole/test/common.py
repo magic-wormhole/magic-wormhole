@@ -55,7 +55,7 @@ class ServerBase:
                                        advertise_version=advertise_version,
                                        signal_error=error,
                                        usage_db=self._usage_db)
-        ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.01")
+        ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
         site = make_web_server(self._rendezvous, log_requests=False)
         #self._lp = yield ep.listen(site)
         s = MyInternetService(ep, site)
