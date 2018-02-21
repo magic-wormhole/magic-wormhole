@@ -13,7 +13,7 @@ from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
-VERIFY_TIMER = 1
+VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
 
 def send(args, reactor=reactor):
     """I implement 'wormhole send'. I return a Deferred that fires with None

@@ -468,6 +468,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             elif send_cfg.what:
                 content_args = [send_cfg.what]
 
+            # raise the rx KEY_TIMER to some large number here, to avoid
+            # spurious test failures on hosts that are slow enough to trigger
+            # the "Waiting for sender..." pacifier message. We can do in
+            # not-as_subprocess, because we can directly patch the value before
+            # running the receiver. But we can't patch across the subprocess
+            # boundary, so we use an environment variable.
+            env = self._env.copy()
+            env["_MAGIC_WORMHOLE_TEST_KEY_TIMER"] = "999999"
+            env["_MAGIC_WORMHOLE_TEST_VERIFY_TIMER"] = "999999"
             send_args = [
                     '--relay-url', self.relayurl,
                     '--transit-helper', '',
@@ -479,7 +488,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             send_d = getProcessOutputAndValue(
                 wormhole_bin, send_args,
                 path=send_dir,
-                env=self._env,
+                env=env,
             )
             recv_args = [
                 '--relay-url', self.relayurl,
@@ -495,7 +504,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_d = getProcessOutputAndValue(
                 wormhole_bin, recv_args,
                 path=receive_dir,
-                env=self._env,
+                env=env,
             )
 
             (send_res, receive_res) = yield gatherResults([send_d, receive_d],
