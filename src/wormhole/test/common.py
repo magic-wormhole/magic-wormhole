@@ -7,6 +7,7 @@ import mock
 from ..cli import cli
 from ..transit import allocate_tcp_port
 from wormhole_mailbox_server.server import make_server
+from wormhole_mailbox_server.web import make_web_server
 from wormhole_mailbox_server.database import create_channel_db
 from wormhole_transit_relay.transit_server import Transit
 
@@ -23,9 +24,9 @@ class ServerBase:
         self._rendezvous = make_server(db,
                                        advertise_version=advertise_version,
                                        signal_error=error)
-        ep = endpoints.TCP4ServerEndpoint(reactor 0, interface="127.0.01")
-        site = make_web_server(self._rendezvous)
-        s = StreamServerEndpointService(ep, site)
+        ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.01")
+        site = make_web_server(self._rendezvous, log_requests=False)
+        s = internet.StreamServerEndpointService(ep, site)
         s.setServiceParent(self.sp)
         self.rdv_ws_port = s.__lp.getHost().port
         self._relay_server = s
