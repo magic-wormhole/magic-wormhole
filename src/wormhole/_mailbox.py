@@ -10,7 +10,7 @@ from . import _interfaces
 class Mailbox(object):
     _side = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
 
     def __attrs_post_init__(self):
         self._mailbox = None

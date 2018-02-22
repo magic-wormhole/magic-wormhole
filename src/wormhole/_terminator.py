@@ -6,7 +6,7 @@ from . import _interfaces
 @implementer(_interfaces.ITerminator)
 class Terminator(object):
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
 
     def __init__(self):
         self._mood = None
@@ -24,7 +24,7 @@ class Terminator(object):
 
     # TODO: rename o to 0, "" to 1. "S1" is special/terminal
     # so S0nm/S0n/S0m/S0, S1nm/S1n/S1m/(S1)
-    
+
     # We start in Snmo (non-closing). When both nameplate and mailboxes are
     # done, and we're closing, then we stop the RendezvousConnector
 

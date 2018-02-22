@@ -19,7 +19,7 @@ def first(outputs):
 class Input(object):
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
 
     def __attrs_post_init__(self):
         self._all_nameplates = set()
@@ -30,7 +30,7 @@ class Input(object):
 
     def set_debug(self, f):
         self._trace = f
-    def _debug(self, what):
+    def _debug(self, what): # pragma: no cover
         if self._trace:
             self._trace(old_state="", input=what, new_state="")
 

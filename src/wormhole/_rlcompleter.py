@@ -14,7 +14,7 @@ from .errors import KeyFormatError, AlreadyInputNameplateError
 errf = None
 # uncomment this to enable tab-completion debugging
 #import os ; errf = open("err", "w") if os.path.exists("err") else None
-def debug(*args, **kwargs):
+def debug(*args, **kwargs): # pragma: no cover
     if errf:
         print(*args, file=errf, **kwargs)
         errf.flush()

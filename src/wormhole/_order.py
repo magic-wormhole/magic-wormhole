@@ -11,7 +11,7 @@ class Order(object):
     _side = attrib(validator=instance_of(type(u"")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
 
     def __attrs_post_init__(self):
         self._key = None
