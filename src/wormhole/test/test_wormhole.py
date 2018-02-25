@@ -5,12 +5,13 @@ from twisted.trial import unittest
 from twisted.internet import reactor
 from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
-from .common import ServerBase, poll_until, pause_one_tick
+from .common import ServerBase, poll_until
 from .. import wormhole, _rendezvous
 from ..errors import (WrongPasswordError, ServerConnectionError,
                       KeyFormatError, WormholeClosed, LonelyError,
                       NoKeyError, OnlyOneCodeError)
 from ..transit import allocate_tcp_port
+from ..eventual import EventualQueue
 
 APPID = "appid"
 
@@ -159,9 +160,6 @@ class Wormholes(ServerBase, unittest.TestCase):
         verifier2 = yield w2.get_verifier()
         self.assertEqual(verifier1, verifier2)
 
-        self.successResultOf(w1.get_unverified_key())
-        self.successResultOf(w2.get_unverified_key())
-
         versions1 = yield w1.get_versions()
         versions2 = yield w2.get_versions()
         # app-versions are exercised properly in test_versions, this just
@@ -186,18 +184,22 @@ class Wormholes(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_get_code_early(self):
-        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
         d = w1.get_code()
         w1.set_code("1-abc")
+        yield eq.flush()
         code = self.successResultOf(d)
         self.assertEqual(code, "1-abc")
         yield self.assertFailure(w1.close(), LonelyError)
 
     @inlineCallbacks
     def test_get_code_late(self):
-        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
         w1.set_code("1-abc")
         d = w1.get_code()
+        yield eq.flush()
         code = self.successResultOf(d)
         self.assertEqual(code, "1-abc")
         yield self.assertFailure(w1.close(), LonelyError)
@@ -323,8 +325,9 @@ class Wormholes(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_closed(self):
-        w1 = wormhole.create(APPID, self.relayurl, reactor)
-        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
+        w2 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
         w1.set_code("123-foo")
         w2.set_code("123-foo")
 
@@ -335,14 +338,14 @@ class Wormholes(ServerBase, unittest.TestCase):
         yield w1.close()
         yield w2.close()
 
-        # once closed, all Deferred-yielding API calls get an immediate error
-        self.failureResultOf(w1.get_welcome(), WormholeClosed)
-        f = self.failureResultOf(w1.get_code(), WormholeClosed)
-        self.assertEqual(f.value.args[0], "happy")
-        self.failureResultOf(w1.get_unverified_key(), WormholeClosed)
-        self.failureResultOf(w1.get_verifier(), WormholeClosed)
-        self.failureResultOf(w1.get_versions(), WormholeClosed)
-        self.failureResultOf(w1.get_message(), WormholeClosed)
+        # once closed, all Deferred-yielding API calls get an prompt error
+        yield self.assertFailure(w1.get_welcome(), WormholeClosed)
+        e = yield self.assertFailure(w1.get_code(), WormholeClosed)
+        self.assertEqual(e.args[0], "happy")
+        yield self.assertFailure(w1.get_unverified_key(), WormholeClosed)
+        yield self.assertFailure(w1.get_verifier(), WormholeClosed)
+        yield self.assertFailure(w1.get_versions(), WormholeClosed)
+        yield self.assertFailure(w1.get_message(), WormholeClosed)
 
     @inlineCallbacks
     def test_closed_idle(self):
@@ -360,17 +363,18 @@ class Wormholes(ServerBase, unittest.TestCase):
 
         yield self.assertFailure(w1.close(), LonelyError)
 
-        self.failureResultOf(d_welcome, LonelyError)
-        self.failureResultOf(d_code, LonelyError)
-        self.failureResultOf(d_key, LonelyError)
-        self.failureResultOf(d_verifier, LonelyError)
-        self.failureResultOf(d_versions, LonelyError)
-        self.failureResultOf(d_message, LonelyError)
+        yield self.assertFailure(d_welcome, LonelyError)
+        yield self.assertFailure(d_code, LonelyError)
+        yield self.assertFailure(d_key, LonelyError)
+        yield self.assertFailure(d_verifier, LonelyError)
+        yield self.assertFailure(d_versions, LonelyError)
+        yield self.assertFailure(d_message, LonelyError)
 
     @inlineCallbacks
     def test_wrong_password(self):
-        w1 = wormhole.create(APPID, self.relayurl, reactor)
-        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
+        w2 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
         w1.allocate_code()
         code = yield w1.get_code()
         w2.set_code(code+"not")
@@ -403,9 +407,8 @@ class Wormholes(ServerBase, unittest.TestCase):
         # wait for each side to notice the failure
         yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
         yield self.assertFailure(w2.get_verifier(), WrongPasswordError)
-        # and then wait for the rest of the loops to fire. if we had+used
-        # eventual-send, this wouldn't be a problem
-        yield pause_one_tick()
+        # the rest of the loops should fire within the next tick
+        yield eq.flush()
 
         # now all the rest should have fired already
         self.failureResultOf(d1_verified, WrongPasswordError)
@@ -420,27 +423,27 @@ class Wormholes(ServerBase, unittest.TestCase):
         # before we close
 
         # any new calls in the error state should immediately fail
-        self.failureResultOf(w1.get_unverified_key(), WrongPasswordError)
-        self.failureResultOf(w1.get_verifier(), WrongPasswordError)
-        self.failureResultOf(w1.get_versions(), WrongPasswordError)
-        self.failureResultOf(w1.get_message(), WrongPasswordError)
-        self.failureResultOf(w2.get_unverified_key(), WrongPasswordError)
-        self.failureResultOf(w2.get_verifier(), WrongPasswordError)
-        self.failureResultOf(w2.get_versions(), WrongPasswordError)
-        self.failureResultOf(w2.get_message(), WrongPasswordError)
+        yield self.assertFailure(w1.get_unverified_key(), WrongPasswordError)
+        yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
+        yield self.assertFailure(w1.get_versions(), WrongPasswordError)
+        yield self.assertFailure(w1.get_message(), WrongPasswordError)
+        yield self.assertFailure(w2.get_unverified_key(), WrongPasswordError)
+        yield self.assertFailure(w2.get_verifier(), WrongPasswordError)
+        yield self.assertFailure(w2.get_versions(), WrongPasswordError)
+        yield self.assertFailure(w2.get_message(), WrongPasswordError)
 
         yield self.assertFailure(w1.close(), WrongPasswordError)
         yield self.assertFailure(w2.close(), WrongPasswordError)
 
         # API calls should still get the error, not WormholeClosed
-        self.failureResultOf(w1.get_unverified_key(), WrongPasswordError)
-        self.failureResultOf(w1.get_verifier(), WrongPasswordError)
-        self.failureResultOf(w1.get_versions(), WrongPasswordError)
-        self.failureResultOf(w1.get_message(), WrongPasswordError)
-        self.failureResultOf(w2.get_unverified_key(), WrongPasswordError)
-        self.failureResultOf(w2.get_verifier(), WrongPasswordError)
-        self.failureResultOf(w2.get_versions(), WrongPasswordError)
-        self.failureResultOf(w2.get_message(), WrongPasswordError)
+        yield self.assertFailure(w1.get_unverified_key(), WrongPasswordError)
+        yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
+        yield self.assertFailure(w1.get_versions(), WrongPasswordError)
+        yield self.assertFailure(w1.get_message(), WrongPasswordError)
+        yield self.assertFailure(w2.get_unverified_key(), WrongPasswordError)
+        yield self.assertFailure(w2.get_verifier(), WrongPasswordError)
+        yield self.assertFailure(w2.get_versions(), WrongPasswordError)
+        yield self.assertFailure(w2.get_message(), WrongPasswordError)
 
     @inlineCallbacks
     def test_wrong_password_with_spaces(self):
@@ -493,8 +496,9 @@ class Wormholes(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_verifier(self):
-        w1 = wormhole.create(APPID, self.relayurl, reactor)
-        w2 = wormhole.create(APPID, self.relayurl, reactor)
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
+        w2 = wormhole.create(APPID, self.relayurl, reactor, _eventual_queue=eq)
         w1.allocate_code()
         code = yield w1.get_code()
         w2.set_code(code)
@@ -510,7 +514,9 @@ class Wormholes(ServerBase, unittest.TestCase):
         self.assertEqual(dataY, b"data1")
 
         # calling get_verifier() this late should fire right away
-        v1_late = self.successResultOf(w2.get_verifier())
+        d = w2.get_verifier()
+        yield eq.flush()
+        v1_late = self.successResultOf(d)
         self.assertEqual(v1_late, v1)
 
         yield w1.close()
@@ -644,26 +650,30 @@ class Reconnection(ServerBase, unittest.TestCase):
         self.assertEqual(c2, "happy")
 
 class InitialFailure(unittest.TestCase):
-    def assertSCEResultOf(self, d, innerType):
+    @inlineCallbacks
+    def assertSCEFailure(self, eq, d, innerType):
+        yield eq.flush()
         f = self.failureResultOf(d, ServerConnectionError)
         inner = f.value.reason
         self.assertIsInstance(inner, innerType)
-        return inner
+        returnValue(inner)
 
     @inlineCallbacks
     def test_bad_dns(self):
+        eq = EventualQueue(reactor)
         # point at a URL that will never connect
-        w = wormhole.create(APPID, "ws://%%%.example.org:4000/v1", reactor)
+        w = wormhole.create(APPID, "ws://%%%.example.org:4000/v1",
+                            reactor, _eventual_queue=eq)
         # that should have already received an error, when it tried to
         # resolve the bogus DNS name. All API calls will return an error.
-        e = yield self.assertFailure(w.get_unverified_key(),
-                                     ServerConnectionError)
-        self.assertIsInstance(e.reason, ValueError)
+
+        e = yield self.assertSCEFailure(eq, w.get_unverified_key(), ValueError)
+        self.assertIsInstance(e, ValueError)
         self.assertEqual(str(e), "invalid hostname: %%%.example.org")
-        self.assertSCEResultOf(w.get_code(), ValueError)
-        self.assertSCEResultOf(w.get_verifier(), ValueError)
-        self.assertSCEResultOf(w.get_versions(), ValueError)
-        self.assertSCEResultOf(w.get_message(), ValueError)
+        yield self.assertSCEFailure(eq, w.get_code(), ValueError)
+        yield self.assertSCEFailure(eq, w.get_verifier(), ValueError)
+        yield self.assertSCEFailure(eq, w.get_versions(), ValueError)
+        yield self.assertSCEFailure(eq, w.get_message(), ValueError)
 
     @inlineCallbacks
     def assertSCE(self, d, innerType):
