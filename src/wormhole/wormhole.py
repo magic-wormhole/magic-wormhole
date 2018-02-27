@@ -3,9 +3,10 @@ import os, sys
 from attr import attrs, attrib
 from zope.interface import implementer
 from twisted.python import failure
-from twisted.internet import defer
 from ._interfaces import IWormhole, IDeferredWormhole
 from .util import bytes_to_hexstr
+from .eventual import EventualQueue
+from .observer import OneShotObserver, SequenceObserver
 from .timing import DebugTiming
 from .journal import ImmediateJournal
 from ._boss import Boss
@@ -100,22 +101,16 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self):
-        self._welcome = None
-        self._welcome_observers = []
-        self._code = None
-        self._code_observers = []
+    def __init__(self, eq):
+        self._welcome_observer = OneShotObserver(eq)
+        self._code_observer = OneShotObserver(eq)
         self._key = None
-        self._key_observers = []
-        self._verifier = None
-        self._verifier_observers = []
-        self._versions = None
-        self._version_observers = []
-        self._received_data = []
-        self._received_observers = []
-        self._observer_result = None
-        self._closed_result = None
-        self._closed_observers = []
+        self._key_observer = OneShotObserver(eq)
+        self._verifier_observer = OneShotObserver(eq)
+        self._version_observer = OneShotObserver(eq)
+        self._received_observer = SequenceObserver(eq)
+        self._closed = False
+        self._closed_observer = OneShotObserver(eq)
 
     def _set_boss(self, boss):
         self._boss = boss
@@ -127,58 +122,22 @@ class _DeferredWormhole(object):
         # the process that will cause it to fire, but forbidding that
         # ordering would make it easier to cause programming errors that
         # forget to trigger it entirely.
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._code is not None:
-            return defer.succeed(self._code)
-        d = defer.Deferred()
-        self._code_observers.append(d)
-        return d
+        return self._code_observer.when_fired()
 
     def get_welcome(self):
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._welcome is not None:
-            return defer.succeed(self._welcome)
-        d = defer.Deferred()
-        self._welcome_observers.append(d)
-        return d
+        return self._welcome_observer.when_fired()
 
     def get_unverified_key(self):
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._key is not None:
-            return defer.succeed(self._key)
-        d = defer.Deferred()
-        self._key_observers.append(d)
-        return d
+        return self._key_observer.when_fired()
 
     def get_verifier(self):
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._verifier is not None:
-            return defer.succeed(self._verifier)
-        d = defer.Deferred()
-        self._verifier_observers.append(d)
-        return d
+        return self._verifier_observer.when_fired()
 
     def get_versions(self):
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._versions is not None:
-            return defer.succeed(self._versions)
-        d = defer.Deferred()
-        self._version_observers.append(d)
-        return d
+        return self._version_observer.when_fired()
 
     def get_message(self):
-        if self._observer_result is not None:
-            return defer.fail(self._observer_result)
-        if self._received_data:
-            return defer.succeed(self._received_data.pop(0))
-        d = defer.Deferred()
-        self._received_observers.append(d)
-        return d
+        return self._received_observer.when_next_event()
 
     def allocate_code(self, code_length=2):
         self._boss.allocate_code(code_length)
@@ -207,11 +166,9 @@ class _DeferredWormhole(object):
         # fails with WormholeError unless we established a connection
         # (state=="happy"). Fails with WrongPasswordError (a subclass of
         # WormholeError) if state=="scary".
-        if self._closed_result:
-            return defer.succeed(self._closed_result) # maybe Failure
-        d = defer.Deferred()
-        self._closed_observers.append(d)
-        self._boss.close() # only need to close if it wasn't already
+        d = self._closed_observer.when_fired() # maybe Failure
+        if not self._closed:
+            self._boss.close() # only need to close if it wasn't already
         return d
 
     def debug_set_trace(self, client_name,
@@ -221,75 +178,56 @@ class _DeferredWormhole(object):
 
     # from below
     def got_welcome(self, welcome):
-        self._welcome = welcome
-        for d in self._welcome_observers:
-            d.callback(welcome)
-        self._welcome_observers[:] = []
+        self._welcome_observer.fire_if_not_fired(welcome)
     def got_code(self, code):
-        self._code = code
-        for d in self._code_observers:
-            d.callback(code)
-        self._code_observers[:] = []
+        self._code_observer.fire_if_not_fired(code)
     def got_key(self, key):
         self._key = key # for derive_key()
-        for d in self._key_observers:
-            d.callback(key)
-        self._key_observers[:] = []
+        self._key_observer.fire_if_not_fired(key)
 
     def got_verifier(self, verifier):
-        self._verifier = verifier
-        for d in self._verifier_observers:
-            d.callback(verifier)
-        self._verifier_observers[:] = []
+        self._verifier_observer.fire_if_not_fired(verifier)
     def got_versions(self, versions):
-        self._versions = versions
-        for d in self._version_observers:
-            d.callback(versions)
-        self._version_observers[:] = []
+        self._version_observer.fire_if_not_fired(versions)
 
     def received(self, plaintext):
-        if self._received_observers:
-            self._received_observers.pop(0).callback(plaintext)
-            return
-        self._received_data.append(plaintext)
+        self._received_observer.fire(plaintext)
 
     def closed(self, result):
+        self._closed = True
         #print("closed", result, type(result), file=sys.stderr)
         if isinstance(result, Exception):
-            self._observer_result = self._closed_result = failure.Failure(result)
+            # everything pending gets an error, including close()
+            f = failure.Failure(result)
+            self._closed_observer.error(f)
         else:
-            # pending w.key()/w.verify()/w.version()/w.read() get an error
-            self._observer_result = WormholeClosed(result)
+            # everything pending except close() gets an error:
+            # w.get_code()/welcome/unverified_key/verifier/versions/message
+            f = failure.Failure(WormholeClosed(result))
             # but w.close() only gets error if we're unhappy
-            self._closed_result = result
-        for d in self._welcome_observers:
-            d.errback(self._observer_result)
-        for d in self._code_observers:
-            d.errback(self._observer_result)
-        for d in self._key_observers:
-            d.errback(self._observer_result)
-        for d in self._verifier_observers:
-            d.errback(self._observer_result)
-        for d in self._version_observers:
-            d.errback(self._observer_result)
-        for d in self._received_observers:
-            d.errback(self._observer_result)
-        for d in self._closed_observers:
-            d.callback(self._closed_result)
+            self._closed_observer.fire_if_not_fired(result)
+        self._welcome_observer.error(f)
+        self._code_observer.error(f)
+        self._key_observer.error(f)
+        self._verifier_observer.error(f)
+        self._version_observer.error(f)
+        self._received_observer.fire(f)
 
 
 def create(appid, relay_url, reactor, # use keyword args for everything else
            versions={},
            delegate=None, journal=None, tor=None,
            timing=None,
-           stderr=sys.stderr):
+           stderr=sys.stderr,
+           _eventual_queue=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
+    eq = _eventual_queue or EventualQueue(reactor)
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole()
+        w = _DeferredWormhole(eq)
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
     b = Boss(w, side, relay_url, appid, wormhole_versions,
