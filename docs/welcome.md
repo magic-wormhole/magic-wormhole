@@ -291,9 +291,8 @@ Relevant [xkcd](https://xkcd.com/949/) :-)
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.4, 3.5, and 3.6 . It is
-probably compatible with py2.6, but the latest Twisted (>=15.5.0) is
-not.
+This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5, and
+3.6 .
 
 
 <!-- footnotes -->
