@@ -99,10 +99,10 @@ to the application source code or default config.
 
 This library includes the URL of a public rendezvous server run by the
 author. Application developers can use this one, or they can run their own
-(see the `wormhole-server` command and the `src/wormhole/server/` directory)
-and configure their clients to use it instead. This URL is passed as a
-unicode string. Note that because the server actually speaks WebSockets, the
-URL starts with `ws:` instead of `http:`.
+(see the https://github.com/warner/magic-wormhole-mailbox-server repository)
+and configure their clients to use it instead. The URL of the public
+rendevouz server is passed as a unicode string. Note that because the server
+actually speaks WebSockets, the URL starts with `ws:` instead of `http:`.
 
 ## Wormhole Parameters
 
