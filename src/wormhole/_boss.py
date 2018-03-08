@@ -32,10 +32,12 @@ class Boss(object):
     _url = attrib(validator=instance_of(type(u"")))
     _appid = attrib(validator=instance_of(type(u"")))
     _versions = attrib(validator=instance_of(dict))
+    _wormhole_version = attrib(validator=instance_of(type(u"")))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _implementation = attrib(validator=instance_of(type(u"")))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
 
@@ -52,7 +54,9 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal,
-                                       self._tor, self._timing)
+                                       self._tor, self._timing,
+                                       self._wormhole_version,
+                                       self._implementation)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)

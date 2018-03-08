@@ -230,8 +230,14 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
         w = _DeferredWormhole(eq)
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
-    b = Boss(w, side, relay_url, appid, wormhole_versions,
-             reactor, journal, tor, timing)
+    #version to be sent with bind if provided
+    if type(versions) is dict and versions != {} :
+        wormhole_version = list(versions.values())[0] or ""
+    else:
+        wormhole_version = versions or ""
+    implementation = "python"
+    b = Boss(w, side, relay_url, appid, wormhole_versions, wormhole_version,
+                reactor, journal, tor, timing, implementation)
     w._set_boss(b)
     b.start()
     return w

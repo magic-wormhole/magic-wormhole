@@ -1216,12 +1216,14 @@ class Boss(unittest.TestCase):
                          "got_code", "got_key", "got_verifier", "got_versions",
                          "received", "closed")
         versions = {"app": "version1"}
+        version = "version1"
         reactor = None
         journal = ImmediateJournal()
         tor_manager = None
+        implementation = "python"
         b = MockBoss(wormhole, "side", "url", "appid", versions,
-                     reactor, journal, tor_manager,
-                     timing.DebugTiming())
+                     version, reactor, journal, tor_manager,
+                     timing.DebugTiming(), implementation)
         b._T = Dummy("t", events, ITerminator, "close")
         b._S = Dummy("s", events, ISend, "send")
         b._RC = Dummy("rc", events, IRendezvousConnector, "start")
@@ -1449,10 +1451,13 @@ class Rendezvous(unittest.TestCase):
         reactor = object()
         journal = ImmediateJournal()
         tor_manager = None
+        wormhole_version = "version1"
+        implementation = "python"
         rc = _rendezvous.RendezvousConnector("ws://host:4000/v1", "appid",
                                              "side", reactor,
                                              journal, tor_manager,
-                                             timing.DebugTiming())
+                                             timing.DebugTiming(), 
+                                             wormhole_version, implementation)
         b = Dummy("b", events, IBoss, "error")
         n = Dummy("n", events, INameplate, "connected", "lost")
         m = Dummy("m", events, IMailbox, "connected", "lost")
@@ -1502,7 +1507,8 @@ class Rendezvous(unittest.TestCase):
                 yield bytes_to_dict(c[1][0])
         self.assertEqual(list(sent_messages(ws)),
                          [dict(appid="appid", side="side", id="0000",
-                               type="bind"),
+                               type="bind", wormhole_version="version1",
+                               implementation="python"),
                           ])
 
         rc.ws_close(True, None, None)

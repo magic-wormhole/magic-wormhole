@@ -526,16 +526,16 @@ class Wormholes(ServerBase, unittest.TestCase):
     def test_versions(self):
         # there's no API for this yet, but make sure the internals work
         w1 = wormhole.create(APPID, self.relayurl, reactor,
-                             versions={"w1": 123})
+                             versions={"w1": "123"})
         w2 = wormhole.create(APPID, self.relayurl, reactor,
-                             versions={"w2": 456})
+                             versions={"w2": "456"})
         w1.allocate_code()
         code = yield w1.get_code()
         w2.set_code(code)
         w1_versions = yield w2.get_versions()
-        self.assertEqual(w1_versions, {"w1": 123})
+        self.assertEqual(w1_versions, {"w1": "123"})
         w2_versions = yield w1.get_versions()
-        self.assertEqual(w2_versions, {"w2": 456})
+        self.assertEqual(w2_versions, {"w2": "456"})
         yield w1.close()
         yield w2.close()
 
