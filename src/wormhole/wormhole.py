@@ -231,10 +231,12 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
     #version to be sent with bind if provided
+    wormhole_version = u""
     if type(versions) is dict and versions != {} :
         wormhole_version = list(versions.values())[0] or ""
     else:
         wormhole_version = versions or ""
+    wormhole_version = wormhole_version.decode('unicode-escape')
     implementation = "python"
     b = Boss(w, side, relay_url, appid, wormhole_versions, wormhole_version,
                 reactor, journal, tor, timing, implementation)
