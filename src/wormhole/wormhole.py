@@ -236,7 +236,9 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
         wormhole_version = list(versions.values())[0] or ""
     else:
         wormhole_version = versions or ""
-    wormhole_version = wormhole_version.decode('unicode-escape')
+    #workaround for py2.7, py3.X
+    if sys.version_info < (3, 0):
+        wormhole_version = wormhole_version.decode('unicode-escape')
     implementation = "python"
     b = Boss(w, side, relay_url, appid, wormhole_versions, wormhole_version,
                 reactor, journal, tor, timing, implementation)
@@ -253,6 +255,6 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
 ##     # now unpack state machines, including the SPAKE2 in Key
 ##     b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
 ##     w._set_boss(b)
-##     b.start() # ??
+##     b .start() # ??
 ##     raise NotImplemented
 ##     # should the new Wormhole call got_code? only if it wasn't called before.
