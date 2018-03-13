@@ -70,3 +70,24 @@ class SequenceObserver(object):
             if self._observers:
                 d = self._observers.pop(0)
                 self._eq.eventually(d.callback, self._results.pop(0))
+
+
+class EmptyableSet(set):
+    # manage a set which grows and shrinks over time. Fire a Deferred the first
+    # time it becomes empty after you start watching for it.
+
+    def __init__(self, *args, **kwargs):
+        self._eq = kwargs.pop("_eventual_queue")  # required
+        super(EmptyableSet, self).__init__(*args, **kwargs)
+        self._observer = None
+
+    def when_next_empty(self):
+        if not self._observer:
+            self._observer = OneShotObserver(self._eq)
+        return self._observer.when_fired()
+
+    def discard(self, o):
+        super(EmptyableSet, self).discard(o)
+        if self._observer and not self:
+            self._observer.fire(None)
+            self._observer = None

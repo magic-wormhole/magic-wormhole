@@ -3,7 +3,7 @@ from twisted.python.failure import Failure
 from twisted.trial import unittest
 
 from ..eventual import EventualQueue
-from ..observer import OneShotObserver, SequenceObserver
+from ..observer import OneShotObserver, SequenceObserver, EmptyableSet
 
 
 class OneShot(unittest.TestCase):
@@ -121,3 +121,28 @@ class Sequence(unittest.TestCase):
         d2 = o.when_next_event()
         eq.flush_sync()
         self.assertIdentical(self.failureResultOf(d2), f)
+
+
+class Empty(unittest.TestCase):
+    def test_set(self):
+        eq = EventualQueue(Clock())
+        s = EmptyableSet(_eventual_queue=eq)
+        d1 = s.when_next_empty()
+        eq.flush_sync()
+        self.assertNoResult(d1)
+        s.add(1)
+        eq.flush_sync()
+        self.assertNoResult(d1)
+        s.add(2)
+        s.discard(1)
+        d2 = s.when_next_empty()
+        eq.flush_sync()
+        self.assertNoResult(d1)
+        self.assertNoResult(d2)
+        s.discard(2)
+        eq.flush_sync()
+        self.assertEqual(self.successResultOf(d1), None)
+        self.assertEqual(self.successResultOf(d2), None)
+
+        s.add(3)
+        s.discard(3)
