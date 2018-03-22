@@ -4,13 +4,26 @@ import versioneer
 
 commands = versioneer.get_cmdclass()
 
+trove_classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+    ]
+
 setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
+      long_description=open('README.md', 'rU').read(),
       author="Brian Warner",
       author_email="warner-magic-wormhole@lothar.com",
       license="MIT",
       url="https://github.com/warner/magic-wormhole",
+      classifiers=trove_classifiers,
+
       package_dir={"": "src"},
       packages=["wormhole",
                 "wormhole.cli",
