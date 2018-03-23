@@ -47,7 +47,6 @@ class Receiver:
         self._reactor = reactor
         self._tor = None
         self._transit_receiver = None
-        self._version = {"v1" : args.version}
 
     def _msg(self, *args, **kwargs):
         print(*args, file=self.args.stderr, **kwargs)
@@ -68,7 +67,6 @@ class Receiver:
 
         w = create(self.args.appid or APPID, self.args.relay_url,
                    self._reactor,
-                   versions = self._version,
                    tor=self._tor,
                    timing=self.args.timing)
         self._w = w # so tests can wait on events too

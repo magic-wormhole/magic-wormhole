@@ -34,7 +34,6 @@ class Sender:
         self._timing = args.timing
         self._fd_to_send = None
         self._transit_sender = None
-        self._version = {"v1" : args.version}
 
     @inlineCallbacks
     def go(self):
@@ -53,7 +52,6 @@ class Sender:
 
         w = create(self._args.appid or APPID, self._args.relay_url,
                    self._reactor,
-                   versions = self._version,
                    tor=self._tor,
                    timing=self._timing)
         d = self._go(w)

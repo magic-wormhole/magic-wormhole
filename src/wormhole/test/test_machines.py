@@ -5,7 +5,7 @@ from zope.interface import directlyProvides, implementer
 from twisted.trial import unittest
 from .. import (errors, timing, _order, _receive, _key, _code, _lister, _boss,
                 _input, _allocator, _send, _terminator, _nameplate, _mailbox,
-                _rendezvous)
+                _rendezvous, __version__)
 from .._interfaces import (IKey, IReceive, IBoss, ISend, IMailbox, IOrder,
                            IRendezvousConnector, ILister, IInput, IAllocator,
                            INameplate, ICode, IWordlist, ITerminator)
@@ -1216,14 +1216,13 @@ class Boss(unittest.TestCase):
                          "got_code", "got_key", "got_verifier", "got_versions",
                          "received", "closed")
         versions = {"app": "version1"}
-        version = "version1"
         reactor = None
         journal = ImmediateJournal()
         tor_manager = None
-        implementation = "python"
+        client_version = ("python", __version__)
         b = MockBoss(wormhole, "side", "url", "appid", versions,
-                     version, reactor, journal, tor_manager,
-                     timing.DebugTiming(), implementation)
+                     client_version, reactor, journal, tor_manager,
+                     timing.DebugTiming())
         b._T = Dummy("t", events, ITerminator, "close")
         b._S = Dummy("s", events, ISend, "send")
         b._RC = Dummy("rc", events, IRendezvousConnector, "start")
@@ -1451,13 +1450,13 @@ class Rendezvous(unittest.TestCase):
         reactor = object()
         journal = ImmediateJournal()
         tor_manager = None
-        wormhole_version = "version1"
-        implementation = "python"
+        client_version = ("python", __version__)
+        print(client_version)
         rc = _rendezvous.RendezvousConnector("ws://host:4000/v1", "appid",
                                              "side", reactor,
                                              journal, tor_manager,
-                                             timing.DebugTiming(), 
-                                             wormhole_version, implementation)
+                                             timing.DebugTiming(),
+                                             client_version)
         b = Dummy("b", events, IBoss, "error")
         n = Dummy("n", events, INameplate, "connected", "lost")
         m = Dummy("m", events, IMailbox, "connected", "lost")
@@ -1506,9 +1505,9 @@ class Rendezvous(unittest.TestCase):
                 self.assertEqual(c[1][1], False, ws.mock_calls)
                 yield bytes_to_dict(c[1][0])
         self.assertEqual(list(sent_messages(ws)),
-                         [dict(appid="appid", side="side", id="0000",
-                               type="bind", wormhole_version="version1",
-                               implementation="python"),
+                         [dict(appid="appid", side="side", 
+                               client_version=["python", __version__],
+                               id="0000", type="bind"),
                           ])
 
         rc.ws_close(True, None, None)

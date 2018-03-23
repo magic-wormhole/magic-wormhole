@@ -94,7 +94,6 @@ def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.dump_timing = dump_timing
-    cfg.version = __version__
 
 
 @inlineCallbacks

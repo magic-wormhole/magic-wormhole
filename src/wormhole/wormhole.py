@@ -3,6 +3,7 @@ import os, sys
 from attr import attrs, attrib
 from zope.interface import implementer
 from twisted.python import failure
+from . import __version__
 from ._interfaces import IWormhole, IDeferredWormhole
 from .util import bytes_to_hexstr
 from .eventual import EventualQueue
@@ -230,18 +231,9 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
         w = _DeferredWormhole(eq)
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
-    #version to be sent with bind if provided
-    wormhole_version = u""
-    if type(versions) is dict and versions != {} :
-        wormhole_version = list(versions.values())[0] or ""
-    else:
-        wormhole_version = versions or ""
-    #workaround for py2.7, py3.X
-    if sys.version_info < (3, 0):
-        wormhole_version = wormhole_version.decode('unicode-escape')
-    implementation = "python"
-    b = Boss(w, side, relay_url, appid, wormhole_versions, wormhole_version,
-                reactor, journal, tor, timing, implementation)
+    client_version = ("python", __version__.decode("utf-8", errors="replace"))
+    b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
+                reactor, journal, tor, timing)
     w._set_boss(b)
     b.start()
     return w
@@ -255,6 +247,6 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
 ##     # now unpack state machines, including the SPAKE2 in Key
 ##     b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
 ##     w._set_boss(b)
-##     b .start() # ??
+##     b.start() # ??
 ##     raise NotImplemented
 ##     # should the new Wormhole call got_code? only if it wasn't called before.
