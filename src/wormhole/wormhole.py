@@ -3,6 +3,7 @@ import os, sys
 from attr import attrs, attrib
 from zope.interface import implementer
 from twisted.python import failure
+from . import __version__
 from ._interfaces import IWormhole, IDeferredWormhole
 from .util import bytes_to_hexstr
 from .eventual import EventualQueue
@@ -230,8 +231,12 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
         w = _DeferredWormhole(eq)
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
-    b = Boss(w, side, relay_url, appid, wormhole_versions,
-             reactor, journal, tor, timing)
+    v = __version__
+    if isinstance(v, type(b"")):
+        v = v.decode("utf-8", errors="replace")
+    client_version = ("python", v)
+    b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
+                reactor, journal, tor, timing)
     w._set_boss(b)
     b.start()
     return w

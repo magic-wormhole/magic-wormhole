@@ -67,6 +67,7 @@ class RendezvousConnector(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _client_version = attrib(validator=instance_of(tuple))
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -165,7 +166,8 @@ class RendezvousConnector(object):
         self._have_made_a_successful_connection = True
         self._ws = proto
         try:
-            self._tx("bind", appid=self._appid, side=self._side)
+            self._tx("bind", appid=self._appid, side=self._side,
+                     client_version=self._client_version)
             self._N.connected()
             self._M.connected()
             self._L.connected()
