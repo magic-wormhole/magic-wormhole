@@ -1451,7 +1451,6 @@ class Rendezvous(unittest.TestCase):
         journal = ImmediateJournal()
         tor_manager = None
         client_version = ("python", __version__)
-        print(client_version)
         rc = _rendezvous.RendezvousConnector("ws://host:4000/v1", "appid",
                                              "side", reactor,
                                              journal, tor_manager,
@@ -1505,7 +1504,7 @@ class Rendezvous(unittest.TestCase):
                 self.assertEqual(c[1][1], False, ws.mock_calls)
                 yield bytes_to_dict(c[1][0])
         self.assertEqual(list(sent_messages(ws)),
-                         [dict(appid="appid", side="side", 
+                         [dict(appid="appid", side="side",
                                client_version=["python", __version__],
                                id="0000", type="bind"),
                           ])

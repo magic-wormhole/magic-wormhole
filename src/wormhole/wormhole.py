@@ -231,11 +231,10 @@ def create(appid, relay_url, reactor, # use keyword args for everything else
         w = _DeferredWormhole(eq)
     wormhole_versions = {} # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions # app-specific capabilities
-    if (type(__version__) == str):
+    if type(__version__) == str:
         client_version = ("python", __version__)
     else:
         client_version = ("python", __version__.decode("utf-8", errors="replace"))
-    
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
                 reactor, journal, tor, timing)
     w._set_boss(b)

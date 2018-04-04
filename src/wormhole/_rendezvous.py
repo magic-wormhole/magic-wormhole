@@ -167,7 +167,7 @@ class RendezvousConnector(object):
         self._ws = proto
         try:
             self._tx("bind", appid=self._appid, side=self._side,
-                client_version=self._client_version)
+                     client_version=self._client_version)
             self._N.connected()
             self._M.connected()
             self._L.connected()
