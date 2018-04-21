@@ -1,30 +1,36 @@
-from __future__ import print_function, absolute_import, unicode_literals
-import mock
+from __future__ import absolute_import, print_function, unicode_literals
+
 from itertools import count
-from twisted.trial import unittest
+
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
-from .._rlcompleter import (input_with_completion,
-                            _input_code_with_completion,
-                            CodeInputter, warn_readline)
-from ..errors import KeyFormatError, AlreadyInputNameplateError
+from twisted.trial import unittest
+
+import mock
+
+from .._rlcompleter import (CodeInputter, _input_code_with_completion,
+                            input_with_completion, warn_readline)
+from ..errors import AlreadyInputNameplateError, KeyFormatError
+
 APPID = "appid"
+
 
 class Input(unittest.TestCase):
     @inlineCallbacks
     def test_wrapper(self):
         helper = object()
         trueish = object()
-        with mock.patch("wormhole._rlcompleter._input_code_with_completion",
-                        return_value=trueish) as m:
-            used_completion = yield input_with_completion("prompt:", helper,
-                                                          reactor)
+        with mock.patch(
+                "wormhole._rlcompleter._input_code_with_completion",
+                return_value=trueish) as m:
+            used_completion = yield input_with_completion(
+                "prompt:", helper, reactor)
         self.assertIs(used_completion, trueish)
-        self.assertEqual(m.mock_calls,
-                         [mock.call("prompt:", helper, reactor)])
+        self.assertEqual(m.mock_calls, [mock.call("prompt:", helper, reactor)])
         # note: if this test fails, the warn_readline() message will probably
         # get written to stderr
+
 
 class Sync(unittest.TestCase):
     # exercise _input_code_with_completion, which uses the blocking builtin
@@ -32,8 +38,7 @@ class Sync(unittest.TestCase):
     # thread with deferToThread
 
     @mock.patch("wormhole._rlcompleter.CodeInputter")
-    @mock.patch("wormhole._rlcompleter.readline",
-                __doc__="I am GNU readline")
+    @mock.patch("wormhole._rlcompleter.readline", __doc__="I am GNU readline")
     @mock.patch("wormhole._rlcompleter.input", return_value="code")
     def test_readline(self, input, readline, ci):
         c = mock.Mock(name="inhibit parenting")
@@ -49,17 +54,17 @@ class Sync(unittest.TestCase):
         self.assertEqual(ci.mock_calls, [mock.call(input_helper, reactor)])
         self.assertEqual(c.mock_calls, [mock.call.finish("code")])
         self.assertEqual(input.mock_calls, [mock.call(prompt)])
-        self.assertEqual(readline.mock_calls,
-                         [mock.call.parse_and_bind("tab: complete"),
-                          mock.call.set_completer(c.completer),
-                          mock.call.set_completer_delims(""),
-                          ])
+        self.assertEqual(readline.mock_calls, [
+            mock.call.parse_and_bind("tab: complete"),
+            mock.call.set_completer(c.completer),
+            mock.call.set_completer_delims(""),
+        ])
 
     @mock.patch("wormhole._rlcompleter.CodeInputter")
     @mock.patch("wormhole._rlcompleter.readline")
     @mock.patch("wormhole._rlcompleter.input", return_value="code")
     def test_readline_no_docstring(self, input, readline, ci):
-        del readline.__doc__ # when in doubt, it assumes GNU readline
+        del readline.__doc__  # when in doubt, it assumes GNU readline
         c = mock.Mock(name="inhibit parenting")
         c.completer = object()
         trueish = object()
@@ -73,15 +78,14 @@ class Sync(unittest.TestCase):
         self.assertEqual(ci.mock_calls, [mock.call(input_helper, reactor)])
         self.assertEqual(c.mock_calls, [mock.call.finish("code")])
         self.assertEqual(input.mock_calls, [mock.call(prompt)])
-        self.assertEqual(readline.mock_calls,
-                         [mock.call.parse_and_bind("tab: complete"),
-                          mock.call.set_completer(c.completer),
-                          mock.call.set_completer_delims(""),
-                          ])
+        self.assertEqual(readline.mock_calls, [
+            mock.call.parse_and_bind("tab: complete"),
+            mock.call.set_completer(c.completer),
+            mock.call.set_completer_delims(""),
+        ])
 
     @mock.patch("wormhole._rlcompleter.CodeInputter")
-    @mock.patch("wormhole._rlcompleter.readline",
-                __doc__="I am libedit")
+    @mock.patch("wormhole._rlcompleter.readline", __doc__="I am libedit")
     @mock.patch("wormhole._rlcompleter.input", return_value="code")
     def test_libedit(self, input, readline, ci):
         c = mock.Mock(name="inhibit parenting")
@@ -97,11 +101,11 @@ class Sync(unittest.TestCase):
         self.assertEqual(ci.mock_calls, [mock.call(input_helper, reactor)])
         self.assertEqual(c.mock_calls, [mock.call.finish("code")])
         self.assertEqual(input.mock_calls, [mock.call(prompt)])
-        self.assertEqual(readline.mock_calls,
-                         [mock.call.parse_and_bind("bind ^I rl_complete"),
-                          mock.call.set_completer(c.completer),
-                          mock.call.set_completer_delims(""),
-                          ])
+        self.assertEqual(readline.mock_calls, [
+            mock.call.parse_and_bind("bind ^I rl_complete"),
+            mock.call.set_completer(c.completer),
+            mock.call.set_completer_delims(""),
+        ])
 
     @mock.patch("wormhole._rlcompleter.CodeInputter")
     @mock.patch("wormhole._rlcompleter.readline", None)
@@ -139,6 +143,7 @@ class Sync(unittest.TestCase):
         self.assertEqual(c.mock_calls, [mock.call.finish(u"code")])
         self.assertEqual(input.mock_calls, [mock.call(prompt)])
 
+
 def get_completions(c, prefix):
     completions = []
     for state in count(0):
@@ -147,8 +152,10 @@ def get_completions(c, prefix):
             return completions
         completions.append(text)
 
+
 def fake_blockingCallFromThread(f, *a, **kw):
     return f(*a, **kw)
+
 
 class Completion(unittest.TestCase):
     def test_simple(self):
@@ -158,12 +165,14 @@ class Completion(unittest.TestCase):
         c.bcft = fake_blockingCallFromThread
         c.finish("1-code-ghost")
         self.assertFalse(c.used_completion)
-        self.assertEqual(helper.mock_calls,
-                         [mock.call.choose_nameplate("1"),
-                          mock.call.choose_words("code-ghost")])
+        self.assertEqual(helper.mock_calls, [
+            mock.call.choose_nameplate("1"),
+            mock.call.choose_words("code-ghost")
+        ])
 
-    @mock.patch("wormhole._rlcompleter.readline",
-                get_completion_type=mock.Mock(return_value=0))
+    @mock.patch(
+        "wormhole._rlcompleter.readline",
+        get_completion_type=mock.Mock(return_value=0))
     def test_call(self, readline):
         # check that it calls _commit_and_build_completions correctly
         helper = mock.Mock()
@@ -188,14 +197,14 @@ class Completion(unittest.TestCase):
         # now we have three "a" words: "and", "ark", "aaah!zombies!!"
         cabc.reset_mock()
         cabc.configure_mock(return_value=["aargh", "ark", "aaah!zombies!!"])
-        self.assertEqual(get_completions(c, "12-a"),
-                         ["aargh", "ark", "aaah!zombies!!"])
+        self.assertEqual(
+            get_completions(c, "12-a"), ["aargh", "ark", "aaah!zombies!!"])
         self.assertEqual(cabc.mock_calls, [mock.call("12-a")])
 
         cabc.reset_mock()
         cabc.configure_mock(return_value=["aargh", "aaah!zombies!!"])
-        self.assertEqual(get_completions(c, "12-aa"),
-                         ["aargh", "aaah!zombies!!"])
+        self.assertEqual(
+            get_completions(c, "12-aa"), ["aargh", "aaah!zombies!!"])
         self.assertEqual(cabc.mock_calls, [mock.call("12-aa")])
 
         cabc.reset_mock()
@@ -223,16 +232,17 @@ class Completion(unittest.TestCase):
     def test_build_completions(self):
         rn = mock.Mock()
         # InputHelper.get_nameplate_completions returns just the suffixes
-        gnc = mock.Mock() # get_nameplate_completions
-        cn = mock.Mock() # choose_nameplate
-        gwc = mock.Mock() # get_word_completions
-        cw = mock.Mock() # choose_words
-        helper = mock.Mock(refresh_nameplates=rn,
-                           get_nameplate_completions=gnc,
-                           choose_nameplate=cn,
-                           get_word_completions=gwc,
-                           choose_words=cw,
-                           )
+        gnc = mock.Mock()  # get_nameplate_completions
+        cn = mock.Mock()  # choose_nameplate
+        gwc = mock.Mock()  # get_word_completions
+        cw = mock.Mock()  # choose_words
+        helper = mock.Mock(
+            refresh_nameplates=rn,
+            get_nameplate_completions=gnc,
+            choose_nameplate=cn,
+            get_word_completions=gwc,
+            choose_words=cw,
+        )
         # this needs a real reactor, for blockingCallFromThread
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
@@ -327,17 +337,18 @@ class Completion(unittest.TestCase):
         gwc.configure_mock(return_value=["code", "court"])
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
-        matches = yield deferToThread(cabc, "1-co") # this commits us to 1-
-        self.assertEqual(helper.mock_calls,
-                         [mock.call.choose_nameplate("1"),
-                          mock.call.when_wordlist_is_available(),
-                          mock.call.get_word_completions("co")])
+        matches = yield deferToThread(cabc, "1-co")  # this commits us to 1-
+        self.assertEqual(helper.mock_calls, [
+            mock.call.choose_nameplate("1"),
+            mock.call.when_wordlist_is_available(),
+            mock.call.get_word_completions("co")
+        ])
         self.assertEqual(matches, ["1-code", "1-court"])
         helper.reset_mock()
         with self.assertRaises(AlreadyInputNameplateError) as e:
             yield deferToThread(cabc, "2-co")
-        self.assertEqual(str(e.exception),
-                         "nameplate (1-) already entered, cannot go back")
+        self.assertEqual(
+            str(e.exception), "nameplate (1-) already entered, cannot go back")
         self.assertEqual(helper.mock_calls, [])
 
     @inlineCallbacks
@@ -347,17 +358,18 @@ class Completion(unittest.TestCase):
         gwc.configure_mock(return_value=["code", "court"])
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
-        matches = yield deferToThread(cabc, "1-co") # this commits us to 1-
-        self.assertEqual(helper.mock_calls,
-                         [mock.call.choose_nameplate("1"),
-                          mock.call.when_wordlist_is_available(),
-                          mock.call.get_word_completions("co")])
+        matches = yield deferToThread(cabc, "1-co")  # this commits us to 1-
+        self.assertEqual(helper.mock_calls, [
+            mock.call.choose_nameplate("1"),
+            mock.call.when_wordlist_is_available(),
+            mock.call.get_word_completions("co")
+        ])
         self.assertEqual(matches, ["1-code", "1-court"])
         helper.reset_mock()
         with self.assertRaises(AlreadyInputNameplateError) as e:
             yield deferToThread(c.finish, "2-code")
-        self.assertEqual(str(e.exception),
-                         "nameplate (1-) already entered, cannot go back")
+        self.assertEqual(
+            str(e.exception), "nameplate (1-) already entered, cannot go back")
         self.assertEqual(helper.mock_calls, [])
 
     @mock.patch("wormhole._rlcompleter.stderr")
@@ -366,6 +378,7 @@ class Completion(unittest.TestCase):
         # right time, since it involves a reactor and a "system event
         # trigger", but let's at least make sure it's invocable
         warn_readline()
-        expected ="\nCommand interrupted: please press Return to quit"
-        self.assertEqual(stderr.mock_calls, [mock.call.write(expected),
-                                             mock.call.write("\n")])
+        expected = "\nCommand interrupted: please press Return to quit"
+        self.assertEqual(stderr.mock_calls,
+                         [mock.call.write(expected),
+                          mock.call.write("\n")])

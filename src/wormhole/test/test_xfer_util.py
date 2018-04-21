@@ -1,10 +1,12 @@
-from twisted.trial import unittest
-from twisted.internet import reactor, defer
+from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks
+from twisted.trial import unittest
+
 from .. import xfer_util
 from .common import ServerBase
 
 APPID = u"appid"
+
 
 class Xfer(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -24,10 +26,15 @@ class Xfer(ServerBase, unittest.TestCase):
         data = u"data"
         send_code = []
         receive_code = []
-        d1 = xfer_util.send(reactor, APPID, self.relayurl, data, code,
-                            on_code=send_code.append)
-        d2 = xfer_util.receive(reactor, APPID, self.relayurl, code,
-                               on_code=receive_code.append)
+        d1 = xfer_util.send(
+            reactor,
+            APPID,
+            self.relayurl,
+            data,
+            code,
+            on_code=send_code.append)
+        d2 = xfer_util.receive(
+            reactor, APPID, self.relayurl, code, on_code=receive_code.append)
         send_result = yield d1
         receive_result = yield d2
         self.assertEqual(send_code, [code])
@@ -39,8 +46,13 @@ class Xfer(ServerBase, unittest.TestCase):
     def test_make_code(self):
         data = u"data"
         got_code = defer.Deferred()
-        d1 = xfer_util.send(reactor, APPID, self.relayurl, data, code=None,
-                            on_code=got_code.callback)
+        d1 = xfer_util.send(
+            reactor,
+            APPID,
+            self.relayurl,
+            data,
+            code=None,
+            on_code=got_code.callback)
         code = yield got_code
         d2 = xfer_util.receive(reactor, APPID, self.relayurl, code)
         send_result = yield d1

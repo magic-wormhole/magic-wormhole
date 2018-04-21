@@ -1,12 +1,16 @@
-from __future__ import print_function, absolute_import, unicode_literals
-from zope.interface import implementer
+from __future__ import absolute_import, print_function, unicode_literals
+
 from automat import MethodicalMachine
+from zope.interface import implementer
+
 from . import _interfaces
+
 
 @implementer(_interfaces.ITerminator)
 class Terminator(object):
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
+    set_trace = getattr(m, "_setTrace",
+                        lambda self, f: None)  # pragma: no cover
 
     def __init__(self):
         self._mood = None
@@ -29,48 +33,68 @@ class Terminator(object):
     # done, and we're closing, then we stop the RendezvousConnector
 
     @m.state(initial=True)
-    def Snmo(self): pass # pragma: no cover
-    @m.state()
-    def Smo(self): pass # pragma: no cover
-    @m.state()
-    def Sno(self): pass # pragma: no cover
-    @m.state()
-    def S0o(self): pass # pragma: no cover
+    def Snmo(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def Snm(self): pass # pragma: no cover
-    @m.state()
-    def Sm(self): pass # pragma: no cover
-    @m.state()
-    def Sn(self): pass # pragma: no cover
-    #@m.state()
-    #def S0(self): pass # unused
+    def Smo(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def S_stopping(self): pass # pragma: no cover
+    def Sno(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def S_stopped(self, terminal=True): pass # pragma: no cover
+    def S0o(self):
+        pass  # pragma: no cover
+
+    @m.state()
+    def Snm(self):
+        pass  # pragma: no cover
+
+    @m.state()
+    def Sm(self):
+        pass  # pragma: no cover
+
+    @m.state()
+    def Sn(self):
+        pass  # pragma: no cover
+
+    # @m.state()
+    # def S0(self): pass # unused
+
+    @m.state()
+    def S_stopping(self):
+        pass  # pragma: no cover
+
+    @m.state()
+    def S_stopped(self, terminal=True):
+        pass  # pragma: no cover
 
     # from Boss
     @m.input()
-    def close(self, mood): pass
+    def close(self, mood):
+        pass
 
     # from Nameplate
     @m.input()
-    def nameplate_done(self): pass
+    def nameplate_done(self):
+        pass
 
     # from Mailbox
     @m.input()
-    def mailbox_done(self): pass
+    def mailbox_done(self):
+        pass
 
     # from RendezvousConnector
     @m.input()
-    def stopped(self): pass
-
+    def stopped(self):
+        pass
 
     @m.output()
     def close_nameplate(self, mood):
-        self._N.close() # ignores mood
+        self._N.close()  # ignores mood
+
     @m.output()
     def close_mailbox(self, mood):
         self._M.close(mood)
@@ -78,9 +102,11 @@ class Terminator(object):
     @m.output()
     def ignore_mood_and_RC_stop(self, mood):
         self._RC.stop()
+
     @m.output()
     def RC_stop(self):
         self._RC.stop()
+
     @m.output()
     def B_closed(self):
         self._B.closed()
@@ -99,8 +125,10 @@ class Terminator(object):
     Snm.upon(nameplate_done, enter=Sm, outputs=[])
 
     Sn.upon(nameplate_done, enter=S_stopping, outputs=[RC_stop])
-    S0o.upon(close, enter=S_stopping,
-             outputs=[close_nameplate, close_mailbox, ignore_mood_and_RC_stop])
+    S0o.upon(
+        close,
+        enter=S_stopping,
+        outputs=[close_nameplate, close_mailbox, ignore_mood_and_RC_stop])
     Sm.upon(mailbox_done, enter=S_stopping, outputs=[RC_stop])
 
     S_stopping.upon(stopped, enter=S_stopped, outputs=[B_closed])

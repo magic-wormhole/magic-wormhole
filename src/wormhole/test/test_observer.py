@@ -1,8 +1,10 @@
-from twisted.trial import unittest
 from twisted.internet.task import Clock
 from twisted.python.failure import Failure
+from twisted.trial import unittest
+
 from ..eventual import EventualQueue
 from ..observer import OneShotObserver, SequenceObserver
+
 
 class OneShot(unittest.TestCase):
     def test_fire(self):
@@ -119,4 +121,3 @@ class Sequence(unittest.TestCase):
         d2 = o.when_next_event()
         eq.flush_sync()
         self.assertIdentical(self.failureResultOf(d2), f)
-

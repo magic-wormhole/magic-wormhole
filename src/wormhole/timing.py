@@ -1,7 +1,12 @@
-from __future__ import print_function, absolute_import, unicode_literals
-import json, time
+from __future__ import absolute_import, print_function, unicode_literals
+
+import json
+import time
+
 from zope.interface import implementer
+
 from ._interfaces import ITiming
+
 
 class Event:
     def __init__(self, name, when, **details):
@@ -35,6 +40,7 @@ class Event:
         else:
             self.finish()
 
+
 @implementer(ITiming)
 class DebugTiming:
     def __init__(self):
@@ -47,11 +53,14 @@ class DebugTiming:
 
     def write(self, fn, stderr):
         with open(fn, "wt") as f:
-            data = [ dict(name=e._name,
-                          start=e._start, stop=e._stop,
-                          details=e._details,
-                          )
-                     for e in self._events ]
+            data = [
+                dict(
+                    name=e._name,
+                    start=e._start,
+                    stop=e._stop,
+                    details=e._details,
+                ) for e in self._events
+            ]
             json.dump(data, f, indent=1)
             f.write("\n")
         print("Timing data written to %s" % fn, file=stderr)

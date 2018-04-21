@@ -1,28 +1,32 @@
-from __future__ import print_function, absolute_import, unicode_literals
+from __future__ import absolute_import, print_function, unicode_literals
+
 import re
+
 import six
-from zope.interface import implementer
-from attr import attrs, attrib
-from attr.validators import provides, instance_of, optional
-from twisted.python import log
+from attr import attrib, attrs
+from attr.validators import instance_of, optional, provides
 from automat import MethodicalMachine
+from twisted.python import log
+from zope.interface import implementer
+
 from . import _interfaces
-from ._nameplate import Nameplate
-from ._mailbox import Mailbox
-from ._send import Send
-from ._order import Order
+from ._allocator import Allocator
+from ._code import Code, validate_code
+from ._input import Input
 from ._key import Key
+from ._lister import Lister
+from ._mailbox import Mailbox
+from ._nameplate import Nameplate
+from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
-from ._lister import Lister
-from ._allocator import Allocator
-from ._input import Input
-from ._code import Code, validate_code
+from ._send import Send
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
-from .errors import (ServerError, LonelyError, WrongPasswordError,
-                     OnlyOneCodeError, _UnknownPhaseError, WelcomeError)
+from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
+                     WrongPasswordError, _UnknownPhaseError)
 from .util import bytes_to_dict
+
 
 @attrs
 @implementer(_interfaces.IBoss)
@@ -38,7 +42,8 @@ class Boss(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
+    set_trace = getattr(m, "_setTrace",
+                        lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
         self._build_workers()
@@ -52,9 +57,8 @@ class Boss(object):
         self._K = Key(self._appid, self._versions, self._side, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
-                                       self._reactor, self._journal,
-                                       self._tor, self._timing,
-                                       self._client_version)
+                                       self._reactor, self._journal, self._tor,
+                                       self._timing, self._client_version)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
@@ -78,7 +82,7 @@ class Boss(object):
         self._did_start_code = False
         self._next_tx_phase = 0
         self._next_rx_phase = 0
-        self._rx_phases = {} # phase -> plaintext
+        self._rx_phases = {}  # phase -> plaintext
 
         self._result = "empty"
 
@@ -86,32 +90,45 @@ class Boss(object):
     def start(self):
         self._RC.start()
 
-    def _print_trace(self, old_state, input, new_state,
-                     client_name, machine, file):
+    def _print_trace(self, old_state, input, new_state, client_name, machine,
+                     file):
         if new_state:
-            print("%s.%s[%s].%s -> [%s]" %
-                  (client_name, machine, old_state, input,
-                   new_state), file=file)
+            print(
+                "%s.%s[%s].%s -> [%s]" % (client_name, machine, old_state,
+                                          input, new_state),
+                file=file)
         else:
             # the RendezvousConnector emits message events as if
             # they were state transitions, except that old_state
             # and new_state are empty strings. "input" is one of
             # R.connected, R.rx(type phase+side), R.tx(type
             # phase), R.lost .
-            print("%s.%s.%s" % (client_name, machine, input),
-                  file=file)
+            print("%s.%s.%s" % (client_name, machine, input), file=file)
         file.flush()
+
         def output_tracer(output):
-            print(" %s.%s.%s()" % (client_name, machine, output),
-                  file=file)
+            print(" %s.%s.%s()" % (client_name, machine, output), file=file)
             file.flush()
+
         return output_tracer
 
     def _set_trace(self, client_name, which, file):
-        names = {"B": self, "N": self._N, "M": self._M, "S": self._S,
-                 "O": self._O, "K": self._K, "SK": self._K._SK, "R": self._R,
-                 "RC": self._RC, "L": self._L, "A": self._A, "I": self._I,
-                 "C": self._C, "T": self._T}
+        names = {
+            "B": self,
+            "N": self._N,
+            "M": self._M,
+            "S": self._S,
+            "O": self._O,
+            "K": self._K,
+            "SK": self._K._SK,
+            "R": self._R,
+            "RC": self._RC,
+            "L": self._L,
+            "A": self._A,
+            "I": self._I,
+            "C": self._C,
+            "T": self._T
+        }
         for machine in which.split():
             t = (lambda old_state, input, new_state, machine=machine:
                  self._print_trace(old_state, input, new_state,
@@ -121,21 +138,30 @@ class Boss(object):
             if machine == "I":
                 self._I.set_debug(t)
 
-    ## def serialize(self):
-    ##     raise NotImplemented
+    # def serialize(self):
+    #     raise NotImplemented
 
     # and these are the state-machine transition functions, which don't take
     # args
     @m.state(initial=True)
-    def S0_empty(self): pass # pragma: no cover
+    def S0_empty(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def S1_lonely(self): pass # pragma: no cover
+    def S1_lonely(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def S2_happy(self): pass # pragma: no cover
+    def S2_happy(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def S3_closing(self): pass # pragma: no cover
+    def S3_closing(self):
+        pass  # pragma: no cover
+
     @m.state(terminal=True)
-    def S4_closed(self): pass # pragma: no cover
+    def S4_closed(self):
+        pass  # pragma: no cover
 
     # from the Wormhole
 
@@ -155,23 +181,28 @@ class Boss(object):
             raise OnlyOneCodeError()
         self._did_start_code = True
         return self._C.input_code()
+
     def allocate_code(self, code_length):
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True
         wl = PGPWordList()
         self._C.allocate_code(code_length, wl)
+
     def set_code(self, code):
-        validate_code(code) # can raise KeyFormatError
+        validate_code(code)  # can raise KeyFormatError
         if self._did_start_code:
             raise OnlyOneCodeError()
         self._did_start_code = True
         self._C.set_code(code)
 
     @m.input()
-    def send(self, plaintext): pass
+    def send(self, plaintext):
+        pass
+
     @m.input()
-    def close(self): pass
+    def close(self):
+        pass
 
     # from RendezvousConnector:
     # * "rx_welcome" is the Welcome message, which might signal an error, or
@@ -190,26 +221,36 @@ class Boss(object):
             # delivering a new input (rx_error or something) while in the
             # middle of processing the rx_welcome input, and I wasn't sure
             # Automat would handle that correctly.
-            self._W.got_welcome(welcome) # TODO: let this raise WelcomeError?
+            self._W.got_welcome(welcome)  # TODO: let this raise WelcomeError?
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
+
     @m.input()
-    def rx_unwelcome(self, welcome_error): pass
+    def rx_unwelcome(self, welcome_error):
+        pass
+
     @m.input()
-    def rx_error(self, errmsg, orig): pass
+    def rx_error(self, errmsg, orig):
+        pass
+
     @m.input()
-    def error(self, err): pass
+    def error(self, err):
+        pass
 
     # from Code (provoked by input/allocate/set_code)
     @m.input()
-    def got_code(self, code): pass
+    def got_code(self, code):
+        pass
 
     # Key sends (got_key, scared)
     # Receive sends (got_message, happy, got_verifier, scared)
     @m.input()
-    def happy(self): pass
+    def happy(self):
+        pass
+
     @m.input()
-    def scared(self): pass
+    def scared(self):
+        pass
 
     def got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
@@ -222,22 +263,32 @@ class Boss(object):
             # Ignore unrecognized phases, for forwards-compatibility. Use
             # log.err so tests will catch surprises.
             log.err(_UnknownPhaseError("received unknown phase '%s'" % phase))
+
     @m.input()
-    def _got_version(self, plaintext): pass
+    def _got_version(self, plaintext):
+        pass
+
     @m.input()
-    def _got_phase(self, phase, plaintext): pass
+    def _got_phase(self, phase, plaintext):
+        pass
+
     @m.input()
-    def got_key(self, key): pass
+    def got_key(self, key):
+        pass
+
     @m.input()
-    def got_verifier(self, verifier): pass
+    def got_verifier(self, verifier):
+        pass
 
     # Terminator sends closed
     @m.input()
-    def closed(self): pass
+    def closed(self):
+        pass
 
     @m.output()
     def do_got_code(self, code):
         self._W.got_code(code)
+
     @m.output()
     def process_version(self, plaintext):
         # most of this is wormhole-to-wormhole, ignored for now
@@ -256,21 +307,25 @@ class Boss(object):
 
     @m.output()
     def close_unwelcome(self, welcome_error):
-        #assert isinstance(err, WelcomeError)
+        # assert isinstance(err, WelcomeError)
         self._result = welcome_error
         self._T.close("unwelcome")
+
     @m.output()
     def close_error(self, errmsg, orig):
         self._result = ServerError(errmsg)
         self._T.close("errory")
+
     @m.output()
     def close_scared(self):
         self._result = WrongPasswordError()
         self._T.close("scary")
+
     @m.output()
     def close_lonely(self):
         self._result = LonelyError()
         self._T.close("lonely")
+
     @m.output()
     def close_happy(self):
         self._result = "happy"
@@ -279,9 +334,11 @@ class Boss(object):
     @m.output()
     def W_got_key(self, key):
         self._W.got_key(key)
+
     @m.output()
     def W_got_verifier(self, verifier):
         self._W.got_verifier(verifier)
+
     @m.output()
     def W_received(self, phase, plaintext):
         assert isinstance(phase, six.integer_types), type(phase)
@@ -293,7 +350,7 @@ class Boss(object):
 
     @m.output()
     def W_close_with_error(self, err):
-        self._result = err # exception
+        self._result = err  # exception
         self._W.closed(self._result)
 
     @m.output()

@@ -1,33 +1,41 @@
 from __future__ import print_function, unicode_literals
+
 import traceback
 from sys import stderr
+
+from attr import attrib, attrs
+from six.moves import input
+from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.threads import blockingCallFromThread, deferToThread
+
+from .errors import AlreadyInputNameplateError, KeyFormatError
+
 try:
     import readline
 except ImportError:
     readline = None
-from six.moves import input
-from attr import attrs, attrib
-from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.internet.threads import deferToThread, blockingCallFromThread
-from .errors import KeyFormatError, AlreadyInputNameplateError
 
 errf = None
+
+
 # uncomment this to enable tab-completion debugging
-#import os ; errf = open("err", "w") if os.path.exists("err") else None
-def debug(*args, **kwargs): # pragma: no cover
+# import os ; errf = open("err", "w") if os.path.exists("err") else None
+def debug(*args, **kwargs):  # pragma: no cover
     if errf:
         print(*args, file=errf, **kwargs)
         errf.flush()
+
 
 @attrs
 class CodeInputter(object):
     _input_helper = attrib()
     _reactor = attrib()
+
     def __attrs_post_init__(self):
         self.used_completion = False
         self._matches = None
         # once we've claimed the nameplate, we can't go back
-        self._committed_nameplate = None # or string
+        self._committed_nameplate = None  # or string
 
     def bcft(self, f, *a, **kw):
         return blockingCallFromThread(self._reactor, f, *a, **kw)
@@ -66,7 +74,7 @@ class CodeInputter(object):
             nameplate, words = text.split("-", 1)
         else:
             got_nameplate = False
-            nameplate = text # partial
+            nameplate = text  # partial
 
         # 'text' is one of these categories:
         #  "" or "12": complete on nameplates (all that match, maybe just one)
@@ -83,13 +91,15 @@ class CodeInputter(object):
                 # they deleted past the committment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
-                raise AlreadyInputNameplateError("nameplate (%s-) already entered, cannot go back" % self._committed_nameplate)
+                raise AlreadyInputNameplateError(
+                    "nameplate (%s-) already entered, cannot go back" %
+                    self._committed_nameplate)
         if not got_nameplate:
             # we're completing on nameplates: "" or "12" or "123"
-            self.bcft(ih.refresh_nameplates) # results arrive later
+            self.bcft(ih.refresh_nameplates)  # results arrive later
             debug("  getting nameplates")
             completions = self.bcft(ih.get_nameplate_completions, nameplate)
-        else: # "123-" or "123-supp"
+        else:  # "123-" or "123-supp"
             # time to commit to this nameplate, if they haven't already
             if not self._committed_nameplate:
                 debug("  choose_nameplate(%s)" % nameplate)
@@ -112,11 +122,13 @@ class CodeInputter(object):
                 # heard about it from the server), it can't be helped. But
                 # for the rest of the code, a simple wait-for-wordlist will
                 # improve the user experience.
-                self.bcft(ih.when_wordlist_is_available) # blocks on CLAIM
+                self.bcft(ih.when_wordlist_is_available)  # blocks on CLAIM
             # and we're completing on words now
-            debug("  getting words (%s)" % (words,))
-            completions = [nameplate+"-"+c
-                           for c in self.bcft(ih.get_word_completions, words)]
+            debug("  getting words (%s)" % (words, ))
+            completions = [
+                nameplate + "-" + c
+                for c in self.bcft(ih.get_word_completions, words)
+            ]
 
         # rlcompleter wants full strings
         return sorted(completions)
@@ -131,12 +143,15 @@ class CodeInputter(object):
                 # they deleted past the committment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
-                raise AlreadyInputNameplateError("nameplate (%s-) already entered, cannot go back" % self._committed_nameplate)
+                raise AlreadyInputNameplateError(
+                    "nameplate (%s-) already entered, cannot go back" %
+                    self._committed_nameplate)
         else:
             debug("  choose_nameplate(%s)" % nameplate)
             self.bcft(self._input_helper.choose_nameplate, nameplate)
         debug("  choose_words(%s)" % words)
         self.bcft(self._input_helper.choose_words, words)
+
 
 def _input_code_with_completion(prompt, input_helper, reactor):
     # reminder: this all occurs in a separate thread. All calls to input_helper
@@ -158,6 +173,7 @@ def _input_code_with_completion(prompt, input_helper, reactor):
         code = code.decode("utf-8")
     c.finish(code)
     return c.used_completion
+
 
 def warn_readline():
     # When our process receives a SIGINT, Twisted's SIGINT handler will
@@ -192,11 +208,12 @@ def warn_readline():
     # doesn't see the signal, and we must still wait for stdin to make
     # readline finish.
 
+
 @inlineCallbacks
 def input_with_completion(prompt, input_helper, reactor):
     t = reactor.addSystemEventTrigger("before", "shutdown", warn_readline)
-    #input_helper.refresh_nameplates()
-    used_completion = yield deferToThread(_input_code_with_completion,
-                                          prompt, input_helper, reactor)
+    # input_helper.refresh_nameplates()
+    used_completion = yield deferToThread(_input_code_with_completion, prompt,
+                                          input_helper, reactor)
     reactor.removeSystemEventTrigger(t)
     returnValue(used_completion)

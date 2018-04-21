@@ -9,44 +9,47 @@ from twisted.internet import defer, endpoints, task
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
-from .util import (bytes_to_hexstr, hexstr_to_bytes,
-                   bytes_to_dict, dict_to_bytes)
+from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
+                   dict_to_bytes)
+
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        #print("onConnect", response)
+        # print("onConnect", response)
         pass
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
-        #print("onOpen", args)
-        #self.wormhole_open = True
+        # print("onOpen", args)
+        # self.wormhole_open = True
         self._RC.ws_open(self)
 
     def onMessage(self, payload, isBinary):
         assert not isBinary
         try:
             self._RC.ws_message(payload)
-        except:
+        except Exception:
             from twisted.python.failure import Failure
             print("LOGGING", Failure())
             log.err()
             raise
 
     def onClose(self, wasClean, code, reason):
-        #print("onClose")
+        # print("onClose")
         self._RC.ws_close(wasClean, code, reason)
-        #if self.wormhole_open:
-        #    self.wormhole._ws_closed(wasClean, code, reason)
-        #else:
-        #    # we closed before establishing a connection (onConnect) or
-        #    # finishing WebSocket negotiation (onOpen): errback
-        #    self.factory.d.errback(error.ConnectError(reason))
+        # if self.wormhole_open:
+        #     self.wormhole._ws_closed(wasClean, code, reason)
+        # else:
+        #     # we closed before establishing a connection (onConnect) or
+        #     # finishing WebSocket negotiation (onOpen): errback
+        #     self.factory.d.errback(error.ConnectError(reason))
+
 
 class WSFactory(websocket.WebSocketClientFactory):
     protocol = WSClient
+
     def __init__(self, RC, *args, **kwargs):
         websocket.WebSocketClientFactory.__init__(self, *args, **kwargs)
         self._RC = RC
@@ -54,8 +57,9 @@ class WSFactory(websocket.WebSocketClientFactory):
     def buildProtocol(self, addr):
         proto = websocket.WebSocketClientFactory.buildProtocol(self, addr)
         proto._RC = self._RC
-        #proto.wormhole_open = False
+        # proto.wormhole_open = False
         return proto
+
 
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
@@ -90,6 +94,7 @@ class RendezvousConnector(object):
 
     def set_trace(self, f):
         self._trace = f
+
     def _debug(self, what):
         if self._trace:
             self._trace(old_state="", input=what, new_state="")
@@ -133,13 +138,12 @@ class RendezvousConnector(object):
     def stop(self):
         # ClientService.stopService is defined to "Stop attempting to
         # reconnect and close any existing connections"
-        self._stopping = True # to catch _initial_connection_failed error
+        self._stopping = True  # to catch _initial_connection_failed error
         d = defer.maybeDeferred(self._connector.stopService)
         # ClientService.stopService always fires with None, even if the
         # initial connection failed, so log.err just in case
         d.addErrback(log.err)
         d.addBoth(self._stopped)
-
 
     # from Lister
     def tx_list(self):
@@ -157,7 +161,7 @@ class RendezvousConnector(object):
             # this should happen right away: the ClientService ought to be in
             # the "_waiting" state, and everything in the _waiting.stop
             # transition is immediate
-            d.addErrback(log.err) # just in case something goes wrong
+            d.addErrback(log.err)  # just in case something goes wrong
             d.addCallback(lambda _: self._B.error(sce))
 
     # from our WSClient (the WebSocket protocol)
@@ -166,8 +170,11 @@ class RendezvousConnector(object):
         self._have_made_a_successful_connection = True
         self._ws = proto
         try:
-            self._tx("bind", appid=self._appid, side=self._side,
-                     client_version=self._client_version)
+            self._tx(
+                "bind",
+                appid=self._appid,
+                side=self._side,
+                client_version=self._client_version)
             self._N.connected()
             self._M.connected()
             self._L.connected()
@@ -180,19 +187,22 @@ class RendezvousConnector(object):
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
         if msg["type"] != "ack":
-                self._debug("R.rx(%s %s%s)" %
-                            (msg["type"], msg.get("phase",""),
-                        "[mine]" if msg.get("side","") == self._side else "",
-                             ))
+            self._debug("R.rx(%s %s%s)" % (
+                msg["type"],
+                msg.get("phase", ""),
+                "[mine]" if msg.get("side", "") == self._side else "",
+            ))
 
         self._timing.add("ws_receive", _side=self._side, message=msg)
         if self._debug_record_inbound_f:
             self._debug_record_inbound_f(msg)
         mtype = msg["type"]
-        meth = getattr(self, "_response_handle_"+mtype, None)
+        meth = getattr(self, "_response_handle_" + mtype, None)
         if not meth:
             # make tests fail, but real application will ignore it
-            log.err(errors._UnknownMessageTypeError("Unknown inbound message type %r" % (msg,)))
+            log.err(
+                errors._UnknownMessageTypeError(
+                    "Unknown inbound message type %r" % (msg, )))
             return
         try:
             return meth(msg)
@@ -229,7 +239,7 @@ class RendezvousConnector(object):
             # valid connection
             sce = errors.ServerConnectionError(self._url, reason)
             d = defer.maybeDeferred(self._connector.stopService)
-            d.addErrback(log.err) # just in case something goes wrong
+            d.addErrback(log.err)  # just in case something goes wrong
             # tell the Boss to quit and inform the user
             d.addCallback(lambda _: self._B.error(sce))
 
@@ -292,7 +302,7 @@ class RendezvousConnector(object):
         side = msg["side"]
         phase = msg["phase"]
         assert isinstance(phase, type("")), type(phase)
-        body = hexstr_to_bytes(msg["body"]) # bytes
+        body = hexstr_to_bytes(msg["body"])  # bytes
         self._M.rx_message(side, phase, body)
 
     def _response_handle_released(self, msg):
@@ -300,6 +310,5 @@ class RendezvousConnector(object):
 
     def _response_handle_closed(self, msg):
         self._M.rx_closed()
-
 
     # record, message, payload, packet, bundle, ciphertext, plaintext

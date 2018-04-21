@@ -1,27 +1,33 @@
 from __future__ import print_function, unicode_literals
-import six
-import io
+
 import gc
-import mock
+import io
 from binascii import hexlify, unhexlify
 from collections import namedtuple
-from twisted.trial import unittest
-from twisted.internet import defer, task, endpoints, protocol, address, error
+
+import six
+from nacl.exceptions import CryptoError
+from nacl.secret import SecretBox
+from twisted.internet import address, defer, endpoints, error, protocol, task
 from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.python import log
 from twisted.test import proto_helpers
+from twisted.trial import unittest
+
+import mock
 from wormhole_transit_relay import transit_server
-from ..errors import InternalError
+
 from .. import transit
+from ..errors import InternalError
 from .common import ServerBase
-from nacl.secret import SecretBox
-from nacl.exceptions import CryptoError
+
 
 class Highlander(unittest.TestCase):
     def test_one_winner(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
-                      for i in range(5)]
+        contenders = [
+            defer.Deferred(lambda d, i=i: cancelled.add(i)) for i in range(5)
+        ]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
         contenders[0].errback(ValueError())
@@ -30,12 +36,13 @@ class Highlander(unittest.TestCase):
         self.assertNoResult(d)
         contenders[2].callback("yay")
         self.assertEqual(self.successResultOf(d), "yay")
-        self.assertEqual(cancelled, set([3,4]))
+        self.assertEqual(cancelled, set([3, 4]))
 
     def test_there_might_also_be_none(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
-                      for i in range(4)]
+        contenders = [
+            defer.Deferred(lambda d, i=i: cancelled.add(i)) for i in range(4)
+        ]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
         contenders[0].errback(ValueError())
@@ -45,13 +52,14 @@ class Highlander(unittest.TestCase):
         contenders[2].errback(TypeError())
         self.assertNoResult(d)
         contenders[3].errback(NameError())
-        self.failureResultOf(d, ValueError) # first failure is recorded
+        self.failureResultOf(d, ValueError)  # first failure is recorded
         self.assertEqual(cancelled, set())
 
     def test_cancel_early(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
-                      for i in range(4)]
+        contenders = [
+            defer.Deferred(lambda d, i=i: cancelled.add(i)) for i in range(4)
+        ]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
         self.assertEqual(cancelled, set())
@@ -61,15 +69,17 @@ class Highlander(unittest.TestCase):
 
     def test_cancel_after_one_failure(self):
         cancelled = set()
-        contenders = [defer.Deferred(lambda d, i=i: cancelled.add(i))
-                      for i in range(4)]
+        contenders = [
+            defer.Deferred(lambda d, i=i: cancelled.add(i)) for i in range(4)
+        ]
         d = transit.there_can_be_only_one(contenders)
         self.assertNoResult(d)
         self.assertEqual(cancelled, set())
         contenders[0].errback(ValueError())
         d.cancel()
         self.failureResultOf(d, ValueError)
-        self.assertEqual(cancelled, set([1,2,3]))
+        self.assertEqual(cancelled, set([1, 2, 3]))
+
 
 class Forever(unittest.TestCase):
     def _forever_setup(self):
@@ -116,6 +126,7 @@ class Forever(unittest.TestCase):
         self.failureResultOf(d, defer.CancelledError)
         self.assertNot(clock.getDelayedCalls())
 
+
 class Misc(unittest.TestCase):
     def test_allocate_port(self):
         portno = transit.allocate_tcp_port()
@@ -128,29 +139,36 @@ class Misc(unittest.TestCase):
             portno = transit.allocate_tcp_port()
         self.assertIsInstance(portno, int)
 
+
 UnknownHint = namedtuple("UnknownHint", ["stuff"])
+
 
 class Hints(unittest.TestCase):
     def test_endpoint_from_hint_obj(self):
         c = transit.Common("")
         efho = c._endpoint_from_hint_obj
-        self.assertIsInstance(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
-                              endpoints.HostnameEndpoint)
+        self.assertIsInstance(
+            efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
+            endpoints.HostnameEndpoint)
         self.assertEqual(efho("unknown:stuff:yowza:pivlor"), None)
         # c._tor is currently None
         self.assertEqual(efho(transit.TorTCPV1Hint("host", "port", 0)), None)
         c._tor = mock.Mock()
+
         def tor_ep(hostname, port):
             if hostname == "non-public":
                 return None
             return ("tor_ep", hostname, port)
+
         c._tor.stream_via = mock.Mock(side_effect=tor_ep)
-        self.assertEqual(efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
-                         ("tor_ep", "host", 1234))
-        self.assertEqual(efho(transit.TorTCPV1Hint("host2.onion", 1234, 0.0)),
-                         ("tor_ep", "host2.onion", 1234))
-        self.assertEqual(efho(transit.DirectTCPV1Hint("non-public", 1234, 0.0)),
-                         None)
+        self.assertEqual(
+            efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
+            ("tor_ep", "host", 1234))
+        self.assertEqual(
+            efho(transit.TorTCPV1Hint("host2.onion", 1234, 0.0)),
+            ("tor_ep", "host2.onion", 1234))
+        self.assertEqual(
+            efho(transit.DirectTCPV1Hint("non-public", 1234, 0.0)), None)
         self.assertEqual(efho(UnknownHint("foo")), None)
 
     def test_comparable(self):
@@ -170,72 +188,93 @@ class Hints(unittest.TestCase):
         self.assertEqual(p({"type": "unknown"}), None)
         h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234})
         self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 0.0))
-        h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234,
-               "priority": 2.5})
+        h = p({
+            "type": "direct-tcp-v1",
+            "hostname": "foo",
+            "port": 1234,
+            "priority": 2.5
+        })
         self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 2.5))
         h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234})
         self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 0.0))
-        h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234,
-               "priority": 2.5})
+        h = p({
+            "type": "tor-tcp-v1",
+            "hostname": "foo",
+            "port": 1234,
+            "priority": 2.5
+        })
         self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 2.5))
-        self.assertEqual(p({"type": "direct-tcp-v1"}),
-                         None) # missing hostname
-        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": 12}),
-                         None) # invalid hostname
-        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": "foo"}),
-                         None) # missing port
-        self.assertEqual(p({"type": "direct-tcp-v1", "hostname": "foo",
-                            "port": "not a number"}),
-                         None) # invalid port
+        self.assertEqual(p({
+            "type": "direct-tcp-v1"
+        }), None)  # missing hostname
+        self.assertEqual(p({
+            "type": "direct-tcp-v1",
+            "hostname": 12
+        }), None)  # invalid hostname
+        self.assertEqual(
+            p({
+                "type": "direct-tcp-v1",
+                "hostname": "foo"
+            }), None)  # missing port
+        self.assertEqual(
+            p({
+                "type": "direct-tcp-v1",
+                "hostname": "foo",
+                "port": "not a number"
+            }), None)  # invalid port
 
     def test_parse_hint_argv(self):
         def p(hint):
             stderr = io.StringIO()
             value = transit.parse_hint_argv(hint, stderr=stderr)
             return value, stderr.getvalue()
-        h,stderr = p("tcp:host:1234")
+
+        h, stderr = p("tcp:host:1234")
         self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 0.0))
         self.assertEqual(stderr, "")
 
-        h,stderr = p("tcp:host:1234:priority=2.6")
+        h, stderr = p("tcp:host:1234:priority=2.6")
         self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 2.6))
         self.assertEqual(stderr, "")
 
-        h,stderr = p("tcp:host:1234:unknown=stuff")
+        h, stderr = p("tcp:host:1234:unknown=stuff")
         self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 0.0))
         self.assertEqual(stderr, "")
 
-        h,stderr = p("$!@#^")
+        h, stderr = p("$!@#^")
         self.assertEqual(h, None)
         self.assertEqual(stderr, "unparseable hint '$!@#^'\n")
 
-        h,stderr = p("unknown:stuff")
+        h, stderr = p("unknown:stuff")
         self.assertEqual(h, None)
         self.assertEqual(stderr,
                          "unknown hint type 'unknown' in 'unknown:stuff'\n")
 
-        h,stderr = p("tcp:just-a-hostname")
+        h, stderr = p("tcp:just-a-hostname")
         self.assertEqual(h, None)
-        self.assertEqual(stderr,
-                         "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n")
+        self.assertEqual(
+            stderr,
+            "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n")
 
-        h,stderr = p("tcp:host:number")
+        h, stderr = p("tcp:host:number")
         self.assertEqual(h, None)
         self.assertEqual(stderr,
                          "non-numeric port in TCP hint 'tcp:host:number'\n")
 
-        h,stderr = p("tcp:host:1234:priority=bad")
+        h, stderr = p("tcp:host:1234:priority=bad")
         self.assertEqual(h, None)
-        self.assertEqual(stderr,
-                         "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
+        self.assertEqual(
+            stderr,
+            "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
 
     def test_describe_hint_obj(self):
         d = transit.describe_hint_obj
-        self.assertEqual(d(transit.DirectTCPV1Hint("host", 1234, 0.0)),
-                         "tcp:host:1234")
-        self.assertEqual(d(transit.TorTCPV1Hint("host", 1234, 0.0)),
-                         "tor:host:1234")
+        self.assertEqual(
+            d(transit.DirectTCPV1Hint("host", 1234, 0.0)), "tcp:host:1234")
+        self.assertEqual(
+            d(transit.TorTCPV1Hint("host", 1234, 0.0)), "tor:host:1234")
         self.assertEqual(d(UnknownHint("stuff")), str(UnknownHint("stuff")))
+
 
 # ipaddrs.py currently uses native strings: bytes on py2, unicode on
 # py3
@@ -243,8 +282,9 @@ if six.PY2:
     LOOPADDR = b"127.0.0.1"
     OTHERADDR = b"1.2.3.4"
 else:
-    LOOPADDR = "127.0.0.1" # unicode_literals
+    LOOPADDR = "127.0.0.1"  # unicode_literals
     OTHERADDR = "1.2.3.4"
+
 
 class Basic(unittest.TestCase):
     @inlineCallbacks
@@ -252,12 +292,16 @@ class Basic(unittest.TestCase):
         URL = "tcp:host:1234"
         c = transit.Common(URL, no_listen=True)
         hints = yield c.get_connection_hints()
-        self.assertEqual(hints, [{"type": "relay-v1",
-                                  "hints": [{"type": "direct-tcp-v1",
-                                             "hostname": "host",
-                                             "port": 1234,
-                                             "priority": 0.0}],
-                                  }])
+        self.assertEqual(hints, [{
+            "type":
+            "relay-v1",
+            "hints": [{
+                "type": "direct-tcp-v1",
+                "hostname": "host",
+                "port": 1234,
+                "priority": 0.0
+            }],
+        }])
         self.assertRaises(InternalError, transit.Common, 123)
 
     @inlineCallbacks
@@ -269,8 +313,12 @@ class Basic(unittest.TestCase):
     def test_ignore_bad_hints(self):
         c = transit.Common("")
         c.add_connection_hints([{"type": "unknown"}])
-        c.add_connection_hints([{"type": "relay-v1",
-                                 "hints": [{"type": "unknown"}]}])
+        c.add_connection_hints([{
+            "type": "relay-v1",
+            "hints": [{
+                "type": "unknown"
+            }]
+        }])
         self.assertEqual(c._their_direct_hints, [])
         self.assertEqual(c._our_relay_hints, set())
 
@@ -290,8 +338,9 @@ class Basic(unittest.TestCase):
     def test_ignore_localhost_hint(self):
         # this actually starts the listener
         c = transit.TransitSender("")
-        with mock.patch("wormhole.ipaddrs.find_addresses",
-                        return_value=[LOOPADDR, OTHERADDR]):
+        with mock.patch(
+                "wormhole.ipaddrs.find_addresses",
+                return_value=[LOOPADDR, OTHERADDR]):
             hints = self.successResultOf(c.get_connection_hints())
         c._stop_listening()
         # If there are non-localhost hints, then localhost hints should be
@@ -302,8 +351,8 @@ class Basic(unittest.TestCase):
     def test_keep_only_localhost_hint(self):
         # this actually starts the listener
         c = transit.TransitSender("")
-        with mock.patch("wormhole.ipaddrs.find_addresses",
-                        return_value=[LOOPADDR]):
+        with mock.patch(
+                "wormhole.ipaddrs.find_addresses", return_value=[LOOPADDR]):
             hints = self.successResultOf(c.get_connection_hints())
         c._stop_listening()
         # If the only hint is localhost, it should stay.
@@ -313,9 +362,14 @@ class Basic(unittest.TestCase):
     def test_abilities(self):
         c = transit.Common(None, no_listen=True)
         abilities = c.get_connection_abilities()
-        self.assertEqual(abilities, [{"type": "direct-tcp-v1"},
-                                     {"type": "relay-v1"},
-                                     ])
+        self.assertEqual(abilities, [
+            {
+                "type": "direct-tcp-v1"
+            },
+            {
+                "type": "relay-v1"
+            },
+        ])
 
     def test_transit_key_wait(self):
         KEY = b"123"
@@ -339,19 +393,31 @@ class Basic(unittest.TestCase):
         r = transit.TransitReceiver("")
         r.set_transit_key(KEY)
 
-        self.assertEqual(s._send_this(), b"transit sender 559bdeae4b49fa6a23378d2b68f4c7e69378615d4af049c371c6a26e82391089 ready\n\n")
+        self.assertEqual(s._send_this(), (
+            b"transit sender "
+            b"559bdeae4b49fa6a23378d2b68f4c7e69378615d4af049c371c6a26e82391089"
+            b" ready\n\n"))
         self.assertEqual(s._send_this(), r._expect_this())
 
-        self.assertEqual(r._send_this(), b"transit receiver ed447528194bac4c00d0c854b12a97ce51413d89aa74d6304475f516fdc23a1b ready\n\n")
+        self.assertEqual(r._send_this(), (
+            b"transit receiver "
+            b"ed447528194bac4c00d0c854b12a97ce51413d89aa74d6304475f516fdc23a1b"
+            b" ready\n\n"))
         self.assertEqual(r._send_this(), s._expect_this())
 
-        self.assertEqual(hexlify(s._sender_record_key()), b"5a2fba3a9e524ab2e2823ff53b05f946896f6e4ce4e282ffd8e3ac0e5e9e0cda")
-        self.assertEqual(hexlify(s._sender_record_key()),
-                         hexlify(r._receiver_record_key()))
+        self.assertEqual(
+            hexlify(s._sender_record_key()),
+            b"5a2fba3a9e524ab2e2823ff53b05f946896f6e4ce4e282ffd8e3ac0e5e9e0cda"
+        )
+        self.assertEqual(
+            hexlify(s._sender_record_key()), hexlify(r._receiver_record_key()))
 
-        self.assertEqual(hexlify(r._sender_record_key()), b"eedb143117249f45b39da324decf6bd9aae33b7ccd58487436de611a3c6b871d")
-        self.assertEqual(hexlify(r._sender_record_key()),
-                         hexlify(s._receiver_record_key()))
+        self.assertEqual(
+            hexlify(r._sender_record_key()),
+            b"eedb143117249f45b39da324decf6bd9aae33b7ccd58487436de611a3c6b871d"
+        )
+        self.assertEqual(
+            hexlify(r._sender_record_key()), hexlify(s._receiver_record_key()))
 
     def test_connection_ready(self):
         s = transit.TransitSender("")
@@ -407,7 +473,7 @@ class DummyProtocol(protocol.Protocol):
 
     def dataReceived(self, data):
         self.buf += data
-        #print("oDR", self._count, len(self.buf))
+        # print("oDR", self._count, len(self.buf))
         if self._count is not None and len(self.buf) >= self._count:
             got = self.buf[:self._count]
             self.buf = self.buf[self._count:]
@@ -422,19 +488,24 @@ class DummyProtocol(protocol.Protocol):
         if self._d2:
             self._d2.callback(None)
 
+
 class FakeTransport:
     signalConnectionLost = True
+
     def __init__(self, p, peeraddr):
         self.protocol = p
         self._peeraddr = peeraddr
         self._buf = b""
         self._connected = True
+
     def write(self, data):
         self._buf += data
+
     def loseConnection(self):
         self._connected = False
         if self.signalConnectionLost:
             self.protocol.connectionLost()
+
     def getPeer(self):
         return self._peeraddr
 
@@ -443,8 +514,10 @@ class FakeTransport:
         self._buf = b""
         return b
 
+
 class RandomError(Exception):
     pass
+
 
 class MockConnection:
     def __init__(self, owner, relay_handshake, start, description):
@@ -452,8 +525,10 @@ class MockConnection:
         self.relay_handshake = relay_handshake
         self.start = start
         self._description = description
+
         def cancel(d):
             self._cancelled = True
+
         self._d = defer.Deferred(cancel)
         self._start_negotiation_called = False
         self._cancelled = False
@@ -461,6 +536,7 @@ class MockConnection:
     def startNegotiation(self):
         self._start_negotiation_called = True
         return self._d
+
 
 class InboundConnectionFactory(unittest.TestCase):
     def test_describe(self):
@@ -472,8 +548,8 @@ class InboundConnectionFactory(unittest.TestCase):
         addr6 = address.IPv6Address("TCP", "::1", 1234)
         self.assertEqual(f._describePeer(addr6), "<-::1:1234")
         addrU = address.UNIXAddress("/dev/unlikely")
-        self.assertEqual(f._describePeer(addrU),
-                         "<-UNIXAddress('/dev/unlikely')")
+        self.assertEqual(
+            f._describePeer(addrU), "<-UNIXAddress('/dev/unlikely')")
 
     def test_success(self):
         f = transit.InboundConnectionFactory("owner")
@@ -586,7 +662,9 @@ class InboundConnectionFactory(unittest.TestCase):
         self.assertEqual(p1._cancelled, True)
         self.assertEqual(p2._cancelled, True)
 
+
 # XXX check descriptions
+
 
 class OutboundConnectionFactory(unittest.TestCase):
     def test_success(self):
@@ -603,30 +681,38 @@ class OutboundConnectionFactory(unittest.TestCase):
         # meh .start
 
         # this is normally called from Connection.connectionMade
-        f.connectionWasMade(p) # no-op for outbound
+        f.connectionWasMade(p)  # no-op for outbound
         self.assertEqual(p._start_negotiation_called, False)
 
 
 class MockOwner:
     _connection_ready_called = False
+
     def connection_ready(self, connection):
         self._connection_ready_called = True
         self._connection = connection
         return self._state
+
     def _send_this(self):
         return b"send_this"
+
     def _expect_this(self):
         return b"expect_this"
+
     def _sender_record_key(self):
-        return b"s"*32
+        return b"s" * 32
+
     def _receiver_record_key(self):
-        return b"r"*32
+        return b"r" * 32
+
 
 class MockFactory:
     _connectionWasMade_called = False
+
     def connectionWasMade(self, p):
         self._connectionWasMade_called = True
         self._p = p
+
 
 class Connection(unittest.TestCase):
     # exercise the Connection protocol class
@@ -640,8 +726,8 @@ class Connection(unittest.TestCase):
 
         c.buf = b"unexpected"
         e = self.assertRaises(transit.BadHandshake, c._check_and_remove, EXP)
-        self.assertEqual(str(e),
-                         "got %r want %r" % (b'unexpected', b'expectation'))
+        self.assertEqual(
+            str(e), "got %r want %r" % (b'unexpected', b'expectation'))
         self.assertEqual(c.buf, b"unexpected")
 
         c.buf = b"expect"
@@ -770,12 +856,12 @@ class Connection(unittest.TestCase):
         c.connectionMade()
         self.assertEqual(factory._connectionWasMade_called, True)
         self.assertEqual(factory._p, c)
-        self.assertEqual(t.read_buf(), b"") # quiet until startNegotiation
+        self.assertEqual(t.read_buf(), b"")  # quiet until startNegotiation
 
         owner._state = "go"
         d = c.startNegotiation()
         self.assertEqual(t.read_buf(), relay_handshake)
-        self.assertEqual(c.state, "relay") # waiting for OK from relay
+        self.assertEqual(c.state, "relay")  # waiting for OK from relay
 
         c.dataReceived(b"ok\n")
         self.assertEqual(t.read_buf(), b"send_this")
@@ -801,20 +887,20 @@ class Connection(unittest.TestCase):
         c.connectionMade()
         self.assertEqual(factory._connectionWasMade_called, True)
         self.assertEqual(factory._p, c)
-        self.assertEqual(t.read_buf(), b"") # quiet until startNegotiation
+        self.assertEqual(t.read_buf(), b"")  # quiet until startNegotiation
 
         owner._state = "go"
         d = c.startNegotiation()
         self.assertEqual(t.read_buf(), relay_handshake)
-        self.assertEqual(c.state, "relay") # waiting for OK from relay
+        self.assertEqual(c.state, "relay")  # waiting for OK from relay
 
         c.dataReceived(b"not ok\n")
         self.assertEqual(t._connected, False)
         self.assertEqual(c.state, "hung up")
 
         f = self.failureResultOf(d, transit.BadHandshake)
-        self.assertEqual(str(f.value),
-                         "got %r want %r" % (b"not ok\n", b"ok\n"))
+        self.assertEqual(
+            str(f.value), "got %r want %r" % (b"not ok\n", b"ok\n"))
 
     def test_receiver_accepted(self):
         # we're on the receiving side, so we wait for the sender to decide
@@ -866,12 +952,12 @@ class Connection(unittest.TestCase):
         self.assertEqual(c.state, "wait-for-decision")
         self.assertNoResult(d)
 
-        c.dataReceived(b"nevermind\n") # polite rejection
+        c.dataReceived(b"nevermind\n")  # polite rejection
         self.assertEqual(t._connected, False)
         self.assertEqual(c.state, "hung up")
         f = self.failureResultOf(d, transit.BadHandshake)
-        self.assertEqual(str(f.value),
-                         "got %r want %r" % (b"nevermind\n", b"go\n"))
+        self.assertEqual(
+            str(f.value), "got %r want %r" % (b"nevermind\n", b"go\n"))
 
     def test_receiver_rejected_rudely(self):
         # we're on the receiving side, so we wait for the sender to decide
@@ -901,7 +987,6 @@ class Connection(unittest.TestCase):
         f = self.failureResultOf(d, transit.BadHandshake)
         self.assertEqual(str(f.value), "connection lost")
 
-
     def test_cancel(self):
         owner = MockOwner()
         factory = MockFactory()
@@ -926,8 +1011,10 @@ class Connection(unittest.TestCase):
         factory = MockFactory()
         addr = address.HostnameAddress("example.com", 1234)
         c = transit.Connection(owner, None, None, "description")
+
         def _callLater(period, func):
             clock.callLater(period, func)
+
         c.callLater = _callLater
         self.assertEqual(c.state, "too-early")
         t = c.transport = FakeTransport(c, addr)
@@ -955,7 +1042,7 @@ class Connection(unittest.TestCase):
         d = c.startNegotiation()
         c.dataReceived(b"expect_this")
         self.assertEqual(self.successResultOf(d), c)
-        t.read_buf() # flush input buffer, prepare for encrypted records
+        t.read_buf()  # flush input buffer, prepare for encrypted records
 
         return t, c, owner
 
@@ -973,13 +1060,13 @@ class Connection(unittest.TestCase):
         RECORD1 = b"record"
         c.send_record(RECORD1)
         buf = t.read_buf()
-        expected = ("%08x" % (24+len(RECORD1)+16)).encode("ascii")
+        expected = ("%08x" % (24 + len(RECORD1) + 16)).encode("ascii")
         self.assertEqual(hexlify(buf[:4]), expected)
         encrypted = buf[4:]
         receive_box = SecretBox(owner._sender_record_key())
-        nonce_buf = encrypted[:SecretBox.NONCE_SIZE] # assume it's prepended
+        nonce_buf = encrypted[:SecretBox.NONCE_SIZE]  # assume it's prepended
         nonce = int(hexlify(nonce_buf), 16)
-        self.assertEqual(nonce, 0) # first message gets nonce 0
+        self.assertEqual(nonce, 0)  # first message gets nonce 0
         decrypted = receive_box.decrypt(encrypted)
         self.assertEqual(decrypted, RECORD1)
 
@@ -987,11 +1074,11 @@ class Connection(unittest.TestCase):
         RECORD2 = b"record2"
         c.send_record(RECORD2)
         buf = t.read_buf()
-        expected = ("%08x" % (24+len(RECORD2)+16)).encode("ascii")
+        expected = ("%08x" % (24 + len(RECORD2) + 16)).encode("ascii")
         self.assertEqual(hexlify(buf[:4]), expected)
         encrypted = buf[4:]
         receive_box = SecretBox(owner._sender_record_key())
-        nonce_buf = encrypted[:SecretBox.NONCE_SIZE] # assume it's prepended
+        nonce_buf = encrypted[:SecretBox.NONCE_SIZE]  # assume it's prepended
         nonce = int(hexlify(nonce_buf), 16)
         self.assertEqual(nonce, 1)
         decrypted = receive_box.decrypt(encrypted)
@@ -1003,9 +1090,9 @@ class Connection(unittest.TestCase):
         send_box = SecretBox(owner._receiver_record_key())
 
         RECORD3 = b"record3"
-        nonce_buf = unhexlify("%048x" % 0) # first nonce must be 0
+        nonce_buf = unhexlify("%048x" % 0)  # first nonce must be 0
         encrypted = send_box.encrypt(RECORD3, nonce_buf)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
         c.dataReceived(length[:2])
         c.dataReceived(length[2:])
         c.dataReceived(encrypted[:-2])
@@ -1014,9 +1101,9 @@ class Connection(unittest.TestCase):
         self.assertEqual(inbound_records, [RECORD3])
 
         RECORD4 = b"record4"
-        nonce_buf = unhexlify("%048x" % 1) # nonces increment
+        nonce_buf = unhexlify("%048x" % 1)  # nonces increment
         encrypted = send_box.encrypt(RECORD4, nonce_buf)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
         c.dataReceived(length[:2])
         c.dataReceived(length[2:])
         c.dataReceived(encrypted[:-2])
@@ -1027,16 +1114,16 @@ class Connection(unittest.TestCase):
         # receiving two records at the same time: deliver both
         inbound_records[:] = []
         RECORD5 = b"record5"
-        nonce_buf = unhexlify("%048x" % 2) # nonces increment
+        nonce_buf = unhexlify("%048x" % 2)  # nonces increment
         encrypted = send_box.encrypt(RECORD5, nonce_buf)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
-        r5 = length+encrypted
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+        r5 = length + encrypted
         RECORD6 = b"record6"
-        nonce_buf = unhexlify("%048x" % 3) # nonces increment
+        nonce_buf = unhexlify("%048x" % 3)  # nonces increment
         encrypted = send_box.encrypt(RECORD6, nonce_buf)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
-        r6 = length+encrypted
-        c.dataReceived(r5+r6)
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+        r6 = length + encrypted
+        c.dataReceived(r5 + r6)
         self.assertEqual(inbound_records, [RECORD5, RECORD6])
 
     def corrupt(self, orig):
@@ -1055,9 +1142,9 @@ class Connection(unittest.TestCase):
 
         RECORD = b"record"
         send_box = SecretBox(owner._receiver_record_key())
-        nonce_buf = unhexlify("%048x" % 0) # first nonce must be 0
+        nonce_buf = unhexlify("%048x" % 0)  # first nonce must be 0
         encrypted = self.corrupt(send_box.encrypt(RECORD, nonce_buf))
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
         c.dataReceived(length)
         c.dataReceived(encrypted[:-2])
         self.assertEqual(inbound_records, [])
@@ -1075,9 +1162,9 @@ class Connection(unittest.TestCase):
 
         RECORD = b"record"
         send_box = SecretBox(owner._receiver_record_key())
-        nonce_buf = unhexlify("%048x" % 1) # first nonce must be 0
+        nonce_buf = unhexlify("%048x" % 1)  # first nonce must be 0
         encrypted = send_box.encrypt(RECORD, nonce_buf)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
         c.dataReceived(length)
         c.dataReceived(encrypted[:-2])
         self.assertEqual(inbound_records, [])
@@ -1159,7 +1246,7 @@ class Connection(unittest.TestCase):
         # connectConsumer() takes an optional number of bytes to expect, and
         # fires a Deferred when that many have been written
         c = transit.Connection(None, None, None, "description")
-        c._negotiation_d.addErrback(lambda err: None) # eat it
+        c._negotiation_d.addErrback(lambda err: None)  # eat it
         c.transport = proto_helpers.StringTransport()
         c.recordReceived(b"r1.")
 
@@ -1197,7 +1284,7 @@ class Connection(unittest.TestCase):
         # zero-length file), make sure it gets woken up right away, so it can
         # disconnect itself, even though no bytes will actually arrive
         c = transit.Connection(None, None, None, "description")
-        c._negotiation_d.addErrback(lambda err: None) # eat it
+        c._negotiation_d.addErrback(lambda err: None)  # eat it
         c.transport = proto_helpers.StringTransport()
 
         consumer = proto_helpers.StringTransport()
@@ -1208,7 +1295,7 @@ class Connection(unittest.TestCase):
 
     def test_writeToFile(self):
         c = transit.Connection(None, None, None, "description")
-        c._negotiation_d.addErrback(lambda err: None) # eat it
+        c._negotiation_d.addErrback(lambda err: None)  # eat it
         c.transport = proto_helpers.StringTransport()
         c.recordReceived(b"r1.")
 
@@ -1242,11 +1329,11 @@ class Connection(unittest.TestCase):
         self.assertEqual(progress, [3, 3, 3, 1])
 
         # test what happens when enough data is queued ahead of time
-        c.recordReceived(b"second.") # now "overflow.second."
-        c.recordReceived(b"third.") # now "overflow.second.third."
+        c.recordReceived(b"second.")  # now "overflow.second."
+        c.recordReceived(b"third.")  # now "overflow.second.third."
         f = io.BytesIO()
         d = c.writeToFile(f, 10)
-        self.assertEqual(f.getvalue(), b"overflow.second.") # whole records
+        self.assertEqual(f.getvalue(), b"overflow.second.")  # whole records
         self.assertEqual(self.successResultOf(d), 16)
         self.assertEqual(list(c._inbound_records), [b"third."])
 
@@ -1273,6 +1360,7 @@ class Connection(unittest.TestCase):
         c.unregisterProducer()
         self.assertEqual(c.transport.producer, None)
 
+
 class FileConsumer(unittest.TestCase):
     def test_basic(self):
         f = io.BytesIO()
@@ -1280,12 +1368,12 @@ class FileConsumer(unittest.TestCase):
         fc = transit.FileConsumer(f, progress.append)
         self.assertEqual(progress, [])
         self.assertEqual(f.getvalue(), b"")
-        fc.write(b"."* 99)
+        fc.write(b"." * 99)
         self.assertEqual(progress, [99])
-        self.assertEqual(f.getvalue(), b"."*99)
+        self.assertEqual(f.getvalue(), b"." * 99)
         fc.write(b"!")
         self.assertEqual(progress, [99, 1])
-        self.assertEqual(f.getvalue(), b"."*99+b"!")
+        self.assertEqual(f.getvalue(), b"." * 99 + b"!")
 
     def test_hasher(self):
         hashee = []
@@ -1295,32 +1383,53 @@ class FileConsumer(unittest.TestCase):
         self.assertEqual(progress, [])
         self.assertEqual(f.getvalue(), b"")
         self.assertEqual(hashee, [])
-        fc.write(b"."* 99)
+        fc.write(b"." * 99)
         self.assertEqual(progress, [99])
-        self.assertEqual(f.getvalue(), b"."*99)
-        self.assertEqual(hashee, [b"."*99])
+        self.assertEqual(f.getvalue(), b"." * 99)
+        self.assertEqual(hashee, [b"." * 99])
         fc.write(b"!")
         self.assertEqual(progress, [99, 1])
-        self.assertEqual(f.getvalue(), b"."*99+b"!")
-        self.assertEqual(hashee, [b"."*99, b"!"])
+        self.assertEqual(f.getvalue(), b"." * 99 + b"!")
+        self.assertEqual(hashee, [b"." * 99, b"!"])
 
 
-DIRECT_HINT_JSON = {"type": "direct-tcp-v1",
-                    "hostname": "direct", "port": 1234}
-RELAY_HINT_JSON = {"type": "relay-v1",
-                   "hints": [{"type": "direct-tcp-v1",
-                              "hostname": "relay", "port": 1234}]}
-UNRECOGNIZED_DIRECT_HINT_JSON = {"type": "direct-tcp-v1",
-                                 "hostname": ["cannot", "parse", "list"]}
+DIRECT_HINT_JSON = {
+    "type": "direct-tcp-v1",
+    "hostname": "direct",
+    "port": 1234
+}
+RELAY_HINT_JSON = {
+    "type": "relay-v1",
+    "hints": [{
+        "type": "direct-tcp-v1",
+        "hostname": "relay",
+        "port": 1234
+    }]
+}
+UNRECOGNIZED_DIRECT_HINT_JSON = {
+    "type": "direct-tcp-v1",
+    "hostname": ["cannot", "parse", "list"]
+}
 UNRECOGNIZED_HINT_JSON = {"type": "unknown"}
-UNAVAILABLE_HINT_JSON = {"type": "direct-tcp-v1", # e.g. Tor without txtorcon
-                         "hostname": "unavailable", "port": 1234}
-RELAY_HINT2_JSON = {"type": "relay-v1",
-                    "hints": [{"type": "direct-tcp-v1",
-                               "hostname": "relay", "port": 1234},
-                              UNRECOGNIZED_HINT_JSON]}
-UNAVAILABLE_RELAY_HINT_JSON = {"type": "relay-v1",
-                               "hints": [UNAVAILABLE_HINT_JSON]}
+UNAVAILABLE_HINT_JSON = {
+    "type": "direct-tcp-v1",  # e.g. Tor without txtorcon
+    "hostname": "unavailable",
+    "port": 1234
+}
+RELAY_HINT2_JSON = {
+    "type":
+    "relay-v1",
+    "hints": [{
+        "type": "direct-tcp-v1",
+        "hostname": "relay",
+        "port": 1234
+    }, UNRECOGNIZED_HINT_JSON]
+}
+UNAVAILABLE_RELAY_HINT_JSON = {
+    "type": "relay-v1",
+    "hints": [UNAVAILABLE_HINT_JSON]
+}
+
 
 class Transit(unittest.TestCase):
     def setUp(self):
@@ -1340,11 +1449,12 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()  # start the listener
         del hints
-        s.add_connection_hints([DIRECT_HINT_JSON,
-                                UNRECOGNIZED_DIRECT_HINT_JSON,
-                                UNRECOGNIZED_HINT_JSON])
+        s.add_connection_hints([
+            DIRECT_HINT_JSON, UNRECOGNIZED_DIRECT_HINT_JSON,
+            UNRECOGNIZED_HINT_JSON
+        ])
 
         s._start_connector = self._start_connector
         d = s.connect()
@@ -1361,7 +1471,7 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([DIRECT_HINT_JSON])
 
@@ -1380,7 +1490,7 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([RELAY_HINT_JSON])
 
@@ -1411,9 +1521,8 @@ class Transit(unittest.TestCase):
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints()
         del hints
-        s.add_connection_hints([DIRECT_HINT_JSON,
-                                UNRECOGNIZED_HINT_JSON,
-                                RELAY_HINT_JSON])
+        s.add_connection_hints(
+            [DIRECT_HINT_JSON, UNRECOGNIZED_HINT_JSON, RELAY_HINT_JSON])
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
@@ -1437,20 +1546,46 @@ class Transit(unittest.TestCase):
         hints = yield s.get_connection_hints()
         del hints
         s.add_connection_hints([
-            {"type": "relay-v1",
-             "hints": [{"type": "direct-tcp-v1",
-                        "hostname": "relay", "port": 1234}]},
-            {"type": "direct-tcp-v1",
-             "hostname": "direct", "port": 1234},
-            {"type": "relay-v1",
-             "hints": [{"type": "direct-tcp-v1", "priority": 2.0,
-                        "hostname": "relay2", "port": 1234},
-                       {"type": "direct-tcp-v1", "priority": 3.0,
-                        "hostname": "relay3", "port": 1234}]},
-            {"type": "relay-v1",
-             "hints": [{"type": "direct-tcp-v1", "priority": 2.0,
-                        "hostname": "relay4", "port": 1234}]},
-            ])
+            {
+                "type":
+                "relay-v1",
+                "hints": [{
+                    "type": "direct-tcp-v1",
+                    "hostname": "relay",
+                    "port": 1234
+                }]
+            },
+            {
+                "type": "direct-tcp-v1",
+                "hostname": "direct",
+                "port": 1234
+            },
+            {
+                "type":
+                "relay-v1",
+                "hints": [{
+                    "type": "direct-tcp-v1",
+                    "priority": 2.0,
+                    "hostname": "relay2",
+                    "port": 1234
+                }, {
+                    "type": "direct-tcp-v1",
+                    "priority": 3.0,
+                    "hostname": "relay3",
+                    "port": 1234
+                }]
+            },
+            {
+                "type":
+                "relay-v1",
+                "hints": [{
+                    "type": "direct-tcp-v1",
+                    "priority": 2.0,
+                    "hostname": "relay4",
+                    "port": 1234
+                }]
+            },
+        ])
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
@@ -1482,13 +1617,13 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()  # start the listener
         del hints
         # include hints that can't be turned into an endpoint at runtime
-        s.add_connection_hints([UNRECOGNIZED_HINT_JSON,
-                                UNAVAILABLE_HINT_JSON,
-                                RELAY_HINT2_JSON,
-                                UNAVAILABLE_RELAY_HINT_JSON])
+        s.add_connection_hints([
+            UNRECOGNIZED_HINT_JSON, UNAVAILABLE_HINT_JSON, RELAY_HINT2_JSON,
+            UNAVAILABLE_RELAY_HINT_JSON
+        ])
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
@@ -1509,9 +1644,9 @@ class Transit(unittest.TestCase):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints() # start the listener
+        hints = yield s.get_connection_hints()  # start the listener
         del hints
-        s.add_connection_hints([]) # no hints at all
+        s.add_connection_hints([])  # no hints at all
         s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
@@ -1519,10 +1654,11 @@ class Transit(unittest.TestCase):
         f = self.failureResultOf(d, transit.TransitError)
         self.assertEqual(str(f.value), "No contenders for connection")
 
+
 class RelayHandshake(unittest.TestCase):
     def old_build_relay_handshake(self, key):
         token = transit.HKDF(key, 32, CTXinfo=b"transit_relay_token")
-        return (token, b"please relay "+hexlify(token)+b"\n")
+        return (token, b"please relay " + hexlify(token) + b"\n")
 
     def test_old(self):
         key = b"\x00"
@@ -1548,8 +1684,9 @@ class RelayHandshake(unittest.TestCase):
         tc.dataReceived(new_handshake[:-1])
         self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
         tc.dataReceived(new_handshake[-1:])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls,
-                         [mock.call(hexlify(token), c._side.encode("ascii"), tc)])
+        self.assertEqual(
+            tc.factory.connection_got_token.mock_calls,
+            [mock.call(hexlify(token), c._side.encode("ascii"), tc)])
 
 
 class Full(ServerBase, unittest.TestCase):
@@ -1558,7 +1695,7 @@ class Full(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_direct(self):
-        KEY = b"k"*32
+        KEY = b"k" * 32
         s = transit.TransitSender(None)
         r = transit.TransitReceiver(None)
 
@@ -1571,7 +1708,7 @@ class Full(ServerBase, unittest.TestCase):
         s.add_connection_hints(rhints)
         r.add_connection_hints(shints)
 
-        (x,y) = yield self.doBoth(s.connect(), r.connect())
+        (x, y) = yield self.doBoth(s.connect(), r.connect())
         self.assertIsInstance(x, transit.Connection)
         self.assertIsInstance(y, transit.Connection)
 
@@ -1586,7 +1723,7 @@ class Full(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_relay(self):
-        KEY = b"k"*32
+        KEY = b"k" * 32
         s = transit.TransitSender(self.transit, no_listen=True)
         r = transit.TransitReceiver(self.transit, no_listen=True)
 
@@ -1599,7 +1736,7 @@ class Full(ServerBase, unittest.TestCase):
         s.add_connection_hints(rhints)
         r.add_connection_hints(shints)
 
-        (x,y) = yield self.doBoth(s.connect(), r.connect())
+        (x, y) = yield self.doBoth(s.connect(), r.connect())
         self.assertIsInstance(x, transit.Connection)
         self.assertIsInstance(y, transit.Connection)
 

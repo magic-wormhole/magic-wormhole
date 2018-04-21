@@ -1,9 +1,13 @@
+import errno
+import os
+import re
+import subprocess
 
-import re, errno, subprocess, os
 from twisted.trial import unittest
+
 from .. import ipaddrs
 
-DOTTED_QUAD_RE=re.compile("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
+DOTTED_QUAD_RE = re.compile("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
 
 MOCK_IPADDR_OUTPUT = """\
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 16436 qdisc noqueue state UNKNOWN \n\
@@ -11,12 +15,14 @@ MOCK_IPADDR_OUTPUT = """\
     inet 127.0.0.1/8 scope host lo
     inet6 ::1/128 scope host \n\
        valid_lft forever preferred_lft forever
-2: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+2: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP \
+qlen 1000
     link/ether d4:3d:7e:01:b4:3e brd ff:ff:ff:ff:ff:ff
     inet 192.168.0.6/24 brd 192.168.0.255 scope global eth1
     inet6 fe80::d63d:7eff:fe01:b43e/64 scope link \n\
        valid_lft forever preferred_lft forever
-3: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP qlen 1000
+3: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP qlen\
+ 1000
     link/ether 90:f6:52:27:15:0a brd ff:ff:ff:ff:ff:ff
     inet 192.168.0.2/24 brd 192.168.0.255 scope global wlan0
     inet6 fe80::92f6:52ff:fe27:150a/64 scope link \n\
@@ -58,7 +64,8 @@ MOCK_ROUTE_OUTPUT = """\
 ===========================================================================
 Interface List
 0x1 ........................... MS TCP Loopback interface
-0x2 ...08 00 27 c3 80 ad ...... AMD PCNET Family PCI Ethernet Adapter - Packet Scheduler Miniport
+0x2 ...08 00 27 c3 80 ad ...... AMD PCNET Family PCI Ethernet Adapter - \
+Packet Scheduler Miniport
 ===========================================================================
 ===========================================================================
 Active Routes:
@@ -85,6 +92,7 @@ class FakeProcess:
     def __init__(self, output, err):
         self.output = output
         self.err = err
+
     def communicate(self):
         return (self.output, self.err)
 
@@ -94,16 +102,28 @@ class ListAddresses(unittest.TestCase):
         addresses = ipaddrs.find_addresses()
         self.failUnlessIn("127.0.0.1", addresses)
         self.failIfIn("0.0.0.0", addresses)
+
     # David A.'s OpenSolaris box timed out on this test one time when it was at
     # 2s.
-    test_list.timeout=4
+    test_list.timeout = 4
 
     def _test_list_mock(self, command, output, expected):
         self.first = True
 
-        def call_Popen(args, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None,
-                       preexec_fn=None, close_fds=False, shell=False, cwd=None, env=None,
-                       universal_newlines=False, startupinfo=None, creationflags=0):
+        def call_Popen(args,
+                       bufsize=0,
+                       executable=None,
+                       stdin=None,
+                       stdout=None,
+                       stderr=None,
+                       preexec_fn=None,
+                       close_fds=False,
+                       shell=False,
+                       cwd=None,
+                       env=None,
+                       universal_newlines=False,
+                       startupinfo=None,
+                       creationflags=0):
             if self.first:
                 self.first = False
                 e = OSError("EINTR")
@@ -115,11 +135,13 @@ class ListAddresses(unittest.TestCase):
                 e = OSError("[Errno 2] No such file or directory")
                 e.errno = errno.ENOENT
                 raise e
+
         self.patch(subprocess, 'Popen', call_Popen)
         self.patch(os.path, 'isfile', lambda x: True)
 
         def call_which(name):
             return [name]
+
         self.patch(ipaddrs, 'which', call_which)
 
         addresses = ipaddrs.find_addresses()
@@ -131,11 +153,13 @@ class ListAddresses(unittest.TestCase):
 
     def test_list_mock_ifconfig(self):
         self.patch(ipaddrs, 'platform', "linux2")
-        self._test_list_mock("ifconfig", MOCK_IFCONFIG_OUTPUT, UNIX_TEST_ADDRESSES)
+        self._test_list_mock("ifconfig", MOCK_IFCONFIG_OUTPUT,
+                             UNIX_TEST_ADDRESSES)
 
     def test_list_mock_route(self):
         self.patch(ipaddrs, 'platform', "win32")
-        self._test_list_mock("route.exe", MOCK_ROUTE_OUTPUT, WINDOWS_TEST_ADDRESSES)
+        self._test_list_mock("route.exe", MOCK_ROUTE_OUTPUT,
+                             WINDOWS_TEST_ADDRESSES)
 
     def test_list_mock_cygwin(self):
         self.patch(ipaddrs, 'platform', "cygwin")

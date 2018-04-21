@@ -1,15 +1,18 @@
 from __future__ import print_function
 
 import os
-from os.path import expanduser, exists, join
-from twisted.internet.defer import inlineCallbacks
-from twisted.internet import reactor
+from os.path import exists, expanduser, join
+
 import click
+from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks
 
 from .. import xfer_util
 
+
 class PubkeyError(Exception):
     pass
+
 
 def find_public_key(hint=None):
     """
@@ -34,8 +37,9 @@ def find_public_key(hint=None):
         got_key = False
         while not got_key:
             ans = click.prompt(
-                "Multiple public-keys found:\n" + \
-                "\n".join(["  {}: {}".format(a, b) for a, b in enumerate(pubkeys)]) + \
+                "Multiple public-keys found:\n" +
+                "\n".join(["  {}: {}".format(a, b)
+                           for a, b in enumerate(pubkeys)]) +
                 "\nSend which one?"
             )
             try:
@@ -76,7 +80,6 @@ def accept(cfg, reactor=reactor):
 
 @inlineCallbacks
 def invite(cfg, reactor=reactor):
-
     def on_code_created(code):
         print("Now tell the other user to run:")
         print()
