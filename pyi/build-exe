@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# use pyinstaller to build a single-file "fat binary" called wormhole.exe.
+#
+# the .exe here does NOT mean a windows executable, but an executable in general.
+#
+# "fat binary" means it includes the python interpreter, the python source code
+# and libs, compiled code parts and externally needed (C/compiled) libraries.
+# it does NOT include the (g)libc though as this needs to be provided by the
+# target platform and needs to match the kernel there. thus, it is a good idea
+# to run the build on an old, but still security-supported linux (or other posix
+# OS) to keep the minimum (g)libc requirement low.
+
+pyinstaller --clean --distpath=dist wormhole.exe.spec
+
+# result will be in dist/wormhole.exe
+
