@@ -49,7 +49,7 @@ setup(name="magic-wormhole",
           "txtorcon >= 0.19.3",
       ],
       extras_require={
-          ':sys_platform=="win32"': ["pypiwin32"],
+          ':sys_platform=="win32"': ["pywin32"],
           "dev": ["mock", "tox", "pyflakes",
                   "magic-wormhole-transit-relay==0.1.1",
                   "magic-wormhole-mailbox-server==0.1.0"],
