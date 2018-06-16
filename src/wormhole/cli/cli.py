@@ -2,23 +2,24 @@ from __future__ import print_function
 
 import os
 import time
-from sys import stderr, stdout
-from textwrap import dedent, fill
+start = time.time()
 
-import click
-import six
-from twisted.internet.defer import inlineCallbacks, maybeDeferred
-from twisted.internet.task import react
-from twisted.python.failure import Failure
+from sys import stderr, stdout  # noqa: E402
+from textwrap import dedent, fill  # noqa: E402
 
-from . import public_relay
-from .. import __version__
-from ..errors import (KeyFormatError, NoTorError, ServerConnectionError,
+import click  # noqa: E402
+import six  # noqa: E402
+from twisted.internet.defer import inlineCallbacks, maybeDeferred  # noqa: E402
+from twisted.internet.task import react  # noqa: E402
+from twisted.python.failure import Failure  # noqa: E402
+
+from . import public_relay  # noqa: E402
+from .. import __version__  # noqa: E402
+from ..errors import (KeyFormatError, NoTorError,  # noqa: E402
+                      ServerConnectionError,
                       TransferError, UnsendableFileError, WelcomeError,
                       WrongPasswordError)
-from ..timing import DebugTiming
-
-start = time.time()
+from ..timing import DebugTiming  # noqa: E402
 
 top_import_finish = time.time()
 
