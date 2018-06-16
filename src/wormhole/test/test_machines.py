@@ -398,7 +398,6 @@ class Input(unittest.TestCase):
         events = []
         i = _input.Input(timing.DebugTiming())
         c = Dummy("c", events, ICode, "got_nameplate", "finished_input")
-        # renamed from l as l is indistinguishable from 1 in some fonts.
         l = Dummy("l", events, ILister, "refresh")
         i.wire(c, l)
         return i, c, l, events
