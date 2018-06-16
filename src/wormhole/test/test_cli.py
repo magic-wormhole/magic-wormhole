@@ -684,7 +684,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessEqual(receive_stdout, "")
             self.failUnlessIn(u"Receiving file ({size:s}) into: {name}".format(
                 size=naturalsize(len(message)), name=receive_filename),
-                              receive_stderr)
+                receive_stderr)
             self.failUnlessIn(u"Received file written to ", receive_stderr)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))

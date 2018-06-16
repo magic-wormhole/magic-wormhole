@@ -751,12 +751,12 @@ class Common:
         if hint_type not in [u"direct-tcp-v1", u"tor-tcp-v1"]:
             log.msg("unknown hint type: %r" % (hint, ))
             return None
-        if not (u"hostname" in hint
-                and isinstance(hint[u"hostname"], type(u""))):
+        if not (u"hostname" in hint and
+                isinstance(hint[u"hostname"], type(u""))):
             log.msg("invalid hostname in hint: %r" % (hint, ))
             return None
-        if not (u"port" in hint
-                and isinstance(hint[u"port"], six.integer_types)):
+        if not (u"port" in hint and
+                isinstance(hint[u"port"], six.integer_types)):
             log.msg("invalid port in hint: %r" % (hint, ))
             return None
         priority = hint.get(u"priority", 0.0)
