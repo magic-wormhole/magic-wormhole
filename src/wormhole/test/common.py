@@ -1,15 +1,18 @@
 # no unicode_literals untill twisted update
-from twisted.application import service, internet
-from twisted.internet import defer, task, reactor, endpoints
-from twisted.python import log
 from click.testing import CliRunner
+from twisted.application import internet, service
+from twisted.internet import defer, endpoints, reactor, task
+from twisted.python import log
+
 import mock
-from ..cli import cli
-from ..transit import allocate_tcp_port
+from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_mailbox_server.server import make_server
 from wormhole_mailbox_server.web import make_web_server
-from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_transit_relay.transit_server import Transit
+
+from ..cli import cli
+from ..transit import allocate_tcp_port
+
 
 class MyInternetService(service.Service, object):
     # like StreamServerEndpointService, but you can retrieve the port
@@ -22,12 +25,15 @@ class MyInternetService(service.Service, object):
     def startService(self):
         super(MyInternetService, self).startService()
         d = self.endpoint.listen(self.factory)
+
         def good(lp):
             self._lp = lp
             self._port_d.callback(lp.getHost().port)
+
         def bad(f):
             log.err(f)
             self._port_d.errback(f)
+
         d.addCallbacks(good, bad)
 
     @defer.inlineCallbacks
@@ -35,8 +41,9 @@ class MyInternetService(service.Service, object):
         if self._lp:
             yield self._lp.stopListening()
 
-    def getPort(self): # only call once!
+    def getPort(self):  # only call once!
         return self._port_d
+
 
 class ServerBase:
     @defer.inlineCallbacks
@@ -51,27 +58,27 @@ class ServerBase:
         # endpoints.serverFromString
         db = create_channel_db(":memory:")
         self._usage_db = create_usage_db(":memory:")
-        self._rendezvous = make_server(db,
-                                       advertise_version=advertise_version,
-                                       signal_error=error,
-                                       usage_db=self._usage_db)
+        self._rendezvous = make_server(
+            db,
+            advertise_version=advertise_version,
+            signal_error=error,
+            usage_db=self._usage_db)
         ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
         site = make_web_server(self._rendezvous, log_requests=False)
-        #self._lp = yield ep.listen(site)
+        # self._lp = yield ep.listen(site)
         s = MyInternetService(ep, site)
         s.setServiceParent(self.sp)
         self.rdv_ws_port = yield s.getPort()
         self._relay_server = s
-        #self._rendezvous = s._rendezvous
+        # self._rendezvous = s._rendezvous
         self.relayurl = u"ws://127.0.0.1:%d/v1" % self.rdv_ws_port
         # ws://127.0.0.1:%d/wormhole-relay/ws
 
         self.transitport = allocate_tcp_port()
-        ep = endpoints.serverFromString(reactor,
-                                        "tcp:%d:interface=127.0.0.1" %
-                                        self.transitport)
-        self._transit_server = f = Transit(blur_usage=None, log_file=None,
-                                           usage_db=None)
+        ep = endpoints.serverFromString(
+            reactor, "tcp:%d:interface=127.0.0.1" % self.transitport)
+        self._transit_server = f = Transit(
+            blur_usage=None, log_file=None, usage_db=None)
         internet.StreamServerEndpointService(ep, f).setServiceParent(self.sp)
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
 
@@ -109,6 +116,7 @@ class ServerBase:
                     " I convinced all threads to exit.")
         yield d
 
+
 def config(*argv):
     r = CliRunner()
     with mock.patch("wormhole.cli.cli.go") as go:
@@ -120,6 +128,7 @@ def config(*argv):
             assert 0
         cfg = go.call_args[0][1]
     return cfg
+
 
 @defer.inlineCallbacks
 def poll_until(predicate):

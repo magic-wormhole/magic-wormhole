@@ -1,22 +1,32 @@
 from __future__ import print_function
-import os, sys, re, io, zipfile, six, stat
-from textwrap import fill, dedent
-from humanize import naturalsize
-import mock
+
+import io
+import os
+import re
+import stat
+import sys
+import zipfile
+from textwrap import dedent, fill
+
+import six
 from click.testing import CliRunner
-from zope.interface import implementer
-from twisted.trial import unittest
-from twisted.python import procutils, log
+from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.utils import getProcessOutputAndValue
 from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.utils import getProcessOutputAndValue
+from twisted.python import log, procutils
+from twisted.trial import unittest
+from zope.interface import implementer
+
+import mock
+
 from .. import __version__
-from .common import ServerBase, config
-from ..cli import cmd_send, cmd_receive, welcome, cli
-from ..errors import (TransferError, WrongPasswordError, WelcomeError,
-                      UnsendableFileError, ServerConnectionError)
 from .._interfaces import ITorManager
+from ..cli import cli, cmd_receive, cmd_send, welcome
+from ..errors import (ServerConnectionError, TransferError,
+                      UnsendableFileError, WelcomeError, WrongPasswordError)
+from .common import ServerBase, config
 
 
 def build_offer(args):
@@ -108,8 +118,8 @@ class OfferData(unittest.TestCase):
         self.cfg.cwd = send_dir
 
         e = self.assertRaises(TransferError, build_offer, self.cfg)
-        self.assertEqual(str(e),
-                         "Cannot send: no file/directory named '%s'" % filename)
+        self.assertEqual(
+            str(e), "Cannot send: no file/directory named '%s'" % filename)
 
     def _do_test_directory(self, addslash):
         parent_dir = self.mktemp()
@@ -178,8 +188,8 @@ class OfferData(unittest.TestCase):
         self.assertFalse(os.path.isdir(abs_filename))
 
         e = self.assertRaises(TypeError, build_offer, self.cfg)
-        self.assertEqual(str(e),
-                         "'%s' is neither file nor directory" % filename)
+        self.assertEqual(
+            str(e), "'%s' is neither file nor directory" % filename)
 
     def test_symlink(self):
         if not hasattr(os, 'symlink'):
@@ -213,8 +223,9 @@ class OfferData(unittest.TestCase):
         os.mkdir(os.path.join(parent_dir, "B2", "C2"))
         with open(os.path.join(parent_dir, "B2", "D.txt"), "wb") as f:
             f.write(b"success")
-        os.symlink(os.path.abspath(os.path.join(parent_dir, "B2", "C2")),
-                   os.path.join(parent_dir, "B1", "C1"))
+        os.symlink(
+            os.path.abspath(os.path.join(parent_dir, "B2", "C2")),
+            os.path.join(parent_dir, "B1", "C1"))
         # Now send "B1/C1/../D.txt" from A. The correct traversal will be:
         # * start: A
         # * B1: A/B1
@@ -231,6 +242,7 @@ class OfferData(unittest.TestCase):
         d, fd_to_send = build_offer(self.cfg)
         self.assertEqual(d["file"]["filename"], "D.txt")
         self.assertEqual(fd_to_send.read(), b"success")
+
     if os.name == "nt":
         test_symlink_collapse.todo = "host OS has broken os.path.realpath()"
         # ntpath.py's realpath() is built out of normpath(), and does not
@@ -240,6 +252,7 @@ class OfferData(unittest.TestCase):
         # TODO instead of a SKIP because 1: this causes an observable
         # misbehavior (albeit in rare circumstances), 2: it probably used to
         # work (sometimes, but not in #251). See cmd_send.py for more notes.
+
 
 class LocaleFinder:
     def __init__(self):
@@ -266,10 +279,10 @@ class LocaleFinder:
         # twisted.python.usage to avoid this problem in the future.
         (out, err, rc) = yield getProcessOutputAndValue("locale", ["-a"])
         if rc != 0:
-            log.msg("error running 'locale -a', rc=%s" % (rc,))
-            log.msg("stderr: %s" % (err,))
+            log.msg("error running 'locale -a', rc=%s" % (rc, ))
+            log.msg("stderr: %s" % (err, ))
             returnValue(None)
-        out = out.decode("utf-8") # make sure we get a string
+        out = out.decode("utf-8")  # make sure we get a string
         utf8_locales = {}
         for locale in out.splitlines():
             locale = locale.strip()
@@ -281,7 +294,10 @@ class LocaleFinder:
         if utf8_locales:
             returnValue(list(utf8_locales.values())[0])
         returnValue(None)
+
+
 locale_finder = LocaleFinder()
+
 
 class ScriptsBase:
     def find_executable(self):
@@ -292,12 +308,13 @@ class ScriptsBase:
         if not locations:
             raise unittest.SkipTest("unable to find 'wormhole' in $PATH")
         wormhole = locations[0]
-        if (os.path.dirname(os.path.abspath(wormhole)) !=
-            os.path.dirname(sys.executable)):
-            log.msg("locations: %s" % (locations,))
-            log.msg("sys.executable: %s" % (sys.executable,))
-            raise unittest.SkipTest("found the wrong 'wormhole' in $PATH: %s %s"
-                                    % (wormhole, sys.executable))
+        if (os.path.dirname(os.path.abspath(wormhole)) != os.path.dirname(
+                sys.executable)):
+            log.msg("locations: %s" % (locations, ))
+            log.msg("sys.executable: %s" % (sys.executable, ))
+            raise unittest.SkipTest(
+                "found the wrong 'wormhole' in $PATH: %s %s" %
+                (wormhole, sys.executable))
         return wormhole
 
     @inlineCallbacks
@@ -323,8 +340,8 @@ class ScriptsBase:
             raise unittest.SkipTest("unable to find UTF-8 locale")
         locale_env = dict(LC_ALL=locale, LANG=locale)
         wormhole = self.find_executable()
-        res = yield getProcessOutputAndValue(wormhole, ["--version"],
-                                             env=locale_env)
+        res = yield getProcessOutputAndValue(
+            wormhole, ["--version"], env=locale_env)
         out, err, rc = res
         if rc != 0:
             log.msg("wormhole not runnable in this tree:")
@@ -333,6 +350,7 @@ class ScriptsBase:
             log.msg("rc", rc)
             raise unittest.SkipTest("wormhole is not runnable in this tree")
         returnValue(locale_env)
+
 
 class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -347,25 +365,29 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         wormhole = self.find_executable()
         # we must pass on the environment so that "something" doesn't
         # get sad about UTF8 vs. ascii encodings
-        out, err, rc = yield getProcessOutputAndValue(wormhole, ["--version"],
-                                                      env=os.environ)
+        out, err, rc = yield getProcessOutputAndValue(
+            wormhole, ["--version"], env=os.environ)
         err = err.decode("utf-8")
         if "DistributionNotFound" in err:
             log.msg("stderr was %s" % err)
             last = err.strip().split("\n")[-1]
             self.fail("wormhole not runnable: %s" % last)
         ver = out.decode("utf-8") or err
-        self.failUnlessEqual(ver.strip(), "magic-wormhole {}".format(__version__))
+        self.failUnlessEqual(ver.strip(),
+                             "magic-wormhole {}".format(__version__))
         self.failUnlessEqual(rc, 0)
+
 
 @implementer(ITorManager)
 class FakeTor:
     # use normal endpoints, but record the fact that we were asked
     def __init__(self):
         self.endpoints = []
+
     def stream_via(self, host, port):
         self.endpoints.append((host, port))
         return endpoints.HostnameEndpoint(reactor, host, port)
+
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -377,11 +399,16 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         yield ServerBase.setUp(self)
 
     @inlineCallbacks
-    def _do_test(self, as_subprocess=False,
-                 mode="text", addslash=False, override_filename=False,
-                 fake_tor=False, overwrite=False, mock_accept=False):
-        assert mode in ("text", "file", "empty-file", "directory",
-                        "slow-text", "slow-sender-text")
+    def _do_test(self,
+                 as_subprocess=False,
+                 mode="text",
+                 addslash=False,
+                 override_filename=False,
+                 fake_tor=False,
+                 overwrite=False,
+                 mock_accept=False):
+        assert mode in ("text", "file", "empty-file", "directory", "slow-text",
+                        "slow-sender-text")
         if fake_tor:
             assert not as_subprocess
         send_cfg = config("send")
@@ -408,7 +435,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode in ("file", "empty-file"):
             if mode == "empty-file":
                 message = ""
-            send_filename = u"testfil\u00EB" # e-with-diaeresis
+            send_filename = u"testfil\u00EB"  # e-with-diaeresis
             with open(os.path.join(send_dir, send_filename), "w") as f:
                 f.write(message)
             send_cfg.what = send_filename
@@ -433,8 +460,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             # expect: $receive_dir/$dirname/[12345]
 
             send_dirname = u"testdir"
+
             def message(i):
                 return "test message %d\n" % i
+
             os.mkdir(os.path.join(send_dir, u"middle"))
             source_dir = os.path.join(send_dir, u"middle", send_dirname)
             os.mkdir(source_dir)
@@ -476,21 +505,27 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             env["_MAGIC_WORMHOLE_TEST_KEY_TIMER"] = "999999"
             env["_MAGIC_WORMHOLE_TEST_VERIFY_TIMER"] = "999999"
             send_args = [
-                    '--relay-url', self.relayurl,
-                    '--transit-helper', '',
-                    'send',
-                    '--hide-progress',
-                    '--code', send_cfg.code,
-                ] + content_args
+                '--relay-url',
+                self.relayurl,
+                '--transit-helper',
+                '',
+                'send',
+                '--hide-progress',
+                '--code',
+                send_cfg.code,
+            ] + content_args
 
             send_d = getProcessOutputAndValue(
-                wormhole_bin, send_args,
+                wormhole_bin,
+                send_args,
                 path=send_dir,
                 env=env,
             )
             recv_args = [
-                '--relay-url', self.relayurl,
-                '--transit-helper', '',
+                '--relay-url',
+                self.relayurl,
+                '--transit-helper',
+                '',
                 'receive',
                 '--hide-progress',
                 '--accept-file',
@@ -500,7 +535,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 recv_args.extend(['-o', receive_filename])
 
             receive_d = getProcessOutputAndValue(
-                wormhole_bin, recv_args,
+                wormhole_bin,
+                recv_args,
                 path=receive_dir,
                 env=env,
             )
@@ -524,25 +560,27 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 send_cfg.tor = True
                 send_cfg.transit_helper = self.transit
                 tx_tm = FakeTor()
-                with mock.patch("wormhole.tor_manager.get_tor",
-                                return_value=tx_tm,
-                                ) as mtx_tm:
+                with mock.patch(
+                        "wormhole.tor_manager.get_tor",
+                        return_value=tx_tm,
+                ) as mtx_tm:
                     send_d = cmd_send.send(send_cfg)
 
                 recv_cfg.tor = True
                 recv_cfg.transit_helper = self.transit
                 rx_tm = FakeTor()
-                with mock.patch("wormhole.tor_manager.get_tor",
-                                return_value=rx_tm,
-                                ) as mrx_tm:
+                with mock.patch(
+                        "wormhole.tor_manager.get_tor",
+                        return_value=rx_tm,
+                ) as mrx_tm:
                     receive_d = cmd_receive.receive(recv_cfg)
             else:
                 KEY_TIMER = 0 if mode == "slow-sender-text" else 99999
                 rxw = []
                 with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
                     send_d = cmd_send.send(send_cfg)
-                    receive_d = cmd_receive.receive(recv_cfg,
-                                                    _debug_stash_wormhole=rxw)
+                    receive_d = cmd_receive.receive(
+                        recv_cfg, _debug_stash_wormhole=rxw)
                     # we need to keep KEY_TIMER patched until the receiver
                     # gets far enough to start the timer, which happens after
                     # the code is set
@@ -555,8 +593,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept:
-                        with mock.patch.object(cmd_receive.six.moves,
-                                               'input', return_value='y'):
+                        with mock.patch.object(
+                                cmd_receive.six.moves, 'input',
+                                return_value='y'):
                             yield gatherResults([send_d, receive_d], True)
                     else:
                         yield gatherResults([send_d, receive_d], True)
@@ -567,14 +606,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     expected_endpoints.append(("127.0.0.1", self.transitport))
                 tx_timing = mtx_tm.call_args[1]["timing"]
                 self.assertEqual(tx_tm.endpoints, expected_endpoints)
-                self.assertEqual(mtx_tm.mock_calls,
-                                 [mock.call(reactor, False, None,
-                                            timing=tx_timing)])
+                self.assertEqual(
+                    mtx_tm.mock_calls,
+                    [mock.call(reactor, False, None, timing=tx_timing)])
                 rx_timing = mrx_tm.call_args[1]["timing"]
                 self.assertEqual(rx_tm.endpoints, expected_endpoints)
-                self.assertEqual(mrx_tm.mock_calls,
-                                 [mock.call(reactor, False, None,
-                                            timing=rx_timing)])
+                self.assertEqual(
+                    mrx_tm.mock_calls,
+                    [mock.call(reactor, False, None, timing=rx_timing)])
 
             send_stdout = send_cfg.stdout.getvalue()
             send_stderr = send_cfg.stderr.getvalue()
@@ -585,7 +624,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             # newlines, even if we're on windows
             NL = "\n"
 
-        self.maxDiff = None # show full output for assertion failures
+        self.maxDiff = None  # show full output for assertion failures
 
         key_established = ""
         if mode == "slow-text":
@@ -600,38 +639,41 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         "On the other computer, please run:{NL}{NL}"
                         "wormhole receive {code}{NL}{NL}"
                         "{KE}"
-                        "text message sent{NL}").format(bytes=len(message),
-                                                        code=send_cfg.code,
-                                                        NL=NL,
-                                                        KE=key_established)
+                        "text message sent{NL}").format(
+                            bytes=len(message),
+                            code=send_cfg.code,
+                            NL=NL,
+                            KE=key_established)
             self.failUnlessEqual(send_stderr, expected)
         elif mode == "file":
             self.failUnlessIn(u"Sending {size:s} file named '{name}'{NL}"
-                              .format(size=naturalsize(len(message)),
-                                      name=send_filename,
-                                      NL=NL), send_stderr)
+                              .format(
+                                  size=naturalsize(len(message)),
+                                  name=send_filename,
+                                  NL=NL), send_stderr)
             self.failUnlessIn(u"Wormhole code is: {code}{NL}"
                               "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}"
-                              .format(code=send_cfg.code, NL=NL),
-                              send_stderr)
-            self.failUnlessIn(u"File sent.. waiting for confirmation{NL}"
-                              "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=NL), send_stderr)
+                              "wormhole receive {code}{NL}{NL}".format(
+                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"File sent.. waiting for confirmation{NL}"
+                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+                send_stderr)
         elif mode == "directory":
             self.failUnlessIn(u"Sending directory", send_stderr)
             self.failUnlessIn(u"named 'testdir'", send_stderr)
             self.failUnlessIn(u"Wormhole code is: {code}{NL}"
                               "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}"
-                              .format(code=send_cfg.code, NL=NL), send_stderr)
-            self.failUnlessIn(u"File sent.. waiting for confirmation{NL}"
-                              "Confirmation received. Transfer complete.{NL}"
-                              .format(NL=NL), send_stderr)
+                              "wormhole receive {code}{NL}{NL}".format(
+                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"File sent.. waiting for confirmation{NL}"
+                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+                send_stderr)
 
         # check receiver
         if mode in ("text", "slow-text", "slow-sender-text"):
-            self.assertEqual(receive_stdout, message+NL)
+            self.assertEqual(receive_stdout, message + NL)
             if mode == "text":
                 self.assertEqual(receive_stderr, "")
             elif mode == "slow-text":
@@ -640,9 +682,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
-            self.failUnlessIn(u"Receiving file ({size:s}) into: {name}"
-                              .format(size=naturalsize(len(message)),
-                                      name=receive_filename), receive_stderr)
+            self.failUnlessIn(u"Receiving file ({size:s}) into: {name}".format(
+                size=naturalsize(len(message)), name=receive_filename),
+                receive_stderr)
             self.failUnlessIn(u"Received file written to ", receive_stderr)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))
@@ -652,52 +694,67 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessEqual(receive_stdout, "")
             want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
                     .format(name=receive_dirname))
-            self.failUnless(re.search(want, receive_stderr),
-                            (want, receive_stderr))
-            self.failUnlessIn(u"Received files written to {name}"
-                              .format(name=receive_dirname), receive_stderr)
+            self.failUnless(
+                re.search(want, receive_stderr), (want, receive_stderr))
+            self.failUnlessIn(
+                u"Received files written to {name}"
+                .format(name=receive_dirname),
+                receive_stderr)
             fn = os.path.join(receive_dir, receive_dirname)
             self.failUnless(os.path.exists(fn), fn)
             for i in range(5):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
                 with open(fn, "r") as f:
                     self.failUnlessEqual(f.read(), message(i))
-                self.failUnlessEqual(modes[i],
-                                     stat.S_IMODE(os.stat(fn).st_mode))
+                self.failUnlessEqual(modes[i], stat.S_IMODE(
+                    os.stat(fn).st_mode))
 
     def test_text(self):
         return self._do_test()
+
     def test_text_subprocess(self):
         return self._do_test(as_subprocess=True)
+
     def test_text_tor(self):
         return self._do_test(fake_tor=True)
 
     def test_file(self):
         return self._do_test(mode="file")
+
     def test_file_override(self):
         return self._do_test(mode="file", override_filename=True)
+
     def test_file_overwrite(self):
         return self._do_test(mode="file", overwrite=True)
+
     def test_file_overwrite_mock_accept(self):
         return self._do_test(mode="file", overwrite=True, mock_accept=True)
+
     def test_file_tor(self):
         return self._do_test(mode="file", fake_tor=True)
+
     def test_empty_file(self):
         return self._do_test(mode="empty-file")
 
     def test_directory(self):
         return self._do_test(mode="directory")
+
     def test_directory_addslash(self):
         return self._do_test(mode="directory", addslash=True)
+
     def test_directory_override(self):
         return self._do_test(mode="directory", override_filename=True)
+
     def test_directory_overwrite(self):
         return self._do_test(mode="directory", overwrite=True)
+
     def test_directory_overwrite_mock_accept(self):
-        return self._do_test(mode="directory", overwrite=True, mock_accept=True)
+        return self._do_test(
+            mode="directory", overwrite=True, mock_accept=True)
 
     def test_slow_text(self):
         return self._do_test(mode="slow-text")
+
     def test_slow_sender_text(self):
         return self._do_test(mode="slow-sender-text")
 
@@ -721,7 +778,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         os.mkdir(send_dir)
         receive_dir = self.mktemp()
         os.mkdir(receive_dir)
-        recv_cfg.accept_file = True # don't ask for permission
+        recv_cfg.accept_file = True  # don't ask for permission
 
         if mode == "file":
             message = "test message\n"
@@ -765,10 +822,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             free_space = 10000000
         else:
             free_space = 0
-        with mock.patch("wormhole.cli.cmd_receive.estimate_free_space",
-                        return_value=free_space):
+        with mock.patch(
+                "wormhole.cli.cmd_receive.estimate_free_space",
+                return_value=free_space):
             f = yield self.assertFailure(send_d, TransferError)
-            self.assertEqual(str(f), "remote error, transfer abandoned: transfer rejected")
+            self.assertEqual(
+                str(f), "remote error, transfer abandoned: transfer rejected")
             f = yield self.assertFailure(receive_d, TransferError)
             self.assertEqual(str(f), "transfer rejected")
 
@@ -781,7 +840,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         # newlines, even if we're on windows
         NL = "\n"
 
-        self.maxDiff = None # show full output for assertion failures
+        self.maxDiff = None  # show full output for assertion failures
 
         self.assertEqual(send_stdout, "")
         self.assertEqual(receive_stdout, "")
@@ -789,54 +848,63 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         # check sender
         if mode == "file":
             self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                              .format(size=naturalsize(size),
-                                      name=send_filename,
-                                      NL=NL), send_stderr)
+                              .format(
+                                  size=naturalsize(size),
+                                  name=send_filename,
+                                  NL=NL), send_stderr)
             self.failUnlessIn("Wormhole code is: {code}{NL}"
                               "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}"
-                              .format(code=send_cfg.code, NL=NL),
-                              send_stderr)
-            self.failIfIn("File sent.. waiting for confirmation{NL}"
-                          "Confirmation received. Transfer complete.{NL}"
-                          .format(NL=NL), send_stderr)
+                              "wormhole receive {code}{NL}".format(
+                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failIfIn(
+                "File sent.. waiting for confirmation{NL}"
+                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+                send_stderr)
         elif mode == "directory":
             self.failUnlessIn("Sending directory", send_stderr)
             self.failUnlessIn("named 'testdir'", send_stderr)
             self.failUnlessIn("Wormhole code is: {code}{NL}"
                               "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}"
-                              .format(code=send_cfg.code, NL=NL), send_stderr)
-            self.failIfIn("File sent.. waiting for confirmation{NL}"
-                          "Confirmation received. Transfer complete.{NL}"
-                          .format(NL=NL), send_stderr)
+                              "wormhole receive {code}{NL}".format(
+                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failIfIn(
+                "File sent.. waiting for confirmation{NL}"
+                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+                send_stderr)
 
         # check receiver
         if mode == "file":
             self.failIfIn("Received file written to ", receive_stderr)
             if failmode == "noclobber":
-                self.failUnlessIn("Error: "
-                                  "refusing to overwrite existing 'testfile'{NL}"
-                                  .format(NL=NL), receive_stderr)
+                self.failUnlessIn(
+                    "Error: "
+                    "refusing to overwrite existing 'testfile'{NL}"
+                    .format(NL=NL),
+                    receive_stderr)
             else:
-                self.failUnlessIn("Error: "
-                                  "insufficient free space (0B) for file ({size:d}B){NL}"
-                                  .format(NL=NL, size=size), receive_stderr)
+                self.failUnlessIn(
+                    "Error: "
+                    "insufficient free space (0B) for file ({size:d}B){NL}"
+                    .format(NL=NL, size=size), receive_stderr)
         elif mode == "directory":
-            self.failIfIn("Received files written to {name}"
-                          .format(name=receive_name), receive_stderr)
-            #want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
+            self.failIfIn(
+                "Received files written to {name}".format(name=receive_name),
+                receive_stderr)
+            # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
             #        .format(name=receive_name))
-            #self.failUnless(re.search(want, receive_stderr),
+            # self.failUnless(re.search(want, receive_stderr),
             #                (want, receive_stderr))
             if failmode == "noclobber":
-                self.failUnlessIn("Error: "
-                                  "refusing to overwrite existing 'testdir'{NL}"
-                                  .format(NL=NL), receive_stderr)
+                self.failUnlessIn(
+                    "Error: "
+                    "refusing to overwrite existing 'testdir'{NL}"
+                    .format(NL=NL),
+                    receive_stderr)
             else:
-                self.failUnlessIn("Error: "
-                                  "insufficient free space (0B) for directory ({size:d}B){NL}"
-                                  .format(NL=NL, size=size), receive_stderr)
+                self.failUnlessIn(("Error: "
+                                   "insufficient free space (0B) for directory"
+                                   " ({size:d}B){NL}").format(
+                                       NL=NL, size=size), receive_stderr)
 
         if failmode == "noclobber":
             fn = os.path.join(receive_dir, receive_name)
@@ -846,12 +914,16 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_fail_file_noclobber(self):
         return self._do_test_fail("file", "noclobber")
+
     def test_fail_directory_noclobber(self):
         return self._do_test_fail("directory", "noclobber")
+
     def test_fail_file_toobig(self):
         return self._do_test_fail("file", "toobig")
+
     def test_fail_directory_toobig(self):
         return self._do_test_fail("directory", "toobig")
+
 
 class ZeroMode(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -871,8 +943,8 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
         send_cfg.text = message
 
-        #send_cfg.cwd = send_dir
-        #recv_cfg.cwd = receive_dir
+        # send_cfg.cwd = send_dir
+        # recv_cfg.cwd = receive_dir
 
         send_d = cmd_send.send(send_cfg)
         receive_d = cmd_receive.receive(recv_cfg)
@@ -888,7 +960,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
         # newlines, even if we're on windows
         NL = "\n"
 
-        self.maxDiff = None # show full output for assertion failures
+        self.maxDiff = None  # show full output for assertion failures
 
         self.assertEqual(send_stdout, "")
 
@@ -898,14 +970,14 @@ class ZeroMode(ServerBase, unittest.TestCase):
                     "{NL}"
                     "wormhole receive -0{NL}"
                     "{NL}"
-                    "text message sent{NL}").format(bytes=len(message),
-                                                    code=send_cfg.code,
-                                                    NL=NL)
+                    "text message sent{NL}").format(
+                        bytes=len(message), code=send_cfg.code, NL=NL)
         self.failUnlessEqual(send_stderr, expected)
 
         # check receiver
-        self.assertEqual(receive_stdout, message+NL)
+        self.assertEqual(receive_stdout, message + NL)
         self.assertEqual(receive_stderr, "")
+
 
 class NotWelcome(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -935,6 +1007,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         receive_d = cmd_receive.receive(self.cfg)
         f = yield self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
+
 
 class NoServer(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -991,8 +1064,8 @@ class NoServer(ServerBase, unittest.TestCase):
         e = yield self.assertFailure(receive_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
-class Cleanup(ServerBase, unittest.TestCase):
 
+class Cleanup(ServerBase, unittest.TestCase):
     def make_config(self):
         cfg = config("send")
         # common options for all tests in this suite
@@ -1040,6 +1113,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
         self.assertEqual(len(cids), 0)
 
+
 class ExtractFile(unittest.TestCase):
     def test_filenames(self):
         args = mock.Mock()
@@ -1066,8 +1140,8 @@ class ExtractFile(unittest.TestCase):
 
         zf = mock.Mock()
         zi = mock.Mock()
-        zi.filename = "haha//root" # abspath squashes this, hopefully zipfile
-                                   # does too
+        zi.filename = "haha//root"  # abspath squashes this, hopefully zipfile
+        # does too
         zi.external_attr = 5 << 16
         expected = os.path.join(extract_dir, "haha", "root")
         with mock.patch.object(cmd_receive.os, "chmod") as chmod:
@@ -1081,6 +1155,7 @@ class ExtractFile(unittest.TestCase):
         zi.filename = "/etc/passwd"
         e = self.assertRaises(ValueError, ef, zf, zi, extract_dir)
         self.assertIn("malicious zipfile", str(e))
+
 
 class AppID(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -1108,10 +1183,10 @@ class AppID(ServerBase, unittest.TestCase):
         yield receive_d
 
         used = self._usage_db.execute("SELECT DISTINCT `app_id`"
-                                      " FROM `nameplates`"
-                                      ).fetchall()
+                                      " FROM `nameplates`").fetchall()
         self.assertEqual(len(used), 1, used)
         self.assertEqual(used[0]["app_id"], u"appid2")
+
 
 class Welcome(unittest.TestCase):
     def do(self, welcome_message, my_version="2.0"):
@@ -1129,18 +1204,22 @@ class Welcome(unittest.TestCase):
 
     def test_version_old(self):
         stderr = self.do({"current_cli_version": "3.0"})
-        expected = ("Warning: errors may occur unless both sides are running the same version\n" +
+        expected = ("Warning: errors may occur unless both sides are"
+                    " running the same version\n"
                     "Server claims 3.0 is current, but ours is 2.0\n")
         self.assertEqual(stderr, expected)
 
     def test_version_unreleased(self):
-        stderr = self.do({"current_cli_version": "3.0"},
-                         my_version="2.5+middle.something")
+        stderr = self.do(
+            {
+                "current_cli_version": "3.0"
+            }, my_version="2.5+middle.something")
         self.assertEqual(stderr, "")
 
     def test_motd(self):
         stderr = self.do({"motd": "hello"})
         self.assertEqual(stderr, "Server (at url) says:\n hello\n")
+
 
 class Dispatch(unittest.TestCase):
     @inlineCallbacks
@@ -1148,8 +1227,10 @@ class Dispatch(unittest.TestCase):
         cfg = config("send")
         cfg.stderr = io.StringIO()
         called = []
+
         def fake():
             called.append(1)
+
         yield cli._dispatch_command(reactor, cfg, fake)
         self.assertEqual(called, [1])
         self.assertEqual(cfg.stderr.getvalue(), "")
@@ -1160,8 +1241,10 @@ class Dispatch(unittest.TestCase):
         cfg.stderr = io.StringIO()
         cfg.timing = mock.Mock()
         cfg.dump_timing = "filename"
+
         def fake():
             pass
+
         yield cli._dispatch_command(reactor, cfg, fake)
         self.assertEqual(cfg.stderr.getvalue(), "")
         self.assertEqual(cfg.timing.mock_calls[-1],
@@ -1171,32 +1254,39 @@ class Dispatch(unittest.TestCase):
     def test_wrong_password_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
+
         def fake():
             raise WrongPasswordError("abcd")
-        yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
-                                 SystemExit)
-        expected = fill("ERROR: " + dedent(WrongPasswordError.__doc__))+"\n"
+
+        yield self.assertFailure(
+            cli._dispatch_command(reactor, cfg, fake), SystemExit)
+        expected = fill("ERROR: " + dedent(WrongPasswordError.__doc__)) + "\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
     @inlineCallbacks
     def test_welcome_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
+
         def fake():
             raise WelcomeError("abcd")
-        yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
-                                 SystemExit)
-        expected = fill("ERROR: " + dedent(WelcomeError.__doc__))+"\n\nabcd\n"
+
+        yield self.assertFailure(
+            cli._dispatch_command(reactor, cfg, fake), SystemExit)
+        expected = (
+            fill("ERROR: " + dedent(WelcomeError.__doc__)) + "\n\nabcd\n")
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
     @inlineCallbacks
     def test_transfer_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
+
         def fake():
             raise TransferError("abcd")
-        yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
-                                 SystemExit)
+
+        yield self.assertFailure(
+            cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "TransferError: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
@@ -1204,11 +1294,14 @@ class Dispatch(unittest.TestCase):
     def test_server_connection_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
+
         def fake():
             raise ServerConnectionError("URL", ValueError("abcd"))
-        yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
-                                 SystemExit)
-        expected = fill("ERROR: " + dedent(ServerConnectionError.__doc__))+"\n"
+
+        yield self.assertFailure(
+            cli._dispatch_command(reactor, cfg, fake), SystemExit)
+        expected = fill(
+            "ERROR: " + dedent(ServerConnectionError.__doc__)) + "\n"
         expected += "(relay URL was URL)\n"
         expected += "abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
@@ -1217,20 +1310,25 @@ class Dispatch(unittest.TestCase):
     def test_other_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
+
         def fake():
             raise ValueError("abcd")
+
         # I'm seeing unicode problems with the Failure().printTraceback, and
         # the output would be kind of unpredictable anyways, so we'll mock it
         # out here.
         f = mock.Mock()
+
         def mock_print(file):
             file.write(u"<TRACEBACK>\n")
+
         f.printTraceback = mock_print
         with mock.patch("wormhole.cli.cli.Failure", return_value=f):
-            yield self.assertFailure(cli._dispatch_command(reactor, cfg, fake),
-                                     SystemExit)
+            yield self.assertFailure(
+                cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "<TRACEBACK>\nERROR: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
+
 
 class Help(unittest.TestCase):
     def _check_top_level_help(self, got):

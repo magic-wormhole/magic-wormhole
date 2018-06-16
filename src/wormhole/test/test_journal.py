@@ -1,7 +1,10 @@
-from __future__ import print_function, absolute_import, unicode_literals
+from __future__ import absolute_import, print_function, unicode_literals
+
 from twisted.trial import unittest
+
 from .. import journal
 from .._interfaces import IJournal
+
 
 class Journal(unittest.TestCase):
     def test_journal(self):

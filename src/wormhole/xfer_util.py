@@ -1,12 +1,19 @@
 import json
+
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from . import wormhole
 from .tor_manager import get_tor
 
+
 @inlineCallbacks
-def receive(reactor, appid, relay_url, code,
-            use_tor=False, launch_tor=False, tor_control_port=None,
+def receive(reactor,
+            appid,
+            relay_url,
+            code,
+            use_tor=False,
+            launch_tor=False,
+            tor_control_port=None,
             on_code=None):
     """
     This is a convenience API which returns a Deferred that callbacks
@@ -21,9 +28,11 @@ def receive(reactor, appid, relay_url, code,
 
     :param unicode code: a pre-existing code to use, or None
 
-    :param bool use_tor: True if we should use Tor, False to not use it (None for default)
+    :param bool use_tor: True if we should use Tor, False to not use it (None
+                         for default)
 
-    :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
+    :param on_code: if not None, this is called when we have a code (even if
+                    you passed in one explicitly)
     :type on_code: single-argument callable
     """
     tor = None
@@ -48,27 +57,33 @@ def receive(reactor, appid, relay_url, code,
     data = json.loads(data.decode("utf-8"))
     offer = data.get('offer', None)
     if not offer:
-        raise Exception(
-            "Do not understand response: {}".format(data)
-        )
+        raise Exception("Do not understand response: {}".format(data))
     msg = None
     if 'message' in offer:
         msg = offer['message']
-        wh.send_message(json.dumps({"answer":
-                                    {"message_ack": "ok"}}).encode("utf-8"))
+        wh.send_message(
+            json.dumps({
+                "answer": {
+                    "message_ack": "ok"
+                }
+            }).encode("utf-8"))
 
     else:
-        raise Exception(
-            "Unknown offer type: {}".format(offer.keys())
-        )
+        raise Exception("Unknown offer type: {}".format(offer.keys()))
 
     yield wh.close()
     returnValue(msg)
 
 
 @inlineCallbacks
-def send(reactor, appid, relay_url, data, code,
-         use_tor=False, launch_tor=False, tor_control_port=None,
+def send(reactor,
+         appid,
+         relay_url,
+         data,
+         code,
+         use_tor=False,
+         launch_tor=False,
+         tor_control_port=None,
          on_code=None):
     """
     This is a convenience API which returns a Deferred that callbacks
@@ -83,9 +98,12 @@ def send(reactor, appid, relay_url, data, code,
 
     :param unicode code: a pre-existing code to use, or None
 
-    :param bool use_tor: True if we should use Tor, False to not use it (None for default)
+    :param bool use_tor: True if we should use Tor, False to not use it (None
+                         for default)
 
-    :param on_code: if not None, this is called when we have a code (even if you passed in one explicitly)
+    :param on_code: if not None, this is called when we have a code (even if
+                    you passed in one explicitly)
+
     :type on_code: single-argument callable
     """
     tor = None
@@ -104,13 +122,7 @@ def send(reactor, appid, relay_url, data, code,
     if on_code:
         on_code(code)
 
-    wh.send_message(
-        json.dumps({
-            "offer": {
-                "message": data
-            }
-        }).encode("utf-8")
-    )
+    wh.send_message(json.dumps({"offer": {"message": data}}).encode("utf-8"))
     data = yield wh.get_message()
     data = json.loads(data.decode("utf-8"))
     answer = data.get('answer', None)
@@ -118,6 +130,4 @@ def send(reactor, appid, relay_url, data, code,
     if answer:
         returnValue(None)
     else:
-        raise Exception(
-            "Unknown answer: {}".format(data)
-        )
+        raise Exception("Unknown answer: {}".format(data))

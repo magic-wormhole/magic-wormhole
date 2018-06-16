@@ -3,20 +3,24 @@ from __future__ import print_function
 import os
 import time
 start = time.time()
-import six
-from textwrap import fill, dedent
-from sys import stdout, stderr
-from . import public_relay
-from .. import __version__
-from ..timing import DebugTiming
-from ..errors import (WrongPasswordError, WelcomeError, KeyFormatError,
-                      TransferError, NoTorError, UnsendableFileError,
-                      ServerConnectionError)
-from twisted.internet.defer import inlineCallbacks, maybeDeferred
-from twisted.python.failure import Failure
-from twisted.internet.task import react
 
-import click
+from sys import stderr, stdout  # noqa: E402
+from textwrap import dedent, fill  # noqa: E402
+
+import click  # noqa: E402
+import six  # noqa: E402
+from twisted.internet.defer import inlineCallbacks, maybeDeferred  # noqa: E402
+from twisted.internet.task import react  # noqa: E402
+from twisted.python.failure import Failure  # noqa: E402
+
+from . import public_relay  # noqa: E402
+from .. import __version__  # noqa: E402
+from ..errors import (KeyFormatError, NoTorError,  # noqa: E402
+                      ServerConnectionError,
+                      TransferError, UnsendableFileError, WelcomeError,
+                      WrongPasswordError)
+from ..timing import DebugTiming  # noqa: E402
+
 top_import_finish = time.time()
 
 
@@ -24,6 +28,7 @@ class Config(object):
     """
     Union of config options that we pass down to (sub) commands.
     """
+
     def __init__(self):
         # This only holds attributes which are *not* set by CLI arguments.
         # Everything else comes from Click decorators, so we can be sure
@@ -34,11 +39,13 @@ class Config(object):
         self.stderr = stderr
         self.tor = False  # XXX?
 
+
 def _compose(*decorators):
     def decorate(f):
         for d in reversed(decorators):
             f = d(f)
         return f
+
     return decorate
 
 
@@ -48,6 +55,8 @@ ALIASES = {
     "recieve": "receive",
     "recv": "receive",
 }
+
+
 class AliasedGroup(click.Group):
     def get_command(self, ctx, cmd_name):
         cmd_name = ALIASES.get(cmd_name, cmd_name)
@@ -56,22 +65,24 @@ class AliasedGroup(click.Group):
 
 # top-level command ("wormhole ...")
 @click.group(cls=AliasedGroup)
+@click.option("--appid", default=None, metavar="APPID", help="appid to use")
 @click.option(
-    "--appid", default=None, metavar="APPID", help="appid to use")
-@click.option(
-    "--relay-url", default=public_relay.RENDEZVOUS_RELAY,
+    "--relay-url",
+    default=public_relay.RENDEZVOUS_RELAY,
     envvar='WORMHOLE_RELAY_URL',
     metavar="URL",
     help="rendezvous relay to use",
 )
 @click.option(
-    "--transit-helper", default=public_relay.TRANSIT_RELAY,
+    "--transit-helper",
+    default=public_relay.TRANSIT_RELAY,
     envvar='WORMHOLE_TRANSIT_HELPER',
     metavar="tcp:HOST:PORT",
     help="transit relay to use",
 )
 @click.option(
-    "--dump-timing", type=type(u""), # TODO: hide from --help output
+    "--dump-timing",
+    type=type(u""),  # TODO: hide from --help output
     default=None,
     metavar="FILE.json",
     help="(debug) write timing data to file",
@@ -104,7 +115,8 @@ def _dispatch_command(reactor, cfg, command):
     errors for the user.
     """
     cfg.timing.add("command dispatch")
-    cfg.timing.add("import", when=start, which="top").finish(when=top_import_finish)
+    cfg.timing.add(
+        "import", when=start, which="top").finish(when=top_import_finish)
 
     try:
         yield maybeDeferred(command)
@@ -141,56 +153,89 @@ def _dispatch_command(reactor, cfg, command):
 
 
 CommonArgs = _compose(
-    click.option("-0", "zeromode", default=False, is_flag=True,
-                 help="enable no-code anything-goes mode",
-                 ),
-    click.option("-c", "--code-length", default=2, metavar="NUMWORDS",
-                 help="length of code (in bytes/words)",
-                 ),
-    click.option("-v", "--verify", is_flag=True, default=False,
-                 help="display verification string (and wait for approval)",
-                 ),
-    click.option("--hide-progress", is_flag=True, default=False,
-                 help="supress progress-bar display",
-                 ),
-    click.option("--listen/--no-listen", default=True,
-                 help="(debug) don't open a listening socket for Transit",
-                 ),
+    click.option(
+        "-0",
+        "zeromode",
+        default=False,
+        is_flag=True,
+        help="enable no-code anything-goes mode",
+    ),
+    click.option(
+        "-c",
+        "--code-length",
+        default=2,
+        metavar="NUMWORDS",
+        help="length of code (in bytes/words)",
+    ),
+    click.option(
+        "-v",
+        "--verify",
+        is_flag=True,
+        default=False,
+        help="display verification string (and wait for approval)",
+    ),
+    click.option(
+        "--hide-progress",
+        is_flag=True,
+        default=False,
+        help="supress progress-bar display",
+    ),
+    click.option(
+        "--listen/--no-listen",
+        default=True,
+        help="(debug) don't open a listening socket for Transit",
+    ),
 )
 
 TorArgs = _compose(
-    click.option("--tor", is_flag=True, default=False,
-                 help="use Tor when connecting",
-                 ),
-    click.option("--launch-tor", is_flag=True, default=False,
-                 help="launch Tor, rather than use existing control/socks port",
-                 ),
-    click.option("--tor-control-port", default=None, metavar="ENDPOINT",
-                 help="endpoint descriptor for Tor control port",
-                 ),
+    click.option(
+        "--tor",
+        is_flag=True,
+        default=False,
+        help="use Tor when connecting",
+    ),
+    click.option(
+        "--launch-tor",
+        is_flag=True,
+        default=False,
+        help="launch Tor, rather than use existing control/socks port",
+    ),
+    click.option(
+        "--tor-control-port",
+        default=None,
+        metavar="ENDPOINT",
+        help="endpoint descriptor for Tor control port",
+    ),
 )
+
 
 @wormhole.command()
 @click.pass_context
 def help(context, **kwargs):
     print(context.find_root().get_help())
 
+
 # wormhole send (or "wormhole tx")
 @wormhole.command()
 @CommonArgs
 @TorArgs
 @click.option(
-    "--code", metavar="CODE",
+    "--code",
+    metavar="CODE",
     help="human-generated code phrase",
 )
 @click.option(
-    "--text", default=None, metavar="MESSAGE",
-    help="text message to send, instead of a file. Use '-' to read from stdin.",
+    "--text",
+    default=None,
+    metavar="MESSAGE",
+    help=("text message to send, instead of a file."
+          " Use '-' to read from stdin."),
 )
 @click.option(
-    "--ignore-unsendable-files", default=False, is_flag=True,
-    help="Don't raise an error if a file can't be read."
-)
+    "--ignore-unsendable-files",
+    default=False,
+    is_flag=True,
+    help="Don't raise an error if a file can't be read.")
 @click.argument("what", required=False, type=click.Path(path_type=type(u"")))
 @click.pass_obj
 def send(cfg, **kwargs):
@@ -201,6 +246,7 @@ def send(cfg, **kwargs):
         from . import cmd_send
 
     return go(cmd_send.send, cfg)
+
 
 # this intermediate function can be mocked by tests that need to build a
 # Config object
@@ -214,23 +260,29 @@ def go(f, cfg):
 @CommonArgs
 @TorArgs
 @click.option(
-    "--only-text", "-t", is_flag=True,
+    "--only-text",
+    "-t",
+    is_flag=True,
     help="refuse file transfers, only accept text transfers",
 )
 @click.option(
-    "--accept-file", is_flag=True,
+    "--accept-file",
+    is_flag=True,
     help="accept file transfer without asking for confirmation",
 )
 @click.option(
-    "--output-file", "-o",
+    "--output-file",
+    "-o",
     metavar="FILENAME|DIRNAME",
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
 )
 @click.argument(
-    "code", nargs=-1, default=None,
-#    help=("The magic-wormhole code, from the sender. If omitted, the"
-#          " program will ask for it, using tab-completion."),
+    "code",
+    nargs=-1,
+    default=None,
+    #    help=("The magic-wormhole code, from the sender. If omitted, the"
+    #          " program will ask for it, using tab-completion."),
 )
 @click.pass_obj
 def receive(cfg, code, **kwargs):
@@ -244,10 +296,8 @@ def receive(cfg, code, **kwargs):
     if len(code) == 1:
         cfg.code = code[0]
     elif len(code) > 1:
-        print(
-            "Pass either no code or just one code; you passed"
-            " {}: {}".format(len(code), ', '.join(code))
-        )
+        print("Pass either no code or just one code; you passed"
+              " {}: {}".format(len(code), ', '.join(code)))
         raise SystemExit(1)
     else:
         cfg.code = None
@@ -260,17 +310,19 @@ def ssh():
     """
     Facilitate sending/receiving SSH public keys
     """
-    pass
 
 
 @ssh.command(name="invite")
 @click.option(
-    "-c", "--code-length", default=2,
+    "-c",
+    "--code-length",
+    default=2,
     metavar="NUMWORDS",
     help="length of code (in bytes/words)",
 )
 @click.option(
-    "--user", "-u",
+    "--user",
+    "-u",
     default=None,
     metavar="USER",
     help="Add to USER's ~/.ssh/authorized_keys",
@@ -291,15 +343,20 @@ def ssh_invite(ctx, code_length, user, **kwargs):
 
 @ssh.command(name="accept")
 @click.argument(
-    "code", nargs=1, required=True,
+    "code",
+    nargs=1,
+    required=True,
 )
 @click.option(
-    "--key-file", "-F",
+    "--key-file",
+    "-F",
     default=None,
     type=click.Path(exists=True),
 )
 @click.option(
-    "--yes", "-y", is_flag=True,
+    "--yes",
+    "-y",
+    is_flag=True,
     help="Skip confirmation prompt to send key",
 )
 @TorArgs
@@ -318,7 +375,8 @@ def ssh_accept(cfg, code, key_file, yes, **kwargs):
     kind, keyid, pubkey = cmd_ssh.find_public_key(key_file)
     print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
     if yes is not True:
-        click.confirm("Really send public key '{}' ?".format(keyid), abort=True)
+        click.confirm(
+            "Really send public key '{}' ?".format(keyid), abort=True)
     cfg.public_key = (kind, keyid, pubkey)
     cfg.code = code
 

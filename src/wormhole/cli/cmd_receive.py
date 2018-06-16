@@ -1,14 +1,23 @@
 from __future__ import print_function
-import os, sys, six, tempfile, zipfile, hashlib, shutil
-from tqdm import tqdm
+
+import hashlib
+import os
+import shutil
+import sys
+import tempfile
+import zipfile
+
+import six
 from humanize import naturalsize
+from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
-from wormhole import create, input_with_completion, __version__
-from ..transit import TransitReceiver
+from wormhole import __version__, create, input_with_completion
+
 from ..errors import TransferError
-from ..util import (dict_to_bytes, bytes_to_dict, bytes_to_hexstr,
+from ..transit import TransitReceiver
+from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
 from .welcome import handle_welcome
 
@@ -17,13 +26,16 @@ APPID = u"lothar.com/wormhole/text-or-file-xfer"
 KEY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_KEY_TIMER", 1.0))
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
 
+
 class RespondError(Exception):
     def __init__(self, response):
         self.response = response
 
+
 class TransferRejectedError(RespondError):
     def __init__(self):
         RespondError.__init__(self, "transfer rejected")
+
 
 def receive(args, reactor=reactor, _debug_stash_wormhole=None):
     """I implement 'wormhole receive'. I return a Deferred that fires with
@@ -60,16 +72,19 @@ class Receiver:
             # tor in parallel with everything else, make sure the Tor object
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            self._tor = yield get_tor(self._reactor,
-                                      self.args.launch_tor,
-                                      self.args.tor_control_port,
-                                      timing=self.args.timing)
+            self._tor = yield get_tor(
+                self._reactor,
+                self.args.launch_tor,
+                self.args.tor_control_port,
+                timing=self.args.timing)
 
-        w = create(self.args.appid or APPID, self.args.relay_url,
-                   self._reactor,
-                   tor=self._tor,
-                   timing=self.args.timing)
-        self._w = w # so tests can wait on events too
+        w = create(
+            self.args.appid or APPID,
+            self.args.relay_url,
+            self._reactor,
+            tor=self._tor,
+            timing=self.args.timing)
+        self._w = w  # so tests can wait on events too
 
         # I wanted to do this instead:
         #
@@ -87,7 +102,7 @@ class Receiver:
         # (which might be an error)
         @inlineCallbacks
         def _good(res):
-            yield w.close() # wait for ack
+            yield w.close()  # wait for ack
             returnValue(res)
 
         # if we raise an error, we should close and then return the original
@@ -96,8 +111,8 @@ class Receiver:
         @inlineCallbacks
         def _bad(f):
             try:
-                yield w.close() # might be an error too
-            except:
+                yield w.close()  # might be an error too
+            except Exception:
                 pass
             returnValue(f)
 
@@ -114,6 +129,7 @@ class Receiver:
 
         def on_slow_key():
             print(u"Waiting for sender...", file=self.args.stderr)
+
         notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
         try:
             # We wait here until we connect to the server and see the senders
@@ -129,8 +145,10 @@ class Receiver:
                 notify.cancel()
 
         def on_slow_verification():
-            print(u"Key established, waiting for confirmation...",
-                  file=self.args.stderr)
+            print(
+                u"Key established, waiting for confirmation...",
+                file=self.args.stderr)
+
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
         try:
             # We wait here until we've seen their VERSION message (which they
@@ -155,7 +173,7 @@ class Receiver:
 
         while True:
             them_d = yield self._get_data(w)
-            #print("GOT", them_d)
+            # print("GOT", them_d)
             recognized = False
             if u"transit" in them_d:
                 recognized = True
@@ -172,7 +190,7 @@ class Receiver:
                     raise TransferError(r.response)
                 returnValue(None)
             if not recognized:
-                log.msg("unrecognized message %r" % (them_d,))
+                log.msg("unrecognized message %r" % (them_d, ))
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
@@ -197,12 +215,12 @@ class Receiver:
             w.set_code(code)
         else:
             prompt = "Enter receive wormhole code: "
-            used_completion = yield input_with_completion(prompt,
-                                                          w.input_code(),
-                                                          self._reactor)
+            used_completion = yield input_with_completion(
+                prompt, w.input_code(), self._reactor)
             if not used_completion:
-                print(" (note: you can use <Tab> to complete words)",
-                      file=self.args.stderr)
+                print(
+                    " (note: you can use <Tab> to complete words)",
+                    file=self.args.stderr)
         yield w.get_code()
 
     def _show_verifier(self, verifier_bytes):
@@ -220,21 +238,24 @@ class Receiver:
 
     @inlineCallbacks
     def _build_transit(self, w, sender_transit):
-        tr = TransitReceiver(self.args.transit_helper,
-                             no_listen=(not self.args.listen),
-                             tor=self._tor,
-                             reactor=self._reactor,
-                             timing=self.args.timing)
+        tr = TransitReceiver(
+            self.args.transit_helper,
+            no_listen=(not self.args.listen),
+            tor=self._tor,
+            reactor=self._reactor,
+            timing=self.args.timing)
         self._transit_receiver = tr
-        transit_key = w.derive_key(APPID+u"/transit-key", tr.TRANSIT_KEY_LENGTH)
+        transit_key = w.derive_key(APPID + u"/transit-key",
+                                   tr.TRANSIT_KEY_LENGTH)
         tr.set_transit_key(transit_key)
 
         tr.add_connection_hints(sender_transit.get("hints-v1", []))
         receiver_abilities = tr.get_connection_abilities()
         receiver_hints = yield tr.get_connection_hints()
-        receiver_transit = {"abilities-v1": receiver_abilities,
-                            "hints-v1": receiver_hints,
-                            }
+        receiver_transit = {
+            "abilities-v1": receiver_abilities,
+            "hints-v1": receiver_hints,
+        }
         self._send_data({u"transit": receiver_transit}, w)
         # TODO: send more hints as the TransitReceiver produces them
 
@@ -260,7 +281,7 @@ class Receiver:
             yield self._close_transit(rp, datahash)
         else:
             self._msg(u"I don't know what they're offering\n")
-            self._msg(u"Offer details: %r" % (them_d,))
+            self._msg(u"Offer details: %r" % (them_d, ))
             raise RespondError("unknown offer type")
 
     def _handle_text(self, them_d, w):
@@ -276,12 +297,13 @@ class Receiver:
         self.xfersize = file_data["filesize"]
         free = estimate_free_space(self.abs_destname)
         if free is not None and free < self.xfersize:
-            self._msg(u"Error: insufficient free space (%sB) for file (%sB)"
-                      % (free, self.xfersize))
+            self._msg(u"Error: insufficient free space (%sB) for file (%sB)" %
+                      (free, self.xfersize))
             raise TransferRejectedError()
 
         self._msg(u"Receiving file (%s) into: %s" %
-                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
+                  (naturalsize(self.xfersize),
+                   os.path.basename(self.abs_destname)))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -290,19 +312,22 @@ class Receiver:
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
         if zipmode != "zipfile/deflated":
-            self._msg(u"Error: unknown directory-transfer mode '%s'" % (zipmode,))
+            self._msg(u"Error: unknown directory-transfer mode '%s'" %
+                      (zipmode, ))
             raise RespondError("unknown mode")
         self.abs_destname = self._decide_destname("directory",
                                                   file_data["dirname"])
         self.xfersize = file_data["zipsize"]
         free = estimate_free_space(self.abs_destname)
         if free is not None and free < file_data["numbytes"]:
-            self._msg(u"Error: insufficient free space (%sB) for directory (%sB)"
-                      % (free, file_data["numbytes"]))
+            self._msg(
+                u"Error: insufficient free space (%sB) for directory (%sB)" %
+                (free, file_data["numbytes"]))
             raise TransferRejectedError()
 
         self._msg(u"Receiving directory (%s) into: %s/" %
-                  (naturalsize(self.xfersize), os.path.basename(self.abs_destname)))
+                  (naturalsize(self.xfersize),
+                   os.path.basename(self.abs_destname)))
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
@@ -313,23 +338,26 @@ class Receiver:
         # "~/.ssh/authorized_keys" and other attacks
         destname = os.path.basename(destname)
         if self.args.output_file:
-            destname = self.args.output_file # override
-        abs_destname = os.path.abspath( os.path.join(self.args.cwd, destname) )
+            destname = self.args.output_file  # override
+        abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
-            if self.args.output_file: # overwrite is intentional
+            if self.args.output_file:  # overwrite is intentional
                 self._msg(u"Overwriting '%s'" % destname)
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
-                self._msg(u"Error: refusing to overwrite existing '%s'" % destname)
+                self._msg(
+                    u"Error: refusing to overwrite existing '%s'" % destname)
                 raise TransferRejectedError()
         return abs_destname
 
     def _remove_existing(self, path):
-        if os.path.isfile(path): os.remove(path)
-        if os.path.isdir(path): shutil.rmtree(path)
+        if os.path.isfile(path):
+            os.remove(path)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
 
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
@@ -345,7 +373,7 @@ class Receiver:
             t.detail(answer="yes")
 
     def _send_permission(self, w):
-        self._send_data({"answer": { "file_ack": "ok" }}, w)
+        self._send_data({"answer": {"file_ack": "ok"}}, w)
 
     @inlineCallbacks
     def _establish_transit(self):
@@ -359,14 +387,16 @@ class Receiver:
         self._msg(u"Receiving (%s).." % record_pipe.describe())
 
         with self.args.timing.add("rx file"):
-            progress = tqdm(file=self.args.stderr,
-                            disable=self.args.hide_progress,
-                            unit="B", unit_scale=True, total=self.xfersize)
+            progress = tqdm(
+                file=self.args.stderr,
+                disable=self.args.hide_progress,
+                unit="B",
+                unit_scale=True,
+                total=self.xfersize)
             hasher = hashlib.sha256()
             with progress:
-                received = yield record_pipe.writeToFile(f, self.xfersize,
-                                                         progress.update,
-                                                         hasher.update)
+                received = yield record_pipe.writeToFile(
+                    f, self.xfersize, progress.update, hasher.update)
             datahash = hasher.digest()
 
         # except TransitError
@@ -382,25 +412,26 @@ class Receiver:
         tmp_name = f.name
         f.close()
         os.rename(tmp_name, self.abs_destname)
-        self._msg(u"Received file written to %s" %
-                  os.path.basename(self.abs_destname))
+        self._msg(u"Received file written to %s" % os.path.basename(
+            self.abs_destname))
 
     def _extract_file(self, zf, info, extract_dir):
         """
         the zipfile module does not restore file permissions
         so we'll do it manually
         """
-        out_path = os.path.join( extract_dir, info.filename )
-        out_path = os.path.abspath( out_path )
-        if not out_path.startswith( extract_dir ):
-            raise ValueError( "malicious zipfile, %s outside of extract_dir %s"
-                    % (info.filename, extract_dir) )
+        out_path = os.path.join(extract_dir, info.filename)
+        out_path = os.path.abspath(out_path)
+        if not out_path.startswith(extract_dir):
+            raise ValueError(
+                "malicious zipfile, %s outside of extract_dir %s" %
+                (info.filename, extract_dir))
 
-        zf.extract( info.filename, path=extract_dir )
+        zf.extract(info.filename, path=extract_dir)
 
         # not sure why zipfiles store the perms 16 bits away but they do
         perm = info.external_attr >> 16
-        os.chmod( out_path, perm )
+        os.chmod(out_path, perm)
 
     def _write_directory(self, f):
 
@@ -408,10 +439,10 @@ class Receiver:
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
                 for info in zf.infolist():
-                    self._extract_file( zf, info, self.abs_destname )
+                    self._extract_file(zf, info, self.abs_destname)
 
-            self._msg(u"Received files written to %s/" %
-                      os.path.basename(self.abs_destname))
+            self._msg(u"Received files written to %s/" % os.path.basename(
+                self.abs_destname))
             f.close()
 
     @inlineCallbacks

@@ -5,6 +5,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.interfaces import IReactorTime
 from twisted.python import log
 
+
 class EventualQueue(object):
     def __init__(self, clock):
         # pass clock=reactor unless you're testing
@@ -14,7 +15,7 @@ class EventualQueue(object):
         self._timer = None
 
     def eventually(self, f, *args, **kwargs):
-        self._calls.append( (f, args, kwargs) )
+        self._calls.append((f, args, kwargs))
         if not self._timer:
             self._timer = self._clock.callLater(0, self._turn)
 
@@ -28,7 +29,7 @@ class EventualQueue(object):
             (f, args, kwargs) = self._calls.pop(0)
             try:
                 f(*args, **kwargs)
-            except:
+            except Exception:
                 log.err()
         self._timer = None
         d, self._flush_d = self._flush_d, None

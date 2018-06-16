@@ -1,15 +1,17 @@
 import os
 import sys
-import mock
+
 from twisted.trial import unittest
+
+import mock
+
 from ..cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
 from .common import config
-#from pprint import pprint
+
 
 class Send(unittest.TestCase):
     def test_baseline(self):
         cfg = config("send", "--text", "hi")
-        #pprint(cfg.__dict__)
         self.assertEqual(cfg.what, None)
         self.assertEqual(cfg.code, None)
         self.assertEqual(cfg.code_length, 2)
@@ -32,7 +34,6 @@ class Send(unittest.TestCase):
 
     def test_file(self):
         cfg = config("send", "fn")
-        #pprint(cfg.__dict__)
         self.assertEqual(cfg.what, u"fn")
         self.assertEqual(cfg.text, None)
 
@@ -101,7 +102,6 @@ class Send(unittest.TestCase):
 class Receive(unittest.TestCase):
     def test_baseline(self):
         cfg = config("receive")
-        #pprint(cfg.__dict__)
         self.assertEqual(cfg.accept_file, False)
         self.assertEqual(cfg.code, None)
         self.assertEqual(cfg.code_length, 2)
@@ -191,10 +191,12 @@ class Receive(unittest.TestCase):
             cfg = config("--transit-helper", transit_url_2, "receive")
         self.assertEqual(cfg.transit_helper, transit_url_2)
 
+
 class Config(unittest.TestCase):
     def test_send(self):
         cfg = config("send")
         self.assertEqual(cfg.stdout, sys.stdout)
+
     def test_receive(self):
         cfg = config("receive")
         self.assertEqual(cfg.stdout, sys.stdout)

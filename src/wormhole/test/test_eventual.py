@@ -1,13 +1,18 @@
 from __future__ import print_function, unicode_literals
-import mock
-from twisted.trial import unittest
+
 from twisted.internet import reactor
-from twisted.internet.task import Clock
 from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.task import Clock
+from twisted.trial import unittest
+
+import mock
+
 from ..eventual import EventualQueue
+
 
 class IntentionalError(Exception):
     pass
+
 
 class Eventual(unittest.TestCase, object):
     def test_eventually(self):
@@ -23,9 +28,10 @@ class Eventual(unittest.TestCase, object):
         self.assertNoResult(d3)
 
         eq.flush_sync()
-        self.assertEqual(c1.mock_calls,
-                         [mock.call("arg1", "arg2", kwarg1="kw1"),
-                          mock.call("arg3", "arg4", kwarg5="kw5")])
+        self.assertEqual(c1.mock_calls, [
+            mock.call("arg1", "arg2", kwarg1="kw1"),
+            mock.call("arg3", "arg4", kwarg5="kw5")
+        ])
         self.assertEqual(self.successResultOf(d2), None)
         self.assertEqual(self.successResultOf(d3), "value")
 
@@ -47,11 +53,12 @@ class Eventual(unittest.TestCase, object):
         eq = EventualQueue(reactor)
         d1 = eq.fire_eventually()
         d2 = Deferred()
+
         def _more(res):
             eq.eventually(d2.callback, None)
+
         d1.addCallback(_more)
         yield eq.flush()
         # d1 will fire, which will queue d2 to fire, and the flush() ought to
         # wait for d2 too
         self.successResultOf(d2)
-

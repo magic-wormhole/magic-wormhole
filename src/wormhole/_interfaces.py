@@ -3,63 +3,104 @@ from zope.interface import Interface
 # These interfaces are private: we use them as markers to detect
 # swapped argument bugs in the various .wire() calls
 
+
 class IWormhole(Interface):
     """Internal: this contains the methods invoked 'from below'."""
+
     def got_welcome(welcome):
         pass
+
     def got_code(code):
         pass
+
     def got_key(key):
         pass
+
     def got_verifier(verifier):
         pass
+
     def got_versions(versions):
         pass
+
     def received(plaintext):
         pass
+
     def closed(result):
         pass
 
+
 class IBoss(Interface):
     pass
+
+
 class INameplate(Interface):
     pass
+
+
 class IMailbox(Interface):
     pass
+
+
 class ISend(Interface):
     pass
+
+
 class IOrder(Interface):
     pass
+
+
 class IKey(Interface):
     pass
+
+
 class IReceive(Interface):
     pass
+
+
 class IRendezvousConnector(Interface):
     pass
+
+
 class ILister(Interface):
     pass
+
+
 class ICode(Interface):
     pass
+
+
 class IInput(Interface):
     pass
+
+
 class IAllocator(Interface):
     pass
+
+
 class ITerminator(Interface):
     pass
 
+
 class ITiming(Interface):
     pass
+
+
 class ITorManager(Interface):
     pass
+
+
 class IWordlist(Interface):
     def choose_words(length):
         """Randomly select LENGTH words, join them with hyphens, return the
         result."""
+
     def get_completions(prefix):
         """Return a list of all suffixes that could complete the given
         prefix."""
 
+
 # These interfaces are public, and are re-exported by __init__.py
+
 
 class IDeferredWormhole(Interface):
     def get_welcome():
@@ -277,6 +318,7 @@ class IDeferredWormhole(Interface):
         :rtype: ``Deferred``
         """
 
+
 class IInputHelper(Interface):
     def refresh_nameplates():
         """
@@ -389,5 +431,5 @@ class IInputHelper(Interface):
         """
 
 
-class IJournal(Interface): # TODO: this needs to be public
+class IJournal(Interface):  # TODO: this needs to be public
     pass

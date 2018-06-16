@@ -1,19 +1,28 @@
 from __future__ import print_function
-import os, sys, six, tempfile, zipfile, hashlib
-from tqdm import tqdm
+
+import hashlib
+import os
+import sys
+import tempfile
+import zipfile
+
+import six
 from humanize import naturalsize
-from twisted.python import log
-from twisted.protocols import basic
+from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.protocols import basic
+from twisted.python import log
+from wormhole import __version__, create
+
 from ..errors import TransferError, UnsendableFileError
-from wormhole import create, __version__
 from ..transit import TransitSender
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import bytes_to_dict, bytes_to_hexstr, dict_to_bytes
 from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
+
 
 def send(args, reactor=reactor):
     """I implement 'wormhole send'. I return a Deferred that fires with None
@@ -25,6 +34,7 @@ def send(args, reactor=reactor):
     * any other error: something unexpected happened
     """
     return Sender(args, reactor).go()
+
 
 class Sender:
     def __init__(self, args, reactor):
@@ -45,22 +55,25 @@ class Sender:
             # tor in parallel with everything else, make sure the Tor object
             # can lazy-provide an endpoint, and overlap the startup process
             # with the user handing off the wormhole code
-            self._tor = yield get_tor(reactor,
-                                      self._args.launch_tor,
-                                      self._args.tor_control_port,
-                                      timing=self._timing)
+            self._tor = yield get_tor(
+                reactor,
+                self._args.launch_tor,
+                self._args.tor_control_port,
+                timing=self._timing)
 
-        w = create(self._args.appid or APPID, self._args.relay_url,
-                   self._reactor,
-                   tor=self._tor,
-                   timing=self._timing)
+        w = create(
+            self._args.appid or APPID,
+            self._args.relay_url,
+            self._reactor,
+            tor=self._tor,
+            timing=self._timing)
         d = self._go(w)
 
         # if we succeed, we should close and return the w.close results
         # (which might be an error)
         @inlineCallbacks
         def _good(res):
-            yield w.close() # wait for ack
+            yield w.close()  # wait for ack
             returnValue(res)
 
         # if we raise an error, we should close and then return the original
@@ -69,8 +82,8 @@ class Sender:
         @inlineCallbacks
         def _bad(f):
             try:
-                yield w.close() # might be an error too
-            except:
+                yield w.close()  # might be an error too
+            except Exception:
                 pass
             returnValue(f)
 
@@ -125,8 +138,10 @@ class Sender:
 
         # TODO: don't stall on w.get_verifier() unless they want it
         def on_slow_connection():
-            print(u"Key established, waiting for confirmation...",
-                  file=args.stderr)
+            print(
+                u"Key established, waiting for confirmation...",
+                file=args.stderr)
+
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
         try:
             # The usual sender-chooses-code sequence means the receiver's
@@ -137,32 +152,35 @@ class Sender:
             # sitting here for a while, so printing the "waiting" message
             # seems like a good idea. It might even be appropriate to give up
             # after a while.
-            verifier_bytes = yield w.get_verifier() # might WrongPasswordError
+            verifier_bytes = yield w.get_verifier()  # might WrongPasswordError
         finally:
             if not notify.called:
                 notify.cancel()
 
         if args.verify:
-            self._check_verifier(w, verifier_bytes) # blocks, can TransferError
+            self._check_verifier(w,
+                                 verifier_bytes)  # blocks, can TransferError
 
         if self._fd_to_send:
-            ts = TransitSender(args.transit_helper,
-                               no_listen=(not args.listen),
-                               tor=self._tor,
-                               reactor=self._reactor,
-                               timing=self._timing)
+            ts = TransitSender(
+                args.transit_helper,
+                no_listen=(not args.listen),
+                tor=self._tor,
+                reactor=self._reactor,
+                timing=self._timing)
             self._transit_sender = ts
 
             # for now, send this before the main offer
             sender_abilities = ts.get_connection_abilities()
             sender_hints = yield ts.get_connection_hints()
-            sender_transit = {"abilities-v1": sender_abilities,
-                              "hints-v1": sender_hints,
-                              }
+            sender_transit = {
+                "abilities-v1": sender_abilities,
+                "hints-v1": sender_hints,
+            }
             self._send_data({u"transit": sender_transit}, w)
 
             # TODO: move this down below w.get_message()
-            transit_key = w.derive_key(APPID+"/transit-key",
+            transit_key = w.derive_key(APPID + "/transit-key",
                                        ts.TRANSIT_KEY_LENGTH)
             ts.set_transit_key(transit_key)
 
@@ -175,11 +193,11 @@ class Sender:
             # TODO: get_message() fired, so get_verifier must have fired, so
             # now it's safe to use w.derive_key()
             them_d = bytes_to_dict(them_d_bytes)
-            #print("GOT", them_d)
+            # print("GOT", them_d)
             recognized = False
             if u"error" in them_d:
-                raise TransferError("remote error, transfer abandoned: %s"
-                                    % them_d["error"])
+                raise TransferError(
+                    "remote error, transfer abandoned: %s" % them_d["error"])
             if u"transit" in them_d:
                 recognized = True
                 yield self._handle_transit(them_d[u"transit"])
@@ -191,7 +209,7 @@ class Sender:
                 yield self._handle_answer(them_d[u"answer"])
                 returnValue(None)
             if not recognized:
-                log.msg("unrecognized message %r" % (them_d,))
+                log.msg("unrecognized message %r" % (them_d, ))
 
     def _check_verifier(self, w, verifier_bytes):
         verifier = bytes_to_hexstr(verifier_bytes)
@@ -221,9 +239,10 @@ class Sender:
             text = six.moves.input("Text to send: ")
 
         if text is not None:
-            print(u"Sending text message (%s)" % naturalsize(len(text)),
-                  file=args.stderr)
-            offer = { "message": text }
+            print(
+                u"Sending text message (%s)" % naturalsize(len(text)),
+                file=args.stderr)
+            offer = {"message": text}
             fd_to_send = None
             return offer, fd_to_send
 
@@ -244,7 +263,7 @@ class Sender:
         # is a symlink to something with a different name. The normpath() is
         # there to remove trailing slashes.
         basename = os.path.basename(os.path.normpath(what))
-        assert basename != "", what # normpath shouldn't allow this
+        assert basename != "", what  # normpath shouldn't allow this
 
         # We use realpath() instead of normpath() to locate the actual
         # file/directory, because the path might contain symlinks, and
@@ -273,8 +292,8 @@ class Sender:
 
         what = os.path.realpath(what)
         if not os.path.exists(what):
-            raise TransferError("Cannot send: no file/directory named '%s'" %
-                                args.what)
+            raise TransferError(
+                "Cannot send: no file/directory named '%s'" % args.what)
 
         if os.path.isfile(what):
             # we're sending a file
@@ -282,10 +301,11 @@ class Sender:
             offer["file"] = {
                 "filename": basename,
                 "filesize": filesize,
-                }
-            print(u"Sending %s file named '%s'"
-                  % (naturalsize(filesize), basename),
-                  file=args.stderr)
+            }
+            print(
+                u"Sending %s file named '%s'" % (naturalsize(filesize),
+                                                 basename),
+                file=args.stderr)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
 
@@ -297,16 +317,18 @@ class Sender:
             num_files = 0
             num_bytes = 0
             tostrip = len(what.split(os.sep))
-            with zipfile.ZipFile(fd_to_send, "w",
-                                 compression=zipfile.ZIP_DEFLATED,
-                                 allowZip64=True) as zf:
-                for path,dirs,files in os.walk(what):
+            with zipfile.ZipFile(
+                    fd_to_send,
+                    "w",
+                    compression=zipfile.ZIP_DEFLATED,
+                    allowZip64=True) as zf:
+                for path, dirs, files in os.walk(what):
                     # path always starts with args.what, then sometimes might
                     # have "/subdir" appended. We want the zipfile to contain
                     # "" or "subdir"
                     localpath = list(path.split(os.sep)[tostrip:])
                     for fn in files:
-                        archivename = os.path.join(*tuple(localpath+[fn]))
+                        archivename = os.path.join(*tuple(localpath + [fn]))
                         localfilename = os.path.join(path, fn)
                         try:
                             zf.write(localfilename, archivename)
@@ -315,22 +337,25 @@ class Sender:
                         except OSError as e:
                             errmsg = u"{}: {}".format(fn, e.strerror)
                             if self._args.ignore_unsendable_files:
-                                print(u"{} (ignoring error)".format(errmsg),
-                                      file=args.stderr)
+                                print(
+                                    u"{} (ignoring error)".format(errmsg),
+                                    file=args.stderr)
                             else:
                                 raise UnsendableFileError(errmsg)
-            fd_to_send.seek(0,2)
+            fd_to_send.seek(0, 2)
             filesize = fd_to_send.tell()
-            fd_to_send.seek(0,0)
+            fd_to_send.seek(0, 0)
             offer["directory"] = {
                 "mode": "zipfile/deflated",
                 "dirname": basename,
                 "zipsize": filesize,
                 "numbytes": num_bytes,
                 "numfiles": num_files,
-                }
-            print(u"Sending directory (%s compressed) named '%s'"
-                  % (naturalsize(filesize), basename), file=args.stderr)
+            }
+            print(
+                u"Sending directory (%s compressed) named '%s'" %
+                (naturalsize(filesize), basename),
+                file=args.stderr)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)
@@ -340,23 +365,22 @@ class Sender:
         if self._fd_to_send is None:
             if them_answer["message_ack"] == "ok":
                 print(u"text message sent", file=self._args.stderr)
-                returnValue(None) # terminates this function
-            raise TransferError("error sending text: %r" % (them_answer,))
+                returnValue(None)  # terminates this function
+            raise TransferError("error sending text: %r" % (them_answer, ))
 
         if them_answer.get("file_ack") != "ok":
             raise TransferError("ambiguous response from remote, "
-                                "transfer abandoned: %s" % (them_answer,))
+                                "transfer abandoned: %s" % (them_answer, ))
 
         yield self._send_file()
-
 
     @inlineCallbacks
     def _send_file(self):
         ts = self._transit_sender
 
-        self._fd_to_send.seek(0,2)
+        self._fd_to_send.seek(0, 2)
         filesize = self._fd_to_send.tell()
-        self._fd_to_send.seek(0,0)
+        self._fd_to_send.seek(0, 0)
 
         record_pipe = yield ts.connect()
         self._timing.add("transit connected")
@@ -365,21 +389,28 @@ class Sender:
         print(u"Sending (%s).." % record_pipe.describe(), file=stderr)
 
         hasher = hashlib.sha256()
-        progress = tqdm(file=stderr, disable=self._args.hide_progress,
-                        unit="B", unit_scale=True,
-                        total=filesize)
+        progress = tqdm(
+            file=stderr,
+            disable=self._args.hide_progress,
+            unit="B",
+            unit_scale=True,
+            total=filesize)
+
         def _count_and_hash(data):
             hasher.update(data)
             progress.update(len(data))
             return data
+
         fs = basic.FileSender()
 
         with self._timing.add("tx file"):
             with progress:
                 if filesize:
                     # don't send zero-length files
-                    yield fs.beginFileTransfer(self._fd_to_send, record_pipe,
-                                               transform=_count_and_hash)
+                    yield fs.beginFileTransfer(
+                        self._fd_to_send,
+                        record_pipe,
+                        transform=_count_and_hash)
 
         expected_hash = hasher.digest()
         expected_hex = bytes_to_hexstr(expected_hash)

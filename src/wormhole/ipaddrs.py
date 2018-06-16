@@ -1,27 +1,37 @@
 # no unicode_literals
 # Find all of our ip addresses. From tahoe's src/allmydata/util/iputil.py
 
-import os, re, subprocess, errno
+import errno
+import os
+import re
+import subprocess
 from sys import platform
+
 from twisted.python.procutils import which
 
 # Wow, I'm really amazed at home much mileage we've gotten out of calling
 # the external route.exe program on windows...  It appears to work on all
 # versions so far.  Still, the real system calls would much be preferred...
 # ... thus wrote Greg Smith in time immemorial...
-_win32_re = re.compile(r'^\s*\d+\.\d+\.\d+\.\d+\s.+\s(?P<address>\d+\.\d+\.\d+\.\d+)\s+(?P<metric>\d+)\s*$', flags=re.M|re.I|re.S)
-_win32_commands = (('route.exe', ('print',), _win32_re),)
+_win32_re = re.compile(
+    (r'^\s*\d+\.\d+\.\d+\.\d+\s.+\s'
+     r'(?P<address>\d+\.\d+\.\d+\.\d+)\s+(?P<metric>\d+)\s*$'),
+    flags=re.M | re.I | re.S)
+_win32_commands = (('route.exe', ('print', ), _win32_re), )
 
 # These work in most Unices.
-_addr_re = re.compile(r'^\s*inet [a-zA-Z]*:?(?P<address>\d+\.\d+\.\d+\.\d+)[\s/].+$', flags=re.M|re.I|re.S)
-_unix_commands = (('/bin/ip', ('addr',), _addr_re),
-                  ('/sbin/ip', ('addr',), _addr_re),
-                  ('/sbin/ifconfig', ('-a',), _addr_re),
-                  ('/usr/sbin/ifconfig', ('-a',), _addr_re),
-                  ('/usr/etc/ifconfig', ('-a',), _addr_re),
-                  ('ifconfig', ('-a',), _addr_re),
-                  ('/sbin/ifconfig', (), _addr_re),
-                 )
+_addr_re = re.compile(
+    r'^\s*inet [a-zA-Z]*:?(?P<address>\d+\.\d+\.\d+\.\d+)[\s/].+$',
+    flags=re.M | re.I | re.S)
+_unix_commands = (
+    ('/bin/ip', ('addr', ), _addr_re),
+    ('/sbin/ip', ('addr', ), _addr_re),
+    ('/sbin/ifconfig', ('-a', ), _addr_re),
+    ('/usr/sbin/ifconfig', ('-a', ), _addr_re),
+    ('/usr/etc/ifconfig', ('-a', ), _addr_re),
+    ('ifconfig', ('-a', ), _addr_re),
+    ('/sbin/ifconfig', (), _addr_re),
+)
 
 
 def find_addresses():
@@ -54,17 +64,19 @@ def find_addresses():
 
     return ["127.0.0.1"]
 
+
 def _query(path, args, regex):
     env = {'LANG': 'en_US.UTF-8'}
     trial = 0
     while True:
         trial += 1
         try:
-            p = subprocess.Popen([path] + list(args),
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 env=env,
-                                 universal_newlines=True)
+            p = subprocess.Popen(
+                [path] + list(args),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                universal_newlines=True)
             (output, err) = p.communicate()
             break
         except OSError as e:

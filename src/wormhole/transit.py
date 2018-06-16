@@ -1,37 +1,50 @@
 # no unicode_literals, revisit after twisted patch
-from __future__ import print_function, absolute_import
-import os, re, sys, time, socket
-from collections import namedtuple, deque
+from __future__ import absolute_import, print_function
+
+import os
+import re
+import socket
+import sys
+import time
 from binascii import hexlify, unhexlify
+from collections import deque, namedtuple
+
 import six
-from zope.interface import implementer
-from twisted.python import log
-from twisted.python.runtime import platformType
-from twisted.internet import (reactor, interfaces, defer, protocol,
-                              endpoints, task, address, error)
+from hkdf import Hkdf
+from nacl.secret import SecretBox
+from twisted.internet import (address, defer, endpoints, error, interfaces,
+                              protocol, reactor, task)
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
-from nacl.secret import SecretBox
-from hkdf import Hkdf
+from twisted.python import log
+from twisted.python.runtime import platformType
+from zope.interface import implementer
+
+from . import ipaddrs
 from .errors import InternalError
 from .timing import DebugTiming
 from .util import bytes_to_hexstr
-from . import ipaddrs
+
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
+
 class TransitError(Exception):
     pass
+
 
 class BadHandshake(Exception):
     pass
 
+
 class TransitClosed(TransitError):
     pass
 
+
 class BadNonce(TransitError):
     pass
+
 
 # The beginning of each TCP connection consists of the following handshake
 # messages. The sender transmits the same text regardless of whether it is on
@@ -63,19 +76,23 @@ class BadNonce(TransitError):
 # RXID_HEX ready\n\n" and then makes a first/not-first decision about sending
 # "go\n" or "nevermind\n"+close().
 
+
 def build_receiver_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_receiver")
-    return b"transit receiver "+hexlify(hexid)+b" ready\n\n"
+    return b"transit receiver " + hexlify(hexid) + b" ready\n\n"
+
 
 def build_sender_handshake(key):
     hexid = HKDF(key, 32, CTXinfo=b"transit_sender")
-    return b"transit sender "+hexlify(hexid)+b" ready\n\n"
+    return b"transit sender " + hexlify(hexid) + b" ready\n\n"
+
 
 def build_sided_relay_handshake(key, side):
     assert isinstance(side, type(u""))
-    assert len(side) == 8*2
+    assert len(side) == 8 * 2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return b"please relay "+hexlify(token)+b" for side "+side.encode("ascii")+b"\n"
+    return b"please relay " + hexlify(token) + b" for side " + side.encode(
+        "ascii") + b"\n"
 
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
@@ -87,13 +104,15 @@ def build_sided_relay_handshake(key, side):
 # * expect to see the receiver/sender handshake bytes from the other side
 # * the sender writes "go\n", the receiver waits for "go\n"
 # * the rest of the connection contains transit data
-DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port", "priority"])
+DirectTCPV1Hint = namedtuple("DirectTCPV1Hint",
+                             ["hostname", "port", "priority"])
 TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
 # RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
 # use a tuple rather than a list so they'll be hashable into a set). For each
 # one, make the TCP connection, send the relay handshake, then complete the
 # rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
+
 
 def describe_hint_obj(hint):
     if isinstance(hint, DirectTCPV1Hint):
@@ -103,27 +122,30 @@ def describe_hint_obj(hint):
     else:
         return str(hint)
 
+
 def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
     priority = 0.0
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
-        print("unparseable hint '%s'" % (hint,), file=stderr)
+        print("unparseable hint '%s'" % (hint, ), file=stderr)
         return None
     hint_type = mo.group(1)
     if hint_type != "tcp":
-        print("unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
+        print(
+            "unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
         return None
     hint_value = mo.group(2)
     pieces = hint_value.split(":")
     if len(pieces) < 2:
-        print("unparseable TCP hint (need more colons) '%s'" % (hint,),
-              file=stderr)
+        print(
+            "unparseable TCP hint (need more colons) '%s'" % (hint, ),
+            file=stderr)
         return None
     mo = re.search(r'^(\d+)$', pieces[1])
     if not mo:
-        print("non-numeric port in TCP hint '%s'" % (hint,), file=stderr)
+        print("non-numeric port in TCP hint '%s'" % (hint, ), file=stderr)
         return None
     hint_host = pieces[0]
     hint_port = int(pieces[1])
@@ -133,12 +155,15 @@ def parse_hint_argv(hint, stderr=sys.stderr):
             try:
                 priority = float(more_pieces[1])
             except ValueError:
-                print("non-float priority= in TCP hint '%s'" % (hint,),
-                      file=stderr)
+                print(
+                    "non-float priority= in TCP hint '%s'" % (hint, ),
+                    file=stderr)
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
 
-TIMEOUT = 60 # seconds
+
+TIMEOUT = 60  # seconds
+
 
 @implementer(interfaces.IProducer, interfaces.IConsumer)
 class Connection(protocol.Protocol, policies.TimeoutMixin):
@@ -159,7 +184,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self._waiting_reads = deque()
 
     def connectionMade(self):
-        self.setTimeout(TIMEOUT) # does timeoutConnection() when it expires
+        self.setTimeout(TIMEOUT)  # does timeoutConnection() when it expires
         self.factory.connectionWasMade(self)
 
     def startNegotiation(self):
@@ -168,11 +193,11 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             self.state = "relay"
         else:
             self.state = "start"
-        self.dataReceived(b"") # cycle the state machine
+        self.dataReceived(b"")  # cycle the state machine
         return self._negotiation_d
 
     def _cancel(self, d):
-        self.state = "hung up" # stop reacting to anything further
+        self.state = "hung up"  # stop reacting to anything further
         self._error = defer.CancelledError()
         self.transport.loseConnection()
         # if connectionLost isn't called synchronously, then our
@@ -180,7 +205,6 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         # (which is our caller). So if it's still around, clobber it
         if self._negotiation_d:
             self._negotiation_d = None
-
 
     def dataReceived(self, data):
         try:
@@ -198,7 +222,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         if not self.buf.startswith(expected[:len(self.buf)]):
             raise BadHandshake("got %r want %r" % (self.buf, expected))
         if len(self.buf) < len(expected):
-            return False # keep waiting
+            return False  # keep waiting
         self.buf = self.buf[len(expected):]
         return True
 
@@ -245,9 +269,9 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             return self.dataReceivedRECORDS()
         if self.state == "hung up":
             return
-        if isinstance(self.state, Exception): # for tests
+        if isinstance(self.state, Exception):  # for tests
             raise self.state
-        raise ValueError("internal error: unknown state %s" % (self.state,))
+        raise ValueError("internal error: unknown state %s" % (self.state, ))
 
     def _negotiationSuccessful(self):
         self.state = "records"
@@ -266,19 +290,20 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             if len(self.buf) < 4:
                 return
             length = int(hexlify(self.buf[:4]), 16)
-            if len(self.buf) < 4+length:
+            if len(self.buf) < 4 + length:
                 return
-            encrypted, self.buf = self.buf[4:4+length], self.buf[4+length:]
+            encrypted, self.buf = self.buf[4:4 + length], self.buf[4 + length:]
 
             record = self._decrypt_record(encrypted)
             self.recordReceived(record)
 
     def _decrypt_record(self, encrypted):
-        nonce_buf = encrypted[:SecretBox.NONCE_SIZE] # assume it's prepended
+        nonce_buf = encrypted[:SecretBox.NONCE_SIZE]  # assume it's prepended
         nonce = int(hexlify(nonce_buf), 16)
         if nonce != self.next_receive_nonce:
-            raise BadNonce("received out-of-order record: got %d, expected %d"
-                           % (nonce, self.next_receive_nonce))
+            raise BadNonce(
+                "received out-of-order record: got %d, expected %d" %
+                (nonce, self.next_receive_nonce))
         self.next_receive_nonce += 1
         record = self.receive_box.decrypt(encrypted)
         return record
@@ -287,14 +312,15 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         return self._description
 
     def send_record(self, record):
-        if not isinstance(record, type(b"")): raise InternalError
+        if not isinstance(record, type(b"")):
+            raise InternalError
         assert SecretBox.NONCE_SIZE == 24
-        assert self.send_nonce < 2**(8*24)
-        assert len(record) < 2**(8*4)
-        nonce = unhexlify("%048x" % self.send_nonce) # big-endian
+        assert self.send_nonce < 2**(8 * 24)
+        assert len(record) < 2**(8 * 4)
+        nonce = unhexlify("%048x" % self.send_nonce)  # big-endian
         self.send_nonce += 1
         encrypted = self.send_box.encrypt(record, nonce)
-        length = unhexlify("%08x" % len(encrypted)) # always 4 bytes long
+        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
         self.transport.write(length)
         self.transport.write(encrypted)
 
@@ -353,8 +379,10 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     def registerProducer(self, producer, streaming):
         assert interfaces.IConsumer.providedBy(self.transport)
         self.transport.registerProducer(producer, streaming)
+
     def unregisterProducer(self):
         self.transport.unregisterProducer()
+
     def write(self, data):
         self.send_record(data)
 
@@ -362,8 +390,10 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     # the transport.
     def stopProducing(self):
         self.transport.stopProducing()
+
     def pauseProducing(self):
         self.transport.pauseProducing()
+
     def resumeProducing(self):
         self.transport.resumeProducing()
 
@@ -384,8 +414,8 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         Deferred, and you must call disconnectConsumer() when you are done."""
 
         if self._consumer:
-            raise RuntimeError("A consumer is already attached: %r" %
-                               self._consumer)
+            raise RuntimeError(
+                "A consumer is already attached: %r" % self._consumer)
 
         # be aware of an ordering hazard: when we call the consumer's
         # .registerProducer method, they are likely to immediately call
@@ -440,6 +470,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         fc = FileConsumer(f, progress, hasher)
         return self.connectConsumer(fc, expected)
 
+
 class OutboundConnectionFactory(protocol.ClientFactory):
     protocol = Connection
 
@@ -478,7 +509,7 @@ class InboundConnectionFactory(protocol.ClientFactory):
 
     def _shutdown(self):
         for d in list(self._pending_connections):
-            d.cancel() # that fires _remove and _proto_failed
+            d.cancel()  # that fires _remove and _proto_failed
 
     def _describePeer(self, addr):
         if isinstance(addr, address.HostnameAddress):
@@ -511,6 +542,7 @@ class InboundConnectionFactory(protocol.ClientFactory):
         # ignore these two, let Twisted log everything else
         f.trap(BadHandshake, defer.CancelledError)
 
+
 def allocate_tcp_port():
     """Return an (integer) available TCP port on localhost. This briefly
     listens on the port in question, then closes it right away."""
@@ -527,6 +559,7 @@ def allocate_tcp_port():
     s.close()
     return port
 
+
 class _ThereCanBeOnlyOne:
     """Accept a list of contender Deferreds, and return a summary Deferred.
     When the first contender fires successfully, cancel the rest and fire the
@@ -535,6 +568,7 @@ class _ThereCanBeOnlyOne:
 
     status_cb=?
     """
+
     def __init__(self, contenders):
         self._remaining = set(contenders)
         self._winner_d = defer.Deferred(self._cancel)
@@ -581,26 +615,32 @@ class _ThereCanBeOnlyOne:
         else:
             self._winner_d.errback(self._first_failure)
 
+
 def there_can_be_only_one(contenders):
     return _ThereCanBeOnlyOne(contenders).run()
+
 
 class Common:
     RELAY_DELAY = 2.0
     TRANSIT_KEY_LENGTH = SecretBox.KEY_SIZE
 
-    def __init__(self, transit_relay, no_listen=False, tor=None,
-                 reactor=reactor, timing=None):
-        self._side = bytes_to_hexstr(os.urandom(8)) # unicode
+    def __init__(self,
+                 transit_relay,
+                 no_listen=False,
+                 tor=None,
+                 reactor=reactor,
+                 timing=None):
+        self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
                 raise InternalError
             # TODO: allow multiple hints for a single relay
             relay_hint = parse_hint_argv(transit_relay)
-            relay = RelayV1Hint(hints=(relay_hint,))
+            relay = RelayV1Hint(hints=(relay_hint, ))
             self._transit_relays = [relay]
         else:
             self._transit_relays = []
-        self._their_direct_hints = [] # hintobjs
+        self._their_direct_hints = []  # hintobjs
         self._our_relay_hints = set(self._transit_relays)
         self._tor = tor
         self._transit_key = None
@@ -622,33 +662,42 @@ class Common:
             # some test hosts, including the appveyor VMs, *only* have
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
-        direct_hints = [DirectTCPV1Hint(six.u(addr), portnum, 0.0)
-                        for addr in addresses]
+        direct_hints = [
+            DirectTCPV1Hint(six.u(addr), portnum, 0.0) for addr in addresses
+        ]
         ep = endpoints.serverFromString(reactor, "tcp:%d" % portnum)
         return direct_hints, ep
 
     def get_connection_abilities(self):
-        return [{u"type": u"direct-tcp-v1"},
-                {u"type": u"relay-v1"},
-                ]
+        return [
+            {
+                u"type": u"direct-tcp-v1"
+            },
+            {
+                u"type": u"relay-v1"
+            },
+        ]
 
     @inlineCallbacks
     def get_connection_hints(self):
         hints = []
         direct_hints = yield self._get_direct_hints()
         for dh in direct_hints:
-            hints.append({u"type": u"direct-tcp-v1",
-                          u"priority": dh.priority,
-                          u"hostname": dh.hostname,
-                          u"port": dh.port, # integer
-                          })
+            hints.append({
+                u"type": u"direct-tcp-v1",
+                u"priority": dh.priority,
+                u"hostname": dh.hostname,
+                u"port": dh.port,  # integer
+            })
         for relay in self._transit_relays:
             rhint = {u"type": u"relay-v1", u"hints": []}
             for rh in relay.hints:
-                rhint[u"hints"].append({u"type": u"direct-tcp-v1",
-                                        u"priority": rh.priority,
-                                        u"hostname": rh.hostname,
-                                        u"port": rh.port})
+                rhint[u"hints"].append({
+                    u"type": u"direct-tcp-v1",
+                    u"priority": rh.priority,
+                    u"hostname": rh.hostname,
+                    u"port": rh.port
+                })
             hints.append(rhint)
         returnValue(hints)
 
@@ -665,24 +714,27 @@ class Common:
         # listener will win.
         self._my_direct_hints, self._listener = self._build_listener()
 
-        if self._listener is None: # don't listen
+        if self._listener is None:  # don't listen
             self._listener_d = None
-            return defer.succeed(self._my_direct_hints) # empty
+            return defer.succeed(self._my_direct_hints)  # empty
 
         # Start the server, so it will be running by the time anyone tries to
         # connect to the direct hints we return.
         f = InboundConnectionFactory(self)
-        self._listener_f = f # for tests # XX move to __init__ ?
+        self._listener_f = f  # for tests # XX move to __init__ ?
         self._listener_d = f.whenDone()
         d = self._listener.listen(f)
+
         def _listening(lp):
             # lp is an IListeningPort
-            #self._listener_port = lp # for tests
+            # self._listener_port = lp # for tests
             def _stop_listening(res):
                 lp.stopListening()
                 return res
+
             self._listener_d.addBoth(_stop_listening)
             return self._my_direct_hints
+
         d.addCallback(_listening)
         return d
 
@@ -694,18 +746,18 @@ class Common:
         self._listener_d.addErrback(lambda f: None)
         self._listener_d.cancel()
 
-    def _parse_tcp_v1_hint(self, hint): # hint_struct -> hint_obj
+    def _parse_tcp_v1_hint(self, hint):  # hint_struct -> hint_obj
         hint_type = hint.get(u"type", u"")
         if hint_type not in [u"direct-tcp-v1", u"tor-tcp-v1"]:
-            log.msg("unknown hint type: %r" % (hint,))
+            log.msg("unknown hint type: %r" % (hint, ))
             return None
-        if not(u"hostname" in hint
-               and isinstance(hint[u"hostname"], type(u""))):
-            log.msg("invalid hostname in hint: %r" % (hint,))
+        if not (u"hostname" in hint and
+                isinstance(hint[u"hostname"], type(u""))):
+            log.msg("invalid hostname in hint: %r" % (hint, ))
             return None
-        if not(u"port" in hint
-               and isinstance(hint[u"port"], six.integer_types)):
-            log.msg("invalid port in hint: %r" % (hint,))
+        if not (u"port" in hint and
+                isinstance(hint[u"port"], six.integer_types)):
+            log.msg("invalid port in hint: %r" % (hint, ))
             return None
         priority = hint.get(u"priority", 0.0)
         if hint_type == u"direct-tcp-v1":
@@ -714,12 +766,12 @@ class Common:
             return TorTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
 
     def add_connection_hints(self, hints):
-        for h in hints: # hint structs
+        for h in hints:  # hint structs
             hint_type = h.get(u"type", u"")
             if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
                 dh = self._parse_tcp_v1_hint(h)
                 if dh:
-                    self._their_direct_hints.append(dh) # hint_obj
+                    self._their_direct_hints.append(dh)  # hint_obj
             elif hint_type == u"relay-v1":
                 # TODO: each relay-v1 clause describes a different relay,
                 # with a set of equally-valid ways to connect to it. Treat
@@ -734,7 +786,7 @@ class Common:
                     rh = RelayV1Hint(hints=tuple(sorted(relay_hints)))
                     self._our_relay_hints.add(rh)
             else:
-                log.msg("unknown hint type: %r" % (h,))
+                log.msg("unknown hint type: %r" % (h, ))
 
     def _send_this(self):
         assert self._transit_key
@@ -748,25 +800,33 @@ class Common:
         if self.is_sender:
             return build_receiver_handshake(self._transit_key)
         else:
-            return build_sender_handshake(self._transit_key)# + b"go\n"
+            return build_sender_handshake(self._transit_key)  # + b"go\n"
 
     def _sender_record_key(self):
         assert self._transit_key
         if self.is_sender:
-            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
-                        CTXinfo=b"transit_record_sender_key")
+            return HKDF(
+                self._transit_key,
+                SecretBox.KEY_SIZE,
+                CTXinfo=b"transit_record_sender_key")
         else:
-            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
-                        CTXinfo=b"transit_record_receiver_key")
+            return HKDF(
+                self._transit_key,
+                SecretBox.KEY_SIZE,
+                CTXinfo=b"transit_record_receiver_key")
 
     def _receiver_record_key(self):
         assert self._transit_key
         if self.is_sender:
-            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
-                        CTXinfo=b"transit_record_receiver_key")
+            return HKDF(
+                self._transit_key,
+                SecretBox.KEY_SIZE,
+                CTXinfo=b"transit_record_receiver_key")
         else:
-            return HKDF(self._transit_key, SecretBox.KEY_SIZE,
-                        CTXinfo=b"transit_record_sender_key")
+            return HKDF(
+                self._transit_key,
+                SecretBox.KEY_SIZE,
+                CTXinfo=b"transit_record_sender_key")
 
     def set_transit_key(self, key):
         assert isinstance(key, type(b"")), type(key)
@@ -848,9 +908,13 @@ class Common:
                 description = "->relay:%s" % describe_hint_obj(hint_obj)
                 if self._tor:
                     description = "tor" + description
-                d = task.deferLater(self._reactor, relay_delay,
-                                    self._start_connector, ep, description,
-                                    is_relay=True)
+                d = task.deferLater(
+                    self._reactor,
+                    relay_delay,
+                    self._start_connector,
+                    ep,
+                    description,
+                    is_relay=True)
                 contenders.append(d)
             relay_delay += self.RELAY_DELAY
 
@@ -858,16 +922,18 @@ class Common:
             raise TransitError("No contenders for connection")
 
         winner = there_can_be_only_one(contenders)
-        return self._not_forever(2*TIMEOUT, winner)
+        return self._not_forever(2 * TIMEOUT, winner)
 
     def _not_forever(self, timeout, d):
         """If the timer fires first, cancel the deferred. If the deferred fires
         first, cancel the timer."""
         t = self._reactor.callLater(timeout, d.cancel)
+
         def _done(res):
             if t.active():
                 t.cancel()
             return res
+
         d.addBoth(_done)
         return d
 
@@ -896,8 +962,8 @@ class Common:
                     return None
             return None
         if isinstance(hint, DirectTCPV1Hint):
-            return endpoints.HostnameEndpoint(self._reactor,
-                                              hint.hostname, hint.port)
+            return endpoints.HostnameEndpoint(self._reactor, hint.hostname,
+                                              hint.port)
         return None
 
     def connection_ready(self, p):
@@ -915,8 +981,10 @@ class Common:
         self._winner = p
         return "go"
 
+
 class TransitSender(Common):
     is_sender = True
+
 
 class TransitReceiver(Common):
     is_sender = False
@@ -925,6 +993,7 @@ class TransitReceiver(Common):
 # based on twisted.protocols.ftp.FileConsumer, but don't close the filehandle
 # when done, and add a progress function that gets called with the length of
 # each write, and a hasher function that gets called with the data.
+
 
 @implementer(interfaces.IConsumer)
 class FileConsumer:
@@ -949,6 +1018,7 @@ class FileConsumer:
     def unregisterProducer(self):
         assert self._producer
         self._producer = None
+
 
 # the TransitSender/Receiver.connect() yields a Connection, on which you can
 # do send_record(), but what should the receive API be? set a callback for

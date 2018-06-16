@@ -1,14 +1,16 @@
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
+
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
 
 NoResult = object()
 
+
 class OneShotObserver(object):
     def __init__(self, eventual_queue):
         self._eq = eventual_queue
         self._result = NoResult
-        self._observers = [] # list of Deferreds
+        self._observers = []  # list of Deferreds
 
     def when_fired(self):
         d = Deferred()
@@ -37,6 +39,7 @@ class OneShotObserver(object):
     def fire_if_not_fired(self, result):
         if self._result is NoResult:
             self.fire(result)
+
 
 class SequenceObserver(object):
     def __init__(self, eventual_queue):
