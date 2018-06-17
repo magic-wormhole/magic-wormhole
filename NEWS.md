@@ -1,6 +1,26 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release ?? (??)
+
+* Support for Python-3.4 on Windows has been dropped. py3.4 is still
+  supported on unix-like operating systems.
+* The client version is now sent to the mailbox server for each connection. I
+  strive to have the client share as little information as possible, but I
+  think this will help me improve the protocol by giving me a better idea of
+  client-upgrade adoption rates. (#293)
+
+Packaging changes:
+
+* We removed the Rendezvous Server (now named the "Mailbox Server") out to a
+  separate package and repository named `magic-wormhole-mailbox-server`. We
+  still import it for tests. Use `pip install magic-wormhole-mailbox-server`
+  to run your own server. (#240)
+* The code is now formatted to be PEP8 compliant. (#296)
+* The Dockerfile was removed: after the Mailbox Server was moved out, I don't
+  think it was relevant. (#295)
+
+
 ## Release 0.10.5 (14-Feb-2018)
 
 * Upgrade to newer python-spake2, to improve startup speed by not computing
