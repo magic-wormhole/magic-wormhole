@@ -39,19 +39,27 @@ from .roles import FOLLOWER
 # states). For the specific question of sending plaintext frames, Noise will
 # refuse us unless it's ready anyways, so the question is probably moot.
 
+
 class IFramer(Interface):
     pass
+
+
 class IRecord(Interface):
     pass
+
 
 def first(l):
     return l[0]
 
+
 class Disconnect(Exception):
     pass
+
+
 RelayOK = namedtuple("RelayOk", [])
 Prologue = namedtuple("Prologue", [])
 Frame = namedtuple("Frame", ["frame"])
+
 
 @attrs
 @implementer(IFramer)
@@ -69,30 +77,37 @@ class _Framer(object):
     # out (shared): transport.write (relay handshake, prologue)
     # states: want_relay, want_prologue, want_frame
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
 
     @m.state()
-    def want_relay(self): pass # pragma: no cover
+    def want_relay(self): pass  # pragma: no cover
+
     @m.state(initial=True)
-    def want_prologue(self): pass # pragma: no cover
+    def want_prologue(self): pass  # pragma: no cover
+
     @m.state()
-    def want_frame(self): pass # pragma: no cover
+    def want_frame(self): pass  # pragma: no cover
 
     @m.input()
     def use_relay(self, relay_handshake): pass
+
     @m.input()
     def connectionMade(self): pass
+
     @m.input()
     def parse(self): pass
+
     @m.input()
     def got_relay_ok(self): pass
+
     @m.input()
     def got_prologue(self): pass
 
     @m.output()
     def store_relay_handshake(self, relay_handshake):
         self._outbound_relay_handshake = relay_handshake
-        self._expected_relay_handshake = b"ok\n" # TODO: make this configurable
+        self._expected_relay_handshake = b"ok\n"  # TODO: make this configurable
+
     @m.output()
     def send_relay_handshake(self):
         self._transport.write(self._outbound_relay_handshake)
@@ -113,17 +128,17 @@ class _Framer(object):
 
     @m.output()
     def can_send_frames(self):
-        self._can_send_frames = True # for assertion in send_frame()
+        self._can_send_frames = True  # for assertion in send_frame()
 
     @m.output()
     def parse_frame(self):
         if len(self._buffer) < 4:
             return None
         frame_length = from_be4(self._buffer[0:4])
-        if len(self._buffer) < 4+frame_length:
+        if len(self._buffer) < 4 + frame_length:
             return None
-        frame = self._buffer[4:4+frame_length]
-        self._buffer = self._buffer[4+frame_length:] # TODO: avoid copy
+        frame = self._buffer[4:4 + frame_length]
+        self._buffer = self._buffer[4 + frame_length:]  # TODO: avoid copy
         return Frame(frame=frame)
 
     want_prologue.upon(use_relay, outputs=[store_relay_handshake],
@@ -144,7 +159,6 @@ class _Framer(object):
     want_frame.upon(parse, outputs=[parse_frame], enter=want_frame,
                     collector=first)
 
-
     def _get_expected(self, name, expected):
         lb = len(self._buffer)
         le = len(expected)
@@ -161,7 +175,7 @@ class _Framer(object):
             if (b"\n" in self._buffer or lb >= le):
                 log.msg("bad {}: {}".format(name, self._buffer[:le]))
                 raise Disconnect()
-            return False # wait a bit longer
+            return False  # wait a bit longer
         # good so far, just waiting for the rest
         return False
 
@@ -181,7 +195,7 @@ class _Framer(object):
                 self.got_relay_ok()
             elif isinstance(token, Prologue):
                 self.got_prologue()
-                yield token # triggers send_handshake
+                yield token  # triggers send_handshake
             elif isinstance(token, Frame):
                 yield token
             else:
@@ -202,15 +216,16 @@ class _Framer(object):
 #      from peer. Sent immediately by Follower, after Selection by Leader.
 # Record: namedtuple of KCM/Open/Data/Close/Ack/Ping/Pong
 
+
 Handshake = namedtuple("Handshake", [])
 # decrypted frames: produces KCM, Ping, Pong, Open, Data, Close, Ack
 KCM = namedtuple("KCM", [])
-Ping = namedtuple("Ping", ["ping_id"]) # ping_id is arbitrary 4-byte value
+Ping = namedtuple("Ping", ["ping_id"])  # ping_id is arbitrary 4-byte value
 Pong = namedtuple("Pong", ["ping_id"])
-Open = namedtuple("Open", ["seqnum", "scid"]) # seqnum is integer
+Open = namedtuple("Open", ["seqnum", "scid"])  # seqnum is integer
 Data = namedtuple("Data", ["seqnum", "scid", "data"])
-Close = namedtuple("Close", ["seqnum", "scid"]) # scid is integer
-Ack = namedtuple("Ack", ["resp_seqnum"]) # resp_seqnum is integer
+Close = namedtuple("Close", ["seqnum", "scid"])  # scid is integer
+Ack = namedtuple("Ack", ["resp_seqnum"])  # resp_seqnum is integer
 Records = (KCM, Ping, Pong, Open, Data, Close, Ack)
 Handshake_or_Records = (Handshake,) + Records
 
@@ -221,6 +236,7 @@ T_OPEN = b"\x03"
 T_DATA = b"\x04"
 T_CLOSE = b"\x05"
 T_ACK = b"\x06"
+
 
 def parse_record(plaintext):
     msgtype = plaintext[0:1]
@@ -251,6 +267,7 @@ def parse_record(plaintext):
     log.err("received unknown message type: {}".format(plaintext))
     raise ValueError()
 
+
 def encode_record(r):
     if isinstance(r, KCM):
         return b"\x00"
@@ -275,6 +292,7 @@ def encode_record(r):
         return b"\x06" + to_be4(r.resp_seqnum)
     raise TypeError(r)
 
+
 @attrs
 @implementer(IRecord)
 class _Record(object):
@@ -294,22 +312,25 @@ class _Record(object):
     # states: want_prologue, want_handshake, want_record
 
     @n.state(initial=True)
-    def want_prologue(self): pass # pragma: no cover
+    def want_prologue(self): pass  # pragma: no cover
+
     @n.state()
-    def want_handshake(self): pass # pragma: no cover
+    def want_handshake(self): pass  # pragma: no cover
+
     @n.state()
-    def want_message(self): pass # pragma: no cover
+    def want_message(self): pass  # pragma: no cover
 
     @n.input()
     def got_prologue(self):
         pass
+
     @n.input()
     def got_frame(self, frame):
         pass
 
     @n.output()
     def send_handshake(self):
-        handshake = self._noise.write_message() # generate the ephemeral key
+        handshake = self._noise.write_message()  # generate the ephemeral key
         self._framer.send_frame(handshake)
 
     @n.output()
@@ -351,10 +372,10 @@ class _Record(object):
     def add_and_unframe(self, data):
         for token in self._framer.add_and_parse(data):
             if isinstance(token, Prologue):
-                self.got_prologue() # triggers send_handshake
+                self.got_prologue()  # triggers send_handshake
             else:
                 assert isinstance(token, Frame)
-                yield self.got_frame(token.frame) # Handshake or a Record type
+                yield self.got_frame(token.frame)  # Handshake or a Record type
 
     def send_record(self, r):
         message = encode_record(r)
@@ -388,26 +409,30 @@ class DilatedConnectionProtocol(Protocol, object):
     _relay_handshake = None
 
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
-        self._manager = None # set if/when we are selected
+        self._manager = None  # set if/when we are selected
         self._disconnected = OneShotObserver(self._eventual_queue)
         self._can_send_records = False
 
     @m.state(initial=True)
-    def unselected(self): pass # pragma: no cover
+    def unselected(self): pass  # pragma: no cover
+
     @m.state()
-    def selecting(self): pass # pragma: no cover
+    def selecting(self): pass  # pragma: no cover
+
     @m.state()
-    def selected(self): pass # pragma: no cover
+    def selected(self): pass  # pragma: no cover
 
     @m.input()
     def got_kcm(self):
         pass
+
     @m.input()
     def select(self, manager):
-        pass # fires set_manager()
+        pass  # fires set_manager()
+
     @m.input()
     def got_record(self, record):
         pass
@@ -472,9 +497,9 @@ class DilatedConnectionProtocol(Protocol, object):
                 elif isinstance(token, KCM):
                     # if we're the leader, add this connection as a candiate.
                     # if we're the follower, accept this connection.
-                    self.got_kcm() # connector.add_candidate()
+                    self.got_kcm()  # connector.add_candidate()
                 else:
-                    self.got_record(token) # manager.got_record()
+                    self.got_record(token)  # manager.got_record()
         except Disconnect:
             self.transport.loseConnection()
 

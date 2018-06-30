@@ -168,9 +168,9 @@ class Outbound(object):
         self._queued_unsent = deque()
 
         # outbound flow control: the Connection throttles our writes
-        self._subchannel_producers = {} # Subchannel -> IProducer
-        self._paused = True # our Connection called our pauseProducing
-        self._all_producers = deque() # rotates, left-is-next
+        self._subchannel_producers = {}  # Subchannel -> IProducer
+        self._paused = True  # our Connection called our pauseProducing
+        self._all_producers = deque()  # rotates, left-is-next
         self._paused_producers = set()
         self._unpaused_producers = set()
         self._check_invariants()
@@ -186,7 +186,7 @@ class Outbound(object):
         seqnum = self._next_outbound_seqnum
         self._next_outbound_seqnum += 1
         r = record_type(seqnum, *args)
-        assert hasattr(r, "seqnum"), r # only Open/Data/Close
+        assert hasattr(r, "seqnum"), r  # only Open/Data/Close
         return r
 
     def queue_and_send_record(self, r):
@@ -203,7 +203,7 @@ class Outbound(object):
                 self._connection.send_record(r)
 
     def send_if_connected(self, r):
-        assert isinstance(r, (KCM, Ping, Pong, Ack)), r # nothing with seqnum
+        assert isinstance(r, (KCM, Ping, Pong, Ack)), r  # nothing with seqnum
         if self._connection:
             self._connection.send_record(r)
 
@@ -235,7 +235,7 @@ class Outbound(object):
             if self._paused:
                 # IPushProducers need to be paused immediately, before they
                 # speak
-                producer.pauseProducing() # you wake up sleeping
+                producer.pauseProducing()  # you wake up sleeping
         else:
             # our PullToPush adapter must be started, but if we're paused then
             # we tell it to pause before it gets a chance to write anything
@@ -265,7 +265,7 @@ class Outbound(object):
         assert not self._queued_unsent
         self._queued_unsent.extend(self._outbound_queue)
         # the connection can tell us to pause when we send too much data
-        c.registerProducer(self, True) # IPushProducer: pause+resume
+        c.registerProducer(self, True)  # IPushProducer: pause+resume
         # send our queued messages
         self.resumeProducing()
 
@@ -290,12 +290,12 @@ class Outbound(object):
         # Inbound is responsible for tracking the high watermark and deciding
         # whether to ignore inbound messages or not
 
-
     # IProducer: the active connection calls these because we used
     # c.registerProducer to ask for them
+
     def pauseProducing(self):
         if self._paused:
-            return # someone is confused and called us twice
+            return  # someone is confused and called us twice
         self._paused = True
         for p in self._all_producers:
             if p in self._unpaused_producers:
@@ -305,7 +305,7 @@ class Outbound(object):
 
     def resumeProducing(self):
         if not self._paused:
-            return # someone is confused and called us twice
+            return  # someone is confused and called us twice
         self._paused = False
 
         while not self._paused:
@@ -326,7 +326,7 @@ class Outbound(object):
             return None
         while True:
             p = self._all_producers[0]
-            self._all_producers.rotate(-1) # p moves to the end of the line
+            self._all_producers.rotate(-1)  # p moves to the end of the line
             # the only unpaused Producers are at the end of the list
             assert p in self._paused_producers
             return p
@@ -343,7 +343,7 @@ class Outbound(object):
 @attrs(cmp=False)
 class PullToPush(object):
     _producer = attrib(validator=provides(IPullProducer))
-    _unregister = attrib(validator=lambda _a,_b,v: callable(v))
+    _unregister = attrib(validator=lambda _a, _b, v: callable(v))
     _cooperator = attrib()
     _finished = False
 
@@ -351,14 +351,14 @@ class PullToPush(object):
         while True:
             try:
                 self._producer.resumeProducing()
-            except:
+            except Exception:
                 log.err(None, "%s failed, producing will be stopped:" %
                         (safe_str(self._producer),))
                 try:
                     self._unregister()
                     # The consumer should now call stopStreaming() on us,
                     # thus stopping the streaming.
-                except:
+                except Exception:
                     # Since the consumer blew up, we may not have had
                     # stopStreaming() called, so we just stop on our own:
                     log.err(None, "%s failed to unregister producer:" %
@@ -370,7 +370,7 @@ class PullToPush(object):
     def startStreaming(self, paused):
         self._coopTask = self._cooperator.cooperate(self._pull())
         if paused:
-            self.pauseProducing() # timer is scheduled, but task is removed
+            self.pauseProducing()  # timer is scheduled, but task is removed
 
     def stopStreaming(self):
         if self._finished:
@@ -378,14 +378,11 @@ class PullToPush(object):
         self._finished = True
         self._coopTask.stop()
 
-
     def pauseProducing(self):
         self._coopTask.pause()
 
-
     def resumeProducing(self):
         self._coopTask.resume()
-
 
     def stopProducing(self):
         self.stopStreaming()

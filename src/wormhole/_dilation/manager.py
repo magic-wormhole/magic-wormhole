@@ -20,12 +20,18 @@ from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
 
+
 class OldPeerCannotDilateError(Exception):
     pass
+
+
 class UnknownDilationMessageType(Exception):
     pass
+
+
 class ReceivedHintsTooEarly(Exception):
     pass
+
 
 @attrs
 @implementer(IDilationManager)
@@ -37,14 +43,14 @@ class _ManagerBase(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
-    _no_listen = False # TODO
-    _tor = None # TODO
-    _timing = None # TODO
+    _no_listen = False  # TODO
+    _tor = None  # TODO
+    _timing = None  # TODO
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
 
-        self._my_role = None # determined upon rx_PLEASE
+        self._my_role = None  # determined upon rx_PLEASE
 
         self._connection = None
         self._made_first_connection = False
@@ -53,51 +59,56 @@ class _ManagerBase(object):
 
         self._next_dilation_phase = 0
 
-        self._next_subchannel_id = 0 # increments by 2
+        self._next_subchannel_id = 0  # increments by 2
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
         # outbound data (with flow-control going "in"), so I split them up
         # into separate pieces.
         self._inbound = Inbound(self, self._host_addr)
-        self._outbound = Outbound(self, self._cooperator) # from us to peer
+        self._outbound = Outbound(self, self._cooperator)  # from us to peer
 
     def set_listener_endpoint(self, listener_endpoint):
         self._inbound.set_listener_endpoint(listener_endpoint)
+
     def set_subchannel_zero(self, scid0, sc0):
         self._inbound.set_subchannel_zero(scid0, sc0)
 
     def when_first_connected(self):
         return self._first_connected.when_fired()
 
-
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
         self._next_dilation_phase += 1
         self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
 
-    def send_hints(self, hints): # from Connector
+    def send_hints(self, hints):  # from Connector
         self.send_dilation_phase(type="connection-hints", hints=hints)
 
-
     # forward inbound-ish things to _Inbound
+
     def subchannel_pauseProducing(self, sc):
         self._inbound.subchannel_pauseProducing(sc)
+
     def subchannel_resumeProducing(self, sc):
         self._inbound.subchannel_resumeProducing(sc)
+
     def subchannel_stopProducing(self, sc):
         self._inbound.subchannel_stopProducing(sc)
 
     # forward outbound-ish things to _Outbound
     def subchannel_registerProducer(self, sc, producer, streaming):
         self._outbound.subchannel_registerProducer(sc, producer, streaming)
+
     def subchannel_unregisterProducer(self, sc):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
         self._queue_and_send(Open, scid)
+
     def send_data(self, scid, data):
         self._queue_and_send(Data, scid, data)
+
     def send_close(self, scid):
         self._queue_and_send(Close, scid)
 
@@ -106,7 +117,7 @@ class _ManagerBase(object):
         # Outbound owns the send_record() pipe, so that it can stall new
         # writes after a new connection is made until after all queued
         # messages are written (to preserve ordering).
-        self._outbound.queue_and_send_record(r) # may trigger pauseProducing
+        self._outbound.queue_and_send_record(r)  # may trigger pauseProducing
 
     def subchannel_closed(self, scid, sc):
         # let everyone clean up. This happens just after we delivered
@@ -116,7 +127,6 @@ class _ManagerBase(object):
         self._inbound.subchannel_closed(scid, sc)
         self._outbound.subchannel_closed(scid, sc)
 
-
     def _start_connecting(self, role):
         assert self._my_role is not None
         self._connector = Connector(self._transit_key,
@@ -125,41 +135,41 @@ class _ManagerBase(object):
                                     self._reactor, self._eventual_queue,
                                     self._no_listen, self._tor,
                                     self._timing,
-                                    self._side, # needed for relay handshake
+                                    self._side,  # needed for relay handshake
                                     self._my_role)
         self._connector.start()
 
     # our Connector calls these
 
     def connector_connection_made(self, c):
-        self.connection_made() # state machine update
+        self.connection_made()  # state machine update
         self._connection = c
         self._inbound.use_connection(c)
-        self._outbound.use_connection(c) # does c.registerProducer
+        self._outbound.use_connection(c)  # does c.registerProducer
         if not self._made_first_connection:
             self._made_first_connection = True
             self._first_connected.fire(None)
         pass
+
     def connector_connection_lost(self):
         self._stop_using_connection()
         if self.role is LEADER:
-            self.connection_lost_leader() # state machine
+            self.connection_lost_leader()  # state machine
         else:
             self.connection_lost_follower()
-
 
     def _stop_using_connection(self):
         # the connection is already lost by this point
         self._connection = None
         self._inbound.stop_using_connection()
-        self._outbound.stop_using_connection() # does c.unregisterProducer
+        self._outbound.stop_using_connection()  # does c.unregisterProducer
 
     # from our active Connection
 
     def got_record(self, r):
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
-            self.send_ack(r.seqnum) # always ack, even for old ones
+            self.send_ack(r.seqnum)  # always ack, even for old ones
             if self._inbound.is_record_old(r):
                 return
             self._inbound.update_ack_watermark(r.seqnum)
@@ -167,7 +177,7 @@ class _ManagerBase(object):
                 self._inbound.handle_open(r.scid)
             elif isinstance(r, Data):
                 self._inbound.handle_data(r.scid, r.data)
-            else: # isinstance(r, Close)
+            else:  # isinstance(r, Close)
                 self._inbound.handle_close(r.scid)
         if isinstance(r, KCM):
             log.err("got unexpected KCM")
@@ -176,7 +186,7 @@ class _ManagerBase(object):
         elif isinstance(r, Pong):
             self.handle_pong(r.ping_id)
         elif isinstance(r, Ack):
-            self._outbound.handle_ack(r.resp_seqnum) # retire queued messages
+            self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
             log.err("received unknown message type {}".format(r))
 
@@ -190,7 +200,6 @@ class _ManagerBase(object):
     def send_ack(self, resp_seqnum):
         self._outbound.send_if_connected(Ack(resp_seqnum))
 
-
     def handle_ping(self, ping_id):
         self.send_pong(ping_id)
 
@@ -200,7 +209,7 @@ class _ManagerBase(object):
 
     # subchannel maintenance
     def allocate_subchannel_id(self):
-        raise NotImplemented # subclass knows if we're leader or follower
+        raise NotImplementedError  # subclass knows if we're leader or follower
 
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
@@ -236,58 +245,91 @@ class _ManagerBase(object):
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
 
+
 class ManagerShared(_ManagerBase):
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
 
     @m.state(initial=True)
-    def IDLE(self): pass # pragma: no cover
+    def IDLE(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def WANTING(self): pass # pragma: no cover
+    def WANTING(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def WANTED(self): pass # pragma: no cover
+    def WANTED(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def CONNECTING(self): pass # pragma: no cover
+    def CONNECTING(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def CONNECTED(self): pass # pragma: no cover
+    def CONNECTED(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def FLUSHING(self): pass # pragma: no cover
+    def FLUSHING(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def ABANDONING(self): pass # pragma: no cover
+    def ABANDONING(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def LONELY(self): pass # pragme: no cover
+    def LONELY(self):
+        pass  # pragme: no cover
+
     @m.state()
-    def STOPPING(self): pass # pragma: no cover
+    def STOPPING(self):
+        pass  # pragma: no cover
+
     @m.state(terminal=True)
-    def STOPPED(self): pass # pragma: no cover
+    def STOPPED(self):
+        pass  # pragma: no cover
 
     @m.input()
-    def start(self): pass # pragma: no cover
+    def start(self):
+        pass  # pragma: no cover
+
     @m.input()
-    def rx_PLEASE(self, message): pass # pragma: no cover
-    @m.input() # only sent by Follower
-    def rx_HINTS(self, hint_message): pass # pragma: no cover
-    @m.input() # only Leader sends RECONNECT, so only Follower receives it
-    def rx_RECONNECT(self): pass # pragma: no cover
-    @m.input() # only Follower sends RECONNECTING, so only Leader receives it
-    def rx_RECONNECTING(self): pass # pragma: no cover
+    def rx_PLEASE(self, message):
+        pass  # pragma: no cover
+
+    @m.input()  # only sent by Follower
+    def rx_HINTS(self, hint_message):
+        pass  # pragma: no cover
+
+    @m.input()  # only Leader sends RECONNECT, so only Follower receives it
+    def rx_RECONNECT(self):
+        pass  # pragma: no cover
+
+    @m.input()  # only Follower sends RECONNECTING, so only Leader receives it
+    def rx_RECONNECTING(self):
+        pass  # pragma: no cover
 
     # Connector gives us connection_made()
     @m.input()
-    def connection_made(self, c): pass # pragma: no cover
+    def connection_made(self, c):
+        pass  # pragma: no cover
 
     # our connection_lost() fires connection_lost_leader or
     # connection_lost_follower depending upon our role. If either side sees a
     # problem with the connection (timeouts, bad authentication) then they
     # just drop it and let connection_lost() handle the cleanup.
     @m.input()
-    def connection_lost_leader(self): pass # pragma: no cover
-    @m.input()
-    def connection_lost_follower(self): pass
+    def connection_lost_leader(self):
+        pass  # pragma: no cover
 
     @m.input()
-    def stop(self): pass # pragma: no cover
+    def connection_lost_follower(self):
+        pass
+
+    @m.input()
+    def stop(self):
+        pass  # pragma: no cover
 
     @m.output()
     def stash_side(self, message):
@@ -301,38 +343,42 @@ class ManagerShared(_ManagerBase):
 
     @m.output()
     def start_connecting(self):
-        self._start_connecting() # TODO: merge
+        self._start_connecting()  # TODO: merge
+
     @m.output()
     def ignore_message_start_connecting(self, message):
         self.start_connecting()
 
     @m.output()
     def send_reconnect(self):
-        self.send_dilation_phase(type="reconnect") # TODO: generation number?
+        self.send_dilation_phase(type="reconnect")  # TODO: generation number?
+
     @m.output()
     def send_reconnecting(self):
-        self.send_dilation_phase(type="reconnecting") # TODO: generation?
+        self.send_dilation_phase(type="reconnecting")  # TODO: generation?
 
     @m.output()
     def use_hints(self, hint_message):
-        hint_objs = filter(lambda h: h, # ignore None, unrecognizable
+        hint_objs = filter(lambda h: h,  # ignore None, unrecognizable
                            [parse_hint(hs) for hs in hint_message["hints"]])
         hint_objs = list(hint_objs)
         self._connector.got_hints(hint_objs)
+
     @m.output()
     def stop_connecting(self):
         self._connector.stop()
+
     @m.output()
     def abandon_connection(self):
         # we think we're still connected, but the Leader disagrees. Or we've
         # been told to shut down.
-        self._connection.disconnect() # let connection_lost do cleanup
-
+        self._connection.disconnect()  # let connection_lost do cleanup
 
     # we don't start CONNECTING until a local start() plus rx_PLEASE
     IDLE.upon(rx_PLEASE, enter=WANTED, outputs=[stash_side])
     IDLE.upon(start, enter=WANTING, outputs=[send_please])
-    WANTED.upon(start, enter=CONNECTING, outputs=[send_please, start_connecting])
+    WANTED.upon(start, enter=CONNECTING, outputs=[
+                send_please, start_connecting])
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
                  outputs=[stash_side,
                           ignore_message_start_connecting])
@@ -342,7 +388,8 @@ class ManagerShared(_ManagerBase):
     # Leader
     CONNECTED.upon(connection_lost_leader, enter=FLUSHING,
                    outputs=[send_reconnect])
-    FLUSHING.upon(rx_RECONNECTING, enter=CONNECTING, outputs=[start_connecting])
+    FLUSHING.upon(rx_RECONNECTING, enter=CONNECTING,
+                  outputs=[start_connecting])
 
     # Follower
     # if we notice a lost connection, just wait for the Leader to notice too
@@ -350,7 +397,7 @@ class ManagerShared(_ManagerBase):
     LONELY.upon(rx_RECONNECT, enter=CONNECTING, outputs=[start_connecting])
     # but if they notice it first, abandon our (seemingly functional)
     # connection, then tell them that we're ready to try again
-    CONNECTED.upon(rx_RECONNECT, enter=ABANDONING, # they noticed loss
+    CONNECTED.upon(rx_RECONNECT, enter=ABANDONING,  # they noticed loss
                    outputs=[abandon_connection])
     ABANDONING.upon(connection_lost_follower, enter=CONNECTING,
                     outputs=[send_reconnecting, start_connecting])
@@ -362,16 +409,15 @@ class ManagerShared(_ManagerBase):
                              send_reconnecting,
                              start_connecting])
 
-
     # rx_HINTS never changes state, they're just accepted or ignored
-    IDLE.upon(rx_HINTS, enter=IDLE, outputs=[]) # too early
-    WANTED.upon(rx_HINTS, enter=WANTED, outputs=[]) # too early
-    WANTING.upon(rx_HINTS, enter=WANTING, outputs=[]) # too early
+    IDLE.upon(rx_HINTS, enter=IDLE, outputs=[])  # too early
+    WANTED.upon(rx_HINTS, enter=WANTED, outputs=[])  # too early
+    WANTING.upon(rx_HINTS, enter=WANTING, outputs=[])  # too early
     CONNECTING.upon(rx_HINTS, enter=CONNECTING, outputs=[use_hints])
-    CONNECTED.upon(rx_HINTS, enter=CONNECTED, outputs=[]) # too late, ignore
-    FLUSHING.upon(rx_HINTS, enter=FLUSHING, outputs=[]) # stale, ignore
-    LONELY.upon(rx_HINTS, enter=LONELY, outputs=[]) # stale, ignore
-    ABANDONING.upon(rx_HINTS, enter=ABANDONING, outputs=[]) # shouldn't happen
+    CONNECTED.upon(rx_HINTS, enter=CONNECTED, outputs=[])  # too late, ignore
+    FLUSHING.upon(rx_HINTS, enter=FLUSHING, outputs=[])  # stale, ignore
+    LONELY.upon(rx_HINTS, enter=LONELY, outputs=[])  # stale, ignore
+    ABANDONING.upon(rx_HINTS, enter=ABANDONING, outputs=[])  # shouldn't happen
     STOPPING.upon(rx_HINTS, enter=STOPPING, outputs=[])
 
     IDLE.upon(stop, enter=STOPPED, outputs=[])
@@ -385,13 +431,13 @@ class ManagerShared(_ManagerBase):
     STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[])
     STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[])
 
-
     def allocate_subchannel_id(self):
         # scid 0 is reserved for the control channel. the leader uses odd
         # numbers starting with 1
         scid_num = self._next_outbound_seqnum + 1
         self._next_outbound_seqnum += 2
         return to_be4(scid_num)
+
 
 @attrs
 @implementer(IDilator)
@@ -436,10 +482,10 @@ class Dilator(object):
 
         dilation_version = yield self._got_versions_d
 
-        if not dilation_version: # 1 or None
+        if not dilation_version:  # 1 or None
             raise OldPeerCannotDilateError()
 
-        my_dilation_side = TODO # random
+        my_dilation_side = TODO  # random
         self._manager = Manager(self._S, my_dilation_side,
                                 self._transit_key,
                                 self._transit_relay_location,
@@ -455,14 +501,15 @@ class Dilator(object):
         yield self._manager.when_first_connected()
         # we can open subchannels as soon as we get our first connection
         scid0 = b"\x00\x00\x00\x00"
-        self._host_addr = _WormholeAddress() # TODO: share with Manager
+        self._host_addr = _WormholeAddress()  # TODO: share with Manager
         peer_addr0 = _SubchannelAddress(scid0)
         control_ep = ControlEndpoint(peer_addr0)
         sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
         control_ep._subchannel_zero_opened(sc0)
         self._manager.set_subchannel_zero(scid0, sc0)
 
-        connect_ep = SubchannelConnectorEndpoint(self._manager, self._host_addr)
+        connect_ep = SubchannelConnectorEndpoint(
+            self._manager, self._host_addr)
 
         listen_ep = SubchannelListenerEndpoint(self._manager, self._host_addr)
         self._manager.set_listener_endpoint(listen_ep)
@@ -476,7 +523,7 @@ class Dilator(object):
         # TODO: verify this happens before got_wormhole_versions, or add a gate
         # to tolerate either ordering
         purpose = b"dilation-v1"
-        LENGTH =32 # TODO: whatever Noise wants, I guess
+        LENGTH = 32  # TODO: whatever Noise wants, I guess
         self._transit_key = derive_key(key, purpose, LENGTH)
 
     def got_wormhole_versions(self, our_side, their_side,
@@ -504,9 +551,9 @@ class Dilator(object):
         message = bytes_to_dict(plaintext)
         type = message["type"]
         if type == "please":
-            self._manager.rx_PLEASE() # message)
+            self._manager.rx_PLEASE()  # message)
         elif type == "dilate":
-            self._manager.rx_DILATE() #message)
+            self._manager.rx_DILATE()  # message)
         elif type == "connection-hints":
             self._manager.rx_HINTS(message)
         else:

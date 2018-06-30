@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals
-import sys, re
+import sys
+import re
 from collections import defaultdict, namedtuple
 from binascii import hexlify
 import six
@@ -13,7 +14,7 @@ from twisted.internet.endpoints import HostnameEndpoint, serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.python import log
 from hkdf import Hkdf
-from .. import ipaddrs # TODO: move into _dilation/
+from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
 from ..timing import DebugTiming
 from ..observer import EmptyableSet
@@ -30,13 +31,15 @@ from .roles import LEADER
 # * expect to see the receiver/sender handshake bytes from the other side
 # * the sender writes "go\n", the receiver waits for "go\n"
 # * the rest of the connection contains transit data
-DirectTCPV1Hint = namedtuple("DirectTCPV1Hint", ["hostname", "port", "priority"])
+DirectTCPV1Hint = namedtuple(
+    "DirectTCPV1Hint", ["hostname", "port", "priority"])
 TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
 # RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
 # use a tuple rather than a list so they'll be hashable into a set). For each
 # one, make the TCP connection, send the relay handshake, then complete the
 # rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
+
 
 def describe_hint_obj(hint, relay, tor):
     prefix = "tor->" if tor else "->"
@@ -45,9 +48,10 @@ def describe_hint_obj(hint, relay, tor):
     if isinstance(hint, DirectTCPV1Hint):
         return prefix + "tcp:%s:%d" % (hint.hostname, hint.port)
     elif isinstance(hint, TorTCPV1Hint):
-        return prefix+"tor:%s:%d" % (hint.hostname, hint.port)
+        return prefix + "tor:%s:%d" % (hint.hostname, hint.port)
     else:
-        return prefix+str(hint)
+        return prefix + str(hint)
+
 
 def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(""))
@@ -59,7 +63,8 @@ def parse_hint_argv(hint, stderr=sys.stderr):
         return None
     hint_type = mo.group(1)
     if hint_type != "tcp":
-        print("unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
+        print("unknown hint type '%s' in '%s'" % (hint_type, hint),
+              file=stderr)
         return None
     hint_value = mo.group(2)
     pieces = hint_value.split(":")
@@ -84,17 +89,18 @@ def parse_hint_argv(hint, stderr=sys.stderr):
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
 
-def parse_tcp_v1_hint(hint): # hint_struct -> hint_obj
+
+def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
     hint_type = hint.get("type", "")
     if hint_type not in ["direct-tcp-v1", "tor-tcp-v1"]:
         log.msg("unknown hint type: %r" % (hint,))
         return None
-    if not("hostname" in hint
-           and isinstance(hint["hostname"], type(""))):
+    if not("hostname" in hint and
+           isinstance(hint["hostname"], type(""))):
         log.msg("invalid hostname in hint: %r" % (hint,))
         return None
-    if not("port" in hint
-           and isinstance(hint["port"], six.integer_types)):
+    if not("port" in hint and
+           isinstance(hint["port"], six.integer_types)):
         log.msg("invalid port in hint: %r" % (hint,))
         return None
     priority = hint.get("priority", 0.0)
@@ -103,50 +109,57 @@ def parse_tcp_v1_hint(hint): # hint_struct -> hint_obj
     else:
         return TorTCPV1Hint(hint["hostname"], hint["port"], priority)
 
+
 def parse_hint(hint_struct):
     hint_type = hint_struct.get("type", "")
     if hint_type == "relay-v1":
         # the struct can include multiple ways to reach the same relay
-        rhints = filter(lambda h: h, # drop None (unrecognized)
+        rhints = filter(lambda h: h,  # drop None (unrecognized)
                         [parse_tcp_v1_hint(rh) for rh in hint_struct["hints"]])
         return RelayV1Hint(rhints)
     return parse_tcp_v1_hint(hint_struct)
+
 
 def encode_hint(h):
     if isinstance(h, DirectTCPV1Hint):
         return {"type": "direct-tcp-v1",
                 "priority": h.priority,
                 "hostname": h.hostname,
-                "port": h.port, # integer
+                "port": h.port,  # integer
                 }
     elif isinstance(h, RelayV1Hint):
         rhint = {"type": "relay-v1", "hints": []}
         for rh in h.hints:
             rhint["hints"].append({"type": "direct-tcp-v1",
-                                    "priority": rh.priority,
-                                    "hostname": rh.hostname,
-                                    "port": rh.port})
+                                   "priority": rh.priority,
+                                   "hostname": rh.hostname,
+                                   "port": rh.port})
         return rhint
     elif isinstance(h, TorTCPV1Hint):
         return {"type": "tor-tcp-v1",
                 "priority": h.priority,
                 "hostname": h.hostname,
-                "port": h.port, # integer
+                "port": h.port,  # integer
                 }
     raise ValueError("unknown hint type", h)
+
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
+
 def build_sided_relay_handshake(key, side):
     assert isinstance(side, type(u""))
-    assert len(side) == 8*2
+    assert len(side) == 8 * 2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
-    return b"please relay "+hexlify(token)+b" for side "+side.encode("ascii")+b"\n"
+    return (b"please relay " + hexlify(token) +
+            b" for side " + side.encode("ascii") + b"\n")
 
-PROLOGUE_LEADER   = b"Magic-Wormhole Dilation Handshake v1 Leader\n\n"
+
+PROLOGUE_LEADER = b"Magic-Wormhole Dilation Handshake v1 Leader\n\n"
 PROLOGUE_FOLLOWER = b"Magic-Wormhole Dilation Handshake v1 Follower\n\n"
 NOISEPROTO = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
+
 
 @attrs
 @implementer(IDilationConnector)
@@ -176,10 +189,11 @@ class Connector(object):
             self._transit_relays = [relay]
         else:
             self._transit_relays = []
-        self._listeners = set() # IListeningPorts that can be stopped
-        self._pending_connectors = set() # Deferreds that can be cancelled
-        self._pending_connections = EmptyableSet(_eventual_queue=self._eventual_queue) # Protocols to be stopped
-        self._contenders = set() # viable connections
+        self._listeners = set()  # IListeningPorts that can be stopped
+        self._pending_connectors = set()  # Deferreds that can be cancelled
+        self._pending_connections = EmptyableSet(
+            _eventual_queue=self._eventual_queue)  # Protocols to be stopped
+        self._contenders = set()  # viable connections
         self._winning_connection = None
         self._timing = self._timing or DebugTiming()
         self._timing.add("transit")
@@ -212,26 +226,41 @@ class Connector(object):
         return p
 
     @m.state(initial=True)
-    def connecting(self): pass # pragma: no cover
+    def connecting(self):
+        pass  # pragma: no cover
+
     @m.state()
-    def connected(self): pass # pragma: no cover
+    def connected(self):
+        pass  # pragma: no cover
+
     @m.state(terminal=True)
-    def stopped(self): pass # pragma: no cover
+    def stopped(self):
+        pass  # pragma: no cover
 
     # TODO: unify the tense of these method-name verbs
     @m.input()
-    def listener_ready(self, hint_objs): pass
-    @m.input()
-    def add_relay(self, hint_objs): pass
-    @m.input()
-    def got_hints(self, hint_objs): pass
-    @m.input()
-    def add_candidate(self, c): # called by DilatedConnectionProtocol
+    def listener_ready(self, hint_objs):
         pass
+
     @m.input()
-    def accept(self, c): pass
+    def add_relay(self, hint_objs):
+        pass
+
     @m.input()
-    def stop(self): pass
+    def got_hints(self, hint_objs):
+        pass
+
+    @m.input()
+    def add_candidate(self, c):  # called by DilatedConnectionProtocol
+        pass
+
+    @m.input()
+    def accept(self, c):
+        pass
+
+    @m.input()
+    def stop(self):
+        pass
 
     @m.output()
     def use_hints(self, hint_objs):
@@ -255,19 +284,19 @@ class Connector(object):
     @m.output()
     def select_and_stop_remaining(self, c):
         self._winning_connection = c
-        self._contenders.clear() # we no longer care who else came close
+        self._contenders.clear()  # we no longer care who else came close
         # remove this winner from the losers, so we don't shut it down
         self._pending_connections.discard(c)
         # shut down losing connections
-        self.stop_listeners() # TODO: maybe keep it open? NAT/p2p assist
+        self.stop_listeners()  # TODO: maybe keep it open? NAT/p2p assist
         self.stop_pending_connectors()
         self.stop_pending_connections()
 
-        c.select(self._manager) # subsequent frames go directly to the manager
+        c.select(self._manager)  # subsequent frames go directly to the manager
         if self._role is LEADER:
             # TODO: this should live in Connection
-            c.send_record(KCM()) # leader sends KCM now
-        self._manager.use_connection(c) # manager sends frames to Connection
+            c.send_record(KCM())  # leader sends KCM now
+        self._manager.use_connection(c)  # manager sends frames to Connection
 
     @m.output()
     def stop_everything(self):
@@ -279,7 +308,7 @@ class Connector(object):
     def stop_listeners(self):
         d = DeferredList([l.stopListening() for l in self._listeners])
         self._listeners.clear()
-        return d # synchronization for tests
+        return d  # synchronization for tests
 
     def stop_pending_connectors(self):
         return DeferredList([d.cancel() for d in self._pending_connectors])
@@ -306,7 +335,8 @@ class Connector(object):
                                                           publish_hints])
     connecting.upon(got_hints, enter=connecting, outputs=[use_hints])
     connecting.upon(add_candidate, enter=connecting, outputs=[consider])
-    connecting.upon(accept, enter=connected, outputs=[select_and_stop_remaining])
+    connecting.upon(accept, enter=connected, outputs=[
+                    select_and_stop_remaining])
     connecting.upon(stop, enter=stopped, outputs=[stop_everything])
 
     # once connected, we ignore everything except stop
@@ -317,9 +347,9 @@ class Connector(object):
     connected.upon(accept, enter=connected, outputs=[])
     connected.upon(stop, enter=stopped, outputs=[stop_everything])
 
-
     # from Manager: start, got_hints, stop
     # maybe add_candidate, accept
+
     def start(self):
         self._start_listener()
         if self._transit_relays:
@@ -341,9 +371,10 @@ class Connector(object):
         ep = serverFromString(self._reactor, "tcp:0")
         f = InboundConnectionFactory(self)
         d = ep.listen(f)
+
         def _listening(lp):
             # lp is an IListeningPort
-            self._listeners.add(lp) # for shutdown and tests
+            self._listeners.add(lp)  # for shutdown and tests
             portnum = lp.getHost().port
             direct_hints = [DirectTCPV1Hint(six.u(addr), portnum, 0.0)
                             for addr in addresses]
@@ -378,7 +409,7 @@ class Connector(object):
                 # one still running. But if we bail on that, we might consider
                 # putting an inter-direct-hint delay here to influence the
                 # process.
-                #delay += 1.0
+                # delay += 1.0
         if delay > 0.0:
             # Start trying the relays a few seconds after we start to try the
             # direct hints. The idea is to prefer direct connections, but not
@@ -408,7 +439,7 @@ class Connector(object):
                                    self._connect, ep, desc, is_relay=True)
                     self._pending_connectors.add(d)
         # TODO:
-        #if not contenders:
+        # if not contenders:
         #    raise TransitError("No contenders for connection")
 
     # TODO: add 2*TIMEOUT deadline for first generation, don't wait forever for
@@ -422,6 +453,7 @@ class Connector(object):
         f = OutboundConnectionFactory(self, relay_handshake)
         d = ep.connect(f)
         # fires with protocol, or ConnectError
+
         def _connected(p):
             self._pending_connections.add(p)
             # c might not be in _pending_connections, if it turned out to be a
@@ -444,7 +476,6 @@ class Connector(object):
             return HostnameEndpoint(self._reactor, hint.hostname, hint.port)
         return None
 
-
     # Connection selection. All instances of DilatedConnectionProtocol which
     # look viable get passed into our add_contender() method.
 
@@ -459,6 +490,7 @@ class Connector(object):
 
     # our Connection protocols call: add_candidate
 
+
 @attrs
 class OutboundConnectionFactory(ClientFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
@@ -470,6 +502,7 @@ class OutboundConnectionFactory(ClientFactory, object):
         if self._relay_handshake is not None:
             p.use_relay(self._relay_handshake)
         return p
+
 
 @attrs
 class InboundConnectionFactory(ServerFactory, object):

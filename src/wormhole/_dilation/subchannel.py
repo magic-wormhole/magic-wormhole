@@ -1,7 +1,8 @@
 from attr import attrs, attrib
 from attr.validators import instance_of, provides
 from zope.interface import implementer
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue, succeed
+from twisted.internet.defer import (Deferred, inlineCallbacks, returnValue,
+                                    succeed)
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IStreamClientEndpoint,
@@ -10,9 +11,11 @@ from twisted.internet.error import ConnectionDone
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 
+
 @attrs
 class Once(object):
     _errtype = attrib()
+
     def __attrs_post_init__(self):
         self._called = False
 
@@ -20,6 +23,7 @@ class Once(object):
         if self._called:
             raise self._errtype()
         self._called = True
+
 
 class SingleUseEndpointError(Exception):
     pass
@@ -38,12 +42,15 @@ class SingleUseEndpointError(Exception):
 # (CLOSING) rx CLOSE: deliver .connectionLost(), -> (CLOSED)
 # object is deleted upon transition to (CLOSED)
 
+
 class AlreadyClosedError(Exception):
     pass
+
 
 @implementer(IAddress)
 class _WormholeAddress(object):
     pass
+
 
 @implementer(IAddress)
 @attrs
@@ -63,35 +70,44 @@ class SubChannel(object):
     _peer_addr = attrib(validator=instance_of(_SubchannelAddress))
 
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None) # pragma: no cover
+    set_trace = getattr(m, "_setTrace", lambda self,
+                        f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
-        #self._mailbox = None
-        #self._pending_outbound = {}
-        #self._processed = set()
+        # self._mailbox = None
+        # self._pending_outbound = {}
+        # self._processed = set()
         self._protocol = None
         self._pending_dataReceived = []
         self._pending_connectionLost = (False, None)
 
     @m.state(initial=True)
-    def open(self): pass # pragma: no cover
+    def open(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def closing(): pass # pragma: no cover
+    def closing():
+        pass  # pragma: no cover
 
     @m.state()
-    def closed(): pass # pragma: no cover
+    def closed():
+        pass  # pragma: no cover
 
     @m.input()
-    def remote_data(self, data): pass
-    @m.input()
-    def remote_close(self): pass
+    def remote_data(self, data):
+        pass
 
     @m.input()
-    def local_data(self, data): pass
-    @m.input()
-    def local_close(self): pass
+    def remote_close(self):
+        pass
 
+    @m.input()
+    def local_data(self, data):
+        pass
+
+    @m.input()
+    def local_close(self):
+        pass
 
     @m.output()
     def send_data(self, data):
@@ -120,9 +136,11 @@ class SubChannel(object):
     @m.output()
     def error_closed_write(self, data):
         raise AlreadyClosedError("write not allowed on closed subchannel")
+
     @m.output()
     def error_closed_close(self):
-        raise AlreadyClosedError("loseConnection not allowed on closed subchannel")
+        raise AlreadyClosedError(
+            "loseConnection not allowed on closed subchannel")
 
     # primary transitions
     open.upon(remote_data, enter=open, outputs=[signal_dataReceived])
@@ -146,7 +164,7 @@ class SubChannel(object):
         if self._pending_dataReceived:
             for data in self._pending_dataReceived:
                 self._protocol.dataReceived(data)
-            self._pending_dataReceived =  []
+            self._pending_dataReceived = []
         cl, what = self._pending_connectionLost
         if cl:
             self._protocol.connectionLost(what)
@@ -155,13 +173,17 @@ class SubChannel(object):
     def write(self, data):
         assert isinstance(data, type(b""))
         self.local_data(data)
+
     def writeSequence(self, iovec):
         self.write(b"".join(iovec))
+
     def loseConnection(self):
         self.local_close()
+
     def getHost(self):
         # we define "host addr" as the overall wormhole
         return self._host_addr
+
     def getPeer(self):
         # and "peer addr" as the subchannel within that wormhole
         return self._peer_addr
@@ -169,14 +191,17 @@ class SubChannel(object):
     # IProducer: throttle inbound data (wormhole "up" to local app's Protocol)
     def stopProducing(self):
         self._manager.subchannel_stopProducing(self)
+
     def pauseProducing(self):
         self._manager.subchannel_pauseProducing(self)
+
     def resumeProducing(self):
         self._manager.subchannel_resumeProducing(self)
 
     # IConsumer: allow the wormhole to throttle outbound data (app->wormhole)
     def registerProducer(self, producer, streaming):
         self._manager.subchannel_registerProducer(self, producer, streaming)
+
     def unregisterProducer(self):
         self._manager.subchannel_unregisterProducer(self)
 
@@ -184,6 +209,7 @@ class SubChannel(object):
 @implementer(IStreamClientEndpoint)
 class ControlEndpoint(object):
     _used = False
+
     def __init__(self, peer_addr):
         self._subchannel_zero = Deferred()
         self._peer_addr = peer_addr
@@ -201,8 +227,9 @@ class ControlEndpoint(object):
         t = yield self._subchannel_zero
         p = protocolFactory.buildProtocol(self._peer_addr)
         t._set_protocol(p)
-        p.makeConnection(t) # set p.transport = t and call connectionMade()
+        p.makeConnection(t)  # set p.transport = t and call connectionMade()
         returnValue(p)
+
 
 @implementer(IStreamClientEndpoint)
 @attrs
@@ -220,8 +247,9 @@ class SubchannelConnectorEndpoint(object):
         t = SubChannel(scid, self._manager, self._host_addr, peer_addr)
         p = protocolFactory.buildProtocol(peer_addr)
         t._set_protocol(p)
-        p.makeConnection(t) # set p.transport = t and call connectionMade()
+        p.makeConnection(t)  # set p.transport = t and call connectionMade()
         return succeed(p)
+
 
 @implementer(IStreamServerEndpoint)
 @attrs
@@ -238,7 +266,7 @@ class SubchannelListenerEndpoint(object):
         if self._factory:
             self._connect(t, peer_addr)
         else:
-            self._pending_opens.append( (t, peer_addr) )
+            self._pending_opens.append((t, peer_addr))
 
     def _connect(self, t, peer_addr):
         p = self._factory.buildProtocol(peer_addr)
@@ -255,6 +283,7 @@ class SubchannelListenerEndpoint(object):
         lp = SubchannelListeningPort(self._host_addr)
         return succeed(lp)
 
+
 @implementer(IListeningPort)
 @attrs
 class SubchannelListeningPort(object):
@@ -262,8 +291,10 @@ class SubchannelListeningPort(object):
 
     def startListening(self):
         pass
+
     def stopListening(self):
         # TODO
         pass
+
     def getHost(self):
         return self._host_addr

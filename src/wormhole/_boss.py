@@ -67,7 +67,8 @@ class Boss(object):
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
-        self._D = Dilator(self._reactor, self._eventual_queue, self._cooperator)
+        self._D = Dilator(self._reactor, self._eventual_queue,
+                          self._cooperator)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -90,7 +91,7 @@ class Boss(object):
         self._rx_phases = {}  # phase -> plaintext
 
         self._next_rx_dilate_seqnum = 0
-        self._rx_dilate_seqnums = {} # seqnum -> plaintext
+        self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
 
@@ -205,7 +206,7 @@ class Boss(object):
         self._C.set_code(code)
 
     def dilate(self):
-        return self._D.dilate() # fires with endpoints
+        return self._D.dilate()  # fires with endpoints
 
     @m.input()
     def send(self, plaintext):
