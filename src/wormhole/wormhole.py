@@ -191,7 +191,7 @@ class _DeferredWormhole(object):
         return derive_key(self._key, to_bytes(purpose), length)
 
     def dilate(self):
-        return self._boss.dilate() # fires with (endpoints)
+        return self._boss.dilate()  # fires with (endpoints)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -273,8 +273,8 @@ def create(
     wormhole_versions = {
         "can-dilate": [1],
         "dilation-abilities": Connector.get_connection_abilities(),
-        }
-    wormhole_versions["app_versions"] = versions # app-specific capabilities
+    }
+    wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):
         v = v.decode("utf-8", errors="replace")
