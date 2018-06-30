@@ -5,6 +5,7 @@ import sys
 
 from attr import attrib, attrs
 from twisted.python import failure
+from twisted.internet.task import Cooperator
 from zope.interface import implementer
 
 from ._boss import Boss
@@ -122,7 +123,8 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self, eq):
+    def __init__(self, reactor, eq):
+        self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
         self._key = None
@@ -258,10 +260,11 @@ def create(
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
+    cooperator = Cooperator(scheduler=eq.eventually)
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(eq)
+        w = _DeferredWormhole(reactor, eq)
     wormhole_versions = {}  # will be used to indicate Wormhole capabilities
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
@@ -269,7 +272,7 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, journal, tor, timing)
+             reactor, eq, cooperator, journal, tor, timing)
     w._set_boss(b)
     b.start()
     return w

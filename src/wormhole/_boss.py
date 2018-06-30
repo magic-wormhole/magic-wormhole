@@ -38,6 +38,8 @@ class Boss(object):
     _versions = attrib(validator=instance_of(dict))
     _client_version = attrib(validator=instance_of(tuple))
     _reactor = attrib()
+    _eventual_queue = attrib()
+    _cooperator = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
