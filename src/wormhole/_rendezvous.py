@@ -89,6 +89,7 @@ class RendezvousConnector(object):
         # if the initial connection fails, signal an error and shut down. do
         # this in a different reactor turn to avoid some hazards
         d.addBoth(lambda res: task.deferLater(self._reactor, 0.0, lambda: res))
+        # TODO: use EventualQueue
         d.addErrback(self._initial_connection_failed)
         self._debug_record_inbound_f = None
 
