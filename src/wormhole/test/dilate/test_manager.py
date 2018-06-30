@@ -13,12 +13,14 @@ from ..._dilation.manager import (Dilator,
 from ..._dilation.subchannel import _WormholeAddress
 from .common import clear_mock_calls
 
+
 def make_dilator():
     reactor = object()
     clock = Clock()
     eq = EventualQueue(clock)
-    term = mock.Mock(side_effect=lambda: True) # one write per Eventual tick
-    term_factory = lambda: term
+    term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
+
+    def term_factory(): return term
     coop = Cooperator(terminationPredicateFactory=term_factory,
                       scheduler=eq.eventually)
     send = mock.Mock()
@@ -26,6 +28,7 @@ def make_dilator():
     dil = Dilator(reactor, eq, coop)
     dil.wire(send)
     return dil, send, reactor, eq, clock, coop
+
 
 class TestDilator(unittest.TestCase):
     def test_leader(self):
@@ -148,11 +151,10 @@ class TestDilator(unittest.TestCase):
         d1 = dil.dilate()
         self.assertNoResult(d1)
 
-        dil.got_wormhole_versions("me", "you", {}) # missing "can-dilate"
+        dil.got_wormhole_versions("me", "you", {})  # missing "can-dilate"
         eq.flush_sync()
         f = self.failureResultOf(d1)
         f.check(OldPeerCannotDilateError)
-
 
     def test_disjoint_versions(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
@@ -163,7 +165,6 @@ class TestDilator(unittest.TestCase):
         eq.flush_sync()
         f = self.failureResultOf(d1)
         f.check(OldPeerCannotDilateError)
-
 
     def test_early_dilate_messages(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
@@ -187,8 +188,6 @@ class TestDilator(unittest.TestCase):
                                         mock.call.rx_PLEASE(),
                                         mock.call.rx_HINTS(hintmsg),
                                         mock.call.when_first_connected()])
-
-
 
     def test_transit_relay(self):
         dil, send, reactor, eq, clock, coop = make_dilator()

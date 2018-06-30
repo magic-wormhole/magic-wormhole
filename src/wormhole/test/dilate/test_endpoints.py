@@ -11,6 +11,7 @@ from ..._dilation.subchannel import (ControlEndpoint,
                                      SingleUseEndpointError)
 from .common import mock_manager
 
+
 class Endpoints(unittest.TestCase):
     def test_control(self):
         scid0 = b"scid0"
@@ -94,4 +95,4 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2)])
         self.assertEqual(p2.mock_calls, [mock.call.makeConnection(t2)])
 
-        lp.stopListening() # TODO: should this do more?
+        lp.stopListening()  # TODO: should this do more?

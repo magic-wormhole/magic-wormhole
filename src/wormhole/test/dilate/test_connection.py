@@ -11,12 +11,13 @@ from ..._dilation.connection import (DilatedConnectionProtocol, encode_record,
                                      KCM, Open, Ack)
 from .common import clear_mock_calls
 
+
 def make_con(role, use_relay=False):
     clock = Clock()
     eq = EventualQueue(clock)
     connector = mock.Mock()
     alsoProvides(connector, IDilationConnector)
-    n = mock.Mock() # pretends to be a Noise object
+    n = mock.Mock()  # pretends to be a Noise object
     n.write_message = mock.Mock(side_effect=[b"handshake"])
     c = DilatedConnectionProtocol(eq, role, connector, n,
                                   b"outbound_prologue\n", b"inbound_prologue\n")
@@ -25,6 +26,7 @@ def make_con(role, use_relay=False):
     t = mock.Mock()
     alsoProvides(t, ITransport)
     return c, n, connector, t, eq
+
 
 class Connection(unittest.TestCase):
     def test_bad_prologue(self):
@@ -55,10 +57,10 @@ class Connection(unittest.TestCase):
         n.decrypt = mock.Mock(side_effect=[
             encode_record(t_kcm),
             encode_record(t_open),
-            ])
+        ])
         exp_kcm = b"\x00\x00\x00\x03kcm"
         n.encrypt = mock.Mock(side_effect=[b"kcm", b"ack1"])
-        m = mock.Mock() # Manager
+        m = mock.Mock()  # Manager
 
         c.makeConnection(t)
         self.assertEqual(n.mock_calls, [mock.call.start_handshake()])
@@ -86,7 +88,7 @@ class Connection(unittest.TestCase):
             self.assertEqual(n.mock_calls, [
                 mock.call.read_message(b"handshake2"),
                 mock.call.encrypt(encode_record(t_kcm)),
-                ])
+            ])
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [
                 mock.call.write(exp_kcm)])
@@ -123,7 +125,7 @@ class Connection(unittest.TestCase):
             c.send_record(KCM())
             self.assertEqual(n.mock_calls, [
                 mock.call.encrypt(encode_record(t_kcm)),
-                ])
+            ])
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [mock.call.write(exp_kcm)])
             self.assertEqual(m.mock_calls, [])
@@ -162,7 +164,6 @@ class Connection(unittest.TestCase):
 
     def test_no_relay_follower(self):
         return self._test_no_relay(FOLLOWER)
-
 
     def test_relay(self):
         c, n, connector, t, eq = make_con(LEADER, use_relay=True)

@@ -5,11 +5,13 @@ from twisted.trial import unittest
 from twisted.internet.interfaces import ITransport
 from ..._dilation.connection import _Framer, Frame, Prologue, Disconnect
 
+
 def make_framer():
     t = mock.Mock()
     alsoProvides(t, ITransport)
     f = _Framer(t, b"outbound_prologue\n", b"inbound_prologue\n")
     return f, t
+
 
 class Framer(unittest.TestCase):
     def test_bad_prologue_length(self):
@@ -19,7 +21,7 @@ class Framer(unittest.TestCase):
         f.connectionMade()
         self.assertEqual(t.mock_calls, [mock.call.write(b"outbound_prologue\n")])
         t.mock_calls[:] = []
-        self.assertEqual([], list(f.add_and_parse(b"inbound_"))) # wait for it
+        self.assertEqual([], list(f.add_and_parse(b"inbound_")))  # wait for it
         self.assertEqual(t.mock_calls, [])
 
         with mock.patch("wormhole._dilation.connection.log.msg") as m:
@@ -37,7 +39,7 @@ class Framer(unittest.TestCase):
         f.connectionMade()
         self.assertEqual(t.mock_calls, [mock.call.write(b"outbound_prologue\n")])
         t.mock_calls[:] = []
-        self.assertEqual([], list(f.add_and_parse(b"inbound_"))) # wait for it
+        self.assertEqual([], list(f.add_and_parse(b"inbound_")))  # wait for it
 
         self.assertEqual([], list(f.add_and_parse(b"not")))
         with mock.patch("wormhole._dilation.connection.log.msg") as m:

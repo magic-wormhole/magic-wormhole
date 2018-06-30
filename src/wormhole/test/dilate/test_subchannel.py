@@ -8,6 +8,7 @@ from ..._dilation.subchannel import (Once, SubChannel,
                                      AlreadyClosedError)
 from .common import mock_manager
 
+
 def make_sc(set_protocol=True):
     scid = b"scid"
     hostaddr = _WormholeAddress()
@@ -18,6 +19,7 @@ def make_sc(set_protocol=True):
     if set_protocol:
         sc._set_protocol(p)
     return sc, m, scid, hostaddr, peeraddr, p
+
 
 class SubChannelAPI(unittest.TestCase):
     def test_once(self):

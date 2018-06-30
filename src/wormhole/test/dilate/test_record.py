@@ -7,12 +7,14 @@ from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake,
                                      Disconnect, Ping)
 
+
 def make_record():
     f = mock.Mock()
     alsoProvides(f, IFramer)
-    n = mock.Mock() # pretends to be a Noise object
+    n = mock.Mock()  # pretends to be a Noise object
     r = _Record(f, n)
     return r, f, n
+
 
 class Record(unittest.TestCase):
     def test_good2(self):
@@ -23,7 +25,7 @@ class Record(unittest.TestCase):
             [Prologue()],
             [Frame(frame=b"rx-handshake")],
             [Frame(frame=b"frame1"), Frame(frame=b"frame2")],
-            ])
+        ])
         n = mock.Mock()
         n.write_message = mock.Mock(return_value=b"tx-handshake")
         p1, p2 = object(), object()
@@ -60,9 +62,9 @@ class Record(unittest.TestCase):
         n.mock_calls[:] = []
 
         # next is a pair of Records
-        r1, r2 = object() , object()
+        r1, r2 = object(), object()
         with mock.patch("wormhole._dilation.connection.parse_record",
-                        side_effect=[r1,r2]) as pr:
+                        side_effect=[r1, r2]) as pr:
             self.assertEqual(list(r.add_and_unframe(b"blah2")), [r1, r2])
             self.assertEqual(n.mock_calls, [mock.call.decrypt(b"frame1"),
                                             mock.call.decrypt(b"frame2")])
@@ -186,7 +188,7 @@ class Record(unittest.TestCase):
         n.write_message = mock.Mock(return_value=outbound_handshake)
         n.decrypt = mock.Mock(side_effect=[kcm, msg1])
         n.encrypt = mock.Mock(side_effect=[f_kcm, f_msg1])
-        f.add_and_parse = mock.Mock(side_effect=[[], # no tokens yet
+        f.add_and_parse = mock.Mock(side_effect=[[],  # no tokens yet
                                                  [Prologue()],
                                                  [Frame("f_handshake")],
                                                  [Frame("f_kcm"),
@@ -237,7 +239,6 @@ class Record(unittest.TestCase):
         self.assertEqual(n.mock_calls, [mock.call.read_message("f_handshake")])
         f.mock_calls[:] = []
         n.mock_calls[:] = []
-
 
         # 5: at this point we ought to be able to send a messge, the KCM
         with mock.patch("wormhole._dilation.connection.encode_record",

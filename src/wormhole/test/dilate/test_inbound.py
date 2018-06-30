@@ -8,12 +8,14 @@ from ..._dilation.inbound import (Inbound, DuplicateOpenError,
                                   DataForMissingSubchannelError,
                                   CloseForMissingSubchannelError)
 
+
 def make_inbound():
     m = mock.Mock()
     alsoProvides(m, IDilationManager)
     host_addr = object()
     i = Inbound(m, host_addr)
     return i, m, host_addr
+
 
 class InboundTest(unittest.TestCase):
     def test_seqnum(self):
@@ -158,7 +160,7 @@ class InboundTest(unittest.TestCase):
         self.assertEqual(c.mock_calls, [mock.call.pauseProducing()])
         c.mock_calls[:] = []
         i.subchannel_pauseProducing(sc2)
-        self.assertEqual(c.mock_calls, []) # was already paused
+        self.assertEqual(c.mock_calls, [])  # was already paused
 
         # tolerate duplicate pauseProducing
         i.subchannel_pauseProducing(sc2)

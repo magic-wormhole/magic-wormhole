@@ -4,6 +4,7 @@ from twisted.trial import unittest
 from ..._dilation.connection import (parse_record, encode_record,
                                      KCM, Ping, Pong, Open, Data, Close, Ack)
 
+
 class Parse(unittest.TestCase):
     def test_parse(self):
         self.assertEqual(parse_record(b"\x00"), KCM())

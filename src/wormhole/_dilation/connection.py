@@ -80,28 +80,36 @@ class _Framer(object):
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
 
     @m.state()
-    def want_relay(self): pass  # pragma: no cover
+    def want_relay(self):
+        pass  # pragma: no cover
 
     @m.state(initial=True)
-    def want_prologue(self): pass  # pragma: no cover
+    def want_prologue(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def want_frame(self): pass  # pragma: no cover
+    def want_frame(self):
+        pass  # pragma: no cover
 
     @m.input()
-    def use_relay(self, relay_handshake): pass
+    def use_relay(self, relay_handshake):
+        pass
 
     @m.input()
-    def connectionMade(self): pass
+    def connectionMade(self):
+        pass
 
     @m.input()
-    def parse(self): pass
+    def parse(self):
+        pass
 
     @m.input()
-    def got_relay_ok(self): pass
+    def got_relay_ok(self):
+        pass
 
     @m.input()
-    def got_prologue(self): pass
+    def got_prologue(self):
+        pass
 
     @m.output()
     def store_relay_handshake(self, relay_handshake):
@@ -312,13 +320,16 @@ class _Record(object):
     # states: want_prologue, want_handshake, want_record
 
     @n.state(initial=True)
-    def want_prologue(self): pass  # pragma: no cover
+    def want_prologue(self):
+        pass  # pragma: no cover
 
     @n.state()
-    def want_handshake(self): pass  # pragma: no cover
+    def want_handshake(self):
+        pass  # pragma: no cover
 
     @n.state()
-    def want_message(self): pass  # pragma: no cover
+    def want_message(self):
+        pass  # pragma: no cover
 
     @n.input()
     def got_prologue(self):
@@ -417,13 +428,16 @@ class DilatedConnectionProtocol(Protocol, object):
         self._can_send_records = False
 
     @m.state(initial=True)
-    def unselected(self): pass  # pragma: no cover
+    def unselected(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def selecting(self): pass  # pragma: no cover
+    def selecting(self):
+        pass  # pragma: no cover
 
     @m.state()
-    def selected(self): pass  # pragma: no cover
+    def selected(self):
+        pass  # pragma: no cover
 
     @m.input()
     def got_kcm(self):
