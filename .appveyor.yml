@@ -20,6 +20,11 @@ environment:
     - PYTHON: "C:\\Python36-x64"
     - PYTHON: "C:\\Python37-x64"
 
+matrix:
+  allow_failures:
+    - PYTHON: "C:\\Python37-x64"
+      # appveyor does not yet install python-3.7
+
 install:
   - |
     %PYTHON%\python.exe -m pip install wheel tox
