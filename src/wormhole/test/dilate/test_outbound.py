@@ -24,7 +24,8 @@ def make_outbound():
     eq = EventualQueue(clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
 
-    def term_factory(): return term
+    def term_factory():
+        return term
     coop = Cooperator(terminationPredicateFactory=term_factory,
                       scheduler=eq.eventually)
     o = Outbound(m, coop)
@@ -567,7 +568,8 @@ def make_pushpull(pauses):
     eq = EventualQueue(clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
 
-    def term_factory(): return term
+    def term_factory():
+        return term
     coop = Cooperator(terminationPredicateFactory=term_factory,
                       scheduler=eq.eventually)
     pp = PullToPush(p, unregister, coop)

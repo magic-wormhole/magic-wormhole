@@ -12,8 +12,8 @@ import mock
 from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
                 _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
                 _terminator, errors, timing)
-from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey, ILister,
-                           IMailbox, INameplate, IOrder, IReceive,
+from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
+                           ILister, IMailbox, INameplate, IOrder, IReceive,
                            IRendezvousConnector, ISend, ITerminator, IWordlist)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
