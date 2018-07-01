@@ -331,7 +331,14 @@ class Receiver:
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
-        return tempfile.SpooledTemporaryFile()
+        f = tempfile.SpooledTemporaryFile()
+        # workaround for https://bugs.python.org/issue26175 (STF doesn't
+        # fully implement IOBase abstract class), which breaks the new
+        # zipfile in py3.7.0 that expects .seekable
+        if not hasattr(f, "seekable"):
+            # AFAICT all the filetypes that STF wraps can seek
+            f.seekable = lambda: True
+        return f
 
     def _decide_destname(self, mode, destname):
         # the basename() is intended to protect us against
