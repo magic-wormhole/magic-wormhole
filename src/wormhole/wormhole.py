@@ -9,6 +9,7 @@ from twisted.internet.task import Cooperator
 from zope.interface import implementer
 
 from ._boss import Boss
+from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
 from ._key import derive_key
 from .errors import NoKeyError, WormholeClosed
@@ -189,6 +190,9 @@ class _DeferredWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
+    def dilate(self):
+        return self._boss.dilate() # fires with (endpoints)
+
     def close(self):
         # fails with WormholeError unless we established a connection
         # (state=="happy"). Fails with WrongPasswordError (a subclass of
@@ -265,8 +269,12 @@ def create(
         w = _DelegatedWormhole(delegate)
     else:
         w = _DeferredWormhole(reactor, eq)
-    wormhole_versions = {}  # will be used to indicate Wormhole capabilities
-    wormhole_versions["app_versions"] = versions  # app-specific capabilities
+    # this indicates Wormhole capabilities
+    wormhole_versions = {
+        "can-dilate": [1],
+        "dilation-abilities": Connector.get_connection_abilities(),
+        }
+    wormhole_versions["app_versions"] = versions # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):
         v = v.decode("utf-8", errors="replace")

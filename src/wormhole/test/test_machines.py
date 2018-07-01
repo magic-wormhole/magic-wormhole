@@ -12,7 +12,7 @@ import mock
 from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
                 _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
                 _terminator, errors, timing)
-from .._interfaces import (IAllocator, IBoss, ICode, IInput, IKey, ILister,
+from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey, ILister,
                            IMailbox, INameplate, IOrder, IReceive,
                            IRendezvousConnector, ISend, ITerminator, IWordlist)
 from .._key import derive_key, derive_phase_key, encrypt_data
@@ -1300,6 +1300,7 @@ class Boss(unittest.TestCase):
         b._RC = Dummy("rc", events, IRendezvousConnector, "start")
         b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                      "set_code")
+        b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key")
         return b, events
 
     def test_basic(self):
@@ -1327,7 +1328,9 @@ class Boss(unittest.TestCase):
         b.got_message("side", "0", b"msg1")
         self.assertEqual(events, [
             ("w.got_key", b"key"),
+            ("d.got_key", b"key"),
             ("w.got_verifier", b"verifier"),
+            ("d.got_wormhole_versions", "side", "side", {}),
             ("w.got_versions", {}),
             ("w.received", b"msg1"),
         ])

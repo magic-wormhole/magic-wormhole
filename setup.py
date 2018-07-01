@@ -48,6 +48,7 @@ setup(name="magic-wormhole",
           "click",
           "humanize",
           "txtorcon >= 18.0.2", # 18.0.2 fixes py3.4 support
+          "noiseprotocol",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
