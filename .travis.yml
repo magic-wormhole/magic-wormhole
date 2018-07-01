@@ -12,6 +12,7 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+  - "3.7"
   - "nightly"
 install:
   - pip install -U pip tox virtualenv codecov
