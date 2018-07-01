@@ -314,6 +314,12 @@ class Sender:
             # We're sending a directory. Create a zipfile in a tempdir and
             # send that.
             fd_to_send = tempfile.SpooledTemporaryFile()
+            # workaround for https://bugs.python.org/issue26175 (STF doesn't
+            # fully implement IOBase abstract class), which breaks the new
+            # zipfile in py3.7.0 that expects .seekable
+            if not hasattr(fd_to_send, "seekable"):
+                # AFAICT all the filetypes that STF wraps can seek
+                fd_to_send.seekable = lambda: True
             num_files = 0
             num_bytes = 0
             tostrip = len(what.split(os.sep))
