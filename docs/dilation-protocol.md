@@ -13,19 +13,20 @@ messages are used to open/use/close the application-visible subchannels.
 
 ## Leaders and Followers
 
-Each side of a Wormhole has a randomly-generated "side" string. When the
-wormhole is dilated, the side with the lexicographically-higher "side" value
-is named the "Leader", and the other side is named the "Follower". The general
-wormhole protocol treats both sides identically, but the distinction matters
-for the dilation protocol.
+Each side of a Wormhole has a randomly-generated dilation "side" string (this
+is independent of the Wormhole's mailbox "side"). When the wormhole is
+dilated, the side with the lexicographically-higher "side" value is named the
+"Leader", and the other side is named the "Follower". The general wormhole
+protocol treats both sides identically, but the distinction matters for the
+dilation protocol.
 
-Either side can trigger dilation, but the Follower does so by asking the
-Leader to start the process, whereas the Leader just starts the process
-unilaterally. The Leader has exclusive control over whether a given
-connection is considered established or not: if there are multiple potential
-connections to use, the Leader decides which one to use, and the Leader gets
-to decide when the connection is no longer viable (and triggers the
-establishment of a new one).
+Both sides send a `please-dilate` as soon as dilation is triggered. Each side
+discovers whether it is the Leader or the Follower when the peer's
+"please-dilate" arrives. The Leader has exclusive control over whether a
+given connection is considered established or not: if there are multiple
+potential connections to use, the Leader decides which one to use, and the
+Leader gets to decide when the connection is no longer viable (and triggers
+the establishment of a new one).
 
 ## Connection Layers
 
@@ -110,51 +111,60 @@ Each `DILATE-n` message is a JSON-encoded dictionary with a `type` field that
 has a string value. The dictionary will have other keys that depend upon the
 type.
 
-`w.dilate()` triggers a `please-dilate` record with a set of versions that
-can be accepted. Both Leader and Follower emit this record, although the
-Leader is responsible for version decisions. Versions use strings, rather
-than integers, to support experimental protocols, however there is still a
-total ordering of preferability.
+`w.dilate()` triggers transmission of a `please-dilate` record with a set of
+versions that can be accepted. Versions use strings, rather than integers, to
+support experimental protocols, however there is still a total ordering of
+preferability.
 
 ```
 { "type": "please-dilate",
+  "side": "abcdef",
   "accepted-versions": ["1"]
 }
 ```
 
-The Leader then sends a `start-dilation` message with a `version` field (the
-"best" mutually-supported value) and the new "L2 generation" number in the
-`generation` field. Generation numbers are integers, monotonically increasing
-by 1 each time.
+If one side receives a `please-dilate` before `w.dilate()` has been called
+locally, the contents are stored in case `w.dilate()` is called in the
+future. Once both `w.dilate()` has been called and the peer's `please-dilate`
+has been received, the side determines whether it is the Leader or the
+Follower. Both sides also compare `accepted-versions` fields to choose the
+best mutually-compatible version to use: they should always pick the same
+one.
 
-```
-{ "type": start-dilation,
-  "version": "1",
-  "generation": 1,
-}
-```
+Then both sides begin the connection process for generation 1 by opening
+listening sockets and sending `connection-hint` records for each one. After a
+slight delay they will also open connections to the Transit Relay of their
+choice and produce hints for it too. The receipt of inbound hints (on both
+sides) will trigger outbound connection attempts.
 
-The Follower responds with a `ok-dilation` message with matching `version`
-and `generation` fields.
+Some number of these connections may succeed, and the Leader decides which to
+use (via an in-band signal on the established connection). The others are
+dropped.
 
-The Leader decides when a new dilation connection is necessary, both for the
-initial connection and any subsequent reconnects. Therefore the Leader has
-the exclusive right to send the `start-dilation` record. It won't send this
-until after it has sent its own `please-dilate`, and after it has received
-the Follower's `please-dilate`. As a result, local preparations may begin as
-soon as `w.dilate()` is called, but L2 connections do not begin until the
-Leader declares the start of a new L2 generation with the `start-dilation`
-message.
+If something goes wrong with the established connection and the Leader
+decides a new one is necessary, the Leader will send a `reconnect` message.
+This might happen while connections are still being established, or while the
+Follower thinks it still has a viable connection (the Leader might observer
+problems that the Follower does not), or after the Follower thinks the
+connection has been lost. In all cases, the Leader is the only side which
+should send `reconnect`. The state machine code looks the same on both sides,
+for simplicity, but one path on each side is never used.
+
+Upon receiving a `reconnect`, the Follower should stop any pending connection
+attempts and terminate any existing connections (even if they appear viable).
+Listening sockets may be retained, but any previous connection made through
+them must be dropped.
+
+Once all connections have stopped, the Follower should send an `ok` message,
+then start the connection process for the next generation, which will send
+new `connection-hint` messages for all listening sockets).
 
 Generations are non-overlapping. The Leader will drop all connections from
-generation 1 before sending the `start-dilation` for generation 2, and will
-not initiate any gen-2 connections until it receives the matching
-`ok-dilation` from the Follower. The Follower must drop all gen-1 connections
-before it sends the `ok-dilation` response (even if it thinks they are still
-functioning: if the Leader thought the gen-1 connection still worked, it
-wouldn't have started gen-2). Listening sockets can be retained, but any
-previous connection made through them must be dropped. This should avoid a
-race.
+generation 1 before sending the `reconnect` for generation 2, and will not
+initiate any gen-2 connections until it receives the matching `ok` from the
+Follower. The Follower must drop all gen-1 connections before it sends the
+`ok` response (even if it thinks they are still functioning: if the Leader
+thought the gen-1 connection still worked, it wouldn't have started gen-2).
 
 (TODO: what about a follower->leader connection that was started before
 start-dilation is received, and gets established on the Leader side after
@@ -165,6 +175,16 @@ start-dilation, but meanwhile the leader may accept it as gen2)
 derived key)
 
 (TODO: reduce the number of round-trip stalls here, I've added too many)
+
+Each side is in the "connecting" state (which encompasses both making
+connection attempts and having an established connection) starting with the
+receipt of a `please-dilate` message and a local `w.dilate()` call. The
+Leader remains in that state until it abandons the connection and sends a
+`reconnect` message, at which point it remains in the "flushing" state until
+the Follower's `ok` message is received. The Follower remains in "connecting"
+until it receives `reconnect`, then it stays in "dropping" until it finishes
+halting all outstanding connections, after which it sends `ok` and switches
+back to "connecting".
 
 "Connection hints" are type/address/port records that tell the other side of
 likely targets for L2 connections. Both sides will try to determine their
@@ -225,7 +245,7 @@ everything until the first newline.
 
 Everything beyond that point is a Noise protocol message, which consists of a
 4-byte big-endian length field, followed by the indicated number of bytes.
-This ises the `NNpsk0` pattern with the Leader as the first party ("-> psk,
+This uses the `NNpsk0` pattern with the Leader as the first party ("-> psk,
 e" in the Noise spec), and the Follower as the second ("<- e, ee"). The
 pre-shared-key is the "dilation key", which is statically derived from the
 master PAKE key using HKDF. Each L2 connection uses the same dilation key,
@@ -241,8 +261,8 @@ protocol object to the L3 manager, which will decide which connection to
 select. When the L2 connection is selected to be the new L3, it will send an
 empty KCM of its own, to let the Follower know the connection being selected.
 All other L2 connections (either viable or still in handshake) are dropped,
-all other connection attempts are cancelled, and all listening sockets are
-shut down.
+all other connection attempts are cancelled. All listening sockets may or may
+not be shut down (TODO: think about it).
 
 The Follower will wait for either an empty KCM (at which point the L2
 connection is delivered to the Dilation manager as the new L3), a
