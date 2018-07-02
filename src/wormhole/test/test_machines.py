@@ -167,7 +167,7 @@ class Receive(unittest.TestCase):
             ("s.got_verified_key", key),
             ("b.happy", ),
             ("b.got_verifier", verifier),
-            ("b.got_message", u"side", u"phase1", data1),
+            ("b.got_message", u"phase1", data1),
         ])
 
         phase2_key = derive_phase_key(key, u"side", u"phase2")
@@ -178,8 +178,8 @@ class Receive(unittest.TestCase):
             ("s.got_verified_key", key),
             ("b.happy", ),
             ("b.got_verifier", verifier),
-            ("b.got_message", u"side", u"phase1", data1),
-            ("b.got_message", u"side", u"phase2", data2),
+            ("b.got_message", u"phase1", data1),
+            ("b.got_message", u"phase2", data2),
         ])
 
     def test_early_bad(self):
@@ -217,7 +217,7 @@ class Receive(unittest.TestCase):
             ("s.got_verified_key", key),
             ("b.happy", ),
             ("b.got_verifier", verifier),
-            ("b.got_message", u"side", u"phase1", data1),
+            ("b.got_message", u"phase1", data1),
         ])
 
         phase2_key = derive_phase_key(key, u"side", u"bad")
@@ -228,7 +228,7 @@ class Receive(unittest.TestCase):
             ("s.got_verified_key", key),
             ("b.happy", ),
             ("b.got_verifier", verifier),
-            ("b.got_message", u"side", u"phase1", data1),
+            ("b.got_message", u"phase1", data1),
             ("b.scared", ),
         ])
         r.got_message(u"side", u"phase1", good_body)
@@ -237,7 +237,7 @@ class Receive(unittest.TestCase):
             ("s.got_verified_key", key),
             ("b.happy", ),
             ("b.got_verifier", verifier),
-            ("b.got_message", u"side", u"phase1", data1),
+            ("b.got_message", u"phase1", data1),
             ("b.scared", ),
         ])
 
@@ -1324,8 +1324,8 @@ class Boss(unittest.TestCase):
         b.got_key(b"key")
         b.happy()
         b.got_verifier(b"verifier")
-        b.got_message("side", "version", b"{}")
-        b.got_message("side", "0", b"msg1")
+        b.got_message("version", b"{}")
+        b.got_message("0", b"msg1")
         self.assertEqual(events, [
             ("w.got_key", b"key"),
             ("d.got_key", b"key"),
@@ -1483,7 +1483,7 @@ class Boss(unittest.TestCase):
 
         b.happy()  # phase=version
 
-        b.got_message("side", "unknown-phase", b"spooky")
+        b.got_message("unknown-phase", b"spooky")
         self.assertEqual(events, [])
 
         self.flushLoggedErrors(errors._UnknownPhaseError)

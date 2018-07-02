@@ -264,13 +264,12 @@ class Boss(object):
     def scared(self):
         pass
 
-    def got_message(self, side, phase, plaintext):
-        # this is only called for side != ours
+    def got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
         d_mo = re.search(r'^dilate-(\d+)$', phase)
         if phase == "version":
-            self._got_version(side, plaintext)
+            self._got_version(plaintext)
         elif d_mo:
             self._got_dilate(int(d_mo.group(1)), plaintext)
         elif re.search(r'^\d+$', phase):
@@ -281,7 +280,7 @@ class Boss(object):
             log.err(_UnknownPhaseError("received unknown phase '%s'" % phase))
 
     @m.input()
-    def _got_version(self, side, plaintext):
+    def _got_version(self, plaintext):
         pass
 
     @m.input()
@@ -310,10 +309,9 @@ class Boss(object):
         self._W.got_code(code)
 
     @m.output()
-    def process_version(self, side, plaintext):
+    def process_version(self, plaintext):
         # most of this is wormhole-to-wormhole, ignored for now
         # in the future, this is how Dilation is signalled
-        self._their_side = side
         self._their_versions = bytes_to_dict(plaintext)
         self._D.got_wormhole_versions(self._side, self._their_side,
                                       self._their_versions)
