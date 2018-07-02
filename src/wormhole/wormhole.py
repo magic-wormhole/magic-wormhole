@@ -9,6 +9,7 @@ from twisted.internet.task import Cooperator
 from zope.interface import implementer
 
 from ._boss import Boss
+from ._dilation.manager import DILATION_VERSIONS
 from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
 from ._key import derive_key
@@ -271,7 +272,7 @@ def create(
         w = _DeferredWormhole(reactor, eq)
     # this indicates Wormhole capabilities
     wormhole_versions = {
-        "can-dilate": [1],
+        "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
     }
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
