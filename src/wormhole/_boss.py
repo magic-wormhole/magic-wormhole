@@ -313,8 +313,7 @@ class Boss(object):
         # most of this is wormhole-to-wormhole, ignored for now
         # in the future, this is how Dilation is signalled
         self._their_versions = bytes_to_dict(plaintext)
-        self._D.got_wormhole_versions(self._side, self._their_side,
-                                      self._their_versions)
+        self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
         self._W.got_versions(app_versions)
