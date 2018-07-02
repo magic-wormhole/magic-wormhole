@@ -37,6 +37,8 @@ class UnknownDilationMessageType(Exception):
 class ReceivedHintsTooEarly(Exception):
     pass
 
+def make_side():
+    return bytes_to_hexstr(os.urandom(6))
 
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
@@ -487,7 +489,7 @@ class Dilator(object):
             # they're so new that they no longer accomodate our old version
             raise OldPeerCannotDilateError()
 
-        my_dilation_side = bytes_to_hexstr(os.urandom(6))
+        my_dilation_side = make_side()
         self._manager = Manager(self._S, my_dilation_side,
                                 self._transit_key,
                                 self._transit_relay_location,
