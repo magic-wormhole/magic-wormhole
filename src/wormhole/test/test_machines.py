@@ -1330,7 +1330,7 @@ class Boss(unittest.TestCase):
             ("w.got_key", b"key"),
             ("d.got_key", b"key"),
             ("w.got_verifier", b"verifier"),
-            ("d.got_wormhole_versions", "side", "side", {}),
+            ("d.got_wormhole_versions", {}),
             ("w.got_versions", {}),
             ("w.received", b"msg1"),
         ])
