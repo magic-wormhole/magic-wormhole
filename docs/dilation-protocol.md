@@ -11,14 +11,24 @@ connection has been lost, and then coordinate the construction of a
 replacement. Within this connection, a series of queued-and-acked subchannel
 messages are used to open/use/close the application-visible subchannels.
 
+## Versions and can-dilate
+
+The Wormhole protocol includes a `versions` message sent immediately after
+the shared PAKE key is established. This also serves as a key-confirmation
+message, allowing each side to confirm that the other side knows the right
+key. The body of the `versions` message is a JSON-formatted string with keys
+that are available for learning the abilities of the peer. Dilation is
+signaled by a key named `can-dilate`, whose value is a list of strings. Any
+version present in both side's lists is eligible for use.
+
 ## Leaders and Followers
 
-Each side of a Wormhole has a randomly-generated dilation "side" string (this
-is independent of the Wormhole's mailbox "side"). When the wormhole is
-dilated, the side with the lexicographically-higher "side" value is named the
-"Leader", and the other side is named the "Follower". The general wormhole
-protocol treats both sides identically, but the distinction matters for the
-dilation protocol.
+Each side of a Wormhole has a randomly-generated dilation `side` string (this
+is included in the `please-dilate` message, and is independent of the
+Wormhole's mailbox "side"). When the wormhole is dilated, the side with the
+lexicographically-higher "side" value is named the "Leader", and the other
+side is named the "Follower". The general wormhole protocol treats both sides
+identically, but the distinction matters for the dilation protocol.
 
 Both sides send a `please-dilate` as soon as dilation is triggered. Each side
 discovers whether it is the Leader or the Follower when the peer's
@@ -27,6 +37,15 @@ given connection is considered established or not: if there are multiple
 potential connections to use, the Leader decides which one to use, and the
 Leader gets to decide when the connection is no longer viable (and triggers
 the establishment of a new one).
+
+The `please-dilate` includes a `use-version` key, computed as the "best"
+version of the intersection of the two sides' abilities as reported in the
+`versions` message. Both sides will use whichever `use-version` was specified
+by the Leader (they learn which side is the Leader at the same moment they
+learn the peer's `use-version` value). If the Follower cannot handle the
+`use-version` value, dilation fails (this shouldn't happen, as the Leader
+knew what the Follower was and was not capable of before sending that
+message).
 
 ## Connection Layers
 
