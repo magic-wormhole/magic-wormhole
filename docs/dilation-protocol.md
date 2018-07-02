@@ -37,8 +37,8 @@ L1 is the mailbox channel (queued store-and-forward messages that always go
 to the mailbox server, and then are forwarded to other clients subscribed to
 the same mailbox). Both clients remain connected to the mailbox server until
 the Wormhole is closed. They send DILATE-n messages to each other to manage
-the dilation process, including records like `please-dilate`,
-`start-dilation`, `ok-dilation`, and `connection-hints`
+the dilation process, including records like `please`, `connection-hints`,
+`reconnect`, and `reconnecting`.
 
 L2 is the set of competing connection attempts for a given generation of
 connection. Each time the Leader decides to establish a new connection, a new
@@ -155,16 +155,17 @@ attempts and terminate any existing connections (even if they appear viable).
 Listening sockets may be retained, but any previous connection made through
 them must be dropped.
 
-Once all connections have stopped, the Follower should send an `ok` message,
-then start the connection process for the next generation, which will send
-new `connection-hint` messages for all listening sockets).
+Once all connections have stopped, the Follower should send an `reconnecting`
+message, then start the connection process for the next generation, which
+will send new `connection-hint` messages for all listening sockets).
 
 Generations are non-overlapping. The Leader will drop all connections from
 generation 1 before sending the `reconnect` for generation 2, and will not
-initiate any gen-2 connections until it receives the matching `ok` from the
-Follower. The Follower must drop all gen-1 connections before it sends the
-`ok` response (even if it thinks they are still functioning: if the Leader
-thought the gen-1 connection still worked, it wouldn't have started gen-2).
+initiate any gen-2 connections until it receives the matching `reconnecting`
+from the Follower. The Follower must drop all gen-1 connections before it
+sends the `reconnecting` response (even if it thinks they are still
+functioning: if the Leader thought the gen-1 connection still worked, it
+wouldn't have started gen-2).
 
 (TODO: what about a follower->leader connection that was started before
 start-dilation is received, and gets established on the Leader side after
@@ -181,19 +182,18 @@ connection attempts and having an established connection) starting with the
 receipt of a `please-dilate` message and a local `w.dilate()` call. The
 Leader remains in that state until it abandons the connection and sends a
 `reconnect` message, at which point it remains in the "flushing" state until
-the Follower's `ok` message is received. The Follower remains in "connecting"
-until it receives `reconnect`, then it stays in "dropping" until it finishes
-halting all outstanding connections, after which it sends `ok` and switches
-back to "connecting".
+the Follower's `reconnecting` message is received. The Follower remains in
+"connecting" until it receives `reconnect`, then it stays in "dropping" until
+it finishes halting all outstanding connections, after which it sends
+`reconnecting` and switches back to "connecting".
 
 "Connection hints" are type/address/port records that tell the other side of
 likely targets for L2 connections. Both sides will try to determine their
 external IP addresses, listen on a TCP port, and advertise `(tcp,
 external-IP, port)` as a connection hint. The Transit Relay is also used as a
 (lower-priority) hint. These are sent in `connection-hint` records, which can
-be sent by the Leader any time after the `start-dilation` record, and by the
-Follower after the `ok-dilation` record. Each side will initiate connections
-upon receipt of the hints.
+be sent any time after both sending and receiving a `please` record. Each
+side will initiate connections upon receipt of the hints.
 
 ```
 { "type": "connection-hints",
