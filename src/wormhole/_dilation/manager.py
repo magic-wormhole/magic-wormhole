@@ -37,8 +37,10 @@ class UnknownDilationMessageType(Exception):
 class ReceivedHintsTooEarly(Exception):
     pass
 
+
 def make_side():
     return bytes_to_hexstr(os.urandom(6))
+
 
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
