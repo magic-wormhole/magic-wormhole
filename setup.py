@@ -47,7 +47,7 @@ setup(name="magic-wormhole",
           "tqdm >= 4.13.0", # 4.13.0 fixes crash on NetBSD
           "click",
           "humanize",
-          "txtorcon >= 0.19.3",
+          "txtorcon >= 18.0.2", # 18.0.2 fixes py3.4 support
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
