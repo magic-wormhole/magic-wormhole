@@ -28,6 +28,4 @@ after_success:
 matrix:
   allow_failures:
     - python: "3.3"
-      # travis doesn't support py3.7 yet
-    - python: "3.7"
     - python: "nightly"
