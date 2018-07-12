@@ -1,7 +1,8 @@
 # we don't actually need sudo, but that kicks us onto GCE, which means
-# "group: edge" will get us Ubuntu 16.04 LTS (bionic)
+# "group: edge" will let us get Ubuntu 14.04 LTS (xenial)
 sudo: true
 group: edge
+dist: xenial
 language: python
 cache: pip
 before_cache:
