@@ -1,19 +1,14 @@
-sudo: false
 language: python
+# defaults: the py3.7 environment overrides these
+dist: trusty
+sudo: false
+
 cache: pip
 before_cache:
   - rm -f $HOME/.cache/pip/log/debug.log
 branches:
   except:
     - /^WIP-.*$/
-python:
-  - "2.7"
-  - "3.3"
-  - "3.4"
-  - "3.5"
-  - "3.6"
-  - "3.7"
-  - "nightly"
 install:
   - pip install -U pip tox virtualenv codecov
 before_script:
@@ -26,8 +21,18 @@ script:
 after_success:
   - codecov
 matrix:
+  include:
+    - python: 2.7
+    - python: 3.3
+    - python: 3.4
+    - python: 3.5
+    - python: 3.6
+    - python: 3.7
+      # we don't actually need sudo, but that kicks us onto GCE, which lets
+      # us get xenial
+      sudo: true
+      dist: xenial
+    - python: nightly
   allow_failures:
-    - python: "3.3"
-      # travis doesn't support py3.7 yet
-    - python: "3.7"
-    - python: "nightly"
+    - python: 3.3
+    - python: nightly
