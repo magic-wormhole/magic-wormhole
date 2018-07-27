@@ -1,4 +1,8 @@
 language: python
+# defaults: the py3.7 environment overrides these
+dist: trusty
+sudo: false
+
 cache: pip
 before_cache:
   - rm -f $HOME/.cache/pip/log/debug.log
@@ -19,33 +23,16 @@ after_success:
 matrix:
   include:
     - python: 2.7
-      dist: trusty
-      sudo: false
     - python: 3.3
-      dist: trusty
-      sudo: false
     - python: 3.4
-      dist: trusty
-      sudo: false
     - python: 3.5
-      dist: trusty
-      sudo: false
     - python: 3.6
-      dist: trusty
-      sudo: false
     - python: 3.7
-      dist: xenial
-      # we don't actually need sudo, but that kicks us onto GCE, which means
-      # "group: edge" will let us get Ubuntu 14.04 LTS (xenial)
-      #group: edge
+      # we don't actually need sudo, but that kicks us onto GCE, which lets
+      # us get xenial
       sudo: true
+      dist: xenial
     - python: nightly
-      dist: trusty
-      sudo: false
   allow_failures:
     - python: 3.3
-      dist: trusty
-      sudo: false
     - python: nightly
-      dist: trusty
-      sudo: false
