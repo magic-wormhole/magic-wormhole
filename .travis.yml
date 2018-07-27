@@ -43,5 +43,9 @@ matrix:
       dist: trusty
       sudo: false
   allow_failures:
-    - python: "3.3"
-    - python: "nightly"
+    - python: 3.3
+      dist: trusty
+      sudo: false
+    - python: nightly
+      dist: trusty
+      sudo: false
