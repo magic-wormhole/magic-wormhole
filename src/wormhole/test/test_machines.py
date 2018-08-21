@@ -243,11 +243,6 @@ class Receive(unittest.TestCase):
 
 
 class Key(unittest.TestCase):
-    def test_derive_errors(self):
-        self.assertRaises(TypeError, derive_key, 123, b"purpose")
-        self.assertRaises(TypeError, derive_key, b"key", 123)
-        self.assertRaises(TypeError, derive_key, b"key", b"purpose", "not len")
-
     def build(self):
         events = []
         k = _key.Key(u"appid", {}, u"side", timing.DebugTiming())
