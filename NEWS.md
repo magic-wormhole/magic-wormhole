@@ -1,7 +1,7 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release ?? (??)
+## Release ?? (???)
 
 * Support for Python-3.4 on Windows has been dropped. py3.4 is still
   supported on unix-like operating systems.
