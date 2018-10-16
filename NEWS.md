@@ -1,8 +1,9 @@
 
 User-visible changes in "magic-wormhole":
 
-## Release ?? (???)
+## Release 0.11.0 (16-Oct-2018)
 
+* Python-3.7 compatibility was fixed. (#306)
 * Support for Python-3.4 on Windows has been dropped. py3.4 is still
   supported on unix-like operating systems.
 * The client version is now sent to the mailbox server for each connection. I
@@ -19,6 +20,10 @@ Packaging changes:
 * The code is now formatted to be PEP8 compliant. (#296)
 * The Dockerfile was removed: after the Mailbox Server was moved out, I don't
   think it was relevant. (#295)
+
+Thanks to Andreas `Baeumla` Bäuml, Marius `mgedmin` Gedminas, Ofek `ofek`
+Lev, Thomas `ThomasWaldmann` Waldmann, and Vasudev `copyninja` Kamath for
+patches and bug reports in this release.
 
 
 ## Release 0.10.5 (14-Feb-2018)
