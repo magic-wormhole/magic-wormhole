@@ -5,7 +5,7 @@ of data between two computers. Both machines must be connected to the
 internet, but they do not need to have public IP addresses or know how to
 contact each other ahead of time.
 
-Security and connectivity is provided by means of an "wormhole code": a short
+Security and connectivity is provided by means of a "wormhole code": a short
 string that is transcribed from one machine to the other by the users at the
 keyboard. This works in conjunction with a baked-in "rendezvous server" that
 relays information from one machine to the other.
@@ -220,7 +220,7 @@ The code-entry Helper object has the following API:
   "opulent-prowler"}` (note the lack of a trailing hyphen, because the
   wordlist is expecting a code of length two). If the wordlist is not yet
   known, this returns an empty set. All return values will
-  `.startwith(prefix)`. The frontend is responsible for sorting the results
+  `.startswith(prefix)`. The frontend is responsible for sorting the results
   before display.
 * `h.choose_words(words)`: call this when the user is finished typing in the
   code. It does not return anything, but will cause the Wormhole's

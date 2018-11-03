@@ -155,7 +155,7 @@ The `open` command both marks the mailbox as being opened by the bound side,
 and also adds the WebSocket as subscribed to that mailbox, so new messages
 are delivered immediately to the connected client. There is no explicit ack
 to the `open` command, but since all clients add a message to the mailbox as
-soon as they connect, there will always be a `message` reponse shortly after
+soon as they connect, there will always be a `message` response shortly after
 the `open` goes through. The `close` command provokes a `closed` response.
 
 The `close` command accepts an optional "mood" string: this allows clients to

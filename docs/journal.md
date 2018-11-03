@@ -23,7 +23,7 @@ Applications written in this style must follow some strict rules:
 * the only way to affect the state is by processing an input message
 * event processing is deterministic (any non-determinism must be implemented
   as a message, e.g. from a clock service or a random-number generator)
-* apps must never forget a message for which they've accepted reponsibility
+* apps must never forget a message for which they've accepted responsibility
 
 The main processing function takes the previous state checkpoint and a single
 input message, and produces a new state checkpoint and a set of output
