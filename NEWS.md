@@ -1,6 +1,12 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.11.2 (13-Nov-2018)
+
+Rerelease to fix the long description on PyPI. Thanks to Marius Gedminas for
+tracking down the problem and providing the fix. (#316)
+
+
 ## Release 0.11.1 (13-Nov-2018)
 
 * Fix `python -m wormhole` on py2. (#315)
