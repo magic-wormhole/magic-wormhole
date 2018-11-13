@@ -1,6 +1,14 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.11.1 (13-Nov-2018)
+
+* Fix `python -m wormhole` on py2. (#315)
+
+Thanks to Marius Gedminas, FreddieHo, and Jakub Wilk for patches and bug
+reports in this release.
+
+
 ## Release 0.11.0 (16-Oct-2018)
 
 * Python-3.7 compatibility was fixed. (#306)
