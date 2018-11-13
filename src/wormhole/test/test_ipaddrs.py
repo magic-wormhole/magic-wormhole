@@ -7,7 +7,7 @@ from twisted.trial import unittest
 
 from .. import ipaddrs
 
-DOTTED_QUAD_RE = re.compile("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
+DOTTED_QUAD_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
 
 MOCK_IPADDR_OUTPUT = """\
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 16436 qdisc noqueue state UNKNOWN \n\
