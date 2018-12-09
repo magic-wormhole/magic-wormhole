@@ -178,7 +178,7 @@ CommonArgs = _compose(
         "--hide-progress",
         is_flag=True,
         default=False,
-        help="supress progress-bar display",
+        help="suppress progress-bar display",
     ),
     click.option(
         "--listen/--no-listen",

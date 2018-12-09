@@ -88,7 +88,7 @@ class CodeInputter(object):
 
         if self._committed_nameplate:
             if not got_nameplate or nameplate != self._committed_nameplate:
-                # they deleted past the committment point: we can't use
+                # they deleted past the commitment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
                 raise AlreadyInputNameplateError(
@@ -140,7 +140,7 @@ class CodeInputter(object):
 
         if self._committed_nameplate:
             if nameplate != self._committed_nameplate:
-                # they deleted past the committment point: we can't use
+                # they deleted past the commitment point: we can't use
                 # this. For now, bail, but in the future let's find a
                 # gentler way to encourage them to not do that.
                 raise AlreadyInputNameplateError(

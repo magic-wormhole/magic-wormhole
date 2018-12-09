@@ -1,4 +1,4 @@
-# no unicode_literals untill twisted update
+# no unicode_literals until twisted update
 from click.testing import CliRunner
 from twisted.application import internet, service
 from twisted.internet import defer, endpoints, reactor, task

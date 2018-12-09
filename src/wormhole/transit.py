@@ -357,7 +357,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         self.setTimeout(None)
         d, self._negotiation_d = self._negotiation_d, None
         # the Deferred is only relevant until negotiation finishes, so skip
-        # this if it's alredy been fired
+        # this if it's already been fired
         if d:
             # Each call to loseConnection() sets self._error first, so we can
             # deliver useful information to the Factory that's waiting on
