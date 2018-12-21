@@ -188,7 +188,7 @@ class Manager(object):
 
     def connector_connection_lost(self):
         self._stop_using_connection()
-        if self.role is LEADER:
+        if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine
         else:
             self.connection_lost_follower()
@@ -256,6 +256,9 @@ class Manager(object):
     def start(self):
         self.send_please()
 
+    def send_please(self):
+        self.send_dilation_phase(type="please", side=self._my_side)
+
     @m.state(initial=True)
     def WANTING(self):
         pass  # pragma: no cover
@@ -278,7 +281,7 @@ class Manager(object):
 
     @m.state()
     def LONELY(self):
-        pass  # pragme: no cover
+        pass  # pragma: no cover
 
     @m.state()
     def STOPPING(self):
@@ -306,7 +309,7 @@ class Manager(object):
 
     # Connector gives us connection_made()
     @m.input()
-    def connection_made(self, c):
+    def connection_made(self):
         pass  # pragma: no cover
 
     # our connection_lost() fires connection_lost_leader or
@@ -341,17 +344,17 @@ class Manager(object):
             raise ValueError("their side shouldn't be equal: reflection?")
 
     # these Outputs behave differently for the Leader vs the Follower
-    @m.output()
-    def send_please(self):
-        self.send_dilation_phase(type="please", side=self._my_side)
 
     @m.output()
     def start_connecting_ignore_message(self, message):
         del message  # ignored
-        return self.start_connecting()
+        return self._start_connecting()
 
     @m.output()
     def start_connecting(self):
+        self._start_connecting()
+
+    def _start_connecting(self):
         assert self._my_role is not None
         self._connector = Connector(self._transit_key,
                                     self._transit_relay_location,
@@ -447,7 +450,7 @@ class Dilator(object):
     before we know whether we'll be the Leader or the Follower. Once we
     hear the other side's VERSION message (which tells us that we have a
     connection, they are capable of dilating, and which side we're on),
-    then we build a DilationManager and hand control to it.
+    then we build a Manager and hand control to it.
     """
 
     _reactor = attrib()
@@ -532,6 +535,7 @@ class Dilator(object):
         self._transit_key = derive_key(key, purpose, LENGTH)
 
     def got_wormhole_versions(self, their_wormhole_versions):
+        assert self._transit_key is not None
         # this always happens before received_dilate
         dilation_version = None
         their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
@@ -554,11 +558,13 @@ class Dilator(object):
         message = bytes_to_dict(plaintext)
         type = message["type"]
         if type == "please":
-            self._manager.rx_PLEASE()  # message)
-        elif type == "dilate":
-            self._manager.rx_DILATE()  # message)
+            self._manager.rx_PLEASE(message)
         elif type == "connection-hints":
             self._manager.rx_HINTS(message)
+        elif type == "reconnect":
+            self._manager.rx_RECONNECT()
+        elif type == "reconnecting":
+            self._manager.rx_RECONNECTING()
         else:
             log.err(UnknownDilationMessageType(message))
             return

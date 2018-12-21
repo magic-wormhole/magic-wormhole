@@ -131,25 +131,24 @@ Each `DILATE-n` message is a JSON-encoded dictionary with a `type` field that
 has a string value. The dictionary will have other keys that depend upon the
 type.
 
-`w.dilate()` triggers transmission of a `please-dilate` record with a set of
-versions that can be accepted. Versions use strings, rather than integers, to
-support experimental protocols, however there is still a total ordering of
-preferability.
+`w.dilate()` triggers transmission of a `please` (i.e. "please dilate")
+record with a set of versions that can be accepted. Versions use strings,
+rather than integers, to support experimental protocols, however there is
+still a total ordering of preferability.
 
 ```
-{ "type": "please-dilate",
+{ "type": "please",
   "side": "abcdef",
   "accepted-versions": ["1"]
 }
 ```
 
-If one side receives a `please-dilate` before `w.dilate()` has been called
-locally, the contents are stored in case `w.dilate()` is called in the
-future. Once both `w.dilate()` has been called and the peer's `please-dilate`
-has been received, the side determines whether it is the Leader or the
-Follower. Both sides also compare `accepted-versions` fields to choose the
-best mutually-compatible version to use: they should always pick the same
-one.
+If one side receives a `please` before `w.dilate()` has been called locally,
+the contents are stored in case `w.dilate()` is called in the future. Once
+both `w.dilate()` has been called and the peer's `please` has been received,
+the side determines whether it is the Leader or the Follower. Both sides also
+compare `accepted-versions` fields to choose the best mutually-compatible
+version to use: they should always pick the same one.
 
 Then both sides begin the connection process for generation 1 by opening
 listening sockets and sending `connection-hint` records for each one. After a
@@ -465,11 +464,11 @@ side seeking to send a file.
 
 Each subchannel uses a distinct subchannel-id, which is a four-byte
 identifier. Both directions share a number space (unlike L4 seqnums), so the
-rule is that the Leader side sets the last bit of the last byte to a 0, while
-the Follower sets it to a 1. These are not generally treated as integers,
+rule is that the Leader side sets the last bit of the last byte to a 1, while
+the Follower sets it to a 0. These are not generally treated as integers,
 however for the sake of debugging, the implementation generates them with a
-simple big-endian-encoded counter (`counter*2+2` for the Leader,
-`counter*2+1` for the Follower, with id `0` reserved for the control
+simple big-endian-encoded counter (`counter*2+1` for the Leader,
+`counter*2+2` for the Follower, with id `0` reserved for the control
 channel).
 
 When the `client_ep.connect()` API is called, the Initiator allocates a
