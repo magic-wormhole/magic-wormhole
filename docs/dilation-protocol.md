@@ -82,7 +82,7 @@ contains OPEN/DATA/CLOSE/ACK messages: OPEN/DATA/CLOSE have a sequence number
 messages reference those sequence numbers. When a message is given to the L4
 channel for delivery to the remote side, it is always queued, then
 transmitted if there is an L3 connection available. This message remains in
-the queue until an ACK is received to release it. If a new L3 connection is
+the queue until an ACK is received to retire it. If a new L3 connection is
 made, all queued messages will be re-sent (in seqnum order).
 
 L5 are subchannels. There is one pre-established subchannel 0 known as the
@@ -118,13 +118,14 @@ frames or bytes), and all-number phase names are reserved for application
 data (sent via `w.send_message()`). Therefore the dilation control messages
 use phases named `DILATE-0`, `DILATE-1`, etc. Each side maintains its own
 counter, so one side might be up to e.g. `DILATE-5` while the other has only
-gotten as far as `DILATE-2`. This effectively creates a unidirectional stream
-of `DILATE-n` messages, each containing one or more dilation record, of
-various types described below. Note that all phases beyond the initial
-VERSION and PAKE phases are encrypted by the shared session key.
+gotten as far as `DILATE-2`. This effectively creates a pair of
+unidirectional streams of `DILATE-n` messages, each containing one or more
+dilation record, of various types described below. Note that all phases
+beyond the initial VERSION and PAKE phases are encrypted by the shared
+session key.
 
-A future mailbox protocol might provide a simple ordered stream of messages,
-with application records and dilation records mixed together.
+A future mailbox protocol might provide a simple ordered stream of typed
+messages, with application records and dilation records mixed together.
 
 Each `DILATE-n` message is a JSON-encoded dictionary with a `type` field that
 has a string value. The dictionary will have other keys that depend upon the
@@ -163,7 +164,7 @@ dropped.
 If something goes wrong with the established connection and the Leader
 decides a new one is necessary, the Leader will send a `reconnect` message.
 This might happen while connections are still being established, or while the
-Follower thinks it still has a viable connection (the Leader might observer
+Follower thinks it still has a viable connection (the Leader might observe
 problems that the Follower does not), or after the Follower thinks the
 connection has been lost. In all cases, the Leader is the only side which
 should send `reconnect`. The state machine code looks the same on both sides,
@@ -174,9 +175,9 @@ attempts and terminate any existing connections (even if they appear viable).
 Listening sockets may be retained, but any previous connection made through
 them must be dropped.
 
-Once all connections have stopped, the Follower should send an `reconnecting`
+Once all connections have stopped, the Follower should send a `reconnecting`
 message, then start the connection process for the next generation, which
-will send new `connection-hint` messages for all listening sockets).
+will send new `connection-hint` messages for all listening sockets.
 
 Generations are non-overlapping. The Leader will drop all connections from
 generation 1 before sending the `reconnect` for generation 2, and will not
@@ -467,8 +468,9 @@ identifier. Both directions share a number space (unlike L4 seqnums), so the
 rule is that the Leader side sets the last bit of the last byte to a 0, while
 the Follower sets it to a 1. These are not generally treated as integers,
 however for the sake of debugging, the implementation generates them with a
-simple big-endian-encoded counter (`next(counter)*2` for the Leader,
-`next(counter)*2+1` for the Follower).
+simple big-endian-encoded counter (`counter*2+2` for the Leader,
+`counter*2+1` for the Follower, with id `0` reserved for the control
+channel).
 
 When the `client_ep.connect()` API is called, the Initiator allocates a
 subchannel-id and sends an OPEN. It can then immediately send DATA messages
