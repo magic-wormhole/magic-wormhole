@@ -21,11 +21,12 @@ class Hints(unittest.TestCase):
 
         # tor=None
         self.assertEqual(efho(TorTCPV1Hint("host", "port", 0)), None)
+        self.assertEqual(efho(UnknownHint("foo")), None)
 
         tor = mock.Mock()
         def tor_ep(hostname, port):
             if hostname == "non-public":
-                return None
+                raise ValueError
             return ("tor_ep", hostname, port)
         tor.stream_via = mock.Mock(side_effect=tor_ep)
 
@@ -35,7 +36,7 @@ class Hints(unittest.TestCase):
                          ("tor_ep", "host2.onion", 1234))
         self.assertEqual( efho(DirectTCPV1Hint("non-public", 1234, 0.0), tor), None)
 
-        self.assertEqual(efho(UnknownHint("foo")), None)
+        self.assertEqual(efho(UnknownHint("foo"), tor), None)
 
     def test_comparable(self):
         h1 = DirectTCPV1Hint("hostname", "port1", 0.0)
@@ -136,6 +137,12 @@ class Hints(unittest.TestCase):
         d = describe_hint_obj
         self.assertEqual(d(DirectTCPV1Hint("host", 1234, 0.0), False, False),
                          "->tcp:host:1234")
+        self.assertEqual(d(DirectTCPV1Hint("host", 1234, 0.0), True, False),
+                         "->relay:tcp:host:1234")
+        self.assertEqual(d(DirectTCPV1Hint("host", 1234, 0.0), False, True),
+                         "tor->tcp:host:1234")
+        self.assertEqual(d(DirectTCPV1Hint("host", 1234, 0.0), True, True),
+                         "tor->relay:tcp:host:1234")
         self.assertEqual(d(TorTCPV1Hint("host", 1234, 0.0), False, False),
                          "->tor:host:1234")
         self.assertEqual(d(UnknownHint("stuff"), False, False),
