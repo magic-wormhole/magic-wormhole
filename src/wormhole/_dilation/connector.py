@@ -8,7 +8,7 @@ from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.task import deferLater
 from twisted.internet.defer import DeferredList
-from twisted.internet.endpoints import HostnameEndpoint, serverFromString
+from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.python import log
 from hkdf import Hkdf
@@ -19,18 +19,8 @@ from ..observer import EmptyableSet
 from .connection import DilatedConnectionProtocol, KCM
 from .roles import LEADER
 
-from .._hints import parse_hint_argv, DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint
-
-def describe_hint_obj(hint, relay, tor):
-    prefix = "tor->" if tor else "->"
-    if relay:
-        prefix = prefix + "relay:"
-    if isinstance(hint, DirectTCPV1Hint):
-        return prefix + "tcp:%s:%d" % (hint.hostname, hint.port)
-    elif isinstance(hint, TorTCPV1Hint):
-        return prefix + "tor:%s:%d" % (hint.hostname, hint.port)
-    else:
-        return prefix + str(hint)
+from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
+                      parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj)
 
 
 def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
@@ -340,7 +330,7 @@ class Connector(object):
             for h in direct[p]:
                 if isinstance(h, TorTCPV1Hint) and not self._tor:
                     continue
-                ep = self._endpoint_from_hint_obj(h)
+                ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
                 desc = describe_hint_obj(h, False, self._tor)
                 d = deferLater(self._reactor, delay,
                                self._connect, ep, desc, is_relay=False)
@@ -376,7 +366,7 @@ class Connector(object):
         for p in priorities:
             for r in relays[p]:
                 for h in r.hints:
-                    ep = self._endpoint_from_hint_obj(h)
+                    ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
                     desc = describe_hint_obj(h, True, self._tor)
                     d = deferLater(self._reactor, delay,
                                    self._connect, ep, desc, is_relay=True)
@@ -404,20 +394,6 @@ class Connector(object):
             p.when_disconnected().addCallback(self._pending_connections.discard)
         d.addCallback(_connected)
         return d
-
-    def _endpoint_from_hint_obj(self, hint):
-        if self._tor:
-            if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
-                # this Tor object will throw ValueError for non-public IPv4
-                # addresses and any IPv6 address
-                try:
-                    return self._tor.stream_via(hint.hostname, hint.port)
-                except ValueError:
-                    return None
-            return None
-        if isinstance(hint, DirectTCPV1Hint):
-            return HostnameEndpoint(self._reactor, hint.hostname, hint.port)
-        return None
 
     # Connection selection. All instances of DilatedConnectionProtocol which
     # look viable get passed into our add_contender() method.

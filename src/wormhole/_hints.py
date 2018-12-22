@@ -2,6 +2,7 @@ from __future__ import print_function, unicode_literals
 import sys
 import re
 from collections import namedtuple
+from twisted.internet.endpoints import HostnameEndpoint
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
 # are "hint dicts".
@@ -20,6 +21,17 @@ TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
 # one, make the TCP connection, send the relay handshake, then complete the
 # rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
+
+def describe_hint_obj(hint, relay, tor):
+    prefix = "tor->" if tor else "->"
+    if relay:
+        prefix = prefix + "relay:"
+    if isinstance(hint, DirectTCPV1Hint):
+        return prefix + "tcp:%s:%d" % (hint.hostname, hint.port)
+    elif isinstance(hint, TorTCPV1Hint):
+        return prefix + "tor:%s:%d" % (hint.hostname, hint.port)
+    else:
+        return prefix + str(hint)
 
 def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
@@ -56,3 +68,17 @@ def parse_hint_argv(hint, stderr=sys.stderr):
                       file=stderr)
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
+
+def endpoint_from_hint_obj(hint, tor, reactor):
+    if tor:
+        if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
+            # this Tor object will throw ValueError for non-public IPv4
+            # addresses and any IPv6 address
+            try:
+                return tor.stream_via(hint.hostname, hint.port)
+            except ValueError:
+                return None
+        return None
+    if isinstance(hint, DirectTCPV1Hint):
+        return HostnameEndpoint(reactor, hint.hostname, hint.port)
+    return None

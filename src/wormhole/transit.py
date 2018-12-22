@@ -23,6 +23,8 @@ from . import ipaddrs
 from .errors import InternalError
 from .timing import DebugTiming
 from .util import bytes_to_hexstr
+from ._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
+                     parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj)
 
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -93,16 +95,6 @@ def build_sided_relay_handshake(key, side):
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
         "ascii") + b"\n"
 
-
-from ._hints import parse_hint_argv, DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint
-
-def describe_hint_obj(hint):
-    if isinstance(hint, DirectTCPV1Hint):
-        return u"tcp:%s:%d" % (hint.hostname, hint.port)
-    elif isinstance(hint, TorTCPV1Hint):
-        return u"tor:%s:%d" % (hint.hostname, hint.port)
-    else:
-        return str(hint)
 
 
 TIMEOUT = 60  # seconds
@@ -818,13 +810,11 @@ class Common:
             # Check the hint type to see if we can support it (e.g. skip
             # onion hints on a non-Tor client). Do not increase relay_delay
             # unless we have at least one viable hint.
-            ep = self._endpoint_from_hint_obj(hint_obj)
+            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
             if not ep:
                 continue
-            description = "->%s" % describe_hint_obj(hint_obj)
-            if self._tor:
-                description = "tor" + description
-            d = self._start_connector(ep, description)
+            d = self._start_connector(ep,
+                                      describe_hint_obj(hint_obj, False, self._tor))
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
 
@@ -845,18 +835,15 @@ class Common:
 
         for priority in sorted(prioritized_relays, reverse=True):
             for hint_obj in prioritized_relays[priority]:
-                ep = self._endpoint_from_hint_obj(hint_obj)
+                ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
                 if not ep:
                     continue
-                description = "->relay:%s" % describe_hint_obj(hint_obj)
-                if self._tor:
-                    description = "tor" + description
                 d = task.deferLater(
                     self._reactor,
                     relay_delay,
                     self._start_connector,
                     ep,
-                    description,
+                    describe_hint_obj(hint_obj, True, self._tor),
                     is_relay=True)
                 contenders.append(d)
             relay_delay += self.RELAY_DELAY
@@ -893,21 +880,6 @@ class Common:
         # fires with protocol, or ConnectError
         d.addCallback(lambda p: p.startNegotiation())
         return d
-
-    def _endpoint_from_hint_obj(self, hint):
-        if self._tor:
-            if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
-                # this Tor object will throw ValueError for non-public IPv4
-                # addresses and any IPv6 address
-                try:
-                    return self._tor.stream_via(hint.hostname, hint.port)
-                except ValueError:
-                    return None
-            return None
-        if isinstance(hint, DirectTCPV1Hint):
-            return endpoints.HostnameEndpoint(self._reactor, hint.hostname,
-                                              hint.port)
-        return None
 
     def connection_ready(self, p):
         # inbound/outbound Connection protocols call this when they finish
