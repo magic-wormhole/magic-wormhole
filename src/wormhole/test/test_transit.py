@@ -19,6 +19,7 @@ from wormhole_transit_relay import transit_server
 from .. import transit
 from .._hints import DirectTCPV1Hint
 from ..errors import InternalError
+from ..util import HKDF
 from .common import ServerBase
 
 
@@ -1526,7 +1527,7 @@ class Transit(unittest.TestCase):
 
 class RelayHandshake(unittest.TestCase):
     def old_build_relay_handshake(self, key):
-        token = transit.HKDF(key, 32, CTXinfo=b"transit_relay_token")
+        token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
         return (token, b"please relay " + hexlify(token) + b"\n")
 
     def test_old(self):

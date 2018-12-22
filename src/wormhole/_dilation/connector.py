@@ -11,22 +11,17 @@ from twisted.internet.defer import DeferredList
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.python import log
-from hkdf import Hkdf
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
 from ..timing import DebugTiming
 from ..observer import EmptyableSet
+from ..util import HKDF
 from .connection import DilatedConnectionProtocol, KCM
 from .roles import LEADER
 
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
                       parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                       encode_hint)
-
-
-
-def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 
 def build_sided_relay_handshake(key, side):

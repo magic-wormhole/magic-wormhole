@@ -9,7 +9,6 @@ from binascii import hexlify, unhexlify
 from collections import deque
 
 import six
-from hkdf import Hkdf
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, reactor, task)
@@ -22,14 +21,10 @@ from zope.interface import implementer
 from . import ipaddrs
 from .errors import InternalError
 from .timing import DebugTiming
-from .util import bytes_to_hexstr
+from .util import bytes_to_hexstr, HKDF
 from ._hints import (DirectTCPV1Hint, RelayV1Hint,
                      parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                      parse_tcp_v1_hint)
-
-
-def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 
 class TransitError(Exception):
