@@ -1,8 +1,10 @@
 from __future__ import print_function, unicode_literals
 import sys
 import re
+import six
 from collections import namedtuple
 from twisted.internet.endpoints import HostnameEndpoint
+from twisted.python import log
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
 # are "hint dicts".
@@ -82,3 +84,22 @@ def endpoint_from_hint_obj(hint, tor, reactor):
     if isinstance(hint, DirectTCPV1Hint):
         return HostnameEndpoint(reactor, hint.hostname, hint.port)
     return None
+
+def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
+    hint_type = hint.get("type", "")
+    if hint_type not in ["direct-tcp-v1", "tor-tcp-v1"]:
+        log.msg("unknown hint type: %r" % (hint, ))
+        return None
+    if not ("hostname" in hint and
+            isinstance(hint["hostname"], type(""))):
+        log.msg("invalid hostname in hint: %r" % (hint, ))
+        return None
+    if not ("port" in hint and
+            isinstance(hint["port"], six.integer_types)):
+        log.msg("invalid port in hint: %r" % (hint, ))
+        return None
+    priority = hint.get("priority", 0.0)
+    if hint_type == "direct-tcp-v1":
+        return DirectTCPV1Hint(hint["hostname"], hint["port"], priority)
+    else:
+        return TorTCPV1Hint(hint["hostname"], hint["port"], priority)

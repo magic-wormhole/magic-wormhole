@@ -20,27 +20,8 @@ from .connection import DilatedConnectionProtocol, KCM
 from .roles import LEADER
 
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
-                      parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj)
-
-
-def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
-    hint_type = hint.get("type", "")
-    if hint_type not in ["direct-tcp-v1", "tor-tcp-v1"]:
-        log.msg("unknown hint type: %r" % (hint,))
-        return None
-    if not("hostname" in hint and
-           isinstance(hint["hostname"], type(""))):
-        log.msg("invalid hostname in hint: %r" % (hint,))
-        return None
-    if not("port" in hint and
-           isinstance(hint["port"], six.integer_types)):
-        log.msg("invalid port in hint: %r" % (hint,))
-        return None
-    priority = hint.get("priority", 0.0)
-    if hint_type == "direct-tcp-v1":
-        return DirectTCPV1Hint(hint["hostname"], hint["port"], priority)
-    else:
-        return TorTCPV1Hint(hint["hostname"], hint["port"], priority)
+                      parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
+                      parse_tcp_v1_hint)
 
 
 def parse_hint(hint_struct):

@@ -23,8 +23,9 @@ from . import ipaddrs
 from .errors import InternalError
 from .timing import DebugTiming
 from .util import bytes_to_hexstr
-from ._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
-                     parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj)
+from ._hints import (DirectTCPV1Hint, RelayV1Hint,
+                     parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
+                     parse_tcp_v1_hint)
 
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -681,30 +682,11 @@ class Common:
         self._listener_d.addErrback(lambda f: None)
         self._listener_d.cancel()
 
-    def _parse_tcp_v1_hint(self, hint):  # hint_struct -> hint_obj
-        hint_type = hint.get(u"type", u"")
-        if hint_type not in [u"direct-tcp-v1", u"tor-tcp-v1"]:
-            log.msg("unknown hint type: %r" % (hint, ))
-            return None
-        if not (u"hostname" in hint and
-                isinstance(hint[u"hostname"], type(u""))):
-            log.msg("invalid hostname in hint: %r" % (hint, ))
-            return None
-        if not (u"port" in hint and
-                isinstance(hint[u"port"], six.integer_types)):
-            log.msg("invalid port in hint: %r" % (hint, ))
-            return None
-        priority = hint.get(u"priority", 0.0)
-        if hint_type == u"direct-tcp-v1":
-            return DirectTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
-        else:
-            return TorTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
-
     def add_connection_hints(self, hints):
         for h in hints:  # hint structs
             hint_type = h.get(u"type", u"")
             if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
-                dh = self._parse_tcp_v1_hint(h)
+                dh = parse_tcp_v1_hint(h)
                 if dh:
                     self._their_direct_hints.append(dh)  # hint_obj
             elif hint_type == u"relay-v1":
@@ -714,7 +696,7 @@ class Common:
                 # together like this.
                 relay_hints = []
                 for rhs in h.get(u"hints", []):
-                    h = self._parse_tcp_v1_hint(rhs)
+                    h = parse_tcp_v1_hint(rhs)
                     if h:
                         relay_hints.append(h)
                 if relay_hints:
