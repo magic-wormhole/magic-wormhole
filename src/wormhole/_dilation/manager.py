@@ -38,6 +38,13 @@ class ReceivedHintsTooEarly(Exception):
     pass
 
 
+class UnexpectedKCM(Exception):
+    pass
+
+
+class UnknownMessageType(Exception):
+    pass
+
 def make_side():
     return bytes_to_hexstr(os.urandom(6))
 
@@ -94,7 +101,7 @@ class Manager(object):
     _next_subchannel_id = None  # initialized in choose_role
 
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
@@ -214,8 +221,9 @@ class Manager(object):
                 self._inbound.handle_data(r.scid, r.data)
             else:  # isinstance(r, Close)
                 self._inbound.handle_close(r.scid)
+            return
         if isinstance(r, KCM):
-            log.err("got unexpected KCM")
+            log.err(UnexpectedKCM())
         elif isinstance(r, Ping):
             self.handle_ping(r.ping_id)
         elif isinstance(r, Pong):
@@ -223,7 +231,7 @@ class Manager(object):
         elif isinstance(r, Ack):
             self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
-            log.err("received unknown message type {}".format(r))
+            log.err(UnknownMessageType("{}".format(r)))
 
     # pings, pongs, and acks are not queued
     def send_ping(self, ping_id):

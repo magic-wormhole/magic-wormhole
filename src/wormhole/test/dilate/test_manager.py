@@ -11,9 +11,11 @@ from ..._dilation import roles
 from ..._dilation.encode import to_be4
 from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
-                                  UnknownDilationMessageType)
+                                  UnknownDilationMessageType,
+                                  UnexpectedKCM,
+                                  UnknownMessageType)
 from ..._dilation.subchannel import _WormholeAddress
-from ..._dilation.connection import Open, Data, Close, Ack
+from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from .common import clear_mock_calls
 
 
@@ -570,10 +572,74 @@ class TestManager(unittest.TestCase):
         self.assertEqual(c4.mock_calls, [mock.call.start()])
         clear_mock_calls(c3, connector4, c4)
 
-    def test_stop(self):
-        pass
-
-
     def test_mirror(self):
         # receive a PLEASE with the same side as us: shouldn't happen
-        pass
+        m, h = make_manager(leader=True)
+
+        m.start()
+        clear_mock_calls(h.send)
+        e = self.assertRaises(ValueError, m.rx_PLEASE, {"side": LEADER})
+        self.assertEqual(str(e), "their side shouldn't be equal: reflection?")
+
+    def test_ping_pong(self):
+        m, h = make_manager(leader=False)
+
+        m.got_record(KCM())
+        self.flushLoggedErrors(UnexpectedKCM)
+
+        m.got_record(Ping(1))
+        self.assertEqual(h.outbound.mock_calls,
+                         [mock.call.send_if_connected(Pong(1))])
+        clear_mock_calls(h.outbound)
+
+        m.got_record(Pong(2))
+        # currently ignored, will eventually update a timer
+
+        m.got_record("not recognized")
+        e = self.flushLoggedErrors(UnknownMessageType)
+        self.assertEqual(len(e), 1)
+        self.assertEqual(str(e[0].value), "not recognized")
+
+        m.send_ping(3)
+        self.assertEqual(h.outbound.mock_calls,
+                         [mock.call.send_if_connected(Pong(3))])
+        clear_mock_calls(h.outbound)
+
+    def test_subchannel(self):
+        m, h = make_manager(leader=True)
+        sc = object()
+
+        m.subchannel_pauseProducing(sc)
+        self.assertEqual(h.inbound.mock_calls, [
+            mock.call.subchannel_pauseProducing(sc)])
+        clear_mock_calls(h.inbound)
+
+        m.subchannel_resumeProducing(sc)
+        self.assertEqual(h.inbound.mock_calls, [
+            mock.call.subchannel_resumeProducing(sc)])
+        clear_mock_calls(h.inbound)
+
+        m.subchannel_stopProducing(sc)
+        self.assertEqual(h.inbound.mock_calls, [
+            mock.call.subchannel_stopProducing(sc)])
+        clear_mock_calls(h.inbound)
+
+        p = object()
+        streaming = object()
+
+        m.subchannel_registerProducer(sc, p, streaming)
+        self.assertEqual(h.outbound.mock_calls, [
+            mock.call.subchannel_registerProducer(sc, p, streaming)])
+        clear_mock_calls(h.outbound)
+
+        m.subchannel_unregisterProducer(sc)
+        self.assertEqual(h.outbound.mock_calls, [
+            mock.call.subchannel_unregisterProducer(sc)])
+        clear_mock_calls(h.outbound)
+
+        m.subchannel_closed("scid", sc)
+        self.assertEqual(h.inbound.mock_calls, [
+            mock.call.subchannel_closed("scid", sc)])
+        self.assertEqual(h.outbound.mock_calls, [
+            mock.call.subchannel_closed("scid", sc)])
+        clear_mock_calls(h.inbound, h.outbound)
