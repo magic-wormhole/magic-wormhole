@@ -15,7 +15,8 @@ from .encode import to_be4
 from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,
                          ControlEndpoint, SubchannelConnectorEndpoint,
                          SubchannelListenerEndpoint)
-from .connector import Connector, parse_hint
+from .connector import Connector
+from .._hints import parse_hint
 from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound

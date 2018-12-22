@@ -5,7 +5,7 @@ import mock
 from twisted.internet import endpoints, reactor
 from twisted.trial import unittest
 from .._hints import (endpoint_from_hint_obj, parse_hint_argv, parse_tcp_v1_hint,
-                      describe_hint_obj,
+                      describe_hint_obj, parse_hint, encode_hint,
                       DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint)
 
 UnknownHint = namedtuple("UnknownHint", ["stuff"])
@@ -89,6 +89,24 @@ class Hints(unittest.TestCase):
                 "port": "not a number"
             }), None)  # invalid port
 
+    def test_parse_hint(self):
+        p = parse_hint
+        self.assertEqual(p({"type": "direct-tcp-v1",
+                            "hostname": "foo",
+                            "port": 12}),
+                         DirectTCPV1Hint("foo", 12, 0.0))
+        self.assertEqual(p({"type": "relay-v1",
+                            "hints": [
+                                {"type": "direct-tcp-v1",
+                                 "hostname": "foo",
+                                 "port": 12},
+                                {"type": "unrecognized"},
+                                {"type": "direct-tcp-v1",
+                                 "hostname": "bar",
+                                 "port": 13}]}),
+                         RelayV1Hint([DirectTCPV1Hint("foo", 12, 0.0),
+                                      DirectTCPV1Hint("bar", 13, 0.0)]))
+
     def test_parse_hint_argv(self):
         def p(hint):
             stderr = io.StringIO()
@@ -147,3 +165,32 @@ class Hints(unittest.TestCase):
                          "->tor:host:1234")
         self.assertEqual(d(UnknownHint("stuff"), False, False),
                          "->%s" % str(UnknownHint("stuff")))
+
+    def test_encode_hint(self):
+        e = encode_hint
+        self.assertEqual(e(DirectTCPV1Hint("host", 1234, 1.0)),
+                         {"type": "direct-tcp-v1",
+                          "priority": 1.0,
+                          "hostname": "host",
+                          "port": 1234})
+        self.assertEqual(e(RelayV1Hint([DirectTCPV1Hint("foo", 12, 0.0),
+                                        DirectTCPV1Hint("bar", 13, 0.0)])),
+                         {"type": "relay-v1",
+                          "hints": [
+                              {"type": "direct-tcp-v1",
+                               "hostname": "foo",
+                               "port": 12,
+                               "priority": 0.0},
+                              {"type": "direct-tcp-v1",
+                               "hostname": "bar",
+                               "port": 13,
+                               "priority": 0.0},
+                              ]})
+        self.assertEqual(e(TorTCPV1Hint("host", 1234, 1.0)),
+                         {"type": "tor-tcp-v1",
+                          "priority": 1.0,
+                          "hostname": "host",
+                          "port": 1234})
+        e = self.assertRaises(ValueError, e, "not a Hint")
+        self.assertIn("unknown hint type", str(e))
+        self.assertIn("not a Hint", str(e))

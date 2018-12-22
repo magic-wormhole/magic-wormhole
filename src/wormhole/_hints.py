@@ -103,3 +103,36 @@ def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
         return DirectTCPV1Hint(hint["hostname"], hint["port"], priority)
     else:
         return TorTCPV1Hint(hint["hostname"], hint["port"], priority)
+
+def parse_hint(hint_struct):
+    hint_type = hint_struct.get("type", "")
+    if hint_type == "relay-v1":
+        # the struct can include multiple ways to reach the same relay
+        rhints = filter(lambda h: h,  # drop None (unrecognized)
+                        [parse_tcp_v1_hint(rh) for rh in hint_struct["hints"]])
+        return RelayV1Hint(list(rhints))
+    return parse_tcp_v1_hint(hint_struct)
+
+
+def encode_hint(h):
+    if isinstance(h, DirectTCPV1Hint):
+        return {"type": "direct-tcp-v1",
+                "priority": h.priority,
+                "hostname": h.hostname,
+                "port": h.port,  # integer
+                }
+    elif isinstance(h, RelayV1Hint):
+        rhint = {"type": "relay-v1", "hints": []}
+        for rh in h.hints:
+            rhint["hints"].append({"type": "direct-tcp-v1",
+                                   "priority": rh.priority,
+                                   "hostname": rh.hostname,
+                                   "port": rh.port})
+        return rhint
+    elif isinstance(h, TorTCPV1Hint):
+        return {"type": "tor-tcp-v1",
+                "priority": h.priority,
+                "hostname": h.hostname,
+                "port": h.port,  # integer
+                }
+    raise ValueError("unknown hint type", h)
