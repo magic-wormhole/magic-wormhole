@@ -45,6 +45,7 @@ class UnexpectedKCM(Exception):
 class UnknownMessageType(Exception):
     pass
 
+
 def make_side():
     return bytes_to_hexstr(os.urandom(6))
 

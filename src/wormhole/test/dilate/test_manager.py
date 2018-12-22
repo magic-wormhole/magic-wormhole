@@ -35,6 +35,7 @@ def make_dilator():
     dil.wire(send)
     return dil, send, reactor, eq, clock, coop
 
+
 class TestDilator(unittest.TestCase):
     def test_manager_and_endpoints(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
@@ -142,7 +143,7 @@ class TestDilator(unittest.TestCase):
         d1 = dil.dilate()
         self.assertNoResult(d1)
 
-        dil._transit_key = b"\x01"*32
+        dil._transit_key = b"\x01" * 32
         dil.got_wormhole_versions({})  # missing "can-dilate"
         eq.flush_sync()
         f = self.failureResultOf(d1)
@@ -201,8 +202,10 @@ class TestDilator(unittest.TestCase):
                                          mock.call().start(),
                                          mock.call().when_first_connected()])
 
+
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
+
 
 def make_manager(leader=True):
     class Holder:
@@ -214,12 +217,13 @@ def make_manager(leader=True):
         side = LEADER
     else:
         side = FOLLOWER
-    h.key = b"\x00"*32
+    h.key = b"\x00" * 32
     h.relay = None
     h.reactor = object()
     h.clock = Clock()
     h.eq = EventualQueue(h.clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
+
     def term_factory():
         return term
     h.coop = Cooperator(terminationPredicateFactory=term_factory,
@@ -236,11 +240,12 @@ def make_manager(leader=True):
                 m = Manager(h.send, side, h.key, h.relay, h.reactor, h.eq, h.coop)
     return m, h
 
+
 class TestManager(unittest.TestCase):
     def test_make_side(self):
         side = make_side()
         self.assertEqual(type(side), type(u""))
-        self.assertEqual(len(side), 2*6)
+        self.assertEqual(len(side), 2 * 6)
 
     def test_create(self):
         m, h = make_manager()
@@ -272,10 +277,10 @@ class TestManager(unittest.TestCase):
             m.rx_PLEASE({"side": FOLLOWER})
         self.assertEqual(h.send.mock_calls, [])
         self.assertEqual(connector.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       LEADER, roles.LEADER),
             ])
         self.assertEqual(c.mock_calls, [mock.call.start()])
@@ -292,7 +297,7 @@ class TestManager(unittest.TestCase):
         clear_mock_calls(ph, c)
 
         # and we send out any (listening) hints from our Connector
-        m.send_hints([1,2])
+        m.send_hints([1, 2])
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-1",
                            dict_to_bytes({"type": "connection-hints",
@@ -310,7 +315,7 @@ class TestManager(unittest.TestCase):
         clear_mock_calls(h.inbound, h.outbound)
 
         h.eq.flush_sync()
-        self.successResultOf(wfc_d) # fires with None
+        self.successResultOf(wfc_d)  # fires with None
         wfc_d2 = m.when_first_connected()
         h.eq.flush_sync()
         self.successResultOf(wfc_d2)
@@ -329,7 +334,7 @@ class TestManager(unittest.TestCase):
         # the Leader making a new outbound channel should get scid=1
         scid1 = to_be4(1)
         self.assertEqual(m.allocate_subchannel_id(), scid1)
-        r1 = Open(10, scid1) # seqnum=10
+        r1 = Open(10, scid1)  # seqnum=10
         h.outbound.build_record = mock.Mock(return_value=r1)
         m.send_open(scid1)
         self.assertEqual(h.outbound.mock_calls, [
@@ -439,7 +444,7 @@ class TestManager(unittest.TestCase):
         with mock.patch("wormhole._dilation.manager.parse_hint",
                         return_value=None) as ph:
             m.rx_HINTS({"hints": [1, 2, 3]})
-        self.assertEqual(ph.mock_calls, []) # ignored
+        self.assertEqual(ph.mock_calls, [])  # ignored
 
         c2 = mock.Mock()
         connector2 = mock.Mock(return_value=c2)
@@ -448,10 +453,10 @@ class TestManager(unittest.TestCase):
             m.rx_RECONNECTING()
         self.assertEqual(h.send.mock_calls, [])
         self.assertEqual(connector2.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       LEADER, roles.LEADER),
             ])
         self.assertEqual(c2.mock_calls, [mock.call.start()])
@@ -486,10 +491,10 @@ class TestManager(unittest.TestCase):
             m.rx_PLEASE({"side": LEADER})
         self.assertEqual(h.send.mock_calls, [])
         self.assertEqual(connector.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       FOLLOWER, roles.FOLLOWER),
             ])
         self.assertEqual(c.mock_calls, [mock.call.start()])
@@ -524,10 +529,10 @@ class TestManager(unittest.TestCase):
                            dict_to_bytes({"type": "reconnecting"}))
             ])
         self.assertEqual(connector2.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       FOLLOWER, roles.FOLLOWER),
             ])
         self.assertEqual(c2.mock_calls, [mock.call.start()])
@@ -541,10 +546,10 @@ class TestManager(unittest.TestCase):
             m.rx_RECONNECT()
         self.assertEqual(c2.mock_calls, [mock.call.stop()])
         self.assertEqual(connector3.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       FOLLOWER, roles.FOLLOWER),
             ])
         self.assertEqual(c3.mock_calls, [mock.call.start()])
@@ -563,10 +568,10 @@ class TestManager(unittest.TestCase):
             m.connector_connection_lost()
         self.assertEqual(c3.mock_calls, [mock.call.disconnect()])
         self.assertEqual(connector4.mock_calls, [
-            mock.call(b"\x00"*32, None, m, h.reactor, h.eq,
-                      False, # no_listen
-                      None, # tor
-                      None, # timing
+            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                      False,  # no_listen
+                      None,  # tor
+                      None,  # timing
                       FOLLOWER, roles.FOLLOWER),
             ])
         self.assertEqual(c4.mock_calls, [mock.call.start()])
