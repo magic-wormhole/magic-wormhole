@@ -116,10 +116,9 @@ class Connector(object):
         pass  # pragma: no cover
 
     # TODO: unify the tense of these method-name verbs
-    @m.input()
-    def listener_ready(self, hint_objs):
-        pass
 
+    # add_relay() and got_hints() are called by the Manager as it receives
+    # messages from our peer. stop() is called when the Manager shuts down
     @m.input()
     def add_relay(self, hint_objs):
         pass
@@ -129,16 +128,25 @@ class Connector(object):
         pass
 
     @m.input()
-    def add_candidate(self, c):  # called by DilatedConnectionProtocol
+    def stop(self):
         pass
 
+    # called by ourselves, when _start_listener() is ready
+    @m.input()
+    def listener_ready(self, hint_objs):
+        pass
+
+    # called when DilatedConnectionProtocol submits itself, after KCM
+    # received
+    @m.input()
+    def add_candidate(self, c):
+        pass
+
+    # called by ourselves, via consider()
     @m.input()
     def accept(self, c):
         pass
 
-    @m.input()
-    def stop(self):
-        pass
 
     @m.output()
     def use_hints(self, hint_objs):
@@ -199,17 +207,12 @@ class Connector(object):
         [c.loseConnection() for c in self._pending_connections]
         return d
 
-    def stop_winner(self):
-        d = self._winner.when_disconnected()
-        self._winner.disconnect()
-        return d
-
     def break_cycles(self):
         # help GC by forgetting references to things that reference us
         self._listeners.clear()
         self._pending_connectors.clear()
         self._pending_connections.clear()
-        self._winner = None
+        self._winning_connection = None
 
     connecting.upon(listener_ready, enter=connecting, outputs=[publish_hints])
     connecting.upon(add_relay, enter=connecting, outputs=[use_hints,
@@ -224,6 +227,8 @@ class Connector(object):
     connected.upon(listener_ready, enter=connected, outputs=[])
     connected.upon(add_relay, enter=connected, outputs=[])
     connected.upon(got_hints, enter=connected, outputs=[])
+    # TODO: tell them to disconnect? will they hang out forever? I *think*
+    # they'll drop this once they get a KCM on the winning connection.
     connected.upon(add_candidate, enter=connected, outputs=[])
     connected.upon(accept, enter=connected, outputs=[])
     connected.upon(stop, enter=stopped, outputs=[stop_everything])
@@ -232,20 +237,23 @@ class Connector(object):
     # maybe add_candidate, accept
 
     def start(self):
-        self._start_listener()
+        if not self._no_listen and not self._tor:
+            addresses = self._get_listener_addresses()
+            self._start_listener(addresses)
         if self._transit_relays:
             self._publish_hints(self._transit_relays)
             self._use_hints(self._transit_relays)
 
-    def _start_listener(self):
-        if self._no_listen or self._tor:
-            return
+    def _get_listener_addresses(self):
         addresses = ipaddrs.find_addresses()
         non_loopback_addresses = [a for a in addresses if a != "127.0.0.1"]
         if non_loopback_addresses:
             # some test hosts, including the appveyor VMs, *only* have
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
+        return addresses
+
+    def _start_listener(self, addresses):
         # TODO: listen on a fixed port, if possible, for NAT/p2p benefits, also
         # to make firewall configs easier
         # TODO: retain listening port between connection generations?
@@ -263,6 +271,14 @@ class Connector(object):
         d.addCallback(_listening)
         d.addErrback(log.err)
 
+    def _schedule_connection(self, delay, h, is_relay):
+        ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
+        desc = describe_hint_obj(h, is_relay, self._tor)
+        d = deferLater(self._reactor, delay,
+                       self._connect, ep, desc, is_relay)
+        d.addErrback(log.err)
+        self._pending_connectors.add(d)
+
     def _use_hints(self, hints):
         # first, pull out all the relays, we'll connect to them later
         relays = []
@@ -279,12 +295,7 @@ class Connector(object):
             for h in direct[p]:
                 if isinstance(h, TorTCPV1Hint) and not self._tor:
                     continue
-                ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
-                desc = describe_hint_obj(h, False, self._tor)
-                d = deferLater(self._reactor, delay,
-                               self._connect, ep, desc, is_relay=False)
-                d.addErrback(log.err)
-                self._pending_connectors.add(d)
+                self._schedule_connection(delay, h, is_relay=False)
                 made_direct = True
                 # Make all direct connections immediately. Later, we'll change
                 # the add_candidate() function to look at the priority when
@@ -314,12 +325,7 @@ class Connector(object):
         # quickly or hang for a long time.
         for r in relays:
             for h in r.hints:
-                ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
-                desc = describe_hint_obj(h, True, self._tor)
-                d = deferLater(self._reactor, delay,
-                               self._connect, ep, desc, is_relay=True)
-                d.addErrback(log.err)
-                self._pending_connectors.add(d)
+                self._schedule_connection(delay, h, is_relay=True)
         # TODO:
         # if not contenders:
         #    raise TransitError("No contenders for connection")
