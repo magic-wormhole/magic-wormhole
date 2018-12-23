@@ -34,8 +34,11 @@ def build_sided_relay_handshake(key, side):
 
 PROLOGUE_LEADER = b"Magic-Wormhole Dilation Handshake v1 Leader\n\n"
 PROLOGUE_FOLLOWER = b"Magic-Wormhole Dilation Handshake v1 Follower\n\n"
-NOISEPROTO = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
+NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 
+def build_noise():
+    from noise.connection import NoiseConnection
+    return NoiseConnection.from_name(NOISEPROTO)
 
 @attrs
 @implementer(IDilationConnector)
@@ -53,7 +56,7 @@ class Connector(object):
     _role = attrib()
 
     m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace", lambda self, f: None)
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
 
     RELAY_DELAY = 2.0
 
@@ -85,8 +88,7 @@ class Connector(object):
         # encryption: let's use Noise NNpsk0 (or maybe NNpsk2). That uses
         # ephemeral keys plus a pre-shared symmetric key (the Transit key), a
         # different one for each potential connection.
-        from noise.connection import NoiseConnection
-        noise = NoiseConnection.from_name(NOISEPROTO)
+        noise = build_noise()
         noise.set_psks(self._dilation_key)
         if self._role is LEADER:
             noise.set_as_initiator()
@@ -144,6 +146,9 @@ class Connector(object):
 
     @m.output()
     def publish_hints(self, hint_objs):
+        self._publish_hints(hint_objs)
+
+    def _publish_hints(self, hint_objs):
         self._manager.send_hints([encode_hint(h) for h in hint_objs])
 
     @m.output()
@@ -229,7 +234,7 @@ class Connector(object):
     def start(self):
         self._start_listener()
         if self._transit_relays:
-            self.publish_hints(self._transit_relays)
+            self._publish_hints(self._transit_relays)
             self._use_hints(self._transit_relays)
 
     def _start_listener(self):
@@ -260,14 +265,15 @@ class Connector(object):
 
     def _use_hints(self, hints):
         # first, pull out all the relays, we'll connect to them later
-        relays = defaultdict(list)
+        relays = []
         direct = defaultdict(list)
         for h in hints:
             if isinstance(h, RelayV1Hint):
-                relays[h.priority].append(h)
+                relays.append(h)
             else:
                 direct[h.priority].append(h)
         delay = 0.0
+        made_direct = False
         priorities = sorted(set(direct.keys()), reverse=True)
         for p in priorities:
             for h in direct[p]:
@@ -277,7 +283,9 @@ class Connector(object):
                 desc = describe_hint_obj(h, False, self._tor)
                 d = deferLater(self._reactor, delay,
                                self._connect, ep, desc, is_relay=False)
+                d.addErrback(log.err)
                 self._pending_connectors.add(d)
+                made_direct = True
                 # Make all direct connections immediately. Later, we'll change
                 # the add_candidate() function to look at the priority when
                 # deciding whether to accept a successful connection or not,
@@ -286,34 +294,32 @@ class Connector(object):
                 # putting an inter-direct-hint delay here to influence the
                 # process.
                 # delay += 1.0
-        if delay > 0.0:
-            # Start trying the relays a few seconds after we start to try the
-            # direct hints. The idea is to prefer direct connections, but not
-            # be afraid of using a relay when we have direct hints that don't
-            # resolve quickly. Many direct hints will be to unused
-            # local-network IP addresses, which won't answer, and would take
-            # the full TCP timeout (30s or more) to fail. If there were no
-            # direct hints, don't delay at all.
-            delay += self.RELAY_DELAY
 
-        # prefer direct connections by stalling relay connections by a few
-        # seconds, unless we're using --no-listen in which case we're probably
-        # going to have to use the relay
-        delay = self.RELAY_DELAY if self._no_listen else 0.0
+        if made_direct and not self._no_listen:
+            # Prefer direct connections by stalling relay connections by a
+            # few seconds. We don't wait until direct connections have
+            # failed, because many direct hints will be to unused
+            # local-network IP address, which won't answer, and can take the
+            # full 30s TCP timeout to fail.
+            #
+            # If we didn't make any direct connections, or we're using
+            # --no-listen, then we're probably going to have to use the
+            # relay, so don't delay it at all.
+            delay += self.RELAY_DELAY
 
         # It might be nice to wire this so that a failure in the direct hints
         # causes the relay hints to be used right away (fast failover). But
         # none of our current use cases would take advantage of that: if we
         # have any viable direct hints, then they're either going to succeed
         # quickly or hang for a long time.
-        for p in priorities:
-            for r in relays[p]:
-                for h in r.hints:
-                    ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
-                    desc = describe_hint_obj(h, True, self._tor)
-                    d = deferLater(self._reactor, delay,
-                                   self._connect, ep, desc, is_relay=True)
-                    self._pending_connectors.add(d)
+        for r in relays:
+            for h in r.hints:
+                ep = endpoint_from_hint_obj(h, self._tor, self._reactor)
+                desc = describe_hint_obj(h, True, self._tor)
+                d = deferLater(self._reactor, delay,
+                               self._connect, ep, desc, is_relay=True)
+                d.addErrback(log.err)
+                self._pending_connectors.add(d)
         # TODO:
         # if not contenders:
         #    raise TransitError("No contenders for connection")
@@ -321,7 +327,7 @@ class Connector(object):
     # TODO: add 2*TIMEOUT deadline for first generation, don't wait forever for
     # the initial connection
 
-    def _connect(self, h, ep, description, is_relay=False):
+    def _connect(self, ep, description, is_relay=False):
         relay_handshake = None
         if is_relay:
             relay_handshake = build_sided_relay_handshake(self._dilation_key,
@@ -369,7 +375,6 @@ class OutboundConnectionFactory(ClientFactory, object):
 @attrs
 class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
-    protocol = DilatedConnectionProtocol
 
     def buildProtocol(self, addr):
         p = self._connector.build_protocol(addr)
