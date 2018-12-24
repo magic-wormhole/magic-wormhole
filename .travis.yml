@@ -20,7 +20,7 @@ script:
   - if [[ $TRAVIS_PYTHON_VERSION == 3.7 ]]; then
       tox -e coverage ;
     else
-      tox ;
+      tox -e py ;
     fi
 after_success:
   - codecov
