@@ -23,7 +23,6 @@ after_success:
 matrix:
   include:
     - python: 2.7
-    - python: 3.3
     - python: 3.4
     - python: 3.5
     - python: 3.6
@@ -35,9 +34,6 @@ matrix:
     - python: nightly
   allow_failures:
     - python: 2.7
-    - python: 3.3
-      # txtorcon is currently broken on py3.4
-    - python: 3.4
       # travis doesn't support py3.7 yet
     - python: 3.7
     - python: nightly
