@@ -192,6 +192,7 @@ class _DeferredWormhole(object):
         return derive_key(self._key, to_bytes(purpose), length)
 
     def dilate(self):
+        raise NotImplementedError
         return self._boss.dilate()  # fires with (endpoints)
 
     def close(self):
@@ -275,6 +276,7 @@ def create(
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
     }
+    wormhole_versions = {} # don't advertise Dilation yet: not ready
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):
