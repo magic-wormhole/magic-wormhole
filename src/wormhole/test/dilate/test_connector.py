@@ -7,8 +7,9 @@ from twisted.internet.task import Clock
 from twisted.internet.defer import Deferred
 from ...eventual import EventualQueue
 from ..._interfaces import IDilationManager, IDilationConnector
-from ..._dilation import roles
 from ..._hints import DirectTCPV1Hint, RelayV1Hint, TorTCPV1Hint
+from ..._dilation import roles
+from ..._dilation._noise import NoiseConnection
 from ..._dilation.connection import KCM
 from ..._dilation.connector import (Connector,
                                     build_sided_relay_handshake,
@@ -101,6 +102,8 @@ class TestConnector(unittest.TestCase):
                           ])
 
     def test_build_noise(self):
+        if not NoiseConnection:
+            raise unittest.SkipTest("noiseprotocol unavailable")
         build_noise()
 
     def test_build_protocol_leader(self):

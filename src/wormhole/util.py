@@ -12,6 +12,10 @@ def HKDF(skm, outlen, salt=None, CTXinfo=b""):
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")
 
+def to_unicode(any):
+    if isinstance(any, type(u"")):
+        return any
+    return any.decode("ascii")
 
 def bytes_to_hexstr(b):
     assert isinstance(b, type(b""))

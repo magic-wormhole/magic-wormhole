@@ -2,7 +2,7 @@ from __future__ import print_function, unicode_literals
 import mock
 from zope.interface import alsoProvides
 from twisted.trial import unittest
-from noise.exceptions import NoiseInvalidMessage
+from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake,
                                      Disconnect, Ping)

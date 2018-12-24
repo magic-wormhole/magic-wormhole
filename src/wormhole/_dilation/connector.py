@@ -1,7 +1,6 @@
 from __future__ import print_function, unicode_literals
 from collections import defaultdict
 from binascii import hexlify
-import six
 from attr import attrs, attrib
 from attr.validators import instance_of, provides, optional
 from automat import MethodicalMachine
@@ -15,13 +14,14 @@ from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
 from ..timing import DebugTiming
 from ..observer import EmptyableSet
-from ..util import HKDF
+from ..util import HKDF, to_unicode
 from .connection import DilatedConnectionProtocol, KCM
 from .roles import LEADER
 
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
                       parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                       encode_hint)
+from ._noise import NoiseConnection
 
 
 def build_sided_relay_handshake(key, side):
@@ -37,14 +37,13 @@ PROLOGUE_FOLLOWER = b"Magic-Wormhole Dilation Handshake v1 Follower\n\n"
 NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 
 def build_noise():
-    from noise.connection import NoiseConnection
     return NoiseConnection.from_name(NOISEPROTO)
 
 @attrs
 @implementer(IDilationConnector)
 class Connector(object):
     _dilation_key = attrib(validator=instance_of(type(b"")))
-    _transit_relay_location = attrib(validator=optional(instance_of(str)))
+    _transit_relay_location = attrib(validator=optional(instance_of(type(u""))))
     _manager = attrib(validator=provides(IDilationManager))
     _reactor = attrib()
     _eventual_queue = attrib()
@@ -265,7 +264,7 @@ class Connector(object):
             # lp is an IListeningPort
             self._listeners.add(lp)  # for shutdown and tests
             portnum = lp.getHost().port
-            direct_hints = [DirectTCPV1Hint(six.u(addr), portnum, 0.0)
+            direct_hints = [DirectTCPV1Hint(to_unicode(addr), portnum, 0.0)
                             for addr in addresses]
             self.listener_ready(direct_hints)
         d.addCallback(_listening)
