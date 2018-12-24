@@ -17,7 +17,11 @@ before_script:
       flake8 *.py src --count --select=E901,E999,F821,F822,F823 --statistics ;
     fi
 script:
-  - tox -e coverage
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.7 ]]; then
+      tox -e coverage ;
+    else
+      tox ;
+    fi
 after_success:
   - codecov
 matrix:
