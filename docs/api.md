@@ -524,6 +524,8 @@ object twice.
 
 ## Dilation
 
+(NOTE: this API is still in development)
+
 To send bulk data, or anything more than a handful of messages, a Wormhole
 can be "dilated" into a form that uses a direct TCP connection between the
 two endpoints.
@@ -639,7 +641,7 @@ def FileSendingProtocol(internet.Protocol):
         self.transport.loseConnection()
         f.close()
 def _send(metadata, filename):
-    f = protocol.ClientCreator(reactor, 
+    f = protocol.ClientCreator(reactor,
                                FileSendingProtocol, metadata, filename)
     subchannel_client_ep.connect(f)
 def FileReceivingProtocol(internet.Protocol):
