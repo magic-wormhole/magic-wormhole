@@ -1,0 +1,1 @@
+LEADER, FOLLOWER = object(), object()

@@ -6,7 +6,6 @@ import six
 from attr import attrib, attrs
 from attr.validators import instance_of, provides
 from automat import MethodicalMachine
-from hkdf import Hkdf
 from nacl import utils
 from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
@@ -15,14 +14,10 @@ from zope.interface import implementer
 
 from . import _interfaces
 from .util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                   hexstr_to_bytes, to_bytes)
+                   hexstr_to_bytes, to_bytes, HKDF)
 
 CryptoError
 __all__ = ["derive_key", "derive_phase_key", "CryptoError", "Key"]
-
-
-def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    return Hkdf(salt, skm).expand(CTXinfo, outlen)
 
 
 def derive_key(key, purpose, length=SecretBox.KEY_SIZE):

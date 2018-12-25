@@ -17,13 +17,16 @@ before_script:
       flake8 *.py src --count --select=E901,E999,F821,F822,F823 --statistics ;
     fi
 script:
-  - tox -e coverage
+  - if [[ $TRAVIS_PYTHON_VERSION == 2.7 || $TRAVIS_PYTHON_VERSION == 3.4 ]]; then
+      tox -e no-dilate ;
+    else
+      tox -e coverage ;
+    fi
 after_success:
   - codecov
 matrix:
   include:
     - python: 2.7
-    - python: 3.3
     - python: 3.4
     - python: 3.5
     - python: 3.6
@@ -34,5 +37,4 @@ matrix:
       dist: xenial
     - python: nightly
   allow_failures:
-    - python: 3.3
     - python: nightly

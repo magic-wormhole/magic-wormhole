@@ -2,15 +2,13 @@
 from __future__ import absolute_import, print_function
 
 import os
-import re
 import socket
 import sys
 import time
 from binascii import hexlify, unhexlify
-from collections import deque, namedtuple
+from collections import deque
 
 import six
-from hkdf import Hkdf
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, reactor, task)
@@ -23,11 +21,10 @@ from zope.interface import implementer
 from . import ipaddrs
 from .errors import InternalError
 from .timing import DebugTiming
-from .util import bytes_to_hexstr
-
-
-def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    return Hkdf(salt, skm).expand(CTXinfo, outlen)
+from .util import bytes_to_hexstr, HKDF
+from ._hints import (DirectTCPV1Hint, RelayV1Hint,
+                     parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
+                     parse_tcp_v1_hint)
 
 
 class TransitError(Exception):
@@ -94,72 +91,6 @@ def build_sided_relay_handshake(key, side):
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
         "ascii") + b"\n"
 
-
-# These namedtuples are "hint objects". The JSON-serializable dictionaries
-# are "hint dicts".
-
-# DirectTCPV1Hint and TorTCPV1Hint mean the following protocol:
-# * make a TCP connection (possibly via Tor)
-# * send the sender/receiver handshake bytes first
-# * expect to see the receiver/sender handshake bytes from the other side
-# * the sender writes "go\n", the receiver waits for "go\n"
-# * the rest of the connection contains transit data
-DirectTCPV1Hint = namedtuple("DirectTCPV1Hint",
-                             ["hostname", "port", "priority"])
-TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
-# RelayV1Hint contains a tuple of DirectTCPV1Hint and TorTCPV1Hint hints (we
-# use a tuple rather than a list so they'll be hashable into a set). For each
-# one, make the TCP connection, send the relay handshake, then complete the
-# rest of the V1 protocol. Only one hint per relay is useful.
-RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
-
-
-def describe_hint_obj(hint):
-    if isinstance(hint, DirectTCPV1Hint):
-        return u"tcp:%s:%d" % (hint.hostname, hint.port)
-    elif isinstance(hint, TorTCPV1Hint):
-        return u"tor:%s:%d" % (hint.hostname, hint.port)
-    else:
-        return str(hint)
-
-
-def parse_hint_argv(hint, stderr=sys.stderr):
-    assert isinstance(hint, type(u""))
-    # return tuple or None for an unparseable hint
-    priority = 0.0
-    mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
-    if not mo:
-        print("unparseable hint '%s'" % (hint, ), file=stderr)
-        return None
-    hint_type = mo.group(1)
-    if hint_type != "tcp":
-        print(
-            "unknown hint type '%s' in '%s'" % (hint_type, hint), file=stderr)
-        return None
-    hint_value = mo.group(2)
-    pieces = hint_value.split(":")
-    if len(pieces) < 2:
-        print(
-            "unparseable TCP hint (need more colons) '%s'" % (hint, ),
-            file=stderr)
-        return None
-    mo = re.search(r'^(\d+)$', pieces[1])
-    if not mo:
-        print("non-numeric port in TCP hint '%s'" % (hint, ), file=stderr)
-        return None
-    hint_host = pieces[0]
-    hint_port = int(pieces[1])
-    for more in pieces[2:]:
-        if more.startswith("priority="):
-            more_pieces = more.split("=")
-            try:
-                priority = float(more_pieces[1])
-            except ValueError:
-                print(
-                    "non-float priority= in TCP hint '%s'" % (hint, ),
-                    file=stderr)
-                return None
-    return DirectTCPV1Hint(hint_host, hint_port, priority)
 
 
 TIMEOUT = 60  # seconds
@@ -746,30 +677,11 @@ class Common:
         self._listener_d.addErrback(lambda f: None)
         self._listener_d.cancel()
 
-    def _parse_tcp_v1_hint(self, hint):  # hint_struct -> hint_obj
-        hint_type = hint.get(u"type", u"")
-        if hint_type not in [u"direct-tcp-v1", u"tor-tcp-v1"]:
-            log.msg("unknown hint type: %r" % (hint, ))
-            return None
-        if not (u"hostname" in hint and
-                isinstance(hint[u"hostname"], type(u""))):
-            log.msg("invalid hostname in hint: %r" % (hint, ))
-            return None
-        if not (u"port" in hint and
-                isinstance(hint[u"port"], six.integer_types)):
-            log.msg("invalid port in hint: %r" % (hint, ))
-            return None
-        priority = hint.get(u"priority", 0.0)
-        if hint_type == u"direct-tcp-v1":
-            return DirectTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
-        else:
-            return TorTCPV1Hint(hint[u"hostname"], hint[u"port"], priority)
-
     def add_connection_hints(self, hints):
         for h in hints:  # hint structs
             hint_type = h.get(u"type", u"")
             if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
-                dh = self._parse_tcp_v1_hint(h)
+                dh = parse_tcp_v1_hint(h)
                 if dh:
                     self._their_direct_hints.append(dh)  # hint_obj
             elif hint_type == u"relay-v1":
@@ -779,7 +691,7 @@ class Common:
                 # together like this.
                 relay_hints = []
                 for rhs in h.get(u"hints", []):
-                    h = self._parse_tcp_v1_hint(rhs)
+                    h = parse_tcp_v1_hint(rhs)
                     if h:
                         relay_hints.append(h)
                 if relay_hints:
@@ -875,13 +787,11 @@ class Common:
             # Check the hint type to see if we can support it (e.g. skip
             # onion hints on a non-Tor client). Do not increase relay_delay
             # unless we have at least one viable hint.
-            ep = self._endpoint_from_hint_obj(hint_obj)
+            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
             if not ep:
                 continue
-            description = "->%s" % describe_hint_obj(hint_obj)
-            if self._tor:
-                description = "tor" + description
-            d = self._start_connector(ep, description)
+            d = self._start_connector(ep,
+                                      describe_hint_obj(hint_obj, False, self._tor))
             contenders.append(d)
             relay_delay = self.RELAY_DELAY
 
@@ -902,18 +812,15 @@ class Common:
 
         for priority in sorted(prioritized_relays, reverse=True):
             for hint_obj in prioritized_relays[priority]:
-                ep = self._endpoint_from_hint_obj(hint_obj)
+                ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
                 if not ep:
                     continue
-                description = "->relay:%s" % describe_hint_obj(hint_obj)
-                if self._tor:
-                    description = "tor" + description
                 d = task.deferLater(
                     self._reactor,
                     relay_delay,
                     self._start_connector,
                     ep,
-                    description,
+                    describe_hint_obj(hint_obj, True, self._tor),
                     is_relay=True)
                 contenders.append(d)
             relay_delay += self.RELAY_DELAY
@@ -950,21 +857,6 @@ class Common:
         # fires with protocol, or ConnectError
         d.addCallback(lambda p: p.startNegotiation())
         return d
-
-    def _endpoint_from_hint_obj(self, hint):
-        if self._tor:
-            if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
-                # this Tor object will throw ValueError for non-public IPv4
-                # addresses and any IPv6 address
-                try:
-                    return self._tor.stream_via(hint.hostname, hint.port)
-                except ValueError:
-                    return None
-            return None
-        if isinstance(hint, DirectTCPV1Hint):
-            return endpoints.HostnameEndpoint(self._reactor, hint.hostname,
-                                              hint.port)
-        return None
 
     def connection_ready(self, p):
         # inbound/outbound Connection protocols call this when they finish

@@ -23,12 +23,13 @@ digraph {
         Terminator [shape="box" color="blue" fontcolor="blue"]
         InputHelperAPI [shape="oval" label="input\nhelper\nAPI"
                         color="blue" fontcolor="blue"]
+        Dilator [shape="box" label="Dilator" color="blue" fontcolor="blue"]
 
         #Connection -> websocket [color="blue"]
         #Connection -> Order [color="blue"]
 
         Wormhole -> Boss [style="dashed"
-                          label="allocate_code\ninput_code\nset_code\nsend\nclose\n(once)"
+                          label="allocate_code\ninput_code\nset_code\ndilate\nsend\nclose\n(once)"
                           color="red" fontcolor="red"]
         #Wormhole -> Boss [color="blue"]
         Boss -> Wormhole [style="dashed" label="got_code\ngot_key\ngot_verifier\ngot_version\nreceived (seq)\nclosed\n(once)"]
@@ -112,4 +113,7 @@ digraph {
         Terminator -> Boss [style="dashed" label="closed\n(once)"]
         Boss -> Terminator [style="dashed" color="red" fontcolor="red"
                             label="close"]
+
+        Boss -> Dilator [style="dashed" label="dilate\nreceived_dilate\ngot_wormhole_versions"]
+        Dilator -> Send [style="dashed" label="send(dilate-N)"]
 }

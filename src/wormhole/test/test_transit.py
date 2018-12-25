@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals
 import gc
 import io
 from binascii import hexlify, unhexlify
-from collections import namedtuple
 
 import six
 from nacl.exceptions import CryptoError
@@ -18,7 +17,9 @@ import mock
 from wormhole_transit_relay import transit_server
 
 from .. import transit
+from .._hints import DirectTCPV1Hint
 from ..errors import InternalError
+from ..util import HKDF
 from .common import ServerBase
 
 
@@ -139,141 +140,6 @@ class Misc(unittest.TestCase):
             portno = transit.allocate_tcp_port()
         self.assertIsInstance(portno, int)
 
-
-UnknownHint = namedtuple("UnknownHint", ["stuff"])
-
-
-class Hints(unittest.TestCase):
-    def test_endpoint_from_hint_obj(self):
-        c = transit.Common("")
-        efho = c._endpoint_from_hint_obj
-        self.assertIsInstance(
-            efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
-            endpoints.HostnameEndpoint)
-        self.assertEqual(efho("unknown:stuff:yowza:pivlor"), None)
-        # c._tor is currently None
-        self.assertEqual(efho(transit.TorTCPV1Hint("host", "port", 0)), None)
-        c._tor = mock.Mock()
-
-        def tor_ep(hostname, port):
-            if hostname == "non-public":
-                return None
-            return ("tor_ep", hostname, port)
-
-        c._tor.stream_via = mock.Mock(side_effect=tor_ep)
-        self.assertEqual(
-            efho(transit.DirectTCPV1Hint("host", 1234, 0.0)),
-            ("tor_ep", "host", 1234))
-        self.assertEqual(
-            efho(transit.TorTCPV1Hint("host2.onion", 1234, 0.0)),
-            ("tor_ep", "host2.onion", 1234))
-        self.assertEqual(
-            efho(transit.DirectTCPV1Hint("non-public", 1234, 0.0)), None)
-        self.assertEqual(efho(UnknownHint("foo")), None)
-
-    def test_comparable(self):
-        h1 = transit.DirectTCPV1Hint("hostname", "port1", 0.0)
-        h1b = transit.DirectTCPV1Hint("hostname", "port1", 0.0)
-        h2 = transit.DirectTCPV1Hint("hostname", "port2", 0.0)
-        r1 = transit.RelayV1Hint(tuple(sorted([h1, h2])))
-        r2 = transit.RelayV1Hint(tuple(sorted([h2, h1])))
-        r3 = transit.RelayV1Hint(tuple(sorted([h1b, h2])))
-        self.assertEqual(r1, r2)
-        self.assertEqual(r2, r3)
-        self.assertEqual(len(set([r1, r2, r3])), 1)
-
-    def test_parse_tcp_v1_hint(self):
-        c = transit.Common("")
-        p = c._parse_tcp_v1_hint
-        self.assertEqual(p({"type": "unknown"}), None)
-        h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234})
-        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 0.0))
-        h = p({
-            "type": "direct-tcp-v1",
-            "hostname": "foo",
-            "port": 1234,
-            "priority": 2.5
-        })
-        self.assertEqual(h, transit.DirectTCPV1Hint("foo", 1234, 2.5))
-        h = p({"type": "tor-tcp-v1", "hostname": "foo", "port": 1234})
-        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 0.0))
-        h = p({
-            "type": "tor-tcp-v1",
-            "hostname": "foo",
-            "port": 1234,
-            "priority": 2.5
-        })
-        self.assertEqual(h, transit.TorTCPV1Hint("foo", 1234, 2.5))
-        self.assertEqual(p({
-            "type": "direct-tcp-v1"
-        }), None)  # missing hostname
-        self.assertEqual(p({
-            "type": "direct-tcp-v1",
-            "hostname": 12
-        }), None)  # invalid hostname
-        self.assertEqual(
-            p({
-                "type": "direct-tcp-v1",
-                "hostname": "foo"
-            }), None)  # missing port
-        self.assertEqual(
-            p({
-                "type": "direct-tcp-v1",
-                "hostname": "foo",
-                "port": "not a number"
-            }), None)  # invalid port
-
-    def test_parse_hint_argv(self):
-        def p(hint):
-            stderr = io.StringIO()
-            value = transit.parse_hint_argv(hint, stderr=stderr)
-            return value, stderr.getvalue()
-
-        h, stderr = p("tcp:host:1234")
-        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 0.0))
-        self.assertEqual(stderr, "")
-
-        h, stderr = p("tcp:host:1234:priority=2.6")
-        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 2.6))
-        self.assertEqual(stderr, "")
-
-        h, stderr = p("tcp:host:1234:unknown=stuff")
-        self.assertEqual(h, transit.DirectTCPV1Hint("host", 1234, 0.0))
-        self.assertEqual(stderr, "")
-
-        h, stderr = p("$!@#^")
-        self.assertEqual(h, None)
-        self.assertEqual(stderr, "unparseable hint '$!@#^'\n")
-
-        h, stderr = p("unknown:stuff")
-        self.assertEqual(h, None)
-        self.assertEqual(stderr,
-                         "unknown hint type 'unknown' in 'unknown:stuff'\n")
-
-        h, stderr = p("tcp:just-a-hostname")
-        self.assertEqual(h, None)
-        self.assertEqual(
-            stderr,
-            "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n")
-
-        h, stderr = p("tcp:host:number")
-        self.assertEqual(h, None)
-        self.assertEqual(stderr,
-                         "non-numeric port in TCP hint 'tcp:host:number'\n")
-
-        h, stderr = p("tcp:host:1234:priority=bad")
-        self.assertEqual(h, None)
-        self.assertEqual(
-            stderr,
-            "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
-
-    def test_describe_hint_obj(self):
-        d = transit.describe_hint_obj
-        self.assertEqual(
-            d(transit.DirectTCPV1Hint("host", 1234, 0.0)), "tcp:host:1234")
-        self.assertEqual(
-            d(transit.TorTCPV1Hint("host", 1234, 0.0)), "tor:host:1234")
-        self.assertEqual(d(UnknownHint("stuff")), str(UnknownHint("stuff")))
 
 
 # ipaddrs.py currently uses native strings: bytes on py2, unicode on
@@ -437,7 +303,7 @@ class Listener(unittest.TestCase):
         hints, ep = c._build_listener()
         self.assertIsInstance(hints, (list, set))
         if hints:
-            self.assertIsInstance(hints[0], transit.DirectTCPV1Hint)
+            self.assertIsInstance(hints[0], DirectTCPV1Hint)
         self.assertIsInstance(ep, endpoints.TCP4ServerEndpoint)
 
     def test_get_direct_hints(self):
@@ -1507,8 +1373,8 @@ class Transit(unittest.TestCase):
         self.assertEqual(self.successResultOf(d), "winner")
         self.assertEqual(self._descriptions, ["tor->relay:tcp:relay:1234"])
 
-    def _endpoint_from_hint_obj(self, hint):
-        if isinstance(hint, transit.DirectTCPV1Hint):
+    def _endpoint_from_hint_obj(self, hint, _tor, _reactor):
+        if isinstance(hint, DirectTCPV1Hint):
             if hint.hostname == "unavailable":
                 return None
             return hint.hostname
@@ -1523,20 +1389,21 @@ class Transit(unittest.TestCase):
         del hints
         s.add_connection_hints(
             [DIRECT_HINT_JSON, UNRECOGNIZED_HINT_JSON, RELAY_HINT_JSON])
-        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
-        d = s.connect()
-        self.assertNoResult(d)
-        # the direct connectors are tried right away, but the relay
-        # connectors are stalled for a few seconds
-        self.assertEqual(self._connectors, ["direct"])
+        with mock.patch("wormhole.transit.endpoint_from_hint_obj",
+                        self._endpoint_from_hint_obj):
+            d = s.connect()
+            self.assertNoResult(d)
+            # the direct connectors are tried right away, but the relay
+            # connectors are stalled for a few seconds
+            self.assertEqual(self._connectors, ["direct"])
 
-        clock.advance(s.RELAY_DELAY + 1.0)
-        self.assertEqual(self._connectors, ["direct", "relay"])
+            clock.advance(s.RELAY_DELAY + 1.0)
+            self.assertEqual(self._connectors, ["direct", "relay"])
 
-        self._waiters[0].callback("winner")
-        self.assertEqual(self.successResultOf(d), "winner")
+            self._waiters[0].callback("winner")
+            self.assertEqual(self.successResultOf(d), "winner")
 
     @inlineCallbacks
     def test_priorities(self):
@@ -1586,31 +1453,32 @@ class Transit(unittest.TestCase):
                 }]
             },
         ])
-        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
-        d = s.connect()
-        self.assertNoResult(d)
-        # direct connector should be used first, then the priority=3.0 relay,
-        # then the two 2.0 relays, then the (default) 0.0 relay
+        with mock.patch("wormhole.transit.endpoint_from_hint_obj",
+                        self._endpoint_from_hint_obj):
+            d = s.connect()
+            self.assertNoResult(d)
+            # direct connector should be used first, then the priority=3.0 relay,
+            # then the two 2.0 relays, then the (default) 0.0 relay
 
-        self.assertEqual(self._connectors, ["direct"])
+            self.assertEqual(self._connectors, ["direct"])
 
-        clock.advance(s.RELAY_DELAY + 1.0)
-        self.assertEqual(self._connectors, ["direct", "relay3"])
+            clock.advance(s.RELAY_DELAY + 1.0)
+            self.assertEqual(self._connectors, ["direct", "relay3"])
 
-        clock.advance(s.RELAY_DELAY)
-        self.assertIn(self._connectors,
-                      (["direct", "relay3", "relay2", "relay4"],
-                       ["direct", "relay3", "relay4", "relay2"]))
+            clock.advance(s.RELAY_DELAY)
+            self.assertIn(self._connectors,
+                          (["direct", "relay3", "relay2", "relay4"],
+                           ["direct", "relay3", "relay4", "relay2"]))
 
-        clock.advance(s.RELAY_DELAY)
-        self.assertIn(self._connectors,
-                      (["direct", "relay3", "relay2", "relay4", "relay"],
-                       ["direct", "relay3", "relay4", "relay2", "relay"]))
+            clock.advance(s.RELAY_DELAY)
+            self.assertIn(self._connectors,
+                          (["direct", "relay3", "relay2", "relay4", "relay"],
+                           ["direct", "relay3", "relay4", "relay2", "relay"]))
 
-        self._waiters[0].callback("winner")
-        self.assertEqual(self.successResultOf(d), "winner")
+            self._waiters[0].callback("winner")
+            self.assertEqual(self.successResultOf(d), "winner")
 
     @inlineCallbacks
     def test_no_direct_hints(self):
@@ -1624,20 +1492,21 @@ class Transit(unittest.TestCase):
             UNRECOGNIZED_HINT_JSON, UNAVAILABLE_HINT_JSON, RELAY_HINT2_JSON,
             UNAVAILABLE_RELAY_HINT_JSON
         ])
-        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
-        d = s.connect()
-        self.assertNoResult(d)
-        # since there are no usable direct hints, the relay connector will
-        # only be stalled for 0 seconds
-        self.assertEqual(self._connectors, [])
+        with mock.patch("wormhole.transit.endpoint_from_hint_obj",
+                        self._endpoint_from_hint_obj):
+            d = s.connect()
+            self.assertNoResult(d)
+            # since there are no usable direct hints, the relay connector will
+            # only be stalled for 0 seconds
+            self.assertEqual(self._connectors, [])
 
-        clock.advance(0)
-        self.assertEqual(self._connectors, ["relay"])
+            clock.advance(0)
+            self.assertEqual(self._connectors, ["relay"])
 
-        self._waiters[0].callback("winner")
-        self.assertEqual(self.successResultOf(d), "winner")
+            self._waiters[0].callback("winner")
+            self.assertEqual(self.successResultOf(d), "winner")
 
     @inlineCallbacks
     def test_no_contenders(self):
@@ -1647,17 +1516,18 @@ class Transit(unittest.TestCase):
         hints = yield s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([])  # no hints at all
-        s._endpoint_from_hint_obj = self._endpoint_from_hint_obj
         s._start_connector = self._start_connector
 
-        d = s.connect()
-        f = self.failureResultOf(d, transit.TransitError)
-        self.assertEqual(str(f.value), "No contenders for connection")
+        with mock.patch("wormhole.transit.endpoint_from_hint_obj",
+                        self._endpoint_from_hint_obj):
+            d = s.connect()
+            f = self.failureResultOf(d, transit.TransitError)
+            self.assertEqual(str(f.value), "No contenders for connection")
 
 
 class RelayHandshake(unittest.TestCase):
     def old_build_relay_handshake(self, key):
-        token = transit.HKDF(key, 32, CTXinfo=b"transit_relay_token")
+        token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
         return (token, b"please relay " + hexlify(token) + b"\n")
 
     def test_old(self):

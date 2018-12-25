@@ -12,6 +12,7 @@ from zope.interface import implementer
 from . import _interfaces
 from ._allocator import Allocator
 from ._code import Code, validate_code
+from ._dilation.manager import Dilator
 from ._input import Input
 from ._key import Key
 from ._lister import Lister
@@ -38,6 +39,8 @@ class Boss(object):
     _versions = attrib(validator=instance_of(dict))
     _client_version = attrib(validator=instance_of(tuple))
     _reactor = attrib()
+    _eventual_queue = attrib()
+    _cooperator = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
@@ -64,6 +67,8 @@ class Boss(object):
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
+        self._D = Dilator(self._reactor, self._eventual_queue,
+                          self._cooperator)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -77,12 +82,16 @@ class Boss(object):
         self._I.wire(self._C, self._L)
         self._C.wire(self, self._A, self._N, self._K, self._I)
         self._T.wire(self, self._RC, self._N, self._M)
+        self._D.wire(self._S)
 
     def _init_other_state(self):
         self._did_start_code = False
         self._next_tx_phase = 0
         self._next_rx_phase = 0
         self._rx_phases = {}  # phase -> plaintext
+
+        self._next_rx_dilate_seqnum = 0
+        self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
 
@@ -196,6 +205,9 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
+    def dilate(self):
+        return self._D.dilate()  # fires with endpoints
+
     @m.input()
     def send(self, plaintext):
         pass
@@ -255,8 +267,11 @@ class Boss(object):
     def got_message(self, phase, plaintext):
         assert isinstance(phase, type("")), type(phase)
         assert isinstance(plaintext, type(b"")), type(plaintext)
+        d_mo = re.search(r'^dilate-(\d+)$', phase)
         if phase == "version":
             self._got_version(plaintext)
+        elif d_mo:
+            self._got_dilate(int(d_mo.group(1)), plaintext)
         elif re.search(r'^\d+$', phase):
             self._got_phase(int(phase), plaintext)
         else:
@@ -270,6 +285,10 @@ class Boss(object):
 
     @m.input()
     def _got_phase(self, phase, plaintext):
+        pass
+
+    @m.input()
+    def _got_dilate(self, seqnum, plaintext):
         pass
 
     @m.input()
@@ -294,6 +313,7 @@ class Boss(object):
         # most of this is wormhole-to-wormhole, ignored for now
         # in the future, this is how Dilation is signalled
         self._their_versions = bytes_to_dict(plaintext)
+        self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
         self._W.got_versions(app_versions)
@@ -336,6 +356,10 @@ class Boss(object):
         self._W.got_key(key)
 
     @m.output()
+    def D_got_key(self, key):
+        self._D.got_key(key)
+
+    @m.output()
     def W_got_verifier(self, verifier):
         self._W.got_verifier(verifier)
 
@@ -347,6 +371,16 @@ class Boss(object):
         while self._next_rx_phase in self._rx_phases:
             self._W.received(self._rx_phases.pop(self._next_rx_phase))
             self._next_rx_phase += 1
+
+    @m.output()
+    def D_received_dilate(self, seqnum, plaintext):
+        assert isinstance(seqnum, six.integer_types), type(seqnum)
+        # strict phase order, no gaps
+        self._rx_dilate_seqnums[seqnum] = plaintext
+        while self._next_rx_dilate_seqnum in self._rx_dilate_seqnums:
+            m = self._rx_dilate_seqnums.pop(self._next_rx_dilate_seqnum)
+            self._D.received_dilate(m)
+            self._next_rx_dilate_seqnum += 1
 
     @m.output()
     def W_close_with_error(self, err):
@@ -370,7 +404,7 @@ class Boss(object):
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
-    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key])
+    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
@@ -378,6 +412,7 @@ class Boss(object):
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
     S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
+    S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
@@ -389,6 +424,7 @@ class Boss(object):
     S3_closing.upon(got_verifier, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_phase, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_version, enter=S3_closing, outputs=[])
+    S3_closing.upon(_got_dilate, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
@@ -400,6 +436,7 @@ class Boss(object):
     S4_closed.upon(got_verifier, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_phase, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_version, enter=S4_closed, outputs=[])
+    S4_closed.upon(_got_dilate, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])
     S4_closed.upon(scared, enter=S4_closed, outputs=[])
     S4_closed.upon(close, enter=S4_closed, outputs=[])

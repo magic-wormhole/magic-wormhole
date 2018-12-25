@@ -5,9 +5,12 @@ import sys
 
 from attr import attrib, attrs
 from twisted.python import failure
+from twisted.internet.task import Cooperator
 from zope.interface import implementer
 
 from ._boss import Boss
+from ._dilation.manager import DILATION_VERSIONS
+from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
 from ._key import derive_key
 from .errors import NoKeyError, WormholeClosed
@@ -122,7 +125,8 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self, eq):
+    def __init__(self, reactor, eq):
+        self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
         self._key = None
@@ -186,6 +190,10 @@ class _DeferredWormhole(object):
         if not self._key:
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
+
+    def dilate(self):
+        raise NotImplementedError
+        return self._boss.dilate()  # fires with (endpoints)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -258,18 +266,24 @@ def create(
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
+    cooperator = Cooperator(scheduler=eq.eventually)
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(eq)
-    wormhole_versions = {}  # will be used to indicate Wormhole capabilities
+        w = _DeferredWormhole(reactor, eq)
+    # this indicates Wormhole capabilities
+    wormhole_versions = {
+        "can-dilate": DILATION_VERSIONS,
+        "dilation-abilities": Connector.get_connection_abilities(),
+    }
+    wormhole_versions = {} # don't advertise Dilation yet: not ready
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, journal, tor, timing)
+             reactor, eq, cooperator, journal, tor, timing)
     w._set_boss(b)
     b.start()
     return w
