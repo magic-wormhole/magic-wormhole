@@ -39,7 +39,7 @@ NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 def build_noise():
     return NoiseConnection.from_name(NOISEPROTO)
 
-@attrs
+@attrs(hash=True)
 @implementer(IDilationConnector)
 class Connector(object):
     _dilation_key = attrib(validator=instance_of(type(b"")))

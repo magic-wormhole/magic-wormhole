@@ -87,7 +87,7 @@ def make_side():
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
 
-@attrs
+@attrs(hash=True)
 @implementer(IDilationManager)
 class Manager(object):
     _S = attrib(validator=provides(ISend))
