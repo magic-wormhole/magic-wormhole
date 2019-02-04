@@ -42,6 +42,33 @@ def build_noise():
 @attrs(hash=True)
 @implementer(IDilationConnector)
 class Connector(object):
+    """I manage a single generation of connection.
+
+    The Manager creates one of me at a time, whenever it wants a connection
+    (which is always, once w.dilate() has been called and we know the remote
+    end can dilate, and is expressed by the Manager calling my .start()
+    method). I am discarded when my established connection is lost (and if we
+    still want to be connected, a new generation is started and a new
+    Connector is created). I am also discarded if we stop wanting to be
+    connected (which the Manager expresses by calling my .stop() method).
+
+    I manage the race between multiple connections for a specific generation
+    of the dilated connection.
+
+    I send connection hints when my InboundConnectionFactory yields addresses
+    (self.listener_ready), and I initiate outbond connections (with
+    OutboundConnectionFactory) as I receive connection hints from my peer
+    (self.got_hints). Both factories use my build_protocol() method to create
+    connection.DilatedConnectionProtocol instances. I track these protocol
+    instances until one finishes negotiation and wins the race. I then shut
+    down the others, remember the winner as self._winning_connection, and
+    deliver the winner to manager.connector_connection_made(c).
+
+    When an active connection is lost, we call manager.connector_connection_lost,
+    allowing the manager to decide whether it wants to start a new generation
+    or not.
+    """
+
     _dilation_key = attrib(validator=instance_of(type(b"")))
     _transit_relay_location = attrib(validator=optional(instance_of(type(u""))))
     _manager = attrib(validator=provides(IDilationManager))
@@ -181,10 +208,13 @@ class Connector(object):
         self.stop_pending_connections()
 
         c.select(self._manager)  # subsequent frames go directly to the manager
+        # c.select also wires up when_disconnected() to fire
+        # manager.connector_connection_lost(). TODO: rename this, since the
+        # Connector is no longer the one calling it
         if self._role is LEADER:
             # TODO: this should live in Connection
             c.send_record(KCM())  # leader sends KCM now
-        self._manager.use_connection(c)  # manager sends frames to Connection
+        self._manager.connector_connection_made(c)  # manager sends frames to Connection
 
     @m.output()
     def stop_everything(self):
@@ -199,7 +229,8 @@ class Connector(object):
         return d  # synchronization for tests
 
     def stop_pending_connectors(self):
-        return DeferredList([d.cancel() for d in self._pending_connectors])
+        for d in self._pending_connectors:
+            d.cancel()
 
     def stop_pending_connections(self):
         d = self._pending_connections.when_next_empty()

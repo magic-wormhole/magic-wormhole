@@ -5,7 +5,7 @@ from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue, succeed
 from twisted.python import log
 from .._interfaces import IDilator, IDilationManager, ISend
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -113,6 +113,7 @@ class Manager(object):
         self._connection = None
         self._made_first_connection = False
         self._first_connected = OneShotObserver(self._eventual_queue)
+        self._stopped = OneShotObserver(self._eventual_queue)
         self._host_addr = _WormholeAddress()
 
         self._next_dilation_phase = 0
@@ -132,6 +133,9 @@ class Manager(object):
 
     def when_first_connected(self):
         return self._first_connected.when_fired()
+
+    def when_stopped(self):
+        return self._stopped.when_fired()
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
@@ -401,6 +405,10 @@ class Manager(object):
         # been told to shut down.
         self._connection.disconnect()  # let connection_lost do cleanup
 
+    @m.output()
+    def notify_stopped(self):
+        self._stopped.fire(None)
+
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
                  outputs=[choose_role, start_connecting_ignore_message])
@@ -440,14 +448,14 @@ class Manager(object):
     ABANDONING.upon(rx_HINTS, enter=ABANDONING, outputs=[])  # shouldn't happen
     STOPPING.upon(rx_HINTS, enter=STOPPING, outputs=[])
 
-    WANTING.upon(stop, enter=STOPPED, outputs=[])
-    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting])
+    WANTING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped])
     CONNECTED.upon(stop, enter=STOPPING, outputs=[abandon_connection])
     ABANDONING.upon(stop, enter=STOPPING, outputs=[])
-    FLUSHING.upon(stop, enter=STOPPED, outputs=[])
-    LONELY.upon(stop, enter=STOPPED, outputs=[])
-    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[])
-    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[])
+    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped])
+    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped])
 
 
 @attrs
@@ -535,6 +543,13 @@ class Dilator(object):
 
         endpoints = (control_ep, connect_ep, listen_ep)
         returnValue(endpoints)
+
+    def stop(self):
+        if not self._started:
+            return succeed(None)
+        if self._started:
+            self._manager.stop()
+            return self._manager.when_stopped()
 
     # from Boss
 

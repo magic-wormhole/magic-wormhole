@@ -519,6 +519,8 @@ class DilatedConnectionProtocol(Protocol, object):
     @m.output()
     def set_manager(self, manager):
         self._manager = manager
+        self.when_disconnected().addCallback(lambda c:
+                                             manager.connector_connection_lost())
 
     @m.output()
     def can_send_records(self, manager):

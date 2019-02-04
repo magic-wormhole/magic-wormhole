@@ -388,7 +388,7 @@ class Race(unittest.TestCase):
         c.add_candidate(p1)
         self.assertEqual(h.manager.mock_calls, [])
         h.eq.flush_sync()
-        self.assertEqual(h.manager.mock_calls, [mock.call.use_connection(p1)])
+        self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
         self.assertEqual(p1.mock_calls,
                          [mock.call.select(h.manager),
                           mock.call.send_record(KCM())])
@@ -409,7 +409,7 @@ class Race(unittest.TestCase):
         c.add_candidate(p1)
         self.assertEqual(h.manager.mock_calls, [])
         h.eq.flush_sync()
-        self.assertEqual(h.manager.mock_calls, [mock.call.use_connection(p1)])
+        self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
         # just like LEADER, but follower doesn't send KCM now (it sent one
         # earlier, to tell the leader that this connection looks viable)
         self.assertEqual(p1.mock_calls,
@@ -432,7 +432,7 @@ class Race(unittest.TestCase):
         c.add_candidate(p1)
         self.assertEqual(h.manager.mock_calls, [])
         h.eq.flush_sync()
-        self.assertEqual(h.manager.mock_calls, [mock.call.use_connection(p1)])
+        self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
         clear_mock_calls(h.manager)
         self.assertEqual(p1.mock_calls,
                          [mock.call.select(h.manager),
@@ -454,10 +454,9 @@ class Race(unittest.TestCase):
         c.add_candidate(p1)
         self.assertEqual(h.manager.mock_calls, [])
         h.eq.flush_sync()
-        self.assertEqual(h.manager.mock_calls, [mock.call.use_connection(p1)])
         self.assertEqual(p1.mock_calls,
                          [mock.call.select(h.manager),
                           mock.call.send_record(KCM())])
+        self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
 
         c.stop()
-        
