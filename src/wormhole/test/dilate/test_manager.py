@@ -64,7 +64,7 @@ class TestDilator(unittest.TestCase):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         # that should create the Manager
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", transit_key,
-                                                   None, reactor, eq, coop)])
+                                                   None, reactor, eq, coop, no_listen=False)])
         # and tell it to start, and get wait-for-it-to-connect Deferred
         self.assertEqual(m.mock_calls, [mock.call.start(),
                                         mock.call.when_first_connected(),
@@ -180,7 +180,7 @@ class TestDilator(unittest.TestCase):
                             return_value="us"):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   None, reactor, eq, coop)])
+                                                   None, reactor, eq, coop, no_listen=False)])
         self.assertEqual(m.mock_calls, [mock.call.start(),
                                         mock.call.rx_PLEASE(pleasemsg),
                                         mock.call.rx_HINTS(hintmsg),
@@ -198,7 +198,7 @@ class TestDilator(unittest.TestCase):
                             return_value="us"):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   relay, reactor, eq, coop),
+                                                   relay, reactor, eq, coop, no_listen=False),
                                          mock.call().start(),
                                          mock.call().when_first_connected()])
 

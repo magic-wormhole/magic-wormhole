@@ -97,7 +97,7 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
-    _no_listen = False  # TODO
+    _no_listen = attrib(default=False)
     _tor = None  # TODO
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
@@ -466,6 +466,7 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    _no_listen = attrib(default=False)
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
@@ -509,7 +510,7 @@ class Dilator(object):
                                 self._transit_key,
                                 self._transit_relay_location,
                                 self._reactor, self._eventual_queue,
-                                self._cooperator)
+                                self._cooperator, no_listen=self._no_listen)
         self._manager.start()
 
         while self._pending_inbound_dilate_messages:
