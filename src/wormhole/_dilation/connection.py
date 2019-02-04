@@ -11,8 +11,8 @@ from twisted.internet.interfaces import ITransport
 from .._interfaces import IDilationConnector
 from ..observer import OneShotObserver
 from .encode import to_be4, from_be4
-from .roles import FOLLOWER
-from ._noise import NoiseInvalidMessage
+from .roles import LEADER, FOLLOWER
+from ._noise import NoiseInvalidMessage, NoiseHandshakeError
 
 # InboundFraming is given data and returns Frames (Noise wire-side
 # bytestrings). It handles the relay handshake and the prologue. The Frames it
@@ -55,6 +55,23 @@ def first(l):
 
 class Disconnect(Exception):
     pass
+
+# all connections look like:
+# (step 1: only for outbound connections)
+# 1: if we're connecting to a transit relay:
+#    * send "sided relay handshake": "please relay TOKEN for side SIDE\n"
+#    * the relay will send "ok\n" if/when our peer connects
+#    * a non-relay will probably send junk
+#    * wait for "ok\n", hang up if we get anything different
+# (all subsequent steps are for both inbound and outbound connections)
+# 2: send PROLOGUE_LEADER/FOLLOWER: "Magic-Wormhole Dilation Handshale v1 (l/f)\n\n"
+# 3: wait for the opposite PROLOGUE string, else hang up
+# (everything past this point is a Frame, with be4 length prefix. Frames are
+#  either noise handshake or an encrypted message)
+# 4: if LEADER, send noise handshake string. if FOLLOWER, wait for it
+# 5: if FOLLOWER, send noise response string. if LEADER, wait for it
+# 6: ...
+
 
 
 RelayOK = namedtuple("RelayOk", [])
@@ -193,7 +210,7 @@ class _Framer(object):
     def add_and_parse(self, data):
         # we can't make this an @m.input because we can't change the state
         # from within an input. Instead, let the state choose the parser to
-        # use, and use the parsed token drive a state transition.
+        # use, then use the parsed token to drive a state transition.
         self._buffer += data
         while True:
             # it'd be nice to use an iterator here, but since self.parse()
@@ -302,11 +319,16 @@ def encode_record(r):
     raise TypeError(r)
 
 
+def _is_role(_record, _attr, value):
+    if value not in [LEADER, FOLLOWER]:
+        raise ValueError("role must be LEADER or FOLLOWER")
+
 @attrs
 @implementer(IRecord)
 class _Record(object):
     _framer = attrib(validator=provides(IFramer))
     _noise = attrib()
+    _role = attrib(default="unspecified", validator=_is_role) # for debugging
 
     n = MethodicalMachine()
     # TODO: set_trace
@@ -321,16 +343,36 @@ class _Record(object):
     # states: want_prologue, want_handshake, want_record
 
     @n.state(initial=True)
-    def want_prologue(self):
+    def no_role_set(self):
         pass  # pragma: no cover
 
     @n.state()
-    def want_handshake(self):
+    def want_prologue_leader(self):
+        pass  # pragma: no cover
+
+    @n.state()
+    def want_prologue_follower(self):
+        pass  # pragma: no cover
+
+    @n.state()
+    def want_handshake_leader(self):
+        pass  # pragma: no cover
+
+    @n.state()
+    def want_handshake_follower(self):
         pass  # pragma: no cover
 
     @n.state()
     def want_message(self):
         pass  # pragma: no cover
+
+    @n.input()
+    def set_role_leader(self):
+        pass
+
+    @n.input()
+    def set_role_follower(self):
+        pass
 
     @n.input()
     def got_prologue(self):
@@ -341,8 +383,19 @@ class _Record(object):
         pass
 
     @n.output()
+    def ignore_and_send_handshake(self, frame):
+        self._send_handshake()
+
+    @n.output()
     def send_handshake(self):
-        handshake = self._noise.write_message()  # generate the ephemeral key
+        self._send_handshake()
+
+    def _send_handshake(self):
+        try:
+            handshake = self._noise.write_message()  # generate the ephemeral key
+        except NoiseHandshakeError as e:
+            log.err(e, "noise error during handshake")
+            raise
         self._framer.send_frame(handshake)
 
     @n.output()
@@ -367,10 +420,19 @@ class _Record(object):
             raise Disconnect()
         return parse_record(message)
 
-    want_prologue.upon(got_prologue, outputs=[send_handshake],
-                       enter=want_handshake)
-    want_handshake.upon(got_frame, outputs=[process_handshake],
-                        collector=first, enter=want_message)
+    no_role_set.upon(set_role_leader, outputs=[], enter=want_prologue_leader)
+    want_prologue_leader.upon(got_prologue, outputs=[send_handshake],
+                              enter=want_handshake_leader)
+    want_handshake_leader.upon(got_frame, outputs=[process_handshake],
+                               collector=first, enter=want_message)
+
+    no_role_set.upon(set_role_follower, outputs=[], enter=want_prologue_follower)
+    want_prologue_follower.upon(got_prologue, outputs=[],
+                                enter=want_handshake_follower)
+    want_handshake_follower.upon(got_frame, outputs=[process_handshake,
+                                                     ignore_and_send_handshake],
+                                 collector=first, enter=want_message)
+
     want_message.upon(got_frame, outputs=[decrypt_message],
                       collector=first, enter=want_message)
 
@@ -493,12 +555,20 @@ class DilatedConnectionProtocol(Protocol, object):
     # IProtocol methods
 
     def connectionMade(self):
-        framer = _Framer(self.transport,
-                         self._outbound_prologue, self._inbound_prologue)
-        if self._use_relay:
-            framer.use_relay(self._relay_handshake)
-        self._record = _Record(framer, self._noise)
-        self._record.connectionMade()
+        try:
+            framer = _Framer(self.transport,
+                             self._outbound_prologue, self._inbound_prologue)
+            if self._use_relay:
+                framer.use_relay(self._relay_handshake)
+            self._record = _Record(framer, self._noise, self._role)
+            if self._role is LEADER:
+                self._record.set_role_leader()
+            else:
+                self._record.set_role_follower()
+            self._record.connectionMade()
+        except:
+            log.err()
+            raise
 
     def dataReceived(self, data):
         try:

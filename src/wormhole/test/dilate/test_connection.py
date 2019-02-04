@@ -69,10 +69,20 @@ class Connection(unittest.TestCase):
         clear_mock_calls(n, connector, t, m)
 
         c.dataReceived(b"inbound_prologue\n")
-        self.assertEqual(n.mock_calls, [mock.call.write_message()])
-        self.assertEqual(connector.mock_calls, [])
+
         exp_handshake = b"\x00\x00\x00\x09handshake"
-        self.assertEqual(t.mock_calls, [mock.call.write(exp_handshake)])
+        if role is LEADER:
+            # the LEADER sends the Noise handshake message immediately upon
+            # receipt of the prologue
+            self.assertEqual(n.mock_calls, [mock.call.write_message()])
+            self.assertEqual(t.mock_calls, [mock.call.write(exp_handshake)])
+        else:
+            # however the FOLLOWER waits until receiving the leader's
+            # handshake before sending their own
+            self.assertEqual(n.mock_calls, [])
+            self.assertEqual(t.mock_calls, [])
+        self.assertEqual(connector.mock_calls, [])
+
         clear_mock_calls(n, connector, t, m)
 
         c.dataReceived(b"\x00\x00\x00\x0Ahandshake2")
@@ -84,13 +94,16 @@ class Connection(unittest.TestCase):
             self.assertEqual(t.mock_calls, [])
             self.assertEqual(c._manager, None)
         else:
-            # we're the follower, so we encrypt and send the KCM immediately
+            # we're the follower, so we send our Noise handshake, then
+            # encrypt and send the KCM immediately
             self.assertEqual(n.mock_calls, [
                 mock.call.read_message(b"handshake2"),
+                mock.call.write_message(),
                 mock.call.encrypt(encode_record(t_kcm)),
             ])
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [
+                mock.call.write(exp_handshake),
                 mock.call.write(exp_kcm)])
             self.assertEqual(c._manager, None)
         clear_mock_calls(n, connector, t, m)

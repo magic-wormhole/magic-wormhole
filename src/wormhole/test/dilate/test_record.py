@@ -6,13 +6,15 @@ from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake,
                                      Disconnect, Ping)
+from ..._dilation.roles import LEADER
 
 
 def make_record():
     f = mock.Mock()
     alsoProvides(f, IFramer)
     n = mock.Mock()  # pretends to be a Noise object
-    r = _Record(f, n)
+    r = _Record(f, n, LEADER)
+    r.set_role_leader()
     return r, f, n
 
 
@@ -30,7 +32,8 @@ class Record(unittest.TestCase):
         n.write_message = mock.Mock(return_value=b"tx-handshake")
         p1, p2 = object(), object()
         n.decrypt = mock.Mock(side_effect=[p1, p2])
-        r = _Record(f, n)
+        r = _Record(f, n, LEADER)
+        r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
         r.connectionMade()
         self.assertEqual(f.mock_calls, [mock.call.connectionMade()])
@@ -79,7 +82,8 @@ class Record(unittest.TestCase):
         n.write_message = mock.Mock(return_value=b"tx-handshake")
         nvm = NoiseInvalidMessage()
         n.read_message = mock.Mock(side_effect=nvm)
-        r = _Record(f, n)
+        r = _Record(f, n, LEADER)
+        r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
         r.connectionMade()
         self.assertEqual(f.mock_calls, [mock.call.connectionMade()])
@@ -103,7 +107,8 @@ class Record(unittest.TestCase):
         n.write_message = mock.Mock(return_value=b"tx-handshake")
         nvm = NoiseInvalidMessage()
         n.decrypt = mock.Mock(side_effect=nvm)
-        r = _Record(f, n)
+        r = _Record(f, n, LEADER)
+        r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
         r.connectionMade()
         self.assertEqual(f.mock_calls, [mock.call.connectionMade()])
@@ -124,7 +129,8 @@ class Record(unittest.TestCase):
         f1 = object()
         n.encrypt = mock.Mock(return_value=f1)
         r1 = Ping(b"pingid")
-        r = _Record(f, n)
+        r = _Record(f, n, LEADER)
+        r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
         m1 = object()
         with mock.patch("wormhole._dilation.connection.encode_record",
