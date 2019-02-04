@@ -154,7 +154,7 @@ from .connection import KCM, Ping, Pong, Ack
 
 
 @attrs
-@implementer(IOutbound)
+@implementer(IOutbound, IPushProducer)
 class Outbound(object):
     # Manage outbound data: subchannel writes to us, we write to transport
     _manager = attrib(validator=provides(IDilationManager))
@@ -265,12 +265,12 @@ class Outbound(object):
         assert not self._queued_unsent
         self._queued_unsent.extend(self._outbound_queue)
         # the connection can tell us to pause when we send too much data
-        c.registerProducer(self, True)  # IPushProducer: pause+resume
+        c.transport.registerProducer(self, True)  # IPushProducer: pause+resume
         # send our queued messages
         self.resumeProducing()
 
     def stop_using_connection(self):
-        self._connection.unregisterProducer()
+        self._connection.transport.unregisterProducer()
         self._connection = None
         self._queued_unsent.clear()
         self.pauseProducing()
@@ -290,8 +290,8 @@ class Outbound(object):
         # Inbound is responsible for tracking the high watermark and deciding
         # whether to ignore inbound messages or not
 
-    # IProducer: the active connection calls these because we used
-    # c.registerProducer to ask for them
+    # IPushProducer: the active connection calls these because we used
+    # c.transport.registerProducer to ask for them
 
     def pauseProducing(self):
         if self._paused:

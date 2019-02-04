@@ -105,7 +105,7 @@ class OutboundTest(unittest.TestCase):
 
         # as soon as the connection is established, everything is sent
         o.use_connection(c)
-        self.assertEqual(c.mock_calls, [mock.call.registerProducer(o, True),
+        self.assertEqual(c.mock_calls, [mock.call.transport.registerProducer(o, True),
                                         mock.call.send_record(r1),
                                         mock.call.send_record(r2)])
         self.assertEqual(list(o._outbound_queue), [r1, r2])
@@ -131,7 +131,7 @@ class OutboundTest(unittest.TestCase):
         # after each write. So only r1 should have been sent before getting
         # paused
         o.use_connection(c)
-        self.assertEqual(c.mock_calls, [mock.call.registerProducer(o, True),
+        self.assertEqual(c.mock_calls, [mock.call.transport.registerProducer(o, True),
                                         mock.call.send_record(r1)])
         self.assertEqual(list(o._outbound_queue), [r1, r2])
         self.assertEqual(list(o._queued_unsent), [r2])
@@ -172,7 +172,7 @@ class OutboundTest(unittest.TestCase):
         self.assertEqual(list(o._queued_unsent), [])
 
         o.use_connection(c)
-        self.assertEqual(c.mock_calls, [mock.call.registerProducer(o, True),
+        self.assertEqual(c.mock_calls, [mock.call.transport.registerProducer(o, True),
                                         mock.call.send_record(r1)])
         self.assertEqual(list(o._outbound_queue), [r1, r2])
         self.assertEqual(list(o._queued_unsent), [r2])
@@ -191,7 +191,7 @@ class OutboundTest(unittest.TestCase):
     def test_pause(self):
         o, m, c = make_outbound()
         o.use_connection(c)
-        self.assertEqual(c.mock_calls, [mock.call.registerProducer(o, True)])
+        self.assertEqual(c.mock_calls, [mock.call.transport.registerProducer(o, True)])
         self.assertEqual(list(o._outbound_queue), [])
         self.assertEqual(list(o._queued_unsent), [])
         clear_mock_calls(c)
@@ -519,7 +519,7 @@ class OutboundTest(unittest.TestCase):
 
         o.use_connection(c)
         o.send_if_connected(KCM())
-        self.assertEqual(c.mock_calls, [mock.call.registerProducer(o, True),
+        self.assertEqual(c.mock_calls, [mock.call.transport.registerProducer(o, True),
                                         mock.call.send_record(KCM())])
 
     def test_tolerate_duplicate_pause_resume(self):
