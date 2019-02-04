@@ -90,13 +90,13 @@ def make_side():
 @attrs(hash=True)
 @implementer(IDilationManager)
 class Manager(object):
-    _S = attrib(validator=provides(ISend))
+    _S = attrib(validator=provides(ISend), repr=False)
     _my_side = attrib(validator=instance_of(type(u"")))
-    _transit_key = attrib(validator=instance_of(bytes))
+    _transit_key = attrib(validator=instance_of(bytes), repr=False)
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
-    _reactor = attrib()
-    _eventual_queue = attrib()
-    _cooperator = attrib()
+    _reactor = attrib(repr=False)
+    _eventual_queue = attrib(repr=False)
+    _cooperator = attrib(repr=False)
     _no_listen = False  # TODO
     _tor = None  # TODO
     _timing = None  # TODO
