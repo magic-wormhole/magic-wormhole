@@ -29,6 +29,10 @@ def make_con(role, use_relay=False):
 
 
 class Connection(unittest.TestCase):
+    def test_hashable(self):
+        c, n, connector, t, eq = make_con(LEADER)
+        hash(c)
+
     def test_bad_prologue(self):
         c, n, connector, t, eq = make_con(LEADER)
         c.makeConnection(t)

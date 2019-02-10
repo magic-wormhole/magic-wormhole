@@ -455,7 +455,7 @@ class _Record(object):
         self._framer.send_frame(frame)
 
 
-@attrs(hash=True)
+@attrs(cmp=False)
 class DilatedConnectionProtocol(Protocol, object):
     """I manage an L2 connection.
 

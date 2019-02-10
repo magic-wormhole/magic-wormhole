@@ -39,7 +39,7 @@ NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 def build_noise():
     return NoiseConnection.from_name(NOISEPROTO)
 
-@attrs(hash=True)
+@attrs(cmp=False)
 @implementer(IDilationConnector)
 class Connector(object):
     """I manage a single generation of connection.
