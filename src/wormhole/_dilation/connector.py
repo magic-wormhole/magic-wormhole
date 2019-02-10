@@ -234,7 +234,7 @@ class Connector(object):
 
     def stop_pending_connections(self):
         d = self._pending_connections.when_next_empty()
-        [c.loseConnection() for c in self._pending_connections]
+        [c.disconnect() for c in self._pending_connections]
         return d
 
     def break_cycles(self):
