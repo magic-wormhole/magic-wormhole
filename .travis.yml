@@ -33,5 +33,6 @@ matrix:
       script: tox -e py-coverage
     - python: 3.6
       script: tox -e flake8
+      env: FLAKE8
   allow_failures:
     - python: nightly
