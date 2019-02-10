@@ -9,6 +9,7 @@ from zope.interface import implementer
 from ... import _interfaces
 from ...eventual import EventualQueue
 from ..._dilation import manager
+from ..._dilation._noise import NoiseConnection
 
 
 @implementer(_interfaces.ISend)
@@ -29,6 +30,8 @@ class MySend(object):
 class Connect(unittest.TestCase):
     @inlineCallbacks
     def test1(self):
+        if not NoiseConnection:
+            raise unittest.SkipTest("noiseprotocol unavailable")
         #print()
         send_left = MySend("left")
         send_right = MySend("right")
