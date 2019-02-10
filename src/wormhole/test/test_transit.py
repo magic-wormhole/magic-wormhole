@@ -1572,6 +1572,7 @@ class Full(ServerBase, unittest.TestCase):
         s.set_transit_key(KEY)
         r.set_transit_key(KEY)
 
+        # TODO: this sometimes fails with EADDRINUSE
         shints = yield s.get_connection_hints()
         rhints = yield r.get_connection_hints()
 
