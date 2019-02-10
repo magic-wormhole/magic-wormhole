@@ -24,9 +24,6 @@ matrix:
     - python: 3.6
       script: tox -e py36-coverage
     - python: 3.7
-      # we don't actually need sudo, but that kicks us onto GCE, which lets
-      # us get xenial
-      sudo: true
       dist: xenial
       script: tox -e py37-coverage
     - python: nightly
