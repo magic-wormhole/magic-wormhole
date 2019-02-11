@@ -5,7 +5,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock, Cooperator
 import mock
 from ...eventual import EventualQueue
-from ..._interfaces import ISend, IDilationManager
+from ..._interfaces import ISend, IDilationManager, ITerminator
 from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.encode import to_be4
@@ -32,7 +32,9 @@ def make_dilator():
     send = mock.Mock()
     alsoProvides(send, ISend)
     dil = Dilator(reactor, eq, coop)
-    dil.wire(send)
+    terminator = mock.Mock()
+    alsoProvides(terminator, ITerminator)
+    dil.wire(send, terminator)
     return dil, send, reactor, eq, clock, coop
 
 

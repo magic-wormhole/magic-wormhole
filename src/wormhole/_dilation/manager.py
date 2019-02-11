@@ -5,9 +5,9 @@ from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue, succeed
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.python import log
-from .._interfaces import IDilator, IDilationManager, ISend
+from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from ..observer import OneShotObserver
 from .._key import derive_key
@@ -486,8 +486,9 @@ class Dilator(object):
         self._pending_inbound_dilate_messages = deque()
         self._manager = None
 
-    def wire(self, sender):
+    def wire(self, sender, terminator):
         self._S = ISend(sender)
+        self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
     def dilate(self, transit_relay_location=None):
@@ -547,12 +548,18 @@ class Dilator(object):
         endpoints = (control_ep, connect_ep, listen_ep)
         returnValue(endpoints)
 
+    # Called by Terminator after everything else (mailbox, nameplate, server
+    # connection) has shut down. Expects to fire T.stoppedD() when Dilator is
+    # stopped too.
     def stop(self):
         if not self._started:
-            return succeed(None)
+            self._T.stoppedD()
+            return
         if self._started:
             self._manager.stop()
-            return self._manager.when_stopped()
+            # TODO: avoid Deferreds for control flow, hard to serialize
+            self._manager.when_stopped().addCallback(lambda _: self._T.stoppedD())
+        # TODO: tolerate multiple calls
 
     # from Boss
 

@@ -81,8 +81,8 @@ class Boss(object):
         self._A.wire(self._RC, self._C)
         self._I.wire(self._C, self._L)
         self._C.wire(self, self._A, self._N, self._K, self._I)
-        self._T.wire(self, self._RC, self._N, self._M)
-        self._D.wire(self._S)
+        self._T.wire(self, self._RC, self._N, self._M, self._D)
+        self._D.wire(self._S, self._T)
 
     def _init_other_state(self):
         self._did_start_code = False

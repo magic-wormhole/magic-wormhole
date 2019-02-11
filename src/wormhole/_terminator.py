@@ -15,15 +15,17 @@ class Terminator(object):
     def __init__(self):
         self._mood = None
 
-    def wire(self, boss, rendezvous_connector, nameplate, mailbox):
+    def wire(self, boss, rendezvous_connector, nameplate, mailbox, dilator):
         self._B = _interfaces.IBoss(boss)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._N = _interfaces.INameplate(nameplate)
         self._M = _interfaces.IMailbox(mailbox)
+        self._D = _interfaces.IDilator(dilator)
 
-    # 4*2-1 main states:
-    # (nm, m, n, 0): nameplate and/or mailbox is active
+    # 2*2-1+1 main states:
+    # (nm, m, n, d): nameplate and/or mailbox is active
     # (o, ""): open (not-yet-closing), or trying to close
+    # after closing the mailbox-server connection, we stop Dilation
     # S0 is special: we don't hang out in it
 
     # TODO: rename o to 0, "" to 1. "S1" is special/terminal
@@ -64,7 +66,11 @@ class Terminator(object):
     # def S0(self): pass # unused
 
     @m.state()
-    def S_stopping(self):
+    def S_stoppingRC(self):
+        pass  # pragma: no cover
+
+    @m.state()
+    def S_stoppingD(self):
         pass  # pragma: no cover
 
     @m.state()
@@ -88,7 +94,11 @@ class Terminator(object):
 
     # from RendezvousConnector
     @m.input()
-    def stopped(self):
+    def stoppedRC(self):
+        pass
+
+    @m.input()
+    def stoppedD(self):
         pass
 
     @m.output()
@@ -108,6 +118,10 @@ class Terminator(object):
         self._RC.stop()
 
     @m.output()
+    def stop_dilator(self):
+        self._D.stop()
+
+    @m.output()
     def B_closed(self):
         self._B.closed()
 
@@ -115,20 +129,19 @@ class Terminator(object):
     Snmo.upon(close, enter=Snm, outputs=[close_nameplate, close_mailbox])
     Snmo.upon(nameplate_done, enter=Smo, outputs=[])
 
-    Sno.upon(close, enter=Sn, outputs=[close_nameplate, close_mailbox])
+    Sno.upon(close, enter=Sn, outputs=[close_nameplate])
     Sno.upon(nameplate_done, enter=S0o, outputs=[])
 
-    Smo.upon(close, enter=Sm, outputs=[close_nameplate, close_mailbox])
+    Smo.upon(close, enter=Sm, outputs=[close_mailbox])
     Smo.upon(mailbox_done, enter=S0o, outputs=[])
 
     Snm.upon(mailbox_done, enter=Sn, outputs=[])
     Snm.upon(nameplate_done, enter=Sm, outputs=[])
 
-    Sn.upon(nameplate_done, enter=S_stopping, outputs=[RC_stop])
-    S0o.upon(
-        close,
-        enter=S_stopping,
-        outputs=[close_nameplate, close_mailbox, ignore_mood_and_RC_stop])
-    Sm.upon(mailbox_done, enter=S_stopping, outputs=[RC_stop])
+    Sn.upon(nameplate_done, enter=S_stoppingRC, outputs=[RC_stop])
+    Sm.upon(mailbox_done, enter=S_stoppingRC, outputs=[RC_stop])
+    S0o.upon(close, enter=S_stoppingRC, outputs=[ignore_mood_and_RC_stop])
 
-    S_stopping.upon(stopped, enter=S_stopped, outputs=[B_closed])
+    S_stoppingRC.upon(stoppedRC, enter=S_stoppingD, outputs=[stop_dilator])
+
+    S_stoppingD.upon(stoppedD, enter=S_stopped, outputs=[B_closed])
