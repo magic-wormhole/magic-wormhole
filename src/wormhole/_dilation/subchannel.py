@@ -55,7 +55,7 @@ class _WormholeAddress(object):
 @implementer(IAddress)
 @attrs
 class _SubchannelAddress(object):
-    _scid = attrib()
+    _scid = attrib(validator=instance_of(bytes))
 
 
 @attrs

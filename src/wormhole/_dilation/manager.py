@@ -164,12 +164,15 @@ class Manager(object):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Open, scid)
 
     def send_data(self, scid, data):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Data, scid, data)
 
     def send_close(self, scid):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Close, scid)
 
     def _queue_and_send(self, record_type, *args):
@@ -528,7 +531,7 @@ class Dilator(object):
         yield self._manager.when_first_connected()
 
         # we can open subchannels as soon as we get our first connection
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = to_be4(0)
         self._host_addr = _WormholeAddress()  # TODO: share with Manager
         peer_addr0 = _SubchannelAddress(scid0)
         control_ep = ControlEndpoint(peer_addr0)
