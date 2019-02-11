@@ -60,9 +60,9 @@ class Inbound(object):
             return True
         return False
 
-    def update_ack_watermark(self, r):
+    def update_ack_watermark(self, seqnum):
         self._highest_inbound_acked = max(self._highest_inbound_acked,
-                                          r.seqnum)
+                                          seqnum)
 
     def handle_open(self, scid):
         if scid in self._open_subchannels:

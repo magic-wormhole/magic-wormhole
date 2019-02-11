@@ -27,12 +27,12 @@ class InboundTest(unittest.TestCase):
         self.assertFalse(i.is_record_old(r2))
         self.assertFalse(i.is_record_old(r3))
 
-        i.update_ack_watermark(r1)
+        i.update_ack_watermark(r1.seqnum)
         self.assertTrue(i.is_record_old(r1))
         self.assertFalse(i.is_record_old(r2))
         self.assertFalse(i.is_record_old(r3))
 
-        i.update_ack_watermark(r2)
+        i.update_ack_watermark(r2.seqnum)
         self.assertTrue(i.is_record_old(r1))
         self.assertTrue(i.is_record_old(r2))
         self.assertFalse(i.is_record_old(r3))
