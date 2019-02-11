@@ -35,7 +35,6 @@ class Full(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
     def test_full(self):
-        raise unittest.SkipTest("not ready yet")
         eq = EventualQueue(reactor)
         w1 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
         w2 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
@@ -75,8 +74,4 @@ class Full(ServerBase, unittest.TestCase):
         yield w1.close()
         yield w2.close()
 
-        # TODO: this shouldn't be necessary. Also, it doesn't help.
-        d = Deferred()
-        reactor.callLater(1.0, d.callback, None)
-        yield d
-    test_full.timeout = 10
+    test_full.timeout = 30
