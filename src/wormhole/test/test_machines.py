@@ -1220,7 +1220,8 @@ class Terminator(unittest.TestCase):
         rc = Dummy("rc", events, IRendezvousConnector, "stop")
         n = Dummy("n", events, INameplate, "close")
         m = Dummy("m", events, IMailbox, "close")
-        t.wire(b, rc, n, m)
+        d = Dummy("d", events, IDilator, "stop")
+        t.wire(b, rc, n, m, d)
         return t, b, rc, n, m, events
 
     # there are three events, and we need to test all orderings of them
@@ -1229,45 +1230,64 @@ class Terminator(unittest.TestCase):
         input_events = {
             "mailbox": lambda: t.mailbox_done(),
             "nameplate": lambda: t.nameplate_done(),
-            "close": lambda: t.close("happy"),
+            "rc": lambda: t.close("happy"),
         }
         close_events = [
             ("n.close", ),
             ("m.close", "happy"),
         ]
 
+        if ev1 == "mailbox":
+            close_events.remove(("m.close", "happy"))
+        elif ev1 == "nameplate":
+            close_events.remove(("n.close",))
+
         input_events[ev1]()
         expected = []
-        if ev1 == "close":
+        if ev1 == "rc":
             expected.extend(close_events)
         self.assertEqual(events, expected)
         events[:] = []
+
+        if ev2 == "mailbox":
+            close_events.remove(("m.close", "happy"))
+        elif ev2 == "nameplate":
+            close_events.remove(("n.close",))
 
         input_events[ev2]()
         expected = []
-        if ev2 == "close":
+        if ev2 == "rc":
             expected.extend(close_events)
         self.assertEqual(events, expected)
         events[:] = []
 
+        if ev3 == "mailbox":
+            close_events.remove(("m.close", "happy"))
+        elif ev3 == "nameplate":
+            close_events.remove(("n.close",))
+
         input_events[ev3]()
         expected = []
-        if ev3 == "close":
+        if ev3 == "rc":
             expected.extend(close_events)
         expected.append(("rc.stop", ))
         self.assertEqual(events, expected)
         events[:] = []
 
-        t.stopped()
+        t.stoppedRC()
+        self.assertEqual(events, [("d.stop", )])
+        events[:] = []
+
+        t.stoppedD()
         self.assertEqual(events, [("b.closed", )])
 
     def test_terminate(self):
-        self._do_test("mailbox", "nameplate", "close")
-        self._do_test("mailbox", "close", "nameplate")
-        self._do_test("nameplate", "mailbox", "close")
-        self._do_test("nameplate", "close", "mailbox")
-        self._do_test("close", "nameplate", "mailbox")
-        self._do_test("close", "mailbox", "nameplate")
+        self._do_test("mailbox", "nameplate", "rc")
+        self._do_test("mailbox", "rc", "nameplate")
+        self._do_test("nameplate", "mailbox", "rc")
+        self._do_test("nameplate", "rc", "mailbox")
+        self._do_test("rc", "nameplate", "mailbox")
+        self._do_test("rc", "mailbox", "nameplate")
 
     # TODO: test moods
 

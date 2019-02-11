@@ -9,6 +9,7 @@ from ..._interfaces import IDilationConnector
 from ..._dilation.roles import LEADER, FOLLOWER
 from ..._dilation.connection import (DilatedConnectionProtocol, encode_record,
                                      KCM, Open, Ack)
+from ..._dilation.encode import to_be4
 from .common import clear_mock_calls
 
 
@@ -19,7 +20,7 @@ def make_con(role, use_relay=False):
     alsoProvides(connector, IDilationConnector)
     n = mock.Mock()  # pretends to be a Noise object
     n.write_message = mock.Mock(side_effect=[b"handshake"])
-    c = DilatedConnectionProtocol(eq, role, connector, n,
+    c = DilatedConnectionProtocol(eq, role, "desc", connector, n,
                                   b"outbound_prologue\n", b"inbound_prologue\n")
     if use_relay:
         c.use_relay(b"relay_handshake\n")
@@ -29,6 +30,10 @@ def make_con(role, use_relay=False):
 
 
 class Connection(unittest.TestCase):
+    def test_hashable(self):
+        c, n, connector, t, eq = make_con(LEADER)
+        hash(c)
+
     def test_bad_prologue(self):
         c, n, connector, t, eq = make_con(LEADER)
         c.makeConnection(t)
@@ -52,7 +57,7 @@ class Connection(unittest.TestCase):
     def _test_no_relay(self, role):
         c, n, connector, t, eq = make_con(role)
         t_kcm = KCM()
-        t_open = Open(seqnum=1, scid=0x11223344)
+        t_open = Open(seqnum=1, scid=to_be4(0x11223344))
         t_ack = Ack(resp_seqnum=2)
         n.decrypt = mock.Mock(side_effect=[
             encode_record(t_kcm),
@@ -69,10 +74,20 @@ class Connection(unittest.TestCase):
         clear_mock_calls(n, connector, t, m)
 
         c.dataReceived(b"inbound_prologue\n")
-        self.assertEqual(n.mock_calls, [mock.call.write_message()])
-        self.assertEqual(connector.mock_calls, [])
+
         exp_handshake = b"\x00\x00\x00\x09handshake"
-        self.assertEqual(t.mock_calls, [mock.call.write(exp_handshake)])
+        if role is LEADER:
+            # the LEADER sends the Noise handshake message immediately upon
+            # receipt of the prologue
+            self.assertEqual(n.mock_calls, [mock.call.write_message()])
+            self.assertEqual(t.mock_calls, [mock.call.write(exp_handshake)])
+        else:
+            # however the FOLLOWER waits until receiving the leader's
+            # handshake before sending their own
+            self.assertEqual(n.mock_calls, [])
+            self.assertEqual(t.mock_calls, [])
+        self.assertEqual(connector.mock_calls, [])
+
         clear_mock_calls(n, connector, t, m)
 
         c.dataReceived(b"\x00\x00\x00\x0Ahandshake2")
@@ -84,13 +99,16 @@ class Connection(unittest.TestCase):
             self.assertEqual(t.mock_calls, [])
             self.assertEqual(c._manager, None)
         else:
-            # we're the follower, so we encrypt and send the KCM immediately
+            # we're the follower, so we send our Noise handshake, then
+            # encrypt and send the KCM immediately
             self.assertEqual(n.mock_calls, [
                 mock.call.read_message(b"handshake2"),
+                mock.call.write_message(),
                 mock.call.encrypt(encode_record(t_kcm)),
             ])
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [
+                mock.call.write(exp_handshake),
                 mock.call.write(exp_kcm)])
             self.assertEqual(c._manager, None)
         clear_mock_calls(n, connector, t, m)

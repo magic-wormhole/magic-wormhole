@@ -246,7 +246,7 @@ class RendezvousConnector(object):
 
     # internal
     def _stopped(self, res):
-        self._T.stopped()
+        self._T.stoppedRC()
 
     def _tx(self, mtype, **kwargs):
         assert self._ws

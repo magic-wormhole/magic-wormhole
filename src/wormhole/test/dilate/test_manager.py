@@ -5,7 +5,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock, Cooperator
 import mock
 from ...eventual import EventualQueue
-from ..._interfaces import ISend, IDilationManager
+from ..._interfaces import ISend, IDilationManager, ITerminator
 from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.encode import to_be4
@@ -32,7 +32,9 @@ def make_dilator():
     send = mock.Mock()
     alsoProvides(send, ISend)
     dil = Dilator(reactor, eq, coop)
-    dil.wire(send)
+    terminator = mock.Mock()
+    alsoProvides(terminator, ITerminator)
+    dil.wire(send, terminator)
     return dil, send, reactor, eq, clock, coop
 
 
@@ -64,7 +66,7 @@ class TestDilator(unittest.TestCase):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         # that should create the Manager
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", transit_key,
-                                                   None, reactor, eq, coop)])
+                                                   None, reactor, eq, coop, no_listen=False)])
         # and tell it to start, and get wait-for-it-to-connect Deferred
         self.assertEqual(m.mock_calls, [mock.call.start(),
                                         mock.call.when_first_connected(),
@@ -180,7 +182,7 @@ class TestDilator(unittest.TestCase):
                             return_value="us"):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   None, reactor, eq, coop)])
+                                                   None, reactor, eq, coop, no_listen=False)])
         self.assertEqual(m.mock_calls, [mock.call.start(),
                                         mock.call.rx_PLEASE(pleasemsg),
                                         mock.call.rx_HINTS(hintmsg),
@@ -198,7 +200,7 @@ class TestDilator(unittest.TestCase):
                             return_value="us"):
                 dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   relay, reactor, eq, coop),
+                                                   relay, reactor, eq, coop, no_listen=False),
                                          mock.call().start(),
                                          mock.call().when_first_connected()])
 

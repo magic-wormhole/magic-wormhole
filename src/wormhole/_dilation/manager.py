@@ -7,7 +7,7 @@ from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.python import log
-from .._interfaces import IDilator, IDilationManager, ISend
+from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from ..observer import OneShotObserver
 from .._key import derive_key
@@ -87,17 +87,17 @@ def make_side():
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
 
-@attrs
+@attrs(cmp=False)
 @implementer(IDilationManager)
 class Manager(object):
-    _S = attrib(validator=provides(ISend))
+    _S = attrib(validator=provides(ISend), repr=False)
     _my_side = attrib(validator=instance_of(type(u"")))
-    _transit_key = attrib(validator=instance_of(bytes))
+    _transit_key = attrib(validator=instance_of(bytes), repr=False)
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
-    _reactor = attrib()
-    _eventual_queue = attrib()
-    _cooperator = attrib()
-    _no_listen = False  # TODO
+    _reactor = attrib(repr=False)
+    _eventual_queue = attrib(repr=False)
+    _cooperator = attrib(repr=False)
+    _no_listen = attrib(default=False)
     _tor = None  # TODO
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
@@ -113,6 +113,7 @@ class Manager(object):
         self._connection = None
         self._made_first_connection = False
         self._first_connected = OneShotObserver(self._eventual_queue)
+        self._stopped = OneShotObserver(self._eventual_queue)
         self._host_addr = _WormholeAddress()
 
         self._next_dilation_phase = 0
@@ -132,6 +133,9 @@ class Manager(object):
 
     def when_first_connected(self):
         return self._first_connected.when_fired()
+
+    def when_stopped(self):
+        return self._stopped.when_fired()
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
@@ -160,12 +164,15 @@ class Manager(object):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Open, scid)
 
     def send_data(self, scid, data):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Data, scid, data)
 
     def send_close(self, scid):
+        assert isinstance(scid, bytes)
         self._queue_and_send(Close, scid)
 
     def _queue_and_send(self, record_type, *args):
@@ -401,6 +408,10 @@ class Manager(object):
         # been told to shut down.
         self._connection.disconnect()  # let connection_lost do cleanup
 
+    @m.output()
+    def notify_stopped(self):
+        self._stopped.fire(None)
+
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
                  outputs=[choose_role, start_connecting_ignore_message])
@@ -440,14 +451,14 @@ class Manager(object):
     ABANDONING.upon(rx_HINTS, enter=ABANDONING, outputs=[])  # shouldn't happen
     STOPPING.upon(rx_HINTS, enter=STOPPING, outputs=[])
 
-    WANTING.upon(stop, enter=STOPPED, outputs=[])
-    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting])
+    WANTING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped])
     CONNECTED.upon(stop, enter=STOPPING, outputs=[abandon_connection])
     ABANDONING.upon(stop, enter=STOPPING, outputs=[])
-    FLUSHING.upon(stop, enter=STOPPED, outputs=[])
-    LONELY.upon(stop, enter=STOPPED, outputs=[])
-    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[])
-    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[])
+    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped])
+    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped])
+    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped])
 
 
 @attrs
@@ -466,6 +477,7 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    _no_listen = attrib(default=False)
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
@@ -474,8 +486,9 @@ class Dilator(object):
         self._pending_inbound_dilate_messages = deque()
         self._manager = None
 
-    def wire(self, sender):
+    def wire(self, sender, terminator):
         self._S = ISend(sender)
+        self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
     def dilate(self, transit_relay_location=None):
@@ -509,7 +522,7 @@ class Dilator(object):
                                 self._transit_key,
                                 self._transit_relay_location,
                                 self._reactor, self._eventual_queue,
-                                self._cooperator)
+                                self._cooperator, no_listen=self._no_listen)
         self._manager.start()
 
         while self._pending_inbound_dilate_messages:
@@ -519,7 +532,7 @@ class Dilator(object):
         yield self._manager.when_first_connected()
 
         # we can open subchannels as soon as we get our first connection
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = to_be4(0)
         self._host_addr = _WormholeAddress()  # TODO: share with Manager
         peer_addr0 = _SubchannelAddress(scid0)
         control_ep = ControlEndpoint(peer_addr0)
@@ -534,6 +547,19 @@ class Dilator(object):
 
         endpoints = (control_ep, connect_ep, listen_ep)
         returnValue(endpoints)
+
+    # Called by Terminator after everything else (mailbox, nameplate, server
+    # connection) has shut down. Expects to fire T.stoppedD() when Dilator is
+    # stopped too.
+    def stop(self):
+        if not self._started:
+            self._T.stoppedD()
+            return
+        if self._started:
+            self._manager.stop()
+            # TODO: avoid Deferreds for control flow, hard to serialize
+            self._manager.when_stopped().addCallback(lambda _: self._T.stoppedD())
+        # TODO: tolerate multiple calls
 
     # from Boss
 

@@ -9,6 +9,7 @@ from twisted.internet.task import deferLater
 from twisted.internet.defer import DeferredList
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
+from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -39,9 +40,36 @@ NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 def build_noise():
     return NoiseConnection.from_name(NOISEPROTO)
 
-@attrs
+@attrs(cmp=False)
 @implementer(IDilationConnector)
 class Connector(object):
+    """I manage a single generation of connection.
+
+    The Manager creates one of me at a time, whenever it wants a connection
+    (which is always, once w.dilate() has been called and we know the remote
+    end can dilate, and is expressed by the Manager calling my .start()
+    method). I am discarded when my established connection is lost (and if we
+    still want to be connected, a new generation is started and a new
+    Connector is created). I am also discarded if we stop wanting to be
+    connected (which the Manager expresses by calling my .stop() method).
+
+    I manage the race between multiple connections for a specific generation
+    of the dilated connection.
+
+    I send connection hints when my InboundConnectionFactory yields addresses
+    (self.listener_ready), and I initiate outbond connections (with
+    OutboundConnectionFactory) as I receive connection hints from my peer
+    (self.got_hints). Both factories use my build_protocol() method to create
+    connection.DilatedConnectionProtocol instances. I track these protocol
+    instances until one finishes negotiation and wins the race. I then shut
+    down the others, remember the winner as self._winning_connection, and
+    deliver the winner to manager.connector_connection_made(c).
+
+    When an active connection is lost, we call manager.connector_connection_lost,
+    allowing the manager to decide whether it wants to start a new generation
+    or not.
+    """
+
     _dilation_key = attrib(validator=instance_of(type(b"")))
     _transit_relay_location = attrib(validator=optional(instance_of(type(u""))))
     _manager = attrib(validator=provides(IDilationManager))
@@ -83,7 +111,7 @@ class Connector(object):
                 {"type": "relay-v1"},
                 ]
 
-    def build_protocol(self, addr):
+    def build_protocol(self, addr, description):
         # encryption: let's use Noise NNpsk0 (or maybe NNpsk2). That uses
         # ephemeral keys plus a pre-shared symmetric key (the Transit key), a
         # different one for each potential connection.
@@ -98,6 +126,7 @@ class Connector(object):
             outbound_prologue = PROLOGUE_FOLLOWER
             inbound_prologue = PROLOGUE_LEADER
         p = DilatedConnectionProtocol(self._eventual_queue, self._role,
+                                      description,
                                       self, noise,
                                       outbound_prologue, inbound_prologue)
         return p
@@ -181,10 +210,13 @@ class Connector(object):
         self.stop_pending_connections()
 
         c.select(self._manager)  # subsequent frames go directly to the manager
+        # c.select also wires up when_disconnected() to fire
+        # manager.connector_connection_lost(). TODO: rename this, since the
+        # Connector is no longer the one calling it
         if self._role is LEADER:
             # TODO: this should live in Connection
             c.send_record(KCM())  # leader sends KCM now
-        self._manager.use_connection(c)  # manager sends frames to Connection
+        self._manager.connector_connection_made(c)  # manager sends frames to Connection
 
     @m.output()
     def stop_everything(self):
@@ -199,11 +231,12 @@ class Connector(object):
         return d  # synchronization for tests
 
     def stop_pending_connectors(self):
-        return DeferredList([d.cancel() for d in self._pending_connectors])
+        for d in self._pending_connectors:
+            d.cancel()
 
     def stop_pending_connections(self):
         d = self._pending_connections.when_next_empty()
-        [c.loseConnection() for c in self._pending_connections]
+        [c.disconnect() for c in self._pending_connections]
         return d
 
     def break_cycles(self):
@@ -337,7 +370,7 @@ class Connector(object):
         if is_relay:
             relay_handshake = build_sided_relay_handshake(self._dilation_key,
                                                           self._side)
-        f = OutboundConnectionFactory(self, relay_handshake)
+        f = OutboundConnectionFactory(self, relay_handshake, description)
         d = ep.connect(f)
         # fires with protocol, or ConnectError
 
@@ -368,20 +401,28 @@ class Connector(object):
 class OutboundConnectionFactory(ClientFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
     _relay_handshake = attrib(validator=optional(instance_of(bytes)))
+    _description = attrib()
 
     def buildProtocol(self, addr):
-        p = self._connector.build_protocol(addr)
+        p = self._connector.build_protocol(addr, self._description)
         p.factory = self
         if self._relay_handshake is not None:
             p.use_relay(self._relay_handshake)
         return p
 
+def describe_inbound(addr):
+    if isinstance(addr, HostnameAddress):
+        return "<-tcp:%s:%d" % (addr.hostname, addr.port)
+    elif isinstance(addr, (IPv4Address, IPv6Address)):
+        return "<-tcp:%s:%d" % (addr.host, addr.port)
+    return "<-%r" % addr
 
 @attrs
 class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def buildProtocol(self, addr):
-        p = self._connector.build_protocol(addr)
+        description = describe_inbound(addr)
+        p = self._connector.build_protocol(addr, description)
         p.factory = self
         return p
