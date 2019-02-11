@@ -9,6 +9,7 @@ from twisted.internet.task import deferLater
 from twisted.internet.defer import DeferredList
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
+from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -110,7 +111,7 @@ class Connector(object):
                 {"type": "relay-v1"},
                 ]
 
-    def build_protocol(self, addr):
+    def build_protocol(self, addr, description):
         # encryption: let's use Noise NNpsk0 (or maybe NNpsk2). That uses
         # ephemeral keys plus a pre-shared symmetric key (the Transit key), a
         # different one for each potential connection.
@@ -125,6 +126,7 @@ class Connector(object):
             outbound_prologue = PROLOGUE_FOLLOWER
             inbound_prologue = PROLOGUE_LEADER
         p = DilatedConnectionProtocol(self._eventual_queue, self._role,
+                                      description,
                                       self, noise,
                                       outbound_prologue, inbound_prologue)
         return p
@@ -368,7 +370,7 @@ class Connector(object):
         if is_relay:
             relay_handshake = build_sided_relay_handshake(self._dilation_key,
                                                           self._side)
-        f = OutboundConnectionFactory(self, relay_handshake)
+        f = OutboundConnectionFactory(self, relay_handshake, description)
         d = ep.connect(f)
         # fires with protocol, or ConnectError
 
@@ -399,20 +401,28 @@ class Connector(object):
 class OutboundConnectionFactory(ClientFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
     _relay_handshake = attrib(validator=optional(instance_of(bytes)))
+    _description = attrib()
 
     def buildProtocol(self, addr):
-        p = self._connector.build_protocol(addr)
+        p = self._connector.build_protocol(addr, self._description)
         p.factory = self
         if self._relay_handshake is not None:
             p.use_relay(self._relay_handshake)
         return p
 
+def describe_inbound(addr):
+    if isinstance(addr, HostnameAddress):
+        return "<-tcp:%s:%d" % (addr.hostname, addr.port)
+    elif isinstance(addr, (IPv4Address, IPv6Address)):
+        return "<-tcp:%s:%d" % (addr.host, addr.port)
+    return "<-%r" % addr
 
 @attrs
 class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def buildProtocol(self, addr):
-        p = self._connector.build_protocol(addr)
+        description = describe_inbound(addr)
+        p = self._connector.build_protocol(addr, description)
         p.factory = self
         return p

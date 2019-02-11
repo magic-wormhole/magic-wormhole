@@ -20,7 +20,7 @@ def make_con(role, use_relay=False):
     alsoProvides(connector, IDilationConnector)
     n = mock.Mock()  # pretends to be a Noise object
     n.write_message = mock.Mock(side_effect=[b"handshake"])
-    c = DilatedConnectionProtocol(eq, role, connector, n,
+    c = DilatedConnectionProtocol(eq, role, "desc", connector, n,
                                   b"outbound_prologue\n", b"inbound_prologue\n")
     if use_relay:
         c.use_relay(b"relay_handshake\n")

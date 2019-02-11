@@ -475,6 +475,7 @@ class DilatedConnectionProtocol(Protocol, object):
 
     _eventual_queue = attrib()
     _role = attrib()
+    _description = attrib()
     _connector = attrib(validator=provides(IDilationConnector))
     _noise = attrib()
     _outbound_prologue = attrib(validator=instance_of(bytes))

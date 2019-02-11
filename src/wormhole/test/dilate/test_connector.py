@@ -5,6 +5,7 @@ from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock
 from twisted.internet.defer import Deferred
+from twisted.internet.address import IPv4Address
 from ...eventual import EventualQueue
 from ..._interfaces import IDilationManager, IDilationConnector
 from ..._hints import DirectTCPV1Hint, RelayV1Hint, TorTCPV1Hint
@@ -34,11 +35,11 @@ class Outbound(unittest.TestCase):
         p0 = mock.Mock()
         c.build_protocol = mock.Mock(return_value=p0)
         relay_handshake = None
-        f = OutboundConnectionFactory(c, relay_handshake)
+        f = OutboundConnectionFactory(c, relay_handshake, "desc")
         addr = object()
         p = f.buildProtocol(addr)
         self.assertIdentical(p, p0)
-        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr)])
+        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr, "desc")])
         self.assertEqual(p.mock_calls, [])
         self.assertIdentical(p.factory, f)
 
@@ -48,11 +49,11 @@ class Outbound(unittest.TestCase):
         p0 = mock.Mock()
         c.build_protocol = mock.Mock(return_value=p0)
         relay_handshake = b"relay handshake"
-        f = OutboundConnectionFactory(c, relay_handshake)
+        f = OutboundConnectionFactory(c, relay_handshake, "desc")
         addr = object()
         p = f.buildProtocol(addr)
         self.assertIdentical(p, p0)
-        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr)])
+        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr, "desc")])
         self.assertEqual(p.mock_calls, [mock.call.use_relay(relay_handshake)])
         self.assertIdentical(p.factory, f)
 
@@ -63,10 +64,10 @@ class Inbound(unittest.TestCase):
         p0 = mock.Mock()
         c.build_protocol = mock.Mock(return_value=p0)
         f = InboundConnectionFactory(c)
-        addr = object()
+        addr = IPv4Address("TCP", "1.2.3.4", 55)
         p = f.buildProtocol(addr)
         self.assertIdentical(p, p0)
-        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr)])
+        self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr, "<-tcp:1.2.3.4:55")])
         self.assertIdentical(p.factory, f)
 
 def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
@@ -115,13 +116,13 @@ class TestConnector(unittest.TestCase):
                         return_value=n0) as bn:
             with mock.patch("wormhole._dilation.connector.DilatedConnectionProtocol",
                             return_value=p0) as dcp:
-                p = c.build_protocol(addr)
+                p = c.build_protocol(addr, "desc")
         self.assertEqual(bn.mock_calls, [mock.call()])
         self.assertEqual(n0.mock_calls, [mock.call.set_psks(h.dilation_key),
                                          mock.call.set_as_initiator()])
         self.assertIdentical(p, p0)
         self.assertEqual(dcp.mock_calls,
-                         [mock.call(h.eq, h.role, c, n0,
+                         [mock.call(h.eq, h.role, "desc", c, n0,
                                     PROLOGUE_LEADER, PROLOGUE_FOLLOWER)])
 
     def test_build_protocol_follower(self):
@@ -133,13 +134,13 @@ class TestConnector(unittest.TestCase):
                         return_value=n0) as bn:
             with mock.patch("wormhole._dilation.connector.DilatedConnectionProtocol",
                             return_value=p0) as dcp:
-                p = c.build_protocol(addr)
+                p = c.build_protocol(addr, "desc")
         self.assertEqual(bn.mock_calls, [mock.call()])
         self.assertEqual(n0.mock_calls, [mock.call.set_psks(h.dilation_key),
                                          mock.call.set_as_responder()])
         self.assertIdentical(p, p0)
         self.assertEqual(dcp.mock_calls,
-                         [mock.call(h.eq, h.role, c, n0,
+                         [mock.call(h.eq, h.role, "desc", c, n0,
                                     PROLOGUE_FOLLOWER, PROLOGUE_LEADER)])
 
     def test_start_stop(self):
@@ -244,7 +245,7 @@ class TestConnector(unittest.TestCase):
         with mock.patch("wormhole._dilation.connector.OutboundConnectionFactory",
                         return_value=f) as ocf:
             h.clock.advance(1.0)
-        self.assertEqual(ocf.mock_calls, [mock.call(c, None)])
+        self.assertEqual(ocf.mock_calls, [mock.call(c, None, "->tcp:foo:55")])
         self.assertEqual(ep.connect.mock_calls, [mock.call(f)])
         p = mock.Mock()
         d.callback(p)
@@ -269,7 +270,7 @@ class TestConnector(unittest.TestCase):
                         return_value=f) as ocf:
             h.clock.advance(1.0)
         handshake = build_sided_relay_handshake(h.dilation_key, h.side)
-        self.assertEqual(ocf.mock_calls, [mock.call(c, handshake)])
+        self.assertEqual(ocf.mock_calls, [mock.call(c, handshake, "->relay:tcp:foo:55")])
 
     def test_listen_but_tor(self):
         c, h = make_connector(listen=True, tor=True, role=roles.LEADER)
