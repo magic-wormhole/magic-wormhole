@@ -473,13 +473,13 @@ class DilatedConnectionProtocol(Protocol, object):
     At any given time, there is at most one active L2 connection.
     """
 
-    _eventual_queue = attrib()
+    _eventual_queue = attrib(repr=False)
     _role = attrib()
     _description = attrib()
-    _connector = attrib(validator=provides(IDilationConnector))
-    _noise = attrib()
-    _outbound_prologue = attrib(validator=instance_of(bytes))
-    _inbound_prologue = attrib(validator=instance_of(bytes))
+    _connector = attrib(validator=provides(IDilationConnector), repr=False)
+    _noise = attrib(repr=False)
+    _outbound_prologue = attrib(validator=instance_of(bytes), repr=False)
+    _inbound_prologue = attrib(validator=instance_of(bytes), repr=False)
 
     _use_relay = False
     _relay_handshake = None
