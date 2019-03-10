@@ -3,6 +3,8 @@ from __future__ import print_function
 import hashlib
 import os
 import sys
+
+import stat
 import tempfile
 import zipfile
 
@@ -362,6 +364,22 @@ class Sender:
                 u"Sending directory (%s compressed) named '%s'" %
                 (naturalsize(filesize), basename),
                 file=args.stderr)
+            return offer, fd_to_send
+
+        if stat.S_ISBLK(os.stat(what).st_mode):
+            fd_to_send = open(what, "rb")
+            filesize = fd_to_send.seek(0, 2)
+
+            offer["file"] = {
+                "filename": basename,
+                "filesize": filesize,
+            }
+            print(
+                u"Sending %s block device named '%s'" % (naturalsize(filesize),
+                                                         basename),
+                file=args.stderr)
+
+            fd_to_send.seek(0)
             return offer, fd_to_send
 
         raise TypeError("'%s' is neither file nor directory" % args.what)
