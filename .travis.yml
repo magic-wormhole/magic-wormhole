@@ -31,5 +31,9 @@ matrix:
     - python: 3.6
       script: tox -e flake8less
       env: FLAKE8
+    - python: 3.7
+      dist: xenial
+      script: tox -e docs
+      env: DOCS
   allow_failures:
     - python: nightly

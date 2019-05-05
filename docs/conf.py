@@ -64,6 +64,8 @@ def _get_versions():
     parent = os.path.dirname(here)
     v = subprocess.check_output([sys.executable, "setup.py", "--version"],
                                 cwd=parent)
+    if sys.version_info[0] >= 3:
+        v = v.decode()
     short = ".".join(v.split(".")[:2])
     long = v
     return short, long
