@@ -6,10 +6,11 @@ from attr.validators import instance_of, provides, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.task import deferLater
-from twisted.internet.defer import DeferredList
+from twisted.internet.defer import DeferredList, CancelledError
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
+from twisted.internet.error import ConnectingCancelledError
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -308,6 +309,8 @@ class Connector(object):
         desc = describe_hint_obj(h, is_relay, self._tor)
         d = deferLater(self._reactor, delay,
                        self._connect, ep, desc, is_relay)
+        d.addErrback(lambda f: f.trap(ConnectingCancelledError,
+                                      CancelledError))
         d.addErrback(log.err)
         self._pending_connectors.add(d)
 
