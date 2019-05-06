@@ -12,13 +12,20 @@ environment:
     # For Python versions available on Appveyor, see
     # http://www.appveyor.com/docs/installed-software#python
     - PYTHON: "C:\\Python27"
+      TOXENV: py27-nodilate
     - PYTHON: "C:\\Python27-x64"
       DISTUTILS_USE_SDK: "1"
+      TOXENV: py27-nodilate
     - PYTHON: "C:\\Python35"
+      TOXENV: py35
     - PYTHON: "C:\\Python35-x64"
+      TOXENV: py35
     - PYTHON: "C:\\Python36"
+      TOXENV: py36
     - PYTHON: "C:\\Python36-x64"
+      TOXENV: py36
     - PYTHON: "C:\\Python37-x64"
+      TOXENV: py37
 
 matrix:
   allow_failures:
@@ -42,7 +49,7 @@ test_script:
   # the interpreter you're using - Appveyor does not do anything special
   # to put the Python evrsion you want to use on PATH.
   - |
-    misc\windows-build.cmd %PYTHON%\Scripts\tox.exe -e py
+    misc\windows-build.cmd %PYTHON%\Scripts\tox.exe
 
 after_test:
   # This step builds your wheels.
