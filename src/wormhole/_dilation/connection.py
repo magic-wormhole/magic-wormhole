@@ -69,9 +69,13 @@ class Disconnect(Exception):
 # (everything past this point is a Frame, with be4 length prefix. Frames are
 #  either noise handshake or an encrypted message)
 # 4: if LEADER, send noise handshake string. if FOLLOWER, wait for it
+#    LEADER: m=n.write_message(), FOLLOWER: n.read_message(m)
 # 5: if FOLLOWER, send noise response string. if LEADER, wait for it
-# 6: ...
-
+#    FOLLOWER: m=n.write_message(), LEADER: n.read_message(m)
+# 6: if FOLLOWER: send KCM (m=n.encrypt('')), wait for KCM (n.decrypt(m))
+#    if LEADER: wait for KCM, gather viable connections, select
+#               send KCM over selected connection, drop the rest
+# 7: both: send Ping/Pong/Open/Data/Close/Ack records (n.encrypt(rec))
 
 
 RelayOK = namedtuple("RelayOk", [])
