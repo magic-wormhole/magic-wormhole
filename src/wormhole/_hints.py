@@ -3,7 +3,8 @@ import sys
 import re
 import six
 from collections import namedtuple
-from twisted.internet.endpoints import HostnameEndpoint
+from twisted.internet.endpoints import TCP4ClientEndpoint, TCP6ClientEndpoint, HostnameEndpoint
+from twisted.internet.abstract import isIPAddress, isIPv6Address
 from twisted.python import log
 
 # These namedtuples are "hint objects". The JSON-serializable dictionaries
@@ -82,6 +83,11 @@ def endpoint_from_hint_obj(hint, tor, reactor):
                 return None
         return None
     if isinstance(hint, DirectTCPV1Hint):
+        # avoid DNS lookup unless necessary
+        if isIPAddress(hint.hostname):
+            return TCP4ClientEndpoint(reactor, hint.hostname, hint.port)
+        if isIPv6Address(hint.hostname):
+            return TCP6ClientEndpoint(reactor, hint.hostname, hint.port)
         return HostnameEndpoint(reactor, hint.hostname, hint.port)
     return None
 
