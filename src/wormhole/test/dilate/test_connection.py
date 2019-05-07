@@ -233,3 +233,77 @@ class Connection(unittest.TestCase):
         self.assertEqual(connector.mock_calls, [])
         self.assertEqual(t.mock_calls, [mock.call.loseConnection()])
         clear_mock_calls(n, connector, t)
+
+    def test_follower_combined(self):
+        c, n, connector, t, eq = make_con(FOLLOWER)
+        t_kcm = KCM()
+        t_open = Open(seqnum=1, scid=to_be4(0x11223344))
+        n.decrypt = mock.Mock(side_effect=[
+            encode_record(t_kcm),
+            encode_record(t_open),
+        ])
+        exp_kcm = b"\x00\x00\x00\x03kcm"
+        n.encrypt = mock.Mock(side_effect=[b"kcm", b"ack1"])
+        m = mock.Mock()  # Manager
+
+        c.makeConnection(t)
+        self.assertEqual(n.mock_calls, [mock.call.start_handshake()])
+        self.assertEqual(connector.mock_calls, [])
+        self.assertEqual(t.mock_calls, [mock.call.write(b"outbound_prologue\n")])
+        clear_mock_calls(n, connector, t, m)
+
+        c.dataReceived(b"inbound_prologue\n")
+
+        exp_handshake = b"\x00\x00\x00\x09handshake"
+        # however the FOLLOWER waits until receiving the leader's
+        # handshake before sending their own
+        self.assertEqual(n.mock_calls, [])
+        self.assertEqual(t.mock_calls, [])
+        self.assertEqual(connector.mock_calls, [])
+
+        clear_mock_calls(n, connector, t, m)
+
+        c.dataReceived(b"\x00\x00\x00\x0Ahandshake2")
+        # we're the follower, so we send our Noise handshake, then
+        # encrypt and send the KCM immediately
+        self.assertEqual(n.mock_calls, [
+            mock.call.read_message(b"handshake2"),
+            mock.call.write_message(),
+            mock.call.encrypt(encode_record(t_kcm)),
+        ])
+        self.assertEqual(connector.mock_calls, [])
+        self.assertEqual(t.mock_calls, [
+            mock.call.write(exp_handshake),
+            mock.call.write(exp_kcm)])
+        self.assertEqual(c._manager, None)
+        clear_mock_calls(n, connector, t, m)
+
+        # the leader will select a connection, send the KCM, and then
+        # immediately send some more data
+
+        kcm_and_msg1 = (b"\x00\x00\x00\x03KCM" +
+                        b"\x00\x00\x00\x04msg1")
+        c.dataReceived(kcm_and_msg1)
+
+        # follower: inbound KCM means we've been selected.
+        # in both cases we notify Connector.add_candidate(), and the Connector
+        # decides if/when to call .select()
+
+        self.assertEqual(n.mock_calls, [mock.call.decrypt(b"KCM"),
+                                        mock.call.decrypt(b"msg1")])
+        self.assertEqual(connector.mock_calls, [mock.call.add_candidate(c)])
+        self.assertEqual(t.mock_calls, [])
+        clear_mock_calls(n, connector, t, m)
+
+        # now pretend this connection wins (either the Leader decides to use
+        # this one among all the candiates, or we're the Follower and the
+        # Connector is reacting to add_candidate() by recognizing we're the
+        # only candidate there is)
+        c.select(m)
+        self.assertIdentical(c._manager, m)
+        # follower: we already sent the KCM, do nothing
+        self.assertEqual(n.mock_calls, [])
+        self.assertEqual(connector.mock_calls, [])
+        self.assertEqual(t.mock_calls, [])
+        self.assertEqual(m.mock_calls, [mock.call.got_record(t_open)])
+        clear_mock_calls(n, connector, t, m)
