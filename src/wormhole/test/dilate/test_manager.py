@@ -3,6 +3,7 @@ from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock, Cooperator
+from twisted.internet.interfaces import IAddress
 import mock
 from ...eventual import EventualQueue
 from ..._interfaces import ISend, IDilationManager, ITerminator
@@ -14,7 +15,6 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnknownDilationMessageType,
                                   UnexpectedKCM,
                                   UnknownMessageType)
-from ..._dilation.subchannel import _WormholeAddress
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from .common import clear_mock_calls
 
@@ -56,6 +56,16 @@ class TestDilator(unittest.TestCase):
         self.assertNoResult(d1)
         self.assertNoResult(d2)
 
+        host_addr = dil._host_addr
+
+        peer_addr = object()
+        m_sca = mock.patch("wormhole._dilation.manager._SubchannelAddress",
+                           return_value=peer_addr)
+        sc = mock.Mock()
+        m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
+                          return_value=sc)
+        scid0 = b"\x00\x00\x00\x00"
+
         m = mock.Mock()
         alsoProvides(m, IDilationManager)
         m.when_first_connected.return_value = wfc_d = Deferred()
@@ -63,47 +73,38 @@ class TestDilator(unittest.TestCase):
                         return_value=m) as ml:
             with mock.patch("wormhole._dilation.manager.make_side",
                             return_value="us"):
-                dil.got_wormhole_versions({"can-dilate": ["1"]})
+                with m_sca, m_sc as m_sc_m:
+                    dil.got_wormhole_versions({"can-dilate": ["1"]})
         # that should create the Manager
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", transit_key,
-                                                   None, reactor, eq, coop, no_listen=False)])
+                                                   None, reactor, eq, coop, host_addr, False)])
+        # and create subchannel0
+        self.assertEqual(m_sc_m.mock_calls,
+                         [mock.call(scid0, m, host_addr, peer_addr)])
         # and tell it to start, and get wait-for-it-to-connect Deferred
-        self.assertEqual(m.mock_calls, [mock.call.start(),
+        self.assertEqual(m.mock_calls, [mock.call.set_subchannel_zero(scid0, sc),
+                                        mock.call.start(),
                                         mock.call.when_first_connected(),
                                         ])
         clear_mock_calls(m)
         self.assertNoResult(d1)
         self.assertNoResult(d2)
 
-        host_addr = _WormholeAddress()
-        m_wa = mock.patch("wormhole._dilation.manager._WormholeAddress",
-                          return_value=host_addr)
-        peer_addr = object()
-        m_sca = mock.patch("wormhole._dilation.manager._SubchannelAddress",
-                           return_value=peer_addr)
         ce = mock.Mock()
         m_ce = mock.patch("wormhole._dilation.manager.ControlEndpoint",
                           return_value=ce)
-        sc = mock.Mock()
-        m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
-                          return_value=sc)
-
         lep = object()
         m_sle = mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                            return_value=lep)
 
-        with m_wa, m_sca, m_ce as m_ce_m, m_sc as m_sc_m, m_sle as m_sle_m:
+        with m_ce as m_ce_m, m_sle as m_sle_m:
             wfc_d.callback(None)
             eq.flush_sync()
-        scid0 = b"\x00\x00\x00\x00"
         self.assertEqual(m_ce_m.mock_calls, [mock.call(peer_addr)])
-        self.assertEqual(m_sc_m.mock_calls,
-                         [mock.call(scid0, m, host_addr, peer_addr)])
         self.assertEqual(ce.mock_calls, [mock.call._subchannel_zero_opened(sc)])
         self.assertEqual(m_sle_m.mock_calls, [mock.call(m, host_addr)])
         self.assertEqual(m.mock_calls,
-                         [mock.call.set_subchannel_zero(scid0, sc),
-                          mock.call.set_listener_endpoint(lep),
+                         [mock.call.set_listener_endpoint(lep),
                           ])
         clear_mock_calls(m)
 
@@ -166,6 +167,7 @@ class TestDilator(unittest.TestCase):
         dil, send, reactor, eq, clock, coop = make_dilator()
         dil._transit_key = b"key"
         d1 = dil.dilate()
+        host_addr = dil._host_addr
         self.assertNoResult(d1)
         pleasemsg = dict(type="please", side="them")
         dil.received_dilate(dict_to_bytes(pleasemsg))
@@ -176,14 +178,21 @@ class TestDilator(unittest.TestCase):
         alsoProvides(m, IDilationManager)
         m.when_first_connected.return_value = Deferred()
 
+        scid0 = b"\x00\x00\x00\x00"
+        sc = mock.Mock()
+        m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
+                          return_value=sc)
+
         with mock.patch("wormhole._dilation.manager.Manager",
                         return_value=m) as ml:
             with mock.patch("wormhole._dilation.manager.make_side",
                             return_value="us"):
-                dil.got_wormhole_versions({"can-dilate": ["1"]})
+                with m_sc:
+                    dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   None, reactor, eq, coop, no_listen=False)])
-        self.assertEqual(m.mock_calls, [mock.call.start(),
+                                                   None, reactor, eq, coop, host_addr, False)])
+        self.assertEqual(m.mock_calls, [mock.call.set_subchannel_zero(scid0, sc),
+                                        mock.call.start(),
                                         mock.call.rx_PLEASE(pleasemsg),
                                         mock.call.rx_HINTS(hintmsg),
                                         mock.call.when_first_connected()])
@@ -191,16 +200,24 @@ class TestDilator(unittest.TestCase):
     def test_transit_relay(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
         dil._transit_key = b"key"
+        host_addr = dil._host_addr
         relay = object()
         d1 = dil.dilate(transit_relay_location=relay)
         self.assertNoResult(d1)
 
+        scid0 = b"\x00\x00\x00\x00"
+        sc = mock.Mock()
+        m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
+                          return_value=sc)
+
         with mock.patch("wormhole._dilation.manager.Manager") as ml:
             with mock.patch("wormhole._dilation.manager.make_side",
                             return_value="us"):
-                dil.got_wormhole_versions({"can-dilate": ["1"]})
+                with m_sc:
+                    dil.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(ml.mock_calls, [mock.call(send, "us", b"key",
-                                                   relay, reactor, eq, coop, no_listen=False),
+                                                   relay, reactor, eq, coop, host_addr, False),
+                                         mock.call().set_subchannel_zero(scid0, sc),
                                          mock.call().start(),
                                          mock.call().when_first_connected()])
 
@@ -234,12 +251,11 @@ def make_manager(leader=True):
     h.Inbound = mock.Mock(return_value=h.inbound)
     h.outbound = mock.Mock()
     h.Outbound = mock.Mock(return_value=h.outbound)
-    h.hostaddr = object()
+    h.hostaddr = mock.Mock()
+    alsoProvides(h.hostaddr, IAddress)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound):
         with mock.patch("wormhole._dilation.manager.Outbound", h.Outbound):
-            with mock.patch("wormhole._dilation.manager._WormholeAddress",
-                            return_value=h.hostaddr):
-                m = Manager(h.send, side, h.key, h.relay, h.reactor, h.eq, h.coop)
+            m = Manager(h.send, side, h.key, h.relay, h.reactor, h.eq, h.coop, h.hostaddr)
     return m, h
 
 

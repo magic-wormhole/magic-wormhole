@@ -52,7 +52,7 @@ class Connect(unittest.TestCase):
         t_left = FakeTerminator()
         t_right = FakeTerminator()
 
-        d_left = manager.Dilator(reactor, eq, cooperator, no_listen=True)
+        d_left = manager.Dilator(reactor, eq, cooperator)
         d_left.wire(send_left, t_left)
         d_left.got_key(key)
         d_left.got_wormhole_versions({"can-dilate": ["1"]})
@@ -66,7 +66,7 @@ class Connect(unittest.TestCase):
 
         with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
                         return_value=["127.0.0.1"]):
-            eps_left_d = d_left.dilate()
+            eps_left_d = d_left.dilate(no_listen=True)
             eps_right_d = d_right.dilate()
 
         eps_left = yield eps_left_d

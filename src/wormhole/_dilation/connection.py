@@ -69,9 +69,13 @@ class Disconnect(Exception):
 # (everything past this point is a Frame, with be4 length prefix. Frames are
 #  either noise handshake or an encrypted message)
 # 4: if LEADER, send noise handshake string. if FOLLOWER, wait for it
+#    LEADER: m=n.write_message(), FOLLOWER: n.read_message(m)
 # 5: if FOLLOWER, send noise response string. if LEADER, wait for it
-# 6: ...
-
+#    FOLLOWER: m=n.write_message(), LEADER: n.read_message(m)
+# 6: if FOLLOWER: send KCM (m=n.encrypt('')), wait for KCM (n.decrypt(m))
+#    if LEADER: wait for KCM, gather viable connections, select
+#               send KCM over selected connection, drop the rest
+# 7: both: send Ping/Pong/Open/Data/Close/Ack records (n.encrypt(rec))
 
 
 RelayOK = namedtuple("RelayOk", [])
@@ -491,6 +495,7 @@ class DilatedConnectionProtocol(Protocol, object):
         self._manager = None  # set if/when we are selected
         self._disconnected = OneShotObserver(self._eventual_queue)
         self._can_send_records = False
+        self._inbound_record_queue = []
 
     @m.state(initial=True)
     def unselected(self):
@@ -521,6 +526,18 @@ class DilatedConnectionProtocol(Protocol, object):
         self._connector.add_candidate(self)
 
     @m.output()
+    def queue_inbound_record(self, record):
+        # the Follower will see a dataReceived chunk containing both the KCM
+        # (leader says we've been picked) and the first record.
+        # Connector.consider takes an eventual-turn to decide to accept this
+        # connection, which means the record will arrive before we get
+        # .select() and move to the 'selected' state where we can
+        # deliver_record. So we need to queue the record for a turn. TODO:
+        # when we move to the sans-io event-driven scheme, this queue
+        # shouldn't be necessary
+        self._inbound_record_queue.append(record)
+
+    @m.output()
     def set_manager(self, manager):
         self._manager = manager
         self.when_disconnected().addCallback(lambda c:
@@ -531,11 +548,20 @@ class DilatedConnectionProtocol(Protocol, object):
         self._can_send_records = True
 
     @m.output()
+    def process_inbound_queue(self, manager):
+        while self._inbound_record_queue:
+            r = self._inbound_record_queue.pop(0)
+            self._manager.got_record(r)
+
+    @m.output()
     def deliver_record(self, record):
         self._manager.got_record(record)
 
     unselected.upon(got_kcm, outputs=[add_candidate], enter=selecting)
-    selecting.upon(select, outputs=[set_manager, can_send_records], enter=selected)
+    selecting.upon(got_record, outputs=[queue_inbound_record], enter=selecting)
+    selecting.upon(select,
+                   outputs=[set_manager, can_send_records, process_inbound_queue],
+                   enter=selected)
     selected.upon(got_record, outputs=[deliver_record], enter=selected)
 
     # called by Connector

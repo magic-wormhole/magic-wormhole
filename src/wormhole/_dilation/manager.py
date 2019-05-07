@@ -6,6 +6,7 @@ from attr.validators import provides, instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.interfaces import IAddress
 from twisted.python import log
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
@@ -97,6 +98,7 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
+    _host_addr = attrib(validator=provides(IAddress))
     _no_listen = attrib(default=False)
     _tor = None  # TODO
     _timing = None  # TODO
@@ -114,7 +116,6 @@ class Manager(object):
         self._made_first_connection = False
         self._first_connected = OneShotObserver(self._eventual_queue)
         self._stopped = OneShotObserver(self._eventual_queue)
-        self._host_addr = _WormholeAddress()
 
         self._next_dilation_phase = 0
 
@@ -477,7 +478,6 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
-    _no_listen = attrib(default=False)
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
@@ -485,21 +485,22 @@ class Dilator(object):
         self._endpoints = OneShotObserver(self._eventual_queue)
         self._pending_inbound_dilate_messages = deque()
         self._manager = None
+        self._host_addr = _WormholeAddress()
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None):
+    def dilate(self, transit_relay_location=None, no_listen=False):
         self._transit_relay_location = transit_relay_location
         if not self._started:
             self._started = True
-            self._start().addBoth(self._endpoints.fire)
+            self._start(no_listen).addBoth(self._endpoints.fire)
         return self._endpoints.when_fired()
 
     @inlineCallbacks
-    def _start(self):
+    def _start(self, no_listen):
         # first, we wait until we hear the VERSION message, which tells us 1:
         # the PAKE key works, so we can talk securely, 2: that they can do
         # dilation at all (if they can't then w.dilate() errbacks)
@@ -522,7 +523,16 @@ class Dilator(object):
                                 self._transit_key,
                                 self._transit_relay_location,
                                 self._reactor, self._eventual_queue,
-                                self._cooperator, no_listen=self._no_listen)
+                                self._cooperator, self._host_addr, no_listen)
+        # We must open subchannel0 early, since messages may arrive very
+        # quickly once the connection is established. This subchannel may or
+        # may not ever get revealed to the caller, since the peer might not
+        # even be capable of dilation.
+        scid0 = to_be4(0)
+        peer_addr0 = _SubchannelAddress(scid0)
+        sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
+        self._manager.set_subchannel_zero(scid0, sc0)
+
         self._manager.start()
 
         while self._pending_inbound_dilate_messages:
@@ -531,15 +541,10 @@ class Dilator(object):
 
         yield self._manager.when_first_connected()
 
-        # we can open subchannels as soon as we get our first connection
-        scid0 = to_be4(0)
-        self._host_addr = _WormholeAddress()  # TODO: share with Manager
-        peer_addr0 = _SubchannelAddress(scid0)
+        # we can open non-zero subchannels as soon as we get our first
+        # connection
         control_ep = ControlEndpoint(peer_addr0)
-        sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
         control_ep._subchannel_zero_opened(sc0)
-        self._manager.set_subchannel_zero(scid0, sc0)
-
         connect_ep = SubchannelConnectorEndpoint(self._manager, self._host_addr)
 
         listen_ep = SubchannelListenerEndpoint(self._manager, self._host_addr)

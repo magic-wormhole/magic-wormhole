@@ -105,11 +105,15 @@ resumed or reestablished.
 
 Dilation is triggered by calling the `w.dilate()` API. This returns a
 Deferred that will fire once the first L3 connection is established. It fires
-with a 3-tuple of endpoints that can be used to establish subchannels.
+with a 3-tuple of endpoints that can be used to establish subchannels, or an
+error if dilation is not possible. If the other side's `versions` message
+indicates that it does not support dilation, the Deferred will errback with
+an `OldPeerCannotDilateError`.
 
 For dilation to succeed, both sides must call `w.dilate()`, since the
 resulting endpoints are the only way to access the subchannels. If the other
-side never calls `w.dilate()`, the Deferred will never fire.
+side is capable of dilation, but never calls `w.dilate()`, the Deferred will
+never fire.
 
 The L1 (mailbox) path is used to deliver dilation requests and connection
 hints. The current mailbox protocol uses named "phases" to distinguish
@@ -260,7 +264,7 @@ trigger an immediate error for most non-magic-wormhole listeners (e.g. HTTP
 servers that were contacted by accident). If the wrong handshake is received,
 the connection will be dropped. For debugging purposes, the node might want
 to keep looking at data beyond the first incorrect character and log
-everything until the first newline.
+a few hundred characters until the first newline.
 
 Everything beyond that point is a Noise protocol message, which consists of a
 4-byte big-endian length field, followed by the indicated number of bytes.
@@ -271,29 +275,44 @@ master PAKE key using HKDF. Each L2 connection uses the same dilation key,
 but different ephemeral keys, so each gets a different session key.
 
 The Leader sends the first message, which is a psk-encrypted ephemeral key.
-The Follower sends the next message, its own psk-encrypted ephemeral key. The
-Follower then sends an empty packet as the "key confirmation message", which
-will be encrypted by the shared key.
+The Follower sends the next message, its own psk-encrypted ephemeral key.
+These two messages are known as "handshake messages" in the Noise protocol,
+and must be processed in a specific order (the Leader must not accept the
+Follower's message until it has generated its own). Noise allows handshake
+messages to include a payload, but we do not use this feature.
 
-The Leader sees the KCM and knows the connection is viable. It delivers the
-protocol object to the L3 manager, which will decide which connection to
-select. When the L2 connection is selected to be the new L3, it will send an
-empty KCM of its own, to let the Follower know the connection being selected.
-All other L2 connections (either viable or still in handshake) are dropped,
-all other connection attempts are cancelled. All listening sockets may or may
-not be shut down (TODO: think about it).
+All subsequent messages as known as "Noise transport messages", and use
+independent channels for each direction, so they no longer have ordering
+dependencies. Transport messages are encrypted by the shared key, in a form
+that evolves as more messages are sent.
 
-The Follower will wait for either an empty KCM (at which point the L2
-connection is delivered to the Dilation manager as the new L3), a
-disconnection, or an invalid message (which causes the connection to be
-dropped). Other connections and/or listening sockets are stopped.
+The Follower's first transport message is an empty packet, which we use as a
+"key confirmation message" (KCM).
+
+The Leader doesn't send a transport message right away: it waits to see the
+Follower's KCM, which indicates this connection is viable (i.e. the Follower
+used the same dilation key as the Leader, which means they both used the same
+wormhole code).
+
+The Leader delivers the now-viable protocol object to the L3 manager, which
+will decide which connection to select. When some L2 connection is selected
+to be the new L3, the Leader finally sends an empty KCM of its own over that
+L2, to let the Follower know which connection has been selected. All other L2
+connections (either viable or still in handshake) are dropped, and all other
+connection attempts are cancelled. All listening sockets may or may not be
+shut down (TODO: think about it).
+
+After sending their KCM, the Follower will wait for either an empty KCM (at
+which point the L2 connection is delivered to the Dilation manager as the new
+L3), a disconnection, or an invalid message (which causes the connection to
+be dropped). Other connections and/or listening sockets are stopped.
 
 Internally, the L2Protocol object manages the Noise session itself. It knows
 (via a constructor argument) whether it is on the Leader or Follower side,
 which affects both the role is plays in the Noise pattern, and the reaction
-to receiving the ephemeral key (for which only the Follower sends an empty
-KCM message). After that, the L2Protocol notifies the L3 object in three
-situations:
+to receiving the handshake message / ephemeral key (for which only the
+Follower sends an empty KCM message). After that, the L2Protocol notifies the
+L3 object in three situations:
 
 * the Noise session produces a valid decrypted frame (for Leader, this
   includes the Follower's KCM, and thus indicates a viable candidate for
