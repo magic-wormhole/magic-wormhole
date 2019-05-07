@@ -477,7 +477,6 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
-    _no_listen = attrib(default=False)
 
     def __attrs_post_init__(self):
         self._got_versions_d = Deferred()
@@ -491,15 +490,15 @@ class Dilator(object):
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None):
+    def dilate(self, transit_relay_location=None, no_listen=False):
         self._transit_relay_location = transit_relay_location
         if not self._started:
             self._started = True
-            self._start().addBoth(self._endpoints.fire)
+            self._start(no_listen).addBoth(self._endpoints.fire)
         return self._endpoints.when_fired()
 
     @inlineCallbacks
-    def _start(self):
+    def _start(self, no_listen):
         # first, we wait until we hear the VERSION message, which tells us 1:
         # the PAKE key works, so we can talk securely, 2: that they can do
         # dilation at all (if they can't then w.dilate() errbacks)
@@ -522,7 +521,7 @@ class Dilator(object):
                                 self._transit_key,
                                 self._transit_relay_location,
                                 self._reactor, self._eventual_queue,
-                                self._cooperator, no_listen=self._no_listen)
+                                self._cooperator, no_listen)
         self._manager.start()
 
         while self._pending_inbound_dilate_messages:
