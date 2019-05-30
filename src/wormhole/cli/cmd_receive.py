@@ -369,8 +369,8 @@ class Receiver:
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
             while True and not self.args.accept_file:
-                ok = six.moves.input("ok? (y/N): ")
-                if ok.lower().startswith("y"):
+                ok = six.moves.input("ok? (Y/n): ")
+                if ok.lower().startswith("y") or len(ok) == 0:
                     if os.path.exists(self.abs_destname):
                         self._remove_existing(self.abs_destname)
                     break
