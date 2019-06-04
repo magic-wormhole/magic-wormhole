@@ -89,8 +89,7 @@ the latest version, you may first need:
 
 On Fedora:
 
-`$ sudo dnf install python-pip python-devel libffi-devel openssl-devel gcc-c++
-libtool redhat-rpm-config`.
+`$ sudo dnf install magic-wormhole`.
 
 Note: If you get errors like `fatal error: sodium.h: No such file or
 directory` on Linux, either use `SODIUM_INSTALL=bundled pip install
