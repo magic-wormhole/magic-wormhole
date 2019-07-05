@@ -17,8 +17,6 @@ matrix:
   include:
     - python: 2.7
       script: tox -e py27-nodilate
-    - python: 3.4
-      script: tox -e py34-nodilate
     - python: 3.5
       script: tox -e py35-coverage
     - python: 3.6

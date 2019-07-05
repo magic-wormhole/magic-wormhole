@@ -28,5 +28,4 @@ or the docs/ subdirectory.
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5,
-3.6, and 3.7.
+This library is compatible with python2.7, 3.5, 3.6, and 3.7.
