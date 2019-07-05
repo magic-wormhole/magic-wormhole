@@ -1,0 +1,32 @@
+digraph {
+        Manager [label="Manager" shape="box" color="blue" fontcolor="blue"]
+        Connector [label="Connector" shape="oval"]
+        Framer [label="Framer"]
+        DCP [label="Dilated\nConnection\nProtocol"]
+
+        DCP -> Connector [style="dashed" label="add_candidate\n"]
+
+        Record [label="Record"]
+        Record -> Framer [style="dashed" label="connectionMade\nsend_frame"]
+        Record -> Framer [style="dashed" label="add_and_parse (-> tokens)"]
+
+        ITransport -> DCP [style="dashed" label="connectionMade\ndataReceived\nconnectionLost"]
+        Framer -> ITransport [style="dashed" label="write"]
+        Manager -> DCP [style="dashed" color="green" label="disconnect"]
+        DCP -> Manager [style="dashed" color="green" label="got_record CClost"]
+        DCP -> Record [style="dashed" label="set_role\nconnectionMade\nsend_record"]
+        DCP -> Record [style="dashed" label="add_and_unframe (-> tokens)"]
+        Manager -> Connector [style="dashed" label="start\ngot_hints\nstop"]
+        Connector -> Manager [style="dashed" color="green" label="CCmade"]
+        Connector -> DCP [color="green" fontcolor="blue" label="select\nsend_record(KCM)"]
+        Connector -> DCP [color="red" fontcolor="red" label="disconnect"]
+        Connector -> Connector [color="green" fontcolor="green" label="accept"]
+
+        Inbound [label="Inbound" shape="box" color="blue" fontcolor="blue"]
+        Manager -> Inbound [style="dashed" label="use_connection"]
+        Inbound -> DCP [style="dashed" label="pauseProducing\nresumeProducing"]
+
+        Outbound [label="Outbound" shape="box" color="blue" fontcolor="blue"]
+        Manager -> Outbound [style="dashed" label="use_connection"]
+        Outbound -> DCP [style="dashed" label="send_record\ntransport.(un)registerProducer"]
+}

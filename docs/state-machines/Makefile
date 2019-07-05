@@ -1,7 +1,7 @@
 
 default: images
 
-images: allocator.png boss.png code.png input.png key.png lister.png machines.png mailbox.png nameplate.png order.png receive.png send.png terminator.png
+images: allocator.png boss.png code.png input.png key.png lister.png machines.png mailbox.png nameplate.png order.png receive.png send.png terminator.png  dilation.png
 
 .PHONY: default images
 

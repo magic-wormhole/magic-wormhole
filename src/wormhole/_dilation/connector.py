@@ -400,11 +400,14 @@ class Connector(object):
     # our Connection protocols call: add_candidate
 
 
-@attrs
+@attrs(repr=False)
 class OutboundConnectionFactory(ClientFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
     _relay_handshake = attrib(validator=optional(instance_of(bytes)))
     _description = attrib()
+
+    def __repr__(self):
+        return "OutboundConnectionFactory(%s %s)" % (self._connector._role, self._description)
 
     def buildProtocol(self, addr):
         p = self._connector.build_protocol(addr, self._description)
@@ -420,9 +423,12 @@ def describe_inbound(addr):
         return "<-tcp:%s:%d" % (addr.host, addr.port)
     return "<-%r" % addr
 
-@attrs
+@attrs(repr=False)
 class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
+
+    def __repr__(self):
+        return "InboundConnectionFactory(%s)" % (self._connector._role)
 
     def buildProtocol(self, addr):
         description = describe_inbound(addr)
