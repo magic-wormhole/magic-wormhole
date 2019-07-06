@@ -116,6 +116,7 @@ class Manager(object):
         self._made_first_connection = False
         self._first_connected = OneShotObserver(self._eventual_queue)
         self._stopped = OneShotObserver(self._eventual_queue)
+        self._debug_stall_connector = False
 
         self._next_dilation_phase = 0
 
@@ -382,6 +383,11 @@ class Manager(object):
                                     self._timing,
                                     self._my_side,  # needed for relay handshake
                                     self._my_role)
+        if self._debug_stall_connector:
+            # unit tests use this hook to send messages while we know we
+            # don't have a connection
+            self._eventual_queue.eventually(self._debug_stall_connector, self._connector)
+            return
         self._connector.start()
 
     @m.output()
