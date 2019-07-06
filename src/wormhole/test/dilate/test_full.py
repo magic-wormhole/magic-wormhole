@@ -267,3 +267,75 @@ class Reconnect(ServerBase, unittest.TestCase):
 
         yield w1.close()
         yield w2.close()
+
+
+class Endpoints(ServerBase, unittest.TestCase):
+    @inlineCallbacks
+    def setUp(self):
+        if not NoiseConnection:
+            raise unittest.SkipTest("noiseprotocol unavailable")
+        # test_welcome wants to see [current_cli_version]
+        yield self._setup_relay(None)
+
+    @inlineCallbacks
+    def test_endpoints(self):
+        eq = EventualQueue(reactor)
+        w1 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
+        w2 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
+        w1.allocate_code()
+        code = yield w1.get_code()
+        w2.set_code(code)
+        yield doBoth(w1.get_verifier(), w2.get_verifier())
+
+        eps1_d = w1.dilate()
+        eps2_d = w2.dilate()
+        (eps1, eps2) = yield doBoth(eps1_d, eps2_d)
+        (control_ep1, connect_ep1, listen_ep1) = eps1
+        (control_ep2, connect_ep2, listen_ep2) = eps2
+
+        f0 = ReconF(eq)
+        yield listen_ep2.listen(f0)
+
+        from twisted.python import log
+        f1 = ReconF(eq)
+        log.msg("connecting")
+        p1_client = yield connect_ep1.connect(f1)
+        log.msg("sending c->s")
+        p1_client.transport.write(b"hello from p1\n")
+        data = yield f0.deferreds["dataReceived"]
+        self.assertEqual(data, b"hello from p1\n")
+        p1_server = self.successResultOf(f0.deferreds["connectionMade"])
+        log.msg("sending s->c")
+        p1_server.transport.write(b"hello p1\n")
+        log.msg("waiting for client to receive")
+        data = yield f1.deferreds["dataReceived"]
+        self.assertEqual(data, b"hello p1\n")
+
+        # open a second channel
+        f0.resetDeferred("connectionMade")
+        f0.resetDeferred("dataReceived")
+        f1.resetDeferred("dataReceived")
+        f2 = ReconF(eq)
+        p2_client = yield connect_ep1.connect(f2)
+        p2_server = yield f0.deferreds["connectionMade"]
+        p2_server.transport.write(b"hello p2\n")
+        data = yield f2.deferreds["dataReceived"]
+        self.assertEqual(data, b"hello p2\n")
+        p2_client.transport.write(b"hello from p2\n")
+        data = yield f0.deferreds["dataReceived"]
+        self.assertEqual(data, b"hello from p2\n")
+        self.assertNoResult(f1.deferreds["dataReceived"])
+
+        # now close the first subchannel (p1) from the listener side
+        p1_server.transport.loseConnection()
+        yield f0.deferreds["connectionLost"]
+        yield f1.deferreds["connectionLost"]
+
+        f0.resetDeferred("connectionLost")
+        # and close the second from the connector side
+        p2_client.transport.loseConnection()
+        yield f0.deferreds["connectionLost"]
+        yield f2.deferreds["connectionLost"]
+
+        yield w1.close()
+        yield w2.close()

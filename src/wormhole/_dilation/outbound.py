@@ -253,7 +253,7 @@ class Outbound(object):
         self._unpaused_producers.discard(p)
         self._check_invariants()
 
-    def subchannel_closed(self, sc):
+    def subchannel_closed(self, scid, sc):
         self._check_invariants()
         if sc in self._subchannel_producers:
             self.subchannel_unregisterProducer(sc)

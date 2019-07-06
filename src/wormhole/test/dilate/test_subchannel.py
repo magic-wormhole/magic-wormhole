@@ -92,7 +92,8 @@ class SubChannelAPI(unittest.TestCase):
     def test_remote_close(self):
         sc, m, scid, hostaddr, peeraddr, p = make_sc()
         sc.remote_close()
-        self.assertEqual(m.mock_calls, [mock.call.subchannel_closed(sc)])
+        self.assertEqual(m.mock_calls, [mock.call.send_close(scid),
+                                        mock.call.subchannel_closed(scid, sc)])
         self.assert_connectionDone(p.mock_calls)
 
     def test_data(self):

@@ -3,7 +3,7 @@ from attr import attrs, attrib
 from attr.validators import provides
 from zope.interface import implementer
 from twisted.python import log
-from .._interfaces import IDilationManager, IInbound
+from .._interfaces import IDilationManager, IInbound, ISubChannel
 from .subchannel import (SubChannel, _SubchannelAddress)
 
 
@@ -51,6 +51,11 @@ class Inbound(object):
         # the new connection before it can send us any data
         if self._paused_subchannels:
             self._connection.pauseProducing()
+
+    def subchannel_local_open(self, scid, sc):
+        assert ISubChannel.providedBy(sc)
+        assert scid not in self._open_subchannels
+        self._open_subchannels[scid] = sc
 
     # Inbound is responsible for tracking the high watermark and deciding
     # whether to ignore inbound messages or not

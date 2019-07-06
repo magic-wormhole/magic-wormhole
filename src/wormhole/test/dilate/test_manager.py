@@ -659,9 +659,9 @@ class TestManager(unittest.TestCase):
             mock.call.subchannel_unregisterProducer(sc)])
         clear_mock_calls(h.outbound)
 
-        m.subchannel_closed("scid", sc)
+        m.subchannel_closed(4, sc)
         self.assertEqual(h.inbound.mock_calls, [
-            mock.call.subchannel_closed("scid", sc)])
+            mock.call.subchannel_closed(4, sc)])
         self.assertEqual(h.outbound.mock_calls, [
-            mock.call.subchannel_closed("scid", sc)])
+            mock.call.subchannel_closed(4, sc)])
         clear_mock_calls(h.inbound, h.outbound)

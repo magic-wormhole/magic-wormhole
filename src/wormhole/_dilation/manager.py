@@ -158,6 +158,9 @@ class Manager(object):
     def subchannel_stopProducing(self, sc):
         self._inbound.subchannel_stopProducing(sc)
 
+    def subchannel_local_open(self, scid, sc):
+        self._inbound.subchannel_local_open(scid, sc)
+
     # forward outbound-ish things to _Outbound
     def subchannel_registerProducer(self, sc, producer, streaming):
         self._outbound.subchannel_registerProducer(sc, producer, streaming)

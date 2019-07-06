@@ -59,7 +59,7 @@ class _SubchannelAddress(object):
     _scid = attrib(validator=instance_of(six.integer_types))
 
 
-@attrs
+@attrs(cmp=False)
 @implementer(ITransport)
 @implementer(IProducer)
 @implementer(IConsumer)
@@ -131,7 +131,7 @@ class SubChannel(object):
             self._protocol.connectionLost(ConnectionDone())
         else:
             self._pending_connectionLost = (True, ConnectionDone())
-        self._manager.subchannel_closed(self)
+        self._manager.subchannel_closed(self._scid, self)
         # we're deleted momentarily
 
     @m.output()
@@ -146,7 +146,7 @@ class SubChannel(object):
     # primary transitions
     open.upon(remote_data, enter=open, outputs=[signal_dataReceived])
     open.upon(local_data, enter=open, outputs=[send_data])
-    open.upon(remote_close, enter=closed, outputs=[signal_connectionLost])
+    open.upon(remote_close, enter=closed, outputs=[send_close, signal_connectionLost])
     open.upon(local_close, enter=closing, outputs=[send_close])
     closing.upon(remote_data, enter=closing, outputs=[signal_dataReceived])
     closing.upon(remote_close, enter=closed, outputs=[signal_connectionLost])
@@ -245,10 +245,11 @@ class SubchannelConnectorEndpoint(object):
         peer_addr = _SubchannelAddress(scid)
         # ? f.doStart()
         # ? f.startedConnecting(CONNECTOR) # ??
-        t = SubChannel(scid, self._manager, self._host_addr, peer_addr)
+        sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
+        self._manager.subchannel_local_open(scid, sc)
         p = protocolFactory.buildProtocol(peer_addr)
-        t._set_protocol(p)
-        p.makeConnection(t)  # set p.transport = t and call connectionMade()
+        sc._set_protocol(p)
+        p.makeConnection(sc)  # set p.transport = sc and call connectionMade()
         return succeed(p)
 
 

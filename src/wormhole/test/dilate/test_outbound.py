@@ -337,12 +337,12 @@ class OutboundTest(unittest.TestCase):
         self.assertEqual(p1.mock_calls, [mock.call.pauseProducing()])
         clear_mock_calls(p1)
 
-        o.subchannel_closed(sc1)
+        o.subchannel_closed(1, sc1)
         self.assertEqual(p1.mock_calls, [])
         self.assertEqual(list(o._all_producers), [])
 
         sc2 = mock.Mock()
-        o.subchannel_closed(sc2)
+        o.subchannel_closed(2, sc2)
 
     def test_disconnect(self):
         o, m, c = make_outbound()
