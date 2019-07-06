@@ -9,7 +9,6 @@ from ...eventual import EventualQueue
 from ..._interfaces import ISend, IDilationManager, ITerminator
 from ...util import dict_to_bytes
 from ..._dilation import roles
-from ..._dilation.encode import to_be4
 from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
                                   UnknownDilationMessageType,
@@ -64,7 +63,7 @@ class TestDilator(unittest.TestCase):
         sc = mock.Mock()
         m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
                           return_value=sc)
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = 0
 
         m = mock.Mock()
         alsoProvides(m, IDilationManager)
@@ -178,7 +177,7 @@ class TestDilator(unittest.TestCase):
         alsoProvides(m, IDilationManager)
         m.when_first_connected.return_value = Deferred()
 
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = 0
         sc = mock.Mock()
         m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
                           return_value=sc)
@@ -205,7 +204,7 @@ class TestDilator(unittest.TestCase):
         d1 = dil.dilate(transit_relay_location=relay)
         self.assertNoResult(d1)
 
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = 0
         sc = mock.Mock()
         m_sc = mock.patch("wormhole._dilation.manager.SubChannel",
                           return_value=sc)
@@ -338,7 +337,7 @@ class TestManager(unittest.TestCase):
         h.eq.flush_sync()
         self.successResultOf(wfc_d2)
 
-        scid0 = b"\x00\x00\x00\x00"
+        scid0 = 0
         sc0 = mock.Mock()
         m.set_subchannel_zero(scid0, sc0)
         listen_ep = mock.Mock()
@@ -350,7 +349,7 @@ class TestManager(unittest.TestCase):
         clear_mock_calls(h.inbound)
 
         # the Leader making a new outbound channel should get scid=1
-        scid1 = to_be4(1)
+        scid1 = 1
         self.assertEqual(m.allocate_subchannel_id(), scid1)
         r1 = Open(10, scid1)  # seqnum=10
         h.outbound.build_record = mock.Mock(return_value=r1)
@@ -388,7 +387,7 @@ class TestManager(unittest.TestCase):
 
         # test that inbound records get acked and routed to Inbound
         h.inbound.is_record_old = mock.Mock(return_value=False)
-        scid2 = to_be4(2)
+        scid2 = 2
         o200 = Open(200, scid2)
         m.got_record(o200)
         self.assertEqual(h.outbound.mock_calls, [

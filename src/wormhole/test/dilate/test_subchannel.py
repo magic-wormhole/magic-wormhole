@@ -10,7 +10,7 @@ from .common import mock_manager
 
 
 def make_sc(set_protocol=True):
-    scid = b"scid"
+    scid = 4
     hostaddr = _WormholeAddress()
     peeraddr = _SubchannelAddress(scid)
     m = mock_manager()

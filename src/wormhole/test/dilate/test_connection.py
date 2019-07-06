@@ -9,7 +9,6 @@ from ..._interfaces import IDilationConnector
 from ..._dilation.roles import LEADER, FOLLOWER
 from ..._dilation.connection import (DilatedConnectionProtocol, encode_record,
                                      KCM, Open, Ack)
-from ..._dilation.encode import to_be4
 from .common import clear_mock_calls
 
 
@@ -57,7 +56,7 @@ class Connection(unittest.TestCase):
     def _test_no_relay(self, role):
         c, n, connector, t, eq = make_con(role)
         t_kcm = KCM()
-        t_open = Open(seqnum=1, scid=to_be4(0x11223344))
+        t_open = Open(seqnum=1, scid=0x11223344)
         t_ack = Ack(resp_seqnum=2)
         n.decrypt = mock.Mock(side_effect=[
             encode_record(t_kcm),
@@ -237,7 +236,7 @@ class Connection(unittest.TestCase):
     def test_follower_combined(self):
         c, n, connector, t, eq = make_con(FOLLOWER)
         t_kcm = KCM()
-        t_open = Open(seqnum=1, scid=to_be4(0x11223344))
+        t_open = Open(seqnum=1, scid=0x11223344)
         n.decrypt = mock.Mock(side_effect=[
             encode_record(t_kcm),
             encode_record(t_open),

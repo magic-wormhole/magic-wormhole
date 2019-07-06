@@ -14,7 +14,7 @@ from .common import mock_manager
 
 class Endpoints(unittest.TestCase):
     def test_control(self):
-        scid0 = b"scid0"
+        scid0 = 0
         peeraddr = _SubchannelAddress(scid0)
         ep = ControlEndpoint(peeraddr)
 
@@ -43,9 +43,9 @@ class Endpoints(unittest.TestCase):
 
     def test_connector(self):
         m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=b"scid")
+        m.allocate_subchannel_id = mock.Mock(return_value=0)
         hostaddr = _WormholeAddress()
-        peeraddr = _SubchannelAddress(b"scid")
+        peeraddr = _SubchannelAddress(0)
         ep = SubchannelConnectorEndpoint(m, hostaddr)
 
         f = mock.Mock()
@@ -57,13 +57,13 @@ class Endpoints(unittest.TestCase):
             d = ep.connect(f)
         self.assertIdentical(self.successResultOf(d), p)
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc.mock_calls, [mock.call(b"scid", m, hostaddr, peeraddr)])
+        self.assertEqual(sc.mock_calls, [mock.call(0, m, hostaddr, peeraddr)])
         self.assertEqual(t.mock_calls, [mock.call._set_protocol(p)])
         self.assertEqual(p.mock_calls, [mock.call.makeConnection(t)])
 
     def test_listener(self):
         m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=b"scid")
+        m.allocate_subchannel_id = mock.Mock(return_value=0)
         hostaddr = _WormholeAddress()
         ep = SubchannelListenerEndpoint(m, hostaddr)
 
@@ -75,7 +75,7 @@ class Endpoints(unittest.TestCase):
         # OPEN that arrives before we ep.listen() should be queued
 
         t1 = mock.Mock()
-        peeraddr1 = _SubchannelAddress(b"peer1")
+        peeraddr1 = _SubchannelAddress(1)
         ep._got_open(t1, peeraddr1)
 
         d = ep.listen(f)
@@ -89,7 +89,7 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(p1.mock_calls, [mock.call.makeConnection(t1)])
 
         t2 = mock.Mock()
-        peeraddr2 = _SubchannelAddress(b"peer2")
+        peeraddr2 = _SubchannelAddress(2)
         ep._got_open(t2, peeraddr2)
 
         self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2)])

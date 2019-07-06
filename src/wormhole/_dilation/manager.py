@@ -1,4 +1,5 @@
 from __future__ import print_function, unicode_literals
+import six
 import os
 from collections import deque
 from attr import attrs, attrib
@@ -12,7 +13,6 @@ from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from ..observer import OneShotObserver
 from .._key import derive_key
-from .encode import to_be4
 from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,
                          ControlEndpoint, SubchannelConnectorEndpoint,
                          SubchannelListenerEndpoint)
@@ -166,15 +166,15 @@ class Manager(object):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
-        assert isinstance(scid, bytes)
+        assert isinstance(scid, six.integer_types)
         self._queue_and_send(Open, scid)
 
     def send_data(self, scid, data):
-        assert isinstance(scid, bytes)
+        assert isinstance(scid, six.integer_types)
         self._queue_and_send(Data, scid, data)
 
     def send_close(self, scid):
-        assert isinstance(scid, bytes)
+        assert isinstance(scid, six.integer_types)
         self._queue_and_send(Close, scid)
 
     def _queue_and_send(self, record_type, *args):
@@ -265,7 +265,7 @@ class Manager(object):
     def allocate_subchannel_id(self):
         scid_num = self._next_subchannel_id
         self._next_subchannel_id += 2
-        return to_be4(scid_num)
+        return scid_num
 
     # state machine
 
@@ -534,7 +534,7 @@ class Dilator(object):
         # quickly once the connection is established. This subchannel may or
         # may not ever get revealed to the caller, since the peer might not
         # even be capable of dilation.
-        scid0 = to_be4(0)
+        scid0 = 0
         peer_addr0 = _SubchannelAddress(scid0)
         sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
         self._manager.set_subchannel_zero(scid0, sc0)

@@ -254,7 +254,7 @@ Ping = namedtuple("Ping", ["ping_id"])  # ping_id is arbitrary 4-byte value
 Pong = namedtuple("Pong", ["ping_id"])
 Open = namedtuple("Open", ["seqnum", "scid"])  # seqnum is integer
 Data = namedtuple("Data", ["seqnum", "scid", "data"])
-Close = namedtuple("Close", ["seqnum", "scid"])  # scid is arbitrary 4-byte value
+Close = namedtuple("Close", ["seqnum", "scid"])  # scid is integer
 Ack = namedtuple("Ack", ["resp_seqnum"])  # resp_seqnum is integer
 Records = (KCM, Ping, Pong, Open, Data, Close, Ack)
 Handshake_or_Records = (Handshake,) + Records
@@ -279,16 +279,16 @@ def parse_record(plaintext):
         ping_id = plaintext[1:5]
         return Pong(ping_id)
     if msgtype == T_OPEN:
-        scid = plaintext[1:5]
+        scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
         return Open(seqnum, scid)
     if msgtype == T_DATA:
-        scid = plaintext[1:5]
+        scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
         data = plaintext[9:]
         return Data(seqnum, scid, data)
     if msgtype == T_CLOSE:
-        scid = plaintext[1:5]
+        scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
         return Close(seqnum, scid)
     if msgtype == T_ACK:
@@ -306,20 +306,17 @@ def encode_record(r):
     if isinstance(r, Pong):
         return b"\x02" + r.ping_id
     if isinstance(r, Open):
-        assert isinstance(r.scid, bytes)
-        assert len(r.scid) == 4
+        assert isinstance(r.scid, six.integer_types)
         assert isinstance(r.seqnum, six.integer_types)
-        return b"\x03" + r.scid + to_be4(r.seqnum)
+        return b"\x03" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Data):
-        assert isinstance(r.scid, bytes)
-        assert len(r.scid) == 4
+        assert isinstance(r.scid, six.integer_types)
         assert isinstance(r.seqnum, six.integer_types)
-        return b"\x04" + r.scid + to_be4(r.seqnum) + r.data
+        return b"\x04" + to_be4(r.scid) + to_be4(r.seqnum) + r.data
     if isinstance(r, Close):
-        assert isinstance(r.scid, bytes)
-        assert len(r.scid) == 4
+        assert isinstance(r.scid, six.integer_types)
         assert isinstance(r.seqnum, six.integer_types)
-        return b"\x05" + r.scid + to_be4(r.seqnum)
+        return b"\x05" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Ack):
         assert isinstance(r.resp_seqnum, six.integer_types)
         return b"\x06" + to_be4(r.resp_seqnum)

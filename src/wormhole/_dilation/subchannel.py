@@ -1,3 +1,4 @@
+import six
 from attr import attrs, attrib
 from attr.validators import instance_of, provides
 from zope.interface import implementer
@@ -55,7 +56,7 @@ class _WormholeAddress(object):
 @implementer(IAddress)
 @attrs
 class _SubchannelAddress(object):
-    _scid = attrib(validator=instance_of(bytes))
+    _scid = attrib(validator=instance_of(six.integer_types))
 
 
 @attrs
@@ -64,7 +65,7 @@ class _SubchannelAddress(object):
 @implementer(IConsumer)
 @implementer(ISubChannel)
 class SubChannel(object):
-    _id = attrib(validator=instance_of(bytes))
+    _scid = attrib(validator=instance_of(six.integer_types))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _peer_addr = attrib(validator=instance_of(_SubchannelAddress))
@@ -111,11 +112,11 @@ class SubChannel(object):
 
     @m.output()
     def send_data(self, data):
-        self._manager.send_data(self._id, data)
+        self._manager.send_data(self._scid, data)
 
     @m.output()
     def send_close(self):
-        self._manager.send_close(self._id)
+        self._manager.send_close(self._scid)
 
     @m.output()
     def signal_dataReceived(self, data):

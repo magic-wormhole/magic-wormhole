@@ -35,7 +35,7 @@ class Full(ServerBase, unittest.TestCase):
         yield self._setup_relay(None)
 
     @inlineCallbacks
-    def test_full(self):
+    def test_control(self):
         eq = EventualQueue(reactor)
         w1 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
         w2 = wormhole.create(APPID, self.relayurl, reactor, _enable_dilate=True)
@@ -67,6 +67,11 @@ class Full(ServerBase, unittest.TestCase):
         yield d1
         yield d2
         print("control endpoints connected")
+        # note: I'm making some horrible assumptions about one-to-one writes
+        # and reads across a TCP stack that isn't obligated to maintain such
+        # a relationship, but it's much easier than doing this properly. If
+        # the tests ever start failing, do the extra work, probably by
+        # using a twisted.protocols.basic.LineOnlyReceiver
         data1 = yield f1.d
         data2 = yield f2.d
         self.assertEqual(data1, b"hello\n")
@@ -74,8 +79,7 @@ class Full(ServerBase, unittest.TestCase):
 
         yield w1.close()
         yield w2.close()
-
-    test_full.timeout = 30
+    test_control.timeout = 30
 
 
 class ReconP(Protocol):

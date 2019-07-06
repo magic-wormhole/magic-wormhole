@@ -65,6 +65,7 @@ class Inbound(object):
                                           seqnum)
 
     def handle_open(self, scid):
+        log.msg("inbound.handle_open", scid)
         if scid in self._open_subchannels:
             log.err(DuplicateOpenError(
                 "received duplicate OPEN for {}".format(scid)))
@@ -75,6 +76,7 @@ class Inbound(object):
         self._listener_endpoint._got_open(sc, peer_addr)
 
     def handle_data(self, scid, data):
+        log.msg("inbound.handle_data", scid, len(data))
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(DataForMissingSubchannelError(
@@ -83,6 +85,7 @@ class Inbound(object):
         sc.remote_data(data)
 
     def handle_close(self, scid):
+        log.msg("inbound.handle_close", scid)
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(CloseForMissingSubchannelError(
