@@ -1,4 +1,5 @@
 import six
+from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of, provides
 from zope.interface import implementer
@@ -269,9 +270,9 @@ class SubchannelListenerEndpoint(object):
 
     def __attrs_post_init__(self):
         self._factory = None
-        self._pending_opens = []
+        self._pending_opens = deque()
 
-    # from manager
+    # from manager (actually Inbound)
     def _got_open(self, t, peer_addr):
         if self._factory:
             self._connect(t, peer_addr)
@@ -287,9 +288,9 @@ class SubchannelListenerEndpoint(object):
 
     def listen(self, protocolFactory):
         self._factory = protocolFactory
-        for (t, peer_addr) in self._pending_opens:
+        while self._pending_opens:
+            (t, peer_addr) = self._pending_opens.popleft()
             self._connect(t, peer_addr)
-        self._pending_opens = []
         lp = SubchannelListeningPort(self._host_addr)
         return succeed(lp)
 
