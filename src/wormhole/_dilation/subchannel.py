@@ -165,11 +165,13 @@ class SubChannel(object):
     closing.upon(local_close, enter=closing, outputs=[error_closed_close])
     # the CLOSED state won't ever see messages, since we'll be deleted
 
-    # our endpoints use this
+    # our endpoints use these
 
     def _set_protocol(self, protocol):
         assert not self._protocol
         self._protocol = protocol
+
+    def _deliver_queued_data(self):
         if self._pending_dataReceived:
             for data in self._pending_dataReceived:
                 self._protocol.dataReceived(data)
@@ -244,6 +246,7 @@ class ControlEndpoint(object):
         self._subchannel_zero._set_protocol(p)
         # this sets p.transport and calls p.connectionMade()
         p.makeConnection(self._subchannel_zero)
+        self._subchannel_zero._deliver_queued_data()
         returnValue(p)
 
 
@@ -304,6 +307,7 @@ class SubchannelListenerEndpoint(object):
         p = self._factory.buildProtocol(peer_addr)
         t._set_protocol(p)
         p.makeConnection(t)
+        t._deliver_queued_data()
 
     def _main_channel_ready(self):
         self._wait_for_main_channel.fire(None)

@@ -112,6 +112,7 @@ class SubChannelAPI(unittest.TestCase):
         sc.remote_data(b"data")
         self.assertEqual(p.mock_calls, [])
         sc._set_protocol(p)
+        sc._deliver_queued_data()
         self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"data")])
         p.mock_calls[:] = []
         sc.remote_data(b"more")
@@ -122,6 +123,7 @@ class SubChannelAPI(unittest.TestCase):
         sc.remote_close()
         self.assertEqual(p.mock_calls, [])
         sc._set_protocol(p)
+        sc._deliver_queued_data()
         self.assert_connectionDone(p.mock_calls)
 
     def test_producer(self):

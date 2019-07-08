@@ -38,7 +38,8 @@ class Control(unittest.TestCase):
 
         self.assertIdentical(self.successResultOf(d), p)
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p)])
+        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p),
+                                          mock.call._deliver_queued_data()])
         self.assertEqual(p.mock_calls, [mock.call.makeConnection(sc0)])
 
         d = ep.connect(f)
@@ -87,7 +88,8 @@ class Control(unittest.TestCase):
         eq.flush_sync()
         self.assertIdentical(self.successResultOf(d), p)
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p)])
+        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p),
+                                          mock.call._deliver_queued_data()])
         self.assertEqual(p.mock_calls, [mock.call.makeConnection(sc0)])
 
         d = ep.connect(f)
@@ -254,7 +256,8 @@ class Listener(unittest.TestCase):
         peeraddr1 = _SubchannelAddress(1)
         ep._got_open(t1, peeraddr1)
 
-        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1)])
+        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1),
+                                         mock.call._deliver_queued_data()])
         self.assertEqual(p1.mock_calls, [mock.call.makeConnection(t1)])
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1)])
 
@@ -262,7 +265,8 @@ class Listener(unittest.TestCase):
         peeraddr2 = _SubchannelAddress(2)
         ep._got_open(t2, peeraddr2)
 
-        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2)])
+        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2),
+                                         mock.call._deliver_queued_data()])
         self.assertEqual(p2.mock_calls, [mock.call.makeConnection(t2)])
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1),
                                                       mock.call(peeraddr2)])
@@ -320,7 +324,9 @@ class Listener(unittest.TestCase):
         self.assertEqual(lp.getHost(), hostaddr)
         lp.startListening()
 
-        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1)])
+        # TODO: assert makeConnection is called *before* _deliver_queued_data
+        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1),
+                                         mock.call._deliver_queued_data()])
         self.assertEqual(p1.mock_calls, [mock.call.makeConnection(t1)])
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1)])
 
@@ -328,7 +334,8 @@ class Listener(unittest.TestCase):
         peeraddr2 = _SubchannelAddress(2)
         ep._got_open(t2, peeraddr2)
 
-        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2)])
+        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2),
+                                         mock.call._deliver_queued_data()])
         self.assertEqual(p2.mock_calls, [mock.call.makeConnection(t2)])
         self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1),
                                                       mock.call(peeraddr2)])
