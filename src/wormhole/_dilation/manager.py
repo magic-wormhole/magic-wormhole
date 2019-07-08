@@ -542,6 +542,15 @@ class Dilator(object):
         sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
         self._manager.set_subchannel_zero(scid0, sc0)
 
+        # we can open non-zero subchannels as soon as we get our first
+        # connection, and we can make the Endpoints even earlier
+        control_ep = ControlEndpoint(peer_addr0)
+        control_ep._subchannel_zero_opened(sc0)
+        connect_ep = SubchannelConnectorEndpoint(self._manager, self._host_addr)
+
+        listen_ep = SubchannelListenerEndpoint(self._manager, self._host_addr)
+        self._manager.set_listener_endpoint(listen_ep)
+
         self._manager.start()
 
         while self._pending_inbound_dilate_messages:
@@ -549,15 +558,6 @@ class Dilator(object):
             self.received_dilate(plaintext)
 
         yield self._manager.when_first_connected()
-
-        # we can open non-zero subchannels as soon as we get our first
-        # connection
-        control_ep = ControlEndpoint(peer_addr0)
-        control_ep._subchannel_zero_opened(sc0)
-        connect_ep = SubchannelConnectorEndpoint(self._manager, self._host_addr)
-
-        listen_ep = SubchannelListenerEndpoint(self._manager, self._host_addr)
-        self._manager.set_listener_endpoint(listen_ep)
 
         endpoints = (control_ep, connect_ep, listen_ep)
         returnValue(endpoints)
