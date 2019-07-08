@@ -12,6 +12,13 @@ from twisted.internet.error import ConnectionDone
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 
+# each subchannel frame (the data passed into transport.write(data)) gets a
+# 9-byte header prefix (type, subchannel id, and sequence number), then gets
+# encrypted (adding a 16-byte authentication tag). The result is transmitted
+# with a 4-byte length prefix (which only covers the padded message, not the
+# length prefix itself), so the padded message must be less than 2**32 bytes
+# long.
+MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16;
 
 @attrs
 class Once(object):
@@ -173,6 +180,7 @@ class SubChannel(object):
     # ITransport
     def write(self, data):
         assert isinstance(data, type(b""))
+        assert len(data) <= MAX_FRAME_LENGTH
         self.local_data(data)
 
     def writeSequence(self, iovec):
