@@ -140,25 +140,23 @@ class TestDilator(unittest.TestCase):
 
     def test_peer_cannot_dilate(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
-        d1 = dil.dilate()
-        self.assertNoResult(d1)
+        eps = dil.dilate()
 
-        dil._transit_key = b"\x01" * 32
+        dil.got_key(b"\x01" * 32)
         dil.got_wormhole_versions({})  # missing "can-dilate"
+        d = eps.connect.connect(None)
         eq.flush_sync()
-        f = self.failureResultOf(d1)
-        f.check(OldPeerCannotDilateError)
+        self.failureResultOf(d).check(OldPeerCannotDilateError)
 
     def test_disjoint_versions(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
-        d1 = dil.dilate()
-        self.assertNoResult(d1)
+        eps = dil.dilate()
 
-        dil._transit_key = b"key"
+        dil.got_key(b"\x01" * 32)
         dil.got_wormhole_versions({"can-dilate": [-1]})
+        d = eps.connect.connect(None)
         eq.flush_sync()
-        f = self.failureResultOf(d1)
-        f.check(OldPeerCannotDilateError)
+        self.failureResultOf(d).check(OldPeerCannotDilateError)
 
     def test_early_dilate_messages(self):
         dil, send, reactor, eq, clock, coop = make_dilator()
@@ -276,11 +274,11 @@ def make_manager(leader=True):
     h.Inbound = mock.Mock(return_value=h.inbound)
     h.outbound = mock.Mock()
     h.Outbound = mock.Mock(return_value=h.outbound)
-    h.hostaddr = mock.Mock()
-    alsoProvides(h.hostaddr, IAddress)
-    with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound):
-        with mock.patch("wormhole._dilation.manager.Outbound", h.Outbound):
-            m = Manager(h.send, side, h.key, h.relay, h.reactor, h.eq, h.coop, h.hostaddr)
+    with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
+             mock.patch("wormhole._dilation.manager.Outbound", h.Outbound):
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop)
+    h.hostaddr = m._host_addr
+    m.got_dilation_key(h.key)
     return m, h
 
 
