@@ -46,24 +46,21 @@ class Full(ServerBase, unittest.TestCase):
         yield doBoth(w1.get_verifier(), w2.get_verifier())
         print("connected")
 
-        eps1_d = w1.dilate()
-        eps2_d = w2.dilate()
-        (eps1, eps2) = yield doBoth(eps1_d, eps2_d)
-        (control_ep1, connect_ep1, listen_ep1) = eps1
-        (control_ep2, connect_ep2, listen_ep2) = eps2
+        eps1 = w1.dilate()
+        eps2 = w2.dilate()
         print("w.dilate ready")
 
         f1 = Factory()
         f1.protocol = L
         f1.d = Deferred()
         f1.d.addCallback(lambda data: eq.fire_eventually(data))
-        d1 = control_ep1.connect(f1)
+        d1 = eps1.control.connect(f1)
 
         f2 = Factory()
         f2.protocol = L
         f2.d = Deferred()
         f2.d.addCallback(lambda data: eq.fire_eventually(data))
-        d2 = control_ep2.connect(f2)
+        d2 = eps2.control.connect(f2)
         yield d1
         yield d2
         print("control endpoints connected")
@@ -125,14 +122,12 @@ class Reconnect(ServerBase, unittest.TestCase):
         w2.set_code(code)
         yield doBoth(w1.get_verifier(), w2.get_verifier())
 
-        eps1_d = w1.dilate()
-        eps2_d = w2.dilate()
-        (eps1, eps2) = yield doBoth(eps1_d, eps2_d)
-        (control_ep1, connect_ep1, listen_ep1) = eps1
-        (control_ep2, connect_ep2, listen_ep2) = eps2
+        eps1 = w1.dilate()
+        eps2 = w2.dilate()
+        print("w.dilate ready")
 
         f1 = ReconF(eq); f2 = ReconF(eq)
-        d1 = control_ep1.connect(f1); d2 = control_ep2.connect(f2)
+        d1 = eps1.control.connect(f1); d2 = eps2.control.connect(f2)
         yield d1
         yield d2
 
@@ -194,14 +189,12 @@ class Reconnect(ServerBase, unittest.TestCase):
         w2.set_code(code)
         yield doBoth(w1.get_verifier(), w2.get_verifier())
 
-        eps1_d = w1.dilate()
-        eps2_d = w2.dilate()
-        (eps1, eps2) = yield doBoth(eps1_d, eps2_d)
-        (control_ep1, connect_ep1, listen_ep1) = eps1
-        (control_ep2, connect_ep2, listen_ep2) = eps2
+        eps1 = w1.dilate()
+        eps2 = w2.dilate()
+        print("w.dilate ready")
 
         f1 = ReconF(eq); f2 = ReconF(eq)
-        d1 = control_ep1.connect(f1); d2 = control_ep2.connect(f2)
+        d1 = eps1.control.connect(f1); d2 = eps2.control.connect(f2)
         yield d1
         yield d2
 
@@ -287,19 +280,17 @@ class Endpoints(ServerBase, unittest.TestCase):
         w2.set_code(code)
         yield doBoth(w1.get_verifier(), w2.get_verifier())
 
-        eps1_d = w1.dilate()
-        eps2_d = w2.dilate()
-        (eps1, eps2) = yield doBoth(eps1_d, eps2_d)
-        (control_ep1, connect_ep1, listen_ep1) = eps1
-        (control_ep2, connect_ep2, listen_ep2) = eps2
+        eps1 = w1.dilate()
+        eps2 = w2.dilate()
+        print("w.dilate ready")
 
         f0 = ReconF(eq)
-        yield listen_ep2.listen(f0)
+        yield eps2.listen.listen(f0)
 
         from twisted.python import log
         f1 = ReconF(eq)
         log.msg("connecting")
-        p1_client = yield connect_ep1.connect(f1)
+        p1_client = yield eps1.connect.connect(f1)
         log.msg("sending c->s")
         p1_client.transport.write(b"hello from p1\n")
         data = yield f0.deferreds["dataReceived"]
@@ -316,7 +307,7 @@ class Endpoints(ServerBase, unittest.TestCase):
         f0.resetDeferred("dataReceived")
         f1.resetDeferred("dataReceived")
         f2 = ReconF(eq)
-        p2_client = yield connect_ep1.connect(f2)
+        p2_client = yield eps1.connect.connect(f2)
         p2_server = yield f0.deferreds["connectionMade"]
         p2_server.transport.write(b"hello p2\n")
         data = yield f2.deferreds["dataReceived"]

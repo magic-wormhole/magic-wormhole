@@ -2,13 +2,20 @@ from __future__ import print_function, unicode_literals
 import six
 import os
 from collections import deque
+try:
+    # py >= 3.3
+    from collections.abc import Sequence
+except ImportError:
+    # py 2 and py3 < 3.3
+    from collections import Sequence
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
-from twisted.internet.interfaces import IAddress
-from twisted.python import log
+from twisted.internet.defer import Deferred
+from twisted.internet.interfaces import (IStreamClientEndpoint,
+                                         IStreamServerEndpoint)
+from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
 from ..observer import OneShotObserver
@@ -47,6 +54,15 @@ class UnexpectedKCM(Exception):
 class UnknownMessageType(Exception):
     pass
 
+@attrs
+class EndpointRecord(Sequence):
+    control = attrib(validator=provides(IStreamClientEndpoint))
+    connect = attrib(validator=provides(IStreamClientEndpoint))
+    listen = attrib(validator=provides(IStreamServerEndpoint))
+    def __len__(self):
+        return 3
+    def __getitem__(self, n):
+        return (self.control, self.connect, self.listen)[n]
 
 def make_side():
     return bytes_to_hexstr(os.urandom(6))
@@ -93,13 +109,14 @@ def make_side():
 class Manager(object):
     _S = attrib(validator=provides(ISend), repr=False)
     _my_side = attrib(validator=instance_of(type(u"")))
-    _transit_key = attrib(validator=instance_of(bytes), repr=False)
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
-    _host_addr = attrib(validator=provides(IAddress))
-    _no_listen = attrib(default=False)
+    # TODO: can this validator work when the parameter is optional?
+    _no_listen = attrib(validator=instance_of(bool), default=False)
+
+    _dilation_key = None
     _tor = None  # TODO
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
@@ -111,10 +128,10 @@ class Manager(object):
         self._got_versions_d = Deferred()
 
         self._my_role = None  # determined upon rx_PLEASE
+        self._host_addr = _WormholeAddress()
 
         self._connection = None
         self._made_first_connection = False
-        self._first_connected = OneShotObserver(self._eventual_queue)
         self._stopped = OneShotObserver(self._eventual_queue)
         self._debug_stall_connector = False
 
@@ -127,17 +144,80 @@ class Manager(object):
         self._inbound = Inbound(self, self._host_addr)
         self._outbound = Outbound(self, self._cooperator)  # from us to peer
 
-    def set_listener_endpoint(self, listener_endpoint):
-        self._inbound.set_listener_endpoint(listener_endpoint)
-
-    def set_subchannel_zero(self, scid0, sc0):
+        # We must open subchannel0 early, since messages may arrive very
+        # quickly once the connection is established. This subchannel may or
+        # may not ever get revealed to the caller, since the peer might not
+        # even be capable of dilation.
+        scid0 = 0
+        peer_addr0 = _SubchannelAddress(scid0)
+        sc0 = SubChannel(scid0, self, self._host_addr, peer_addr0)
         self._inbound.set_subchannel_zero(scid0, sc0)
 
-    def when_first_connected(self):
-        return self._first_connected.when_fired()
+        # we can open non-zero subchannels as soon as we get our first
+        # connection, and we can make the Endpoints even earlier
+        control_ep = ControlEndpoint(peer_addr0, sc0, self._eventual_queue)
+        connect_ep = SubchannelConnectorEndpoint(self, self._host_addr, self._eventual_queue)
+        listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
+        # TODO: let inbound/outbound create the endpoints, then return them
+        # to us
+        self._inbound.set_listener_endpoint(listen_ep)
+
+        self._endpoints = EndpointRecord(control_ep, connect_ep, listen_ep)
+
+    def get_endpoints(self):
+        return self._endpoints
+
+    def got_dilation_key(self, key):
+        assert isinstance(key, bytes)
+        self._dilation_key = key
+
+    def got_wormhole_versions(self, their_wormhole_versions):
+        # this always happens before received_dilation_message
+        dilation_version = None
+        their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
+        my_versions = set(DILATION_VERSIONS)
+        shared_versions = my_versions.intersection(their_dilation_versions)
+        if "1" in shared_versions:
+            dilation_version = "1"
+
+        # dilation_version is the best mutually-compatible version we have
+        # with the peer, or None if we have nothing in common
+
+        if not dilation_version:  # "1" or None
+            # TODO: be more specific about the error. dilation_version==None
+            # means we had no version in common with them, which could either
+            # be because they're so old they don't dilate at all, or because
+            # they're so new that they no longer accomodate our old version
+            self.fail(failure.Failure(OldPeerCannotDilateError()))
+
+        self.start()
+
+    def fail(self, f):
+        self._endpoints.control._main_channel_failed(f)
+        self._endpoints.connect._main_channel_failed(f)
+        self._endpoints.listen._main_channel_failed(f)
+
+    def received_dilation_message(self, plaintext):
+        # this receives new in-order DILATE-n payloads, decrypted but not
+        # de-JSONed.
+
+        message = bytes_to_dict(plaintext)
+        type = message["type"]
+        if type == "please":
+            self.rx_PLEASE(message)
+        elif type == "connection-hints":
+            self.rx_HINTS(message)
+        elif type == "reconnect":
+            self.rx_RECONNECT()
+        elif type == "reconnecting":
+            self.rx_RECONNECTING()
+        else:
+            log.err(UnknownDilationMessageType(message))
+            return
 
     def when_stopped(self):
         return self._stopped.when_fired()
+
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
@@ -204,7 +284,9 @@ class Manager(object):
         self._outbound.use_connection(c)  # does c.registerProducer
         if not self._made_first_connection:
             self._made_first_connection = True
-            self._first_connected.fire(None)
+            self._endpoints.control._main_channel_ready()
+            self._endpoints.connect._main_channel_ready()
+            self._endpoints.listen._main_channel_ready()
         pass
 
     def connector_connection_lost(self):
@@ -272,16 +354,11 @@ class Manager(object):
 
     # state machine
 
-    # We are born WANTING after the local app calls w.dilate(). We start
-    # CONNECTING when we receive PLEASE from the remote side
-
-    def start(self):
-        self.send_please()
-
-    def send_please(self):
-        self.send_dilation_phase(type="please", side=self._my_side)
-
     @m.state(initial=True)
+    def WAITING(self):
+        pass  # pragma: no cover
+
+    @m.state()
     def WANTING(self):
         pass  # pragma: no cover
 
@@ -311,6 +388,10 @@ class Manager(object):
 
     @m.state(terminal=True)
     def STOPPED(self):
+        pass  # pragma: no cover
+
+    @m.input()
+    def start(self):
         pass  # pragma: no cover
 
     @m.input()
@@ -351,6 +432,10 @@ class Manager(object):
         pass  # pragma: no cover
 
     @m.output()
+    def send_please(self):
+        self.send_dilation_phase(type="please", side=self._my_side)
+
+    @m.output()
     def choose_role(self, message):
         their_side = message["side"]
         if self._my_side > their_side:
@@ -378,7 +463,8 @@ class Manager(object):
 
     def _start_connecting(self):
         assert self._my_role is not None
-        self._connector = Connector(self._transit_key,
+        assert self._dilation_key is not None
+        self._connector = Connector(self._dilation_key,
                                     self._transit_relay_location,
                                     self,
                                     self._reactor, self._eventual_queue,
@@ -421,6 +507,11 @@ class Manager(object):
     @m.output()
     def notify_stopped(self):
         self._stopped.fire(None)
+
+    # We are born WAITING after the local app calls w.dilate(). We enter
+    # WANTING (and send a PLEASE) when we learn of a mutually-compatible
+    # dilation_version.
+    WAITING.upon(start, enter=WANTING, outputs=[send_please])
 
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
@@ -489,12 +580,10 @@ class Dilator(object):
     _cooperator = attrib()
 
     def __attrs_post_init__(self):
-        self._got_versions_d = Deferred()
-        self._started = False
-        self._endpoints = OneShotObserver(self._eventual_queue)
-        self._pending_inbound_dilate_messages = deque()
         self._manager = None
-        self._host_addr = _WormholeAddress()
+        self._pending_dilation_key = None
+        self._pending_wormhole_versions = None
+        self._pending_inbound_dilate_messages = deque()
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
@@ -502,77 +591,35 @@ class Dilator(object):
 
     # this is the primary entry point, called when w.dilate() is invoked
     def dilate(self, transit_relay_location=None, no_listen=False):
-        self._transit_relay_location = transit_relay_location
-        if not self._started:
-            self._started = True
-            self._start(no_listen).addBoth(self._endpoints.fire)
-        return self._endpoints.when_fired()
-
-    @inlineCallbacks
-    def _start(self, no_listen):
-        # first, we wait until we hear the VERSION message, which tells us 1:
-        # the PAKE key works, so we can talk securely, 2: that they can do
-        # dilation at all (if they can't then w.dilate() errbacks)
-
-        dilation_version = yield self._got_versions_d
-
-        # TODO: we could probably return the endpoints earlier, if we flunk
-        # any connection/listen attempts upon OldPeerCannotDilateError, or
-        # if/when we give up on the initial connection
-
-        if not dilation_version:  # "1" or None
-            # TODO: be more specific about the error. dilation_version==None
-            # means we had no version in common with them, which could either
-            # be because they're so old they don't dilate at all, or because
-            # they're so new that they no longer accomodate our old version
-            raise OldPeerCannotDilateError()
-
-        my_dilation_side = make_side()
-        self._manager = Manager(self._S, my_dilation_side,
-                                self._transit_key,
-                                self._transit_relay_location,
-                                self._reactor, self._eventual_queue,
-                                self._cooperator, self._host_addr, no_listen)
-        # We must open subchannel0 early, since messages may arrive very
-        # quickly once the connection is established. This subchannel may or
-        # may not ever get revealed to the caller, since the peer might not
-        # even be capable of dilation.
-        scid0 = 0
-        peer_addr0 = _SubchannelAddress(scid0)
-        sc0 = SubChannel(scid0, self._manager, self._host_addr, peer_addr0)
-        self._manager.set_subchannel_zero(scid0, sc0)
-
-        self._manager.start()
-
-        while self._pending_inbound_dilate_messages:
-            plaintext = self._pending_inbound_dilate_messages.popleft()
-            self.received_dilate(plaintext)
-
-        yield self._manager.when_first_connected()
-
-        # we can open non-zero subchannels as soon as we get our first
-        # connection
-        control_ep = ControlEndpoint(peer_addr0)
-        control_ep._subchannel_zero_opened(sc0)
-        connect_ep = SubchannelConnectorEndpoint(self._manager, self._host_addr)
-
-        listen_ep = SubchannelListenerEndpoint(self._manager, self._host_addr)
-        self._manager.set_listener_endpoint(listen_ep)
-
-        endpoints = (control_ep, connect_ep, listen_ep)
-        returnValue(endpoints)
+        if not self._manager:
+            # build the manager right away, and tell it later when the
+            # VERSIONS message arrives, and also when the dilation_key is set
+            my_dilation_side = make_side()
+            m = Manager(self._S, my_dilation_side,
+                        transit_relay_location,
+                        self._reactor, self._eventual_queue,
+                        self._cooperator, no_listen)
+            self._manager = m
+            if self._pending_dilation_key is not None:
+                m.got_dilation_key(self._pending_dilation_key)
+            if self._pending_wormhole_versions:
+                m.got_wormhole_versions(self._pending_wormhole_versions)
+            while self._pending_inbound_dilate_messages:
+                plaintext = self._pending_inbound_dilate_messages.popleft()
+                m.received_dilation_message(plaintext)
+        return self._manager.get_endpoints()
 
     # Called by Terminator after everything else (mailbox, nameplate, server
     # connection) has shut down. Expects to fire T.stoppedD() when Dilator is
     # stopped too.
     def stop(self):
-        if not self._started:
-            self._T.stoppedD()
-            return
-        if self._started:
+        if self._manager:
             self._manager.stop()
             # TODO: avoid Deferreds for control flow, hard to serialize
             self._manager.when_stopped().addCallback(lambda _: self._T.stoppedD())
+        else:
+            self._T.stoppedD()
+            return
         # TODO: tolerate multiple calls
 
     # from Boss
@@ -582,39 +629,20 @@ class Dilator(object):
         # to tolerate either ordering
         purpose = b"dilation-v1"
         LENGTH = 32  # TODO: whatever Noise wants, I guess
-        self._transit_key = derive_key(key, purpose, LENGTH)
+        dilation_key = derive_key(key, purpose, LENGTH)
+        if self._manager:
+            self._manager.got_dilation_key(dilation_key)
+        else:
+            self._pending_dilation_key = dilation_key
 
     def got_wormhole_versions(self, their_wormhole_versions):
-        assert self._transit_key is not None
-        # this always happens before received_dilate
-        dilation_version = None
-        their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
-        my_versions = set(DILATION_VERSIONS)
-        shared_versions = my_versions.intersection(their_dilation_versions)
-        if "1" in shared_versions:
-            dilation_version = "1"
-        self._got_versions_d.callback(dilation_version)
+        if self._manager:
+            self._manager.got_wormhole_versions(their_wormhole_versions)
+        else:
+            self._pending_wormhole_versions = their_wormhole_versions
 
     def received_dilate(self, plaintext):
-        # this receives new in-order DILATE-n payloads, decrypted but not
-        # de-JSONed.
-
-        # this can appear before our .dilate() method is called, in which case
-        # we queue them for later
         if not self._manager:
             self._pending_inbound_dilate_messages.append(plaintext)
-            return
-
-        message = bytes_to_dict(plaintext)
-        type = message["type"]
-        if type == "please":
-            self._manager.rx_PLEASE(message)
-        elif type == "connection-hints":
-            self._manager.rx_HINTS(message)
-        elif type == "reconnect":
-            self._manager.rx_RECONNECT()
-        elif type == "reconnecting":
-            self._manager.rx_RECONNECTING()
         else:
-            log.err(UnknownDilationMessageType(message))
-            return
+            self._manager.received_dilation_message(plaintext)
