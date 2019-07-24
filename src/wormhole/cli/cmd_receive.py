@@ -245,7 +245,12 @@ class Receiver:
             reactor=self._reactor,
             timing=self.args.timing)
         self._transit_receiver = tr
-        transit_key = w.derive_key(APPID + u"/transit-key",
+        # When I made it possible to override APPID with a CLI argument
+        # (issue #113), I forgot to also change this w.derive_key() (issue
+        # #339). We're stuck with it now. Use a local constant to make this
+        # clear.
+        BUG339_APPID = u"lothar.com/wormhole/text-or-file-xfer"
+        transit_key = w.derive_key(BUG339_APPID + u"/transit-key",
                                    tr.TRANSIT_KEY_LENGTH)
         tr.set_transit_key(transit_key)
 

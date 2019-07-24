@@ -181,8 +181,14 @@ class Sender:
             }
             self._send_data({u"transit": sender_transit}, w)
 
+            # When I made it possible to override APPID with a CLI argument
+            # (issue #113), I forgot to also change this w.derive_key()
+            # (issue #339). We're stuck with it now. Use a local constant to
+            # make this clear.
+            BUG339_APPID = u"lothar.com/wormhole/text-or-file-xfer"
+
             # TODO: move this down below w.get_message()
-            transit_key = w.derive_key(APPID + "/transit-key",
+            transit_key = w.derive_key(BUG339_APPID + "/transit-key",
                                        ts.TRANSIT_KEY_LENGTH)
             ts.set_transit_key(transit_key)
 
