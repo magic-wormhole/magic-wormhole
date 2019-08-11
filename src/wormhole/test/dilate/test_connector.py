@@ -5,7 +5,7 @@ from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock
 from twisted.internet.defer import Deferred
-from twisted.internet.address import IPv4Address
+from twisted.internet.address import IPv4Address, IPv6Address, HostnameAddress
 from ...eventual import EventualQueue
 from ..._interfaces import IDilationManager, IDilationConnector
 from ..._hints import DirectTCPV1Hint, RelayV1Hint, TorTCPV1Hint
@@ -15,6 +15,7 @@ from ..._dilation.connection import KCM
 from ..._dilation.connector import (Connector,
                                     build_sided_relay_handshake,
                                     build_noise,
+                                    describe_inbound,
                                     OutboundConnectionFactory,
                                     InboundConnectionFactory,
                                     PROLOGUE_LEADER, PROLOGUE_FOLLOWER,
@@ -461,3 +462,13 @@ class Race(unittest.TestCase):
         self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
 
         c.stop()
+
+class Describe(unittest.TestCase):
+    def test_describe_inbound(self):
+        self.assertEqual(describe_inbound(HostnameAddress("example.com", 1234)),
+                         "<-tcp:example.com:1234")
+        self.assertEqual(describe_inbound(IPv4Address("TCP", "1.2.3.4", 1234)),
+                         "<-tcp:1.2.3.4:1234")
+        self.assertEqual(describe_inbound(IPv6Address("TCP", "::1", 1234)),
+                         "<-tcp:[::1]:1234")
+        self.assertEqual(describe_inbound("none-of-the-above"), "<-'none-of-the-above'")

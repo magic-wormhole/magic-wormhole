@@ -419,8 +419,10 @@ class OutboundConnectionFactory(ClientFactory, object):
 def describe_inbound(addr):
     if isinstance(addr, HostnameAddress):
         return "<-tcp:%s:%d" % (addr.hostname, addr.port)
-    elif isinstance(addr, (IPv4Address, IPv6Address)):
+    elif isinstance(addr, IPv4Address):
         return "<-tcp:%s:%d" % (addr.host, addr.port)
+    elif isinstance(addr, IPv6Address):
+        return "<-tcp:[%s]:%d" % (addr.host, addr.port)
     return "<-%r" % addr
 
 @attrs(repr=False)
