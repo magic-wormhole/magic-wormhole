@@ -471,4 +471,5 @@ class Describe(unittest.TestCase):
                          "<-tcp:1.2.3.4:1234")
         self.assertEqual(describe_inbound(IPv6Address("TCP", "::1", 1234)),
                          "<-tcp:[::1]:1234")
-        self.assertEqual(describe_inbound("none-of-the-above"), "<-'none-of-the-above'")
+        other = "none-of-the-above"
+        self.assertEqual(describe_inbound(other), "<-%r" % other)
