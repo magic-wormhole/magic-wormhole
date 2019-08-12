@@ -552,6 +552,7 @@ class Manager(object):
     ABANDONING.upon(rx_HINTS, enter=ABANDONING, outputs=[])  # shouldn't happen
     STOPPING.upon(rx_HINTS, enter=STOPPING, outputs=[])
 
+    WAITING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
     WANTING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
     CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped])
     CONNECTED.upon(stop, enter=STOPPING, outputs=[abandon_connection])
