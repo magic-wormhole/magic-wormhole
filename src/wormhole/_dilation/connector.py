@@ -10,7 +10,7 @@ from twisted.internet.defer import DeferredList, CancelledError
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
-from twisted.internet.error import ConnectingCancelledError
+from twisted.internet.error import ConnectingCancelledError, DNSLookupError
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -313,6 +313,10 @@ class Connector(object):
                        self._connect, ep, desc, is_relay)
         d.addErrback(lambda f: f.trap(ConnectingCancelledError,
                                       CancelledError))
+        # TODO: HostnameEndpoint.connect catches CancelledError and replaces
+        # it with DNSLookupError. Remove this workaround when
+        # https://twistedmatrix.com/trac/ticket/9696 is fixed.
+        d.addErrback(lambda f: f.trap(DNSLookupError))
         d.addErrback(log.err)
         self._pending_connectors.add(d)
 
