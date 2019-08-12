@@ -6,7 +6,8 @@ from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol
 from twisted.internet.error import ConnectionDone
 from ..._dilation.subchannel import (Once, SubChannel,
                                      _WormholeAddress, _SubchannelAddress,
-                                     AlreadyClosedError)
+                                     AlreadyClosedError,
+                                     NormalCloseUsedOnHalfCloseable)
 from .common import mock_manager
 
 
@@ -174,9 +175,12 @@ class HalfCloseable(unittest.TestCase):
         self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"inbound1")])
         p.mock_calls[:] = []
 
+        with self.assertRaises(NormalCloseUsedOnHalfCloseable) as e:
+            sc.loseConnection() # TODO: maybe this shouldn't be an error
+
         # after a local close, we can't write anymore, but we can still
         # receive data
-        sc.loseConnection()
+        sc.loseWriteConnection() # TODO or loseConnection?
         self.assertEqual(m.mock_calls, [mock.call.send_close(scid)])
         m.mock_calls[:] = []
         self.assertEqual(p.mock_calls, [mock.call.writeConnectionLost()])
@@ -188,9 +192,12 @@ class HalfCloseable(unittest.TestCase):
                          "write not allowed on closed subchannel")
 
         with self.assertRaises(AlreadyClosedError) as e:
-            sc.loseConnection()
+            sc.loseWriteConnection()
         self.assertEqual(str(e.exception),
                          "loseConnection not allowed on closed subchannel")
+
+        with self.assertRaises(NormalCloseUsedOnHalfCloseable) as e:
+            sc.loseConnection() # TODO: maybe expect AlreadyClosedError
 
         sc.remote_data(b"inbound2")
         self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"inbound2")])
@@ -223,7 +230,7 @@ class HalfCloseable(unittest.TestCase):
         m.mock_calls[:] = []
 
         # and a local close will shutdown the connection
-        sc.loseConnection()
+        sc.loseWriteConnection()
         self.assertEqual(m.mock_calls, [mock.call.send_close(scid),
                                         mock.call.subchannel_closed(scid, sc)])
         self.assertEqual(p.mock_calls, [mock.call.writeConnectionLost()])

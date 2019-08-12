@@ -56,6 +56,11 @@ class SingleUseEndpointError(Exception):
 class AlreadyClosedError(Exception):
     pass
 
+class NormalCloseUsedOnHalfCloseable(Exception):
+    pass
+class HalfCloseUsedOnNonHalfCloseable(Exception):
+    pass
+
 
 @implementer(IAddress)
 class _WormholeAddress(object):
@@ -265,7 +270,18 @@ class SubChannel(object):
     def writeSequence(self, iovec):
         self.write(b"".join(iovec))
 
+    def loseWriteConnection(self):
+        if not IHalfCloseableProtocol.providedBy(self._protocol):
+            # this is a clear error
+            raise HalfCloseUsedOnNonHalfCloseable()
+        self.local_close();
+
     def loseConnection(self):
+        # TODO: what happens if an IHalfCloseableProtocol calls normal
+        # loseConnection()? I think we need to close the read side too.
+        if IHalfCloseableProtocol.providedBy(self._protocol):
+            # I don't know is correct, so avoid this for now
+            raise NormalCloseUsedOnHalfCloseable()
         self.local_close()
 
     def getHost(self):
