@@ -193,10 +193,10 @@ class _DeferredWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
-    def dilate(self, no_listen=False):
+    def dilate(self, transit_relay_location=None, no_listen=False):
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(no_listen)  # fires with (endpoints)
+        return self._boss.dilate(transit_relay_location, no_listen)  # fires with (endpoints)
 
     def close(self):
         # fails with WormholeError unless we established a connection

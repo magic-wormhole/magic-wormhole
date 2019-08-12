@@ -216,7 +216,7 @@ class TestManager(unittest.TestCase):
     def test_make_side(self):
         side = make_side()
         self.assertEqual(type(side), type(u""))
-        self.assertEqual(len(side), 2 * 6)
+        self.assertEqual(len(side), 2 * 8)
 
     def test_create(self):
         m, h = make_manager()

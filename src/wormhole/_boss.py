@@ -205,8 +205,8 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, no_listen=False):
-        return self._D.dilate(no_listen=no_listen)  # fires with endpoints
+    def dilate(self, transit_relay_location=None, no_listen=False):
+        return self._D.dilate(transit_relay_location, no_listen=no_listen)  # fires with endpoints
 
     @m.input()
     def send(self, plaintext):

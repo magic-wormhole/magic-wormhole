@@ -10,7 +10,7 @@ from twisted.internet.defer import DeferredList, CancelledError
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
-from twisted.internet.error import ConnectingCancelledError
+from twisted.internet.error import ConnectingCancelledError, ConnectionRefusedError, DNSLookupError
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -28,7 +28,9 @@ from ._noise import NoiseConnection
 
 def build_sided_relay_handshake(key, side):
     assert isinstance(side, type(u""))
-    assert len(side) == 8 * 2
+    # magic-wormhole-transit-relay expects a specific layout for the
+    # handshake message: "please relay {64} for side {16}\n"
+    assert len(side) == 8 * 2, side
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return (b"please relay " + hexlify(token) +
             b" for side " + side.encode("ascii") + b"\n")
@@ -310,7 +312,13 @@ class Connector(object):
         d = deferLater(self._reactor, delay,
                        self._connect, ep, desc, is_relay)
         d.addErrback(lambda f: f.trap(ConnectingCancelledError,
-                                      CancelledError))
+                                      ConnectionRefusedError,
+                                      CancelledError,
+                                      ))
+        # TODO: HostnameEndpoint.connect catches CancelledError and replaces
+        # it with DNSLookupError. Remove this workaround when
+        # https://twistedmatrix.com/trac/ticket/9696 is fixed.
+        d.addErrback(lambda f: f.trap(DNSLookupError))
         d.addErrback(log.err)
         self._pending_connectors.add(d)
 
