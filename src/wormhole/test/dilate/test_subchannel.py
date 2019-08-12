@@ -112,11 +112,13 @@ class SubChannelAPI(unittest.TestCase):
 
     def test_data_before_open(self):
         sc, m, scid, hostaddr, peeraddr, p = make_sc(set_protocol=False)
-        sc.remote_data(b"data")
+        sc.remote_data(b"data1")
+        sc.remote_data(b"data2")
         self.assertEqual(p.mock_calls, [])
         sc._set_protocol(p)
         sc._deliver_queued_data()
-        self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"data")])
+        self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"data1"),
+                                        mock.call.dataReceived(b"data2")])
         p.mock_calls[:] = []
         sc.remote_data(b"more")
         self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"more")])

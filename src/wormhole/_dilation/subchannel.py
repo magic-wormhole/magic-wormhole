@@ -251,7 +251,7 @@ class SubChannel(object):
     def _deliver_queued_data(self):
         for data in self._pending_remote_data:
             self.remote_data(data)
-            del self._pending_remote_data
+        del self._pending_remote_data
         if self._pending_remote_close:
             self.remote_close()
             del self._pending_remote_close
