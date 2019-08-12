@@ -28,7 +28,9 @@ from ._noise import NoiseConnection
 
 def build_sided_relay_handshake(key, side):
     assert isinstance(side, type(u""))
-    assert len(side) == 8 * 2
+    # magic-wormhole-transit-relay expects a specific layout for the
+    # handshake message: "please relay {64} for side {16}\n"
+    assert len(side) == 8 * 2, side
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return (b"please relay " + hexlify(token) +
             b" for side " + side.encode("ascii") + b"\n")

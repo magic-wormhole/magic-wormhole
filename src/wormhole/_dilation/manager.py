@@ -65,7 +65,7 @@ class EndpointRecord(Sequence):
         return (self.control, self.connect, self.listen)[n]
 
 def make_side():
-    return bytes_to_hexstr(os.urandom(6))
+    return bytes_to_hexstr(os.urandom(8))
 
 
 # new scheme:
