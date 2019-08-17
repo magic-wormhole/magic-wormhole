@@ -12,7 +12,7 @@ import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.protocols import basic
 from twisted.python import log
 from wormhole import __version__, create
@@ -160,6 +160,20 @@ class Sender:
                 notify.cancel()
 
         if args.verify:
+            # check_verifier() does a blocking call to input(), so stall for
+            # a moment to let any outbound messages get written into the
+            # kernel. At this point, we're sitting in a callback of
+            # get_verifier(), which is triggered by receipt of the other
+            # side's VERSION message. But we might have gotten both the PAKE
+            # and the VERSION message in the same turn, and our outbound
+            # VERSION message (triggered by receipt of their PAKE) is still
+            # in Twisted's transmit queue. If we don't wait a moment, it will
+            # be stuck there until `input()` returns, and the receiver won't
+            # be able to compute a Verifier for the users to compare. #349
+            # has more details
+            d = Deferred()
+            reactor.callLater(0.001, d.callback, None)
+            yield d
             self._check_verifier(w,
                                  verifier_bytes)  # blocks, can TransferError
 
