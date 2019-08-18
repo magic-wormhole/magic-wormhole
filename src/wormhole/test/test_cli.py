@@ -406,7 +406,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                  override_filename=False,
                  fake_tor=False,
                  overwrite=False,
-                 mock_accept=False):
+                 mock_accept=False,
+                 verify=False):
         assert mode in ("text", "file", "empty-file", "directory", "slow-text",
                         "slow-sender-text")
         if fake_tor:
@@ -423,6 +424,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             cfg.code = u"1-abc"
             cfg.stdout = io.StringIO()
             cfg.stderr = io.StringIO()
+            cfg.verify = verify
 
         send_dir = self.mktemp()
         os.mkdir(send_dir)
@@ -592,11 +594,16 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             VERIFY_TIMER = 0 if mode == "slow-text" else 99999
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
-                    if mock_accept:
+                    if mock_accept or verify:
                         with mock.patch.object(
                                 cmd_receive.six.moves, 'input',
-                                return_value='y'):
+                                return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
+                        if verify:
+                            s = i.mock_calls[0][1][0]
+                            mo = re.search(r'^Verifier (\w+)\. ok\?', s)
+                            self.assertTrue(mo, s)
+                            sender_verifier = mo.group(1)
                     else:
                         yield gatherResults([send_d, receive_d], True)
 
@@ -637,10 +644,11 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             expected = ("Sending text message ({bytes:d} Bytes){NL}"
                         "Wormhole code is: {code}{NL}"
                         "On the other computer, please run:{NL}{NL}"
-                        "wormhole receive {code}{NL}{NL}"
+                        "wormhole receive {verify}{code}{NL}{NL}"
                         "{KE}"
                         "text message sent{NL}").format(
                             bytes=len(message),
+                            verify="--verify " if verify else "",
                             code=send_cfg.code,
                             NL=NL,
                             KE=key_established)
@@ -675,7 +683,13 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode in ("text", "slow-text", "slow-sender-text"):
             self.assertEqual(receive_stdout, message + NL)
             if mode == "text":
-                self.assertEqual(receive_stderr, "")
+                if verify:
+                    mo = re.search(r'^Verifier (\w+)\.\s*$', receive_stderr)
+                    self.assertTrue(mo, receive_stderr)
+                    receiver_verifier = mo.group(1)
+                    self.assertEqual(sender_verifier, receiver_verifier)
+                else:
+                    self.assertEqual(receive_stderr, "")
             elif mode == "slow-text":
                 self.assertEqual(receive_stderr, key_established)
             elif mode == "slow-sender-text":
@@ -717,6 +731,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
     def test_text_tor(self):
         return self._do_test(fake_tor=True)
+
+    def test_text_verify(self):
+        return self._do_test(verify=True)
 
     def test_file(self):
         return self._do_test(mode="file")
