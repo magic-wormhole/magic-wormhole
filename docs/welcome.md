@@ -47,17 +47,52 @@ Received file written to README.md
 
 ## Installation
 
-```$ pip install magic-wormhole```
+The easiest way to install magic-wormhole is to use a packaged version from
+your operating system. If there is none, or you want to participate in
+development, you can install from source.
 
-You either want to do this into a "user" environment (putting the
-``wormhole`` executable in ``~/.local/bin/wormhole``) like this:
+### MacOS / OS-X
+
+[Install Homebrew](https://brew.sh/), then run `brew install magic-wormhole`.
+
+### Linux (Debian/Ubuntu)
+
+Magic-wormhole is available with `apt` in Debian 9 "stretch", Ubuntu 17.04
+"zesty", and later versions:
+
+```
+$ sudo apt install magic-wormhole
+```
+
+### Linux (Fedora)
+
+```
+$ sudo dnf install magic-wormhole
+```
+
+### Linux (Snap package)
+
+Many linux distributions (including Ubuntu) can install ["Snap"
+packages](https://snapcraft.io/). Magic-wormhole is available through a
+third-party package (published by the "snapcrafters" group):
+
+```
+$ sudo snap install wormhole
+```
+
+### Install from Source
+
+Magic-wormhole is a Python package, and can be installed in the usual ways.
+The basic idea is to do `pip install magic-wormhole`, however to avoid
+modifying the system's python libraries, you probably want to put it into a
+"user" environment (putting the ``wormhole`` executable in
+``~/.local/bin/wormhole``) like this:
 
 ```
 pip install --user magic-wormhole
 ```
 
-or put it into a virtualenv, to avoid modifying the system python's
-libraries, like this:
+or put it into a virtualenv, like this:
 
 ```
 virtualenv venv
@@ -65,40 +100,29 @@ source venv/bin/activate
 pip install magic-wormhole
 ```
 
-You probably *don't* want to use ``sudo`` when you run ``pip``.
+You can then run `venv/bin/wormhole` without first activating the virtualenv,
+so e.g. you could make a symlink from `~/bin/wormhole` to
+`.../path/to/venv/bin/wormhole`, and then plain `wormhole send` will find it
+on your `$PATH`.
 
-### OS X
+You probably *don't* want to use ``sudo`` when you run ``pip``. This tends to
+create [conflicts](https://github.com/warner/magic-wormhole/issues/336) with
+the system python libraries.
 
-On OS X, you may need to install `pip` and run `$ xcode-select --install` to
-get GCC.
+On OS X, you may need to pre-install `pip`, and run `$ xcode-select
+--install` to get GCC, which is needed to compile the `libsodium`
+cryptography library during the installation process.
 
-Or with `homebrew`:
-
-`$ brew install magic-wormhole`
-
-### Linux
-
-On Debian 9 and Ubuntu 17.04+ with `apt`:
-
-```$ sudo apt install magic-wormhole```
-
-On previous versions of the Debian/Ubuntu systems, or if you want to install
-the latest version, you may first need:
+On Debian/Ubuntu systems, you may need to install some support libraries
+first:
 
 `$ sudo apt-get install python-pip build-essential python-dev libffi-dev libssl-dev`
 
-On Fedora:
-
-`$ sudo dnf install magic-wormhole`.
-
-Note: If you get errors like `fatal error: sodium.h: No such file or
-directory` on Linux, either use `SODIUM_INSTALL=bundled pip install
-magic-wormhole`, or try installing the `libsodium-dev` / `libsodium-devel`
-package. These work around a bug in pynacl which gets confused when the
-libsodium runtime is installed (e.g. `libsodium13`) but not the development
-package.
-
-### Windows
+On Linux, if you get errors like `fatal error: sodium.h: No such file or
+directory`, either use `SODIUM_INSTALL=bundled pip install magic-wormhole`,
+or try installing the `libsodium-dev` / `libsodium-devel` package. These work
+around a bug in pynacl which gets confused when the libsodium runtime is
+installed (e.g. `libsodium13`) but not the development package.
 
 On Windows, python2 may work better than python3. On older systems, `$ pip
 install --upgrade pip` may be necessary to get a version that can compile all
