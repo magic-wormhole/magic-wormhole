@@ -70,6 +70,12 @@ $ sudo apt install magic-wormhole
 $ sudo dnf install magic-wormhole
 ```
 
+### Linux (openSUSE)
+
+```
+$ sudo zypper install python-magic-wormhole
+```
+
 ### Linux (Snap package)
 
 Many linux distributions (including Ubuntu) can install ["Snap"
