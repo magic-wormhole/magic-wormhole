@@ -29,3 +29,11 @@ or the docs/ subdirectory.
 This library is released under the MIT license, see LICENSE for details.
 
 This library is compatible with python2.7, 3.5, 3.6, and 3.7.
+
+## Packaging, Installation
+
+Magic Wormhole packages are included in many operating systems.
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/magic-wormhole.svg)](https://repology.org/project/magic-wormhole/versions)
+
+To install it without an OS package, follow the [Installation docs](https://magic-wormhole.readthedocs.io/en/latest/welcome.html#installation).
