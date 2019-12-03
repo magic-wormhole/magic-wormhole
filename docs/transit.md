@@ -155,16 +155,14 @@ delivered to the other side via a Wormhole message (i.e. add them to a dict,
 serialize it with JSON, send the result as a message with `wormhole.send()`).
 
 ```python
-direct_hints = s.get_direct_hints()
-relay_hints = s.get_relay_hints()
+connection_hints = s.get_connection_hints()
 ```
 
 Then, perform the Wormhole exchange, which ought to give you the direct and
 relay hints of the other side. Tell your Transit instance about their hints.
 
 ```python
-s.add_their_direct_hints(their_direct_hints)
-s.add_their_relay_hints(their_relay_hints)
+s.add_connection_hints(their_connection_hints)
 ```
 
 Then use `wormhole.derive_key()` to obtain a shared key for Transit purposes,
@@ -211,11 +209,9 @@ from wormhole.twisted.transit import TransitSender
 @inlineCallbacks
 def do_transit():
     s = TransitSender(relay)
-    my_relay_hints = s.get_relay_hints()
-    my_direct_hints = yield s.get_direct_hints()
+    my_connection_hints = s.get_connection_hints()
     # (send hints via wormhole)
-    s.add_their_relay_hints(their_relay_hints)
-    s.add_their_direct_hints(their_direct_hints)
+    s.add_connection_hints(their_connection_hints)
     s.set_transit_key(key)
     rp = yield s.connect()
     rp.send_record(b"eponymous")
