@@ -92,7 +92,7 @@ def make_side():
 #   can send HINTS, but it must not be given any HINTS that arrive before
 #   RECONNECTING (since they're probably stale)
 
-# * after VERSIONS(KCM) received, we might learn that they other side cannot
+# * after VERSIONS(KCM) received, we might learn that the other side cannot
 #    dilate. w.dilate errbacks at this point
 
 # * maybe signal warning if we stay in a "want" state for too long
