@@ -123,7 +123,7 @@ all nameplates, even ones which they've allocated themselves.
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
 clients. So if two clients connect quickly, but then maintain a long-lived
-wormhole connection, the do not need to consume the limited space of short
+wormhole connection, they do not need to consume the limited space of short
 nameplates for that whole time.
 
 The `allocate` command allocates a nameplate (the server returns one that is
