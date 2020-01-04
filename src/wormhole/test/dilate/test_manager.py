@@ -237,15 +237,17 @@ class TestManager(unittest.TestCase):
             ])
         clear_mock_calls(h.inbound)
 
+        eps = m.get_endpoints()
+        self.assertTrue(hasattr(eps, "control"))
+        self.assertTrue(hasattr(eps, "connect"))
+        self.assertEqual(eps.listen, h.listen_ep)
+
         m.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
                            dict_to_bytes({"type": "please", "side": LEADER}))
             ])
         clear_mock_calls(h.send)
-
-        listen_d = m.get_endpoints().listen.listen(None)
-        self.assertNoResult(listen_d)
 
         # ignore early hints
         m.rx_HINTS({})
@@ -266,8 +268,6 @@ class TestManager(unittest.TestCase):
             ])
         self.assertEqual(c.mock_calls, [mock.call.start()])
         clear_mock_calls(connector, c)
-
-        self.assertNoResult(listen_d)
 
         # now any inbound hints should get passed to our Connector
         with mock.patch("wormhole._dilation.manager.parse_hint",
