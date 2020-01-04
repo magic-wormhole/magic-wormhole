@@ -152,11 +152,14 @@ s = TransitSender("tcp:relayhost.example.org:12345")
 
 Next, ask the Transit for its direct and relay hints. This should be
 delivered to the other side via a Wormhole message (i.e. add them to a dict,
-serialize it with JSON, send the result as a message with `wormhole.send()`).
+serialize it with JSON, send the result as a message with `wormhole.send()`). 
 
 ```python
-connection_hints = s.get_connection_hints()
+connection_hints = yield s.get_connection_hints()
 ```
+
+The `get_connection_hints` method returns a Deferred, so in the example we are 
+using `@inlineCallbacks` to `yield` the result.
 
 Then, perform the Wormhole exchange, which ought to give you the direct and
 relay hints of the other side. Tell your Transit instance about their hints.
@@ -209,7 +212,7 @@ from wormhole.twisted.transit import TransitSender
 @inlineCallbacks
 def do_transit():
     s = TransitSender(relay)
-    my_connection_hints = s.get_connection_hints()
+    my_connection_hints = yield s.get_connection_hints()
     # (send hints via wormhole)
     s.add_connection_hints(their_connection_hints)
     s.set_transit_key(key)
