@@ -59,7 +59,7 @@ In addition, an active attacker is able to:
 If either side receives a corrupted or out-of-order record, they drop the
 connection. Attackers cannot modify the contents of a record, or change the
 order of the records, without being detected and the connection being
-dropped. If a record is lost (e.g. the receiver observer records #1,#2,#4,
+dropped. If a record is lost (e.g. the receiver observes records #1,#2,#4,
 but not #3), the connection is dropped when the unexpected sequence number is
 received.
 
@@ -81,9 +81,9 @@ HKDF context).
 
 The handshake protocol is like this:
 
-* immediately upon socket connection being made, the Sender writes
+* immediately upon connection establishment, the Sender writes
   SENDER-HANDSHAKE to the socket (regardless of whether the Sender initiated
-  the TCP connection, or was listening on a socket and just accepted the
+  the TCP connection, or was listening on a socket and accepted the
   connection)
 * likewise the Receiver immediately writes RECEIVER-HANDSHAKE to either kind
   of socket
@@ -183,24 +183,23 @@ def do_transit():
 ```
 
 First, create a Transit instance, giving it the connection information of the
-transit relay. The application must know whether it should use a Sender or a
-Receiver:
+"baked-in" transit relay. The application must know whether it should use a
+Sender or a Receiver:
 
 ```python
 from wormhole.transit import TransitSender
-s = TransitSender()
+s = TransitSender(baked_in_relay)
 ```
 
 Next, ask the Transit for its direct and relay hints. This should be
 delivered to the other side via a Wormhole message (i.e. add them to a dict,
 serialize it with JSON, send the result as a message with `wormhole.send()`).
+The `get_connection_hints` method returns a Deferred, so in the example we
+use `@inlineCallbacks` to `yield` the result.
 
 ```python
 my_connection_hints = yield s.get_connection_hints()
 ```
-
-The `get_connection_hints` method returns a Deferred, so in the example we
-use `@inlineCallbacks` to `yield` the result.
 
 Then, perform the Wormhole exchange, which ought to give you the direct and
 relay hints of the other side. Tell your Transit instance about their hints.
@@ -212,7 +211,8 @@ s.add_connection_hints(their_connection_hints)
 Then use `wormhole.derive_key()` to obtain a shared key for Transit purposes,
 and tell your Transit about it. Both sides must use the same derivation
 string, and this string must not be used for any other purpose, but beyond
-that it doesn't much matter what the exact string is.
+that it doesn't much matter what the exact derivation string is. The key is
+secret, of course.
 
 ```python
 key = w.derive_key(application_id + "/transit-key")
@@ -235,8 +235,8 @@ other = yield rp.receive_record()
 yield rp.close()
 ```
 
-Records can be sent and received arbitrarily (you are not limited to taking
-turns).
+Records can be sent and received in arbitrary order (you are not limited to
+taking turns).
 
 The record-pipe object also implements the `IConsumer`/`IProducer` protocols
 for **bytes**, which means you can transfer a file by wiring up a file reader
