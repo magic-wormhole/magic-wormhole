@@ -7,7 +7,8 @@ delivered by Wormhole).
 
 The protocol tries hard to create a **direct** connection between the two
 ends, but if that fails, it uses a centralized relay server to ferry data
-between two separate TCP streams (one to each client).
+between two separate TCP streams (one to each client). Direct connection
+hints are used for the first, and relay hints are used for the second.
 
 The current implementation starts with the following:
 
@@ -58,7 +59,7 @@ In addition, an active attacker is able to:
 If either side receives a corrupted or out-of-order record, they drop the
 connection. Attackers cannot modify the contents of a record, or change the
 order of the records, without being detected and the connection being
-dropped. If a record is lost (e.g. the receiver observers records #1,#2,#4,
+dropped. If a record is lost (e.g. the receiver observes records #1,#2,#4,
 but not #3), the connection is dropped when the unexpected sequence number is
 received.
 
@@ -80,9 +81,9 @@ HKDF context).
 
 The handshake protocol is like this:
 
-* immediately upon socket connection being made, the Sender writes
+* immediately upon connection establishment, the Sender writes
   SENDER-HANDSHAKE to the socket (regardless of whether the Sender initiated
-  the TCP connection, or was listening on a socket and just accepted the
+  the TCP connection, or was listening on a socket and accepted the
   connection)
 * likewise the Receiver immediately writes RECEIVER-HANDSHAKE to either kind
   of socket
@@ -110,6 +111,11 @@ cause the connection to fail, by intercepting both connections (to learn the
 two handshakes), then making new connections to play back the recorded
 handshakes, but this level of attacker could simply drop the user's packets
 directly.
+
+Any participant in a Transit connection (i.e. the party on the other end of
+your wormhole) can cause their peer to make a TCP connection (and send the
+handshake string) to any IP address and port of their choosing. The handshake
+protocol is intended to make this no more than a minor nuisance.
 
 ## Relay
 
@@ -139,94 +145,103 @@ attempting to use the relay. If it has no viable direct hints, it will start
 using the relay right away. This prefers direct connections, but doesn't
 introduce completely unnecessary stalls.
 
+The Transit client can attempt connections to multiple relays, and uses the
+first one that passes negotiation. Each side combines a locally-configured
+hostname/port (usually "baked in" to the application, and hosted by the
+application author) with additional hostname/port pairs that come from the
+peer. This way either side can suggest the relays to use. The `wormhole`
+application accepts a `--transit-helper tcp:myrelay.example.org:12345`
+command-line option to supply an additional relay. The connection hints
+provided by the Transit instance include the locally-configured relay, along
+with the dynamically-determined direct hints. Both should be delivered to the
+peer.
+
 ## API
 
-First, create a Transit instance, giving it the connection information of the
-transit relay. The application must know whether it should use a Sender or a
-Receiver:
+The Transit API uses Twisted and returns Deferreds for any call that cannot
+be handled immediately. The complete example is here:
 
 ```python
-from wormhole.blocking.transit import TransitSender
-s = TransitSender("tcp:relayhost.example.org:12345")
+from twisted.internet.defer import inlineCallbacks
+from wormhole.transit import TransitSender
+ 
+@inlineCallbacks
+def do_transit():
+    s = TransitSender("tcp:relayhost.example.org:12345")
+    my_connection_hints = yield s.get_connection_hints()
+    # (send my hints via wormhole)
+    # (get their hints via wormhole)
+    s.add_connection_hints(their_connection_hints)
+    key = w.derive_key(application_id + "/transit-key")
+    s.set_transit_key(key)
+    rp = yield s.connect()
+    rp.send_record(b"my first record")
+    their_record = yield rp.receive_record()
+    rp.send_record(b"Greatest Hits)
+    other = yield rp.receive_record()
+    yield rp.close()
+```
+
+First, create a Transit instance, giving it the connection information of the
+"baked-in" transit relay. The application must know whether it should use a
+Sender or a Receiver:
+
+```python
+from wormhole.transit import TransitSender
+s = TransitSender(baked_in_relay)
 ```
 
 Next, ask the Transit for its direct and relay hints. This should be
 delivered to the other side via a Wormhole message (i.e. add them to a dict,
 serialize it with JSON, send the result as a message with `wormhole.send()`).
+The `get_connection_hints` method returns a Deferred, so in the example we
+use `@inlineCallbacks` to `yield` the result.
 
 ```python
-direct_hints = s.get_direct_hints()
-relay_hints = s.get_relay_hints()
+my_connection_hints = yield s.get_connection_hints()
 ```
 
 Then, perform the Wormhole exchange, which ought to give you the direct and
 relay hints of the other side. Tell your Transit instance about their hints.
 
 ```python
-s.add_their_direct_hints(their_direct_hints)
-s.add_their_relay_hints(their_relay_hints)
+s.add_connection_hints(their_connection_hints)
 ```
 
 Then use `wormhole.derive_key()` to obtain a shared key for Transit purposes,
 and tell your Transit about it. Both sides must use the same derivation
 string, and this string must not be used for any other purpose, but beyond
-that it doesn't much matter what the exact string is.
+that it doesn't much matter what the exact derivation string is. The key is
+secret, of course.
 
 ```python
 key = w.derive_key(application_id + "/transit-key")
 s.set_transit_key(key)
 ```
 
-Finally, tell the Transit instance to connect. This will yield a "record
-pipe" object, on which records can be sent and received. If no connection can
-be established within a timeout (defaults to 30 seconds), `connect()` will
-throw an exception instead. The pipe can be closed with `close()`.
+Finally, tell the Transit instance to connect. This returns a Deferred that
+will yield a "record pipe" object, on which records can be sent and received.
+If no connection can be established within a timeout (defaults to 30
+seconds), `connect()` will signal a Failure instead. The pipe can be closed
+with `close()`, which returns a Deferred that fires when all data has been
+flushed.
 
 ```python
-rp = s.connect()
+rp = yield s.connect()
 rp.send_record(b"my first record")
-their_record = rp.receive_record()
+their_record = yield rp.receive_record()
 rp.send_record(b"Greatest Hits)
-other = rp.receive_record()
-rp.close()
+other = yield rp.receive_record()
+yield rp.close()
 ```
 
-Records can be sent and received arbitrarily (you are not limited to taking
-turns). However the blocking API does not provide a way to send records while
-waiting for an inbound record. This *might* work with threads, but it has not
-been tested.
+Records can be sent and received in arbitrary order (you are not limited to
+taking turns).
 
-## Twisted API
-
-The same facilities are available in the asynchronous Twisted environment.
-The difference is that some functions return Deferreds instead of immediate
-values. The final record-pipe object is a Protocol (TBD: maybe this is a job
-for Tubes?), which exposes `receive_record()` as a Deferred-returning
-function that internally holds a queue of inbound records.
-
-```python
-from twisted.internet.defer import inlineCallbacks
-from wormhole.twisted.transit import TransitSender
- 
-@inlineCallbacks
-def do_transit():
-    s = TransitSender(relay)
-    my_relay_hints = s.get_relay_hints()
-    my_direct_hints = yield s.get_direct_hints()
-    # (send hints via wormhole)
-    s.add_their_relay_hints(their_relay_hints)
-    s.add_their_direct_hints(their_direct_hints)
-    s.set_transit_key(key)
-    rp = yield s.connect()
-    rp.send_record(b"eponymous")
-    them = yield rp.receive_record()
-    yield rp.close()
-```
-
-This object also implements the `IConsumer`/`IProducer` protocols for
-**bytes**, which means you can transfer a file by wiring up a file reader as
-a Producer. Each chunk of bytes that the Producer generates will be put into
-a single record. The Consumer interface works the same way. This enables
+The record-pipe object also implements the `IConsumer`/`IProducer` protocols
+for **bytes**, which means you can transfer a file by wiring up a file reader
+as a Producer. Each chunk of bytes that the Producer generates will be put
+into a single record. The Consumer interface works the same way. This enables
 backpressure and flow-control: if the far end (or the network) cannot keep up
 with the stream of data, the sender will wait for them to catch up before
 filling buffers without bound.
