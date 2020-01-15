@@ -8,17 +8,9 @@ like this:
 pip install magic-wormhole[tor]
 ```
 
-Unfortunately, at present, Tor support is only available under
-python2.7. Attempting to install `magic-wormhole[tor]` (or `txtorcon` or
-`txsocksx`) under py3 results in an inscrutable error that references
-strings like "vcversioner", "install_requires must be a string or list
-of strings", and "int object not iterable".
-[Support for py3](https://github.com/warner/magic-wormhole/issues/136)
-will hopefully be added in a future release.
-
 ## Usage
 
-Under python2.7, just add ``--tor`` to use a running Tor daemon:
+Just add ``--tor`` to use a running Tor daemon:
 
 ```
 wormhole send --tor myfile.jpg
