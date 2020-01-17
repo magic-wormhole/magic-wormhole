@@ -384,8 +384,8 @@ class FakeTor:
     def __init__(self):
         self.endpoints = []
 
-    def stream_via(self, host, port):
-        self.endpoints.append((host, port))
+    def stream_via(self, host, port, tls=False):
+        self.endpoints.append((host, port, tls))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
 
@@ -608,9 +608,9 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                         yield gatherResults([send_d, receive_d], True)
 
             if fake_tor:
-                expected_endpoints = [("127.0.0.1", self.rdv_ws_port)]
+                expected_endpoints = [("127.0.0.1", self.rdv_ws_port, False)]
                 if mode in ("file", "directory"):
-                    expected_endpoints.append(("127.0.0.1", self.transitport))
+                    expected_endpoints.append(("127.0.0.1", self.transitport, False))
                 tx_timing = mtx_tm.call_args[1]["timing"]
                 self.assertEqual(tx_tm.endpoints, expected_endpoints)
                 self.assertEqual(

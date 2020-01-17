@@ -81,8 +81,7 @@ class RendezvousConnector(object):
         self._ws = None
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
-        p = urlparse(self._url)
-        ep = self._make_endpoint(p.hostname, p.port or 80)
+        ep = self._make_endpoint(self._url)
         self._connector = internet.ClientService(ep, f)
         faf = None if self._have_made_a_successful_connection else 1
         d = self._connector.whenConnected(failAfterFailures=faf)
@@ -100,11 +99,16 @@ class RendezvousConnector(object):
         if self._trace:
             self._trace(old_state="", input=what, new_state="")
 
-    def _make_endpoint(self, hostname, port):
+    def _make_endpoint(self, url):
+        p = urlparse(url)
+        tls = (p.scheme == "wss")
+        port = p.port or (443 if tls else 80)
         if self._tor:
-            # TODO: when we enable TLS, maybe add tls=True here
-            return self._tor.stream_via(hostname, port)
-        return endpoints.HostnameEndpoint(self._reactor, hostname, port)
+            return self._tor.stream_via(p.hostname, port, tls=tls)
+        if tls:
+            return endpoints.clientFromString(self._reactor,
+                                              "tls:%s:%s" % (p.hostname, port))
+        return endpoints.HostnameEndpoint(self._reactor, p.hostname, port)
 
     def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):
         self._B = _interfaces.IBoss(boss)

@@ -14,7 +14,8 @@ from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
-                           IRendezvousConnector, ISend, ITerminator, IWordlist)
+                           IRendezvousConnector, ISend, ITerminator, IWordlist,
+                           ITorManager)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
@@ -1620,6 +1621,72 @@ class Rendezvous(unittest.TestCase):
             ("l.lost", ),
             ("a.lost", ),
         ])
+
+    def test_endpoints(self):
+        # parse different URLs and check the tls status of each
+        reactor = object()
+        journal = ImmediateJournal()
+        tor_manager = None
+        client_version = ("python", __version__)
+        rc = _rendezvous.RendezvousConnector(
+            "ws://host:4000/v1", "appid", "side", reactor, journal,
+            tor_manager, timing.DebugTiming(), client_version)
+
+        new_ep = object()
+        with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
+                        return_value=new_ep) as he:
+            ep = rc._make_endpoint("ws://host:4000/v1")
+        self.assertEqual(he.mock_calls, [mock.call(reactor, "host", 4000)])
+        self.assertIs(ep, new_ep)
+
+        new_ep = object()
+        with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
+                        return_value=new_ep) as he:
+            ep = rc._make_endpoint("ws://host/v1")
+        self.assertEqual(he.mock_calls, [mock.call(reactor, "host", 80)])
+        self.assertIs(ep, new_ep)
+
+        new_ep = object()
+        with mock.patch("twisted.internet.endpoints.clientFromString",
+                        return_value=new_ep) as cfs:
+            ep = rc._make_endpoint("wss://host:4000/v1")
+        self.assertEqual(cfs.mock_calls, [mock.call(reactor, "tls:host:4000")])
+        self.assertIs(ep, new_ep)
+
+        new_ep = object()
+        with mock.patch("twisted.internet.endpoints.clientFromString",
+                        return_value=new_ep) as cfs:
+            ep = rc._make_endpoint("wss://host/v1")
+        self.assertEqual(cfs.mock_calls, [mock.call(reactor, "tls:host:443")])
+        self.assertIs(ep, new_ep)
+
+        tor_manager = mock.Mock()
+        directlyProvides(tor_manager, ITorManager)
+        rc = _rendezvous.RendezvousConnector(
+            "ws://host:4000/v1", "appid", "side", reactor, journal,
+            tor_manager, timing.DebugTiming(), client_version)
+
+        tor_manager.mock_calls[:] = []
+        ep = rc._make_endpoint("ws://host:4000/v1")
+        self.assertEqual(tor_manager.mock_calls,
+                         [mock.call.stream_via("host", 4000, tls=False)])
+
+        tor_manager.mock_calls[:] = []
+        ep = rc._make_endpoint("ws://host/v1")
+        self.assertEqual(tor_manager.mock_calls,
+                         [mock.call.stream_via("host", 80, tls=False)])
+
+        tor_manager.mock_calls[:] = []
+        ep = rc._make_endpoint("wss://host:4000/v1")
+        self.assertEqual(tor_manager.mock_calls,
+                         [mock.call.stream_via("host", 4000, tls=True)])
+
+        tor_manager.mock_calls[:] = []
+        ep = rc._make_endpoint("wss://host/v1")
+        self.assertEqual(tor_manager.mock_calls,
+                         [mock.call.stream_via("host", 443, tls=True)])
+
+
 
 
 # TODO
