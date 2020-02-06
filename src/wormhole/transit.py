@@ -10,8 +10,9 @@ from collections import deque
 
 import six
 from nacl.secret import SecretBox
+import twisted.internet
 from twisted.internet import (address, defer, endpoints, error, interfaces,
-                              protocol, reactor, task)
+                              protocol, task)
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.protocols import policies
 from twisted.python import log
@@ -559,7 +560,7 @@ class Common:
                  transit_relay,
                  no_listen=False,
                  tor=None,
-                 reactor=reactor,
+                 reactor=None,
                  timing=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
@@ -579,6 +580,8 @@ class Common:
         self._waiting_for_transit_key = []
         self._listener = None
         self._winner = None
+        if reactor is None:
+            reactor = twisted.internet.reactor
         self._reactor = reactor
         self._timing = timing or DebugTiming()
         self._timing.add("transit")
@@ -596,7 +599,7 @@ class Common:
         direct_hints = [
             DirectTCPV1Hint(six.u(addr), portnum, 0.0) for addr in addresses
         ]
-        ep = endpoints.serverFromString(reactor, "tcp:%d" % portnum)
+        ep = endpoints.serverFromString(twisted.internet.reactor, "tcp:%d" % portnum)
         return direct_hints, ep
 
     def get_connection_abilities(self):
