@@ -1312,8 +1312,8 @@ class Transit(unittest.TestCase):
 
     @inlineCallbacks
     def test_success_direct(self):
-        clock = task.Clock()
-        s = transit.TransitSender("", reactor=clock)
+        reactor = mock.Mock()
+        s = transit.TransitSender("", reactor=reactor)
         s.set_transit_key(b"key")
         hints = yield s.get_connection_hints()  # start the listener
         del hints
