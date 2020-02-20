@@ -595,7 +595,7 @@ class PretendUnregisterError(Exception):
 
 class PushPull(unittest.TestCase):
     # test our wrapper utility, which I copied from
-    # twisted.internet._producer_helpers since it isn't publically exposed
+    # twisted.internet._producer_helpers since it isn't publicly exposed
 
     def test_start_unpaused(self):
         p, unr, pp, eq = make_pushpull([True])  # pause on each resumeProducing

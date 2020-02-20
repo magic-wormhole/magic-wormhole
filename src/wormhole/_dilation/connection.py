@@ -607,7 +607,7 @@ class DilatedConnectionProtocol(Protocol, object):
                     if self._role is FOLLOWER:
                         self._record.send_record(KCM())
                 elif isinstance(token, KCM):
-                    # if we're the leader, add this connection as a candiate.
+                    # if we're the leader, add this connection as a candidate.
                     # if we're the follower, accept this connection.
                     self.got_kcm()  # connector.add_candidate()
                 else:

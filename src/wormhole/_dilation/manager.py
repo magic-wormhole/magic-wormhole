@@ -187,7 +187,7 @@ class Manager(object):
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
-            # they're so new that they no longer accomodate our old version
+            # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
         self.start()

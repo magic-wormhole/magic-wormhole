@@ -246,7 +246,7 @@ class Record(unittest.TestCase):
         f.mock_calls[:] = []
         n.mock_calls[:] = []
 
-        # 5: at this point we ought to be able to send a messge, the KCM
+        # 5: at this point we ought to be able to send a message, the KCM
         with mock.patch("wormhole._dilation.connection.encode_record",
                         side_effect=[b"r-kcm"]) as er:
             r.send_record(kcm)

@@ -124,7 +124,7 @@ class Connection(unittest.TestCase):
         clear_mock_calls(n, connector, t, m)
 
         # now pretend this connection wins (either the Leader decides to use
-        # this one among all the candiates, or we're the Follower and the
+        # this one among all the candidates, or we're the Follower and the
         # Connector is reacting to add_candidate() by recognizing we're the
         # only candidate there is)
         c.select(m)
@@ -295,7 +295,7 @@ class Connection(unittest.TestCase):
         clear_mock_calls(n, connector, t, m)
 
         # now pretend this connection wins (either the Leader decides to use
-        # this one among all the candiates, or we're the Follower and the
+        # this one among all the candidates, or we're the Follower and the
         # Connector is reacting to add_candidate() by recognizing we're the
         # only candidate there is)
         c.select(m)

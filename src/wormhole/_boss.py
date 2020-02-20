@@ -178,7 +178,7 @@ class Boss(object):
     # inputs. We expect them to be called just after initialization, while
     # we're in the S0_empty state. You must call exactly one of them, and the
     # call must happen while we're in S0_empty, which makes them good
-    # candiates for being a proper @m.input, but set_code() will immediately
+    # candidates for being a proper @m.input, but set_code() will immediately
     # (reentrantly) cause self.got_code() to be fired, which is messy. These
     # are all passthroughs to the Code machine, so one alternative would be
     # to have Wormhole call Code.{input,allocate,set_code} instead, but that
