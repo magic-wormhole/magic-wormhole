@@ -36,7 +36,9 @@ setup(name="magic-wormhole",
       package_dir={"": "src"},
       packages=["wormhole",
                 "wormhole.cli",
+                "wormhole._dilation",
                 "wormhole.test",
+                "wormhole.test.dilate",
                 ],
       entry_points={
           "console_scripts":
