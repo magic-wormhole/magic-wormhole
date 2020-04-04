@@ -23,6 +23,9 @@ matrix:
     - python: 3.7
       dist: xenial
       script: tox -e py37-coverage
+    - python: 3.8
+      dist: bionic
+      script: tox -e py38-coverage
     - python: nightly
       script: tox -e py-coverage
     - python: 3.6
