@@ -26,9 +26,10 @@ or the docs/ subdirectory.
 
 ## License, Compatibility
 
-This library is released under the MIT license, see LICENSE for details.
+Magic-Wormhole is released under the MIT license, see the `LICENSE` file for details.
 
-This library is compatible with python2.7, 3.5, 3.6, and 3.7.
+This library is compatible with Python 3.5 and higher (tested against 3.5,
+3.6, 3.7, and 3.8). It also still works with Python 2.7.
 
 ## Packaging, Installation
 
