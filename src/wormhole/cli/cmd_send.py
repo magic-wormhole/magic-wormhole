@@ -333,9 +333,12 @@ class Sender:
 
         if os.path.isdir(what):
             print(u"Building zipfile..", file=args.stderr)
-            # We're sending a directory. Create a zipfile in a tempdir and
-            # send that.
-            fd_to_send = tempfile.SpooledTemporaryFile()
+            # We're sending a directory. Create a zipfile and send that
+            # instead. SpooledTemporaryFile will use RAM until our size
+            # threshold (10MB) is reached, then moves everything into a
+            # tempdir (it tries $TMPDIR, $TEMP, $TMP, then platform-specific
+            # paths like /tmp).
+            fd_to_send = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
             # workaround for https://bugs.python.org/issue26175 (STF doesn't
             # fully implement IOBase abstract class), which breaks the new
             # zipfile in py3.7.0 that expects .seekable
