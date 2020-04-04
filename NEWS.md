@@ -1,6 +1,55 @@
 
 User-visible changes in "magic-wormhole":
 
+## Release 0.12.0 (04-Apr-2020)
+
+* A command like `wormhole send /dev/fd0` can send the contents of the named
+  block device (USB stick, SD card, floppy, etc), resulting in a plain file
+  on the other side. (#323)
+* Change "accept this file?" default answer from no to yes. (#327 #330 #331)
+* Actually use tempfile for large directory transfers. This fixes a five-year
+  old bug which prevents transfers of directories larger than available RAM
+  by finally really building the temporary zipfile on disk. (#379)
+* Accept 'wss' for TLS-protected relay connections, which default to port 443
+  if no other port is accepted. A future release will change the public relay
+  to use TLS. (#144)
+* Drop support for python3.4
+* Stall `--verify` long enough to send the verifier. This fixes a bug when
+  both sides use `--verify`, the receiver uses tab-completion, the sender
+  sees the verifier and waits for the user to confirm, but the receiver
+  cannot show the verifier (enabling that confirmation) until the sender
+  approves the transfer. (#349)
+
+This release also includes an incomplete implementation of the new "Dilation"
+API (see ticket #312 for details). In the future this will enable restarting
+interrupted transfers, tolerating changes in network address, bidirectional
+transfers in a long-running GUI/daemon process, and more. The protocol is not
+finalized, nor is it backward compatible with the old "Transit" protocol yet,
+so there is no CLI access so far. The code is present and tested to make sure
+it doesn't regress and for ease of development, but intrepid folks who want
+to try it out will need to write a client first (and be aware that the
+protocol may change out from under them). A future release will add
+compatibility negotiation with old clients and start using the new protocol.
+
+PRs and tickets addressed in this release: #144 #312 #318 #321 #323 #327 #330
+#331 #332 #339 #349 #361 #365 #368 #367 #378 #379.
+
+Thanks to the many contributors of bugs, patches, and other help with this
+release:
+
+* Adam Spiers aka @aspiers
+* Евгений Протозанов aka @WeirdCarrotMonster
+* Edward Betts aka @EdwardBetts
+* Jacek Politowski aka @jpolnetpl
+* Julian Stecklina aka @blitz
+* Jürgen Gmach aka @jugmac00
+* Louis Wilson aka @louiswins
+* Miro Hrončok aka @hroncok
+* Moritz Schlichting aka @morrieinmaas
+* Shea Polansky aka @Phyxius
+* @sneakypete81
+
+
 ## Release 0.11.2 (13-Nov-2018)
 
 Rerelease to fix the long description on PyPI. Thanks to Marius Gedminas for
