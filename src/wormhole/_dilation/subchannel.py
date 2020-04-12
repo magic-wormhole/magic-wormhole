@@ -73,7 +73,7 @@ class _SubchannelAddress(object):
     _scid = attrib(validator=instance_of(six.integer_types))
 
 
-@attrs(cmp=False)
+@attrs(eq=False)
 @implementer(ITransport)
 @implementer(IProducer)
 @implementer(IConsumer)

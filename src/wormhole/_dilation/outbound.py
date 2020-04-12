@@ -340,7 +340,7 @@ class Outbound(object):
 # modelled after twisted.internet._producer_helper._PullToPush , but with a
 # configurable Cooperator, a pause-immediately argument to startStreaming()
 @implementer(IPushProducer)
-@attrs(cmp=False)
+@attrs(eq=False)
 class PullToPush(object):
     _producer = attrib(validator=provides(IPullProducer))
     _unregister = attrib(validator=lambda _a, _b, v: callable(v))
