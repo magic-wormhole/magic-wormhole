@@ -988,7 +988,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
                     "wormhole receive -0{NL}"
                     "{NL}"
                     "text message sent{NL}").format(
-                        bytes=len(message), code=send_cfg.code, NL=NL)
+                        bytes=len(message), NL=NL)
         self.failUnlessEqual(send_stderr, expected)
 
         # check receiver

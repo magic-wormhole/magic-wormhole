@@ -87,7 +87,7 @@ def invite(cfg, reactor=reactor):
         print()
 
     if cfg.ssh_user is None:
-        ssh_path = expanduser('~/.ssh/'.format(cfg.ssh_user))
+        ssh_path = expanduser('~/.ssh/')
     else:
         ssh_path = expanduser('~{}/.ssh/'.format(cfg.ssh_user))
     auth_key_path = join(ssh_path, 'authorized_keys')
