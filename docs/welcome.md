@@ -197,24 +197,34 @@ running until the transfer has finished.
 
 ## Relays
 
-The wormhole library requires a "Rendezvous Server": a simple WebSocket-based
-relay that delivers messages from one client to another. This allows the
-wormhole codes to omit IP addresses and port numbers. The URL of a public
-server is baked into the library for use as a default, and will be freely
-available until volume or abuse makes it infeasible to support. Applications
-which desire more reliability can easily run their own relay and configure
-their clients to use it instead. Code for the Rendezvous Server is included
-in the library.
+The wormhole library requires a "Mailbox Server" (also known as the
+"Rendezvous Server"): a simple WebSocket-based relay that delivers messages
+from one client to another. This allows the wormhole codes to omit IP
+addresses and port numbers. The URL of a public server is baked into the
+library for use as a default, and will be freely available until volume or
+abuse makes it infeasible to support. Applications which desire more
+reliability can easily run their own relay and configure their clients to use
+it instead. Code for the Mailbox Server is in a separate package named
+`magic-wormhole-mailbox-server`. and
+https://github.com/warner/magic-wormhole-mailbox-server/blob/master/docs/welcome.md
+has instructions to run your own copy. Both clients must use the same mailbox
+server. The default can be overridden with the `--relay-url` option.
 
 The file-transfer commands also use a "Transit Relay", which is another
 simple server that glues together two inbound TCP connections and transfers
-data on each to the other. The `wormhole send` file mode shares the IP
-addresses of each client with the other (inside the encrypted message), and
-both clients first attempt to connect directly. If this fails, they fall back
-to using the transit relay. As before, the host/port of a public server is
-baked into the library, and should be sufficient to handle moderate traffic.
-Code for the Transit Relay is provided a separate package named
-`magic-wormhole-transit-relay`.
+data on each to the other (the moral equivalent of a TURN server). The
+`wormhole send` file mode shares the IP addresses of each client with the
+other (inside the encrypted message), and both clients first attempt to
+connect directly. If this fails, they fall back to using the transit relay.
+As before, the host/port of a public server is baked into the library, and
+should be sufficient to handle moderate traffic. Code for the Transit Relay
+is provided a separate package named `magic-wormhole-transit-relay`, and you
+can read
+https://github.com/warner/magic-wormhole-transit-relay/blob/master/docs/running.md
+for instructions on running your own. The clients exchange transit relay
+information during connection negotiation, so they can be configured to use
+different ones without problems. Use the `--transit-helper` option to
+override the default.
 
 The protocol includes provisions to deliver notices and error messages to
 clients: if either relay must be shut down, these channels will be used to

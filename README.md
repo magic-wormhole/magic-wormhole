@@ -24,6 +24,12 @@ and do not need to be memorized.
 For complete documentation, please see https://magic-wormhole.readthedocs.io
 or the docs/ subdirectory.
 
+This program uses two servers, whose source code is kept in separate
+repositories: the
+[mailbox server](https://github.com/warner/magic-wormhole-mailbox-server),
+and the
+[transit relay](https://github.com/warner/magic-wormhole-transit-relay).
+
 ## License, Compatibility
 
 Magic-Wormhole is released under the MIT license, see the `LICENSE` file for details.
