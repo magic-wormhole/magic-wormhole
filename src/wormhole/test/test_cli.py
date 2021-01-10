@@ -388,6 +388,15 @@ class FakeTor:
         self.endpoints.append((host, port, tls))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
+def strip_deprecations(stderr, NL):
+    lines = [line
+             for line in stderr.split(NL)
+             if not ("Python 2 is no longer supported" in line or
+                     "from cryptography import utils" in line or
+                     "support will be dropped in the next release of cryptography" in line
+                     )
+             ]
+    return NL.join(lines)
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -552,6 +561,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             receive_stderr = receive_res[1].decode("utf-8")
             receive_rc = receive_res[2]
             NL = os.linesep
+            send_stderr = strip_deprecations(send_stderr, NL)
+            receive_stderr = strip_deprecations(receive_stderr, NL)
             self.assertEqual((send_rc, receive_rc), (0, 0),
                              (send_res, receive_res))
         else:
