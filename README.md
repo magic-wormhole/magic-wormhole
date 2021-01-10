@@ -34,8 +34,10 @@ and the
 
 Magic-Wormhole is released under the MIT license, see the `LICENSE` file for details.
 
-This library is compatible with Python 3.5 and higher (tested against 3.5,
-3.6, 3.7, and 3.8). It also still works with Python 2.7.
+This library is compatible with Python 3.6 and higher (tested against 3.6,
+3.7, 3.8, and 3.9). It also still works with Python 2.7 and 3.5, although
+these are no longer supported by upstream libraries like Cryptography, so it
+may stop working at any time.
 
 ## Packaging, Installation
 
