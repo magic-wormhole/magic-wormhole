@@ -1,0 +1,91 @@
+name: Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6, 3.7, 3.8, 3.9]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip tox codecov
+
+    - name: Test
+      run: |
+        python --version
+        tox -e coverage
+
+    - name: Upload Coverage
+      run: codecov
+
+  testing-py27-nodilate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 2.7
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip tox
+
+    - name: Test
+      run: |
+        python --version
+        # under py2.7, we run 'tox -e py-nodilate' instead
+        tox -e py-nodilate
+
+  flake8:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip tox
+
+    - name: Flake8
+      run: |
+        python --version
+        tox -e flake8less
+
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip tox
+
+    - name: Docs
+      run: |
+        python --version
+        tox -e docs
