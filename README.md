@@ -1,8 +1,8 @@
 # Magic Wormhole
 [![PyPI](http://img.shields.io/pypi/v/magic-wormhole.svg)](https://pypi.python.org/pypi/magic-wormhole)
-[![Build Status](https://travis-ci.org/warner/magic-wormhole.svg?branch=master)](https://travis-ci.org/warner/magic-wormhole)
+![Tests](https://github.com/magic-wormhole/magic-wormhole/workflows/testing/badge.svg)
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/mfnn5rsyfnrq576a/branch/master?svg=true)](https://ci.appveyor.com/project/warner/magic-wormhole)
-[![codecov.io](https://codecov.io/github/warner/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/warner/magic-wormhole?branch=master)
+[![codecov.io](https://codecov.io/github/magic-wormhole/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/magic-wormhole/magic-wormhole?branch=master)
 [![Docs](https://readthedocs.org/projects/magic-wormhole/badge/?version=latest)](https://magic-wormhole.readthedocs.io)
 
 Get things from one computer to another, safely.
@@ -26,9 +26,9 @@ or the docs/ subdirectory.
 
 This program uses two servers, whose source code is kept in separate
 repositories: the
-[mailbox server](https://github.com/warner/magic-wormhole-mailbox-server),
+[mailbox server](https://github.com/magic-wormhole/magic-wormhole-mailbox-server),
 and the
-[transit relay](https://github.com/warner/magic-wormhole-transit-relay).
+[transit relay](https://github.com/magic-wormhole/magic-wormhole-transit-relay).
 
 ## License, Compatibility
 
