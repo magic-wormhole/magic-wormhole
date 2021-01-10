@@ -1,6 +1,6 @@
 # Magic Wormhole
 [![PyPI](http://img.shields.io/pypi/v/magic-wormhole.svg)](https://pypi.python.org/pypi/magic-wormhole)
-![Tests](https://github.com/magic-wormhole/magic-wormhole/workflows/testing/badge.svg)
+![Tests](https://github.com/magic-wormhole/magic-wormhole/workflows/Tests/badge.svg)
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/mfnn5rsyfnrq576a/branch/master?svg=true)](https://ci.appveyor.com/project/warner/magic-wormhole)
 [![codecov.io](https://codecov.io/github/magic-wormhole/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/magic-wormhole/magic-wormhole?branch=master)
 [![Docs](https://readthedocs.org/projects/magic-wormhole/badge/?version=latest)](https://magic-wormhole.readthedocs.io)
