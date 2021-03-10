@@ -103,17 +103,27 @@ resumed or reestablished.
 
 ## Initiating Dilation
 
-Dilation is triggered by calling the `w.dilate()` API. This returns a
-Deferred that will fire once the first L3 connection is established. It fires
-with a 3-tuple of endpoints that can be used to establish subchannels, or an
-error if dilation is not possible. If the other side's `versions` message
-indicates that it does not support dilation, the Deferred will errback with
-an `OldPeerCannotDilateError`.
+Dilation is triggered by calling the `w.dilate()` API. This immediately
+returns a 3-tuple of standard Twisted-style endpoints that can be used to
+establish subchannels: `(control_ep, client_ep, server_ep)`. The first two
+are client-like, while `server_ep` is server-like. For dilation to succeed,
+both sides must call `w.dilate()`, since the resulting endpoints are the only
+way to access the subchannels.
 
-For dilation to succeed, both sides must call `w.dilate()`, since the
-resulting endpoints are the only way to access the subchannels. If the other
-side is capable of dilation, but never calls `w.dilate()`, the Deferred will
-never fire.
+The client-like endpoints are used to signal any errors that might prevent
+dilation. `control_ep.connect(factory)` and `client_ep.connect(factory)`
+return a Deferred that will errback (with `OldPeerCannotDilateError`) if the
+other side's `versions` message indicates that it does not support dilation.
+The overall dilated connection is durable (the dilation agent will try
+forever to connect, and will automatically reconnect when necessary), so
+`OldPeerCannotDilateError` is currently the only error that could be thrown.
+
+(TODO: we could use a connection-status API, to provide user feedback)
+
+If the other side *could* support dilation (i.e. the wormhole library is new
+enough), but the peer does not choose to call `w.dilate()`, this Deferred
+will never fire, and the `factory` will never be asked to create a new
+`Protocol` instance.
 
 The L1 (mailbox) path is used to deliver dilation requests and connection
 hints. The current mailbox protocol uses named "phases" to distinguish
@@ -513,6 +523,9 @@ remain in a special "closing" state until the CLOSE response arrives, during
 which time DATA payloads are still delivered. After calling `close()` (or
 receiving CLOSE), any outbound `.write()` calls will trigger an error.
 
+(TODO: it would be nice to have half-close, especially for simple FTP-like
+file transfers)
+
 DATA payloads that arrive for a non-open subchannel are logged and discarded.
 
 This protocol calls for one OPEN and two CLOSE messages for each subchannel,
@@ -525,8 +538,11 @@ is opened implicitly by both sides as soon as the first L3 connection is
 selected. It is routed to a special client-on-both-sides endpoint, rather
 than causing the listening endpoint to accept a new connection. This avoids
 the need for application-level code to negotiate who should be the one to
-open it (the Leader/Follower distinction is private to the Wormhole
-internals: applications are not obligated to pick a side).
+open it. The Leader/Follower distinction is private to the Wormhole
+internals: applications are not obligated to pick a side. Applications which
+need to negotitate their way into asymmetry should send a random number
+through the control channel and use it to assign themselves an
+application-level role.
 
 OPEN and CLOSE messages for the control channel are logged and discarded. The
 control-channel client endpoints can only be used once, and does not close
@@ -549,6 +565,8 @@ gets full. This shouldn't matter for many applications, but might be
 noticeable when combining very different kinds of traffic (e.g. a chat
 conversation sharing a wormhole with file-transfer might prefer the IM text
 to take priority).
+
+(TODO: it would be nice to have per-subchannel flow control)
 
 Each subchannel implements Twisted's `ITransport`, `IProducer`, and
 `IConsumer` interfaces. The Endpoint API causes a new `IProtocol` object to

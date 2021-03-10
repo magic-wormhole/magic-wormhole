@@ -196,7 +196,7 @@ class _DeferredWormhole(object):
     def dilate(self, transit_relay_location=None, no_listen=False):
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen)  # fires with (endpoints)
+        return self._boss.dilate(transit_relay_location, no_listen)  # returns endpoints
 
     def close(self):
         # fails with WormholeError unless we established a connection
