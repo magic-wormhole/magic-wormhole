@@ -283,6 +283,8 @@ virtualenv, run:
 pip install -e .[dev]
 ```
 
+If you are using zsh, such as on macOS Catalina or later, you will have to run `pip install -e .'[dev]'` instead.
+
 While the virtualenv is active, running ``wormhole`` will get you the
 development version.
 
