@@ -9,10 +9,11 @@ import zipfile
 from textwrap import dedent, fill
 
 import six
+from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
+from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue, CancelledError
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils
@@ -1277,6 +1278,49 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(cfg.stderr.getvalue(), "")
         self.assertEqual(cfg.timing.mock_calls[-1],
                          mock.call.write("filename", cfg.stderr))
+
+    def test_debug_state_invalid_machine(self):
+        cfg = cli.Config()
+        with self.assertRaises(UsageError):
+            cfg.debug_state = "ZZZ"
+
+    @inlineCallbacks
+    def test_debug_state_send(self):
+        args = config("send")
+        args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
+        args.stdout = io.StringIO()
+        s = cmd_send.Sender(args, reactor)
+        d = s.go()
+        d.cancel()
+        try:
+            yield d
+        except CancelledError:
+            pass
+        # just check for at least one state-transition we expected to
+        # get logged due to the --debug-state option
+        self.assertIn(
+            "send.B[S0_empty].close",
+            args.stdout.getvalue(),
+        )
+
+    @inlineCallbacks
+    def test_debug_state_receive(self):
+        args = config("receive")
+        args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
+        args.stdout = io.StringIO()
+        s = cmd_receive.Receiver(args, reactor)
+        d = s.go()
+        d.cancel()
+        try:
+            yield d
+        except CancelledError:
+            pass
+        # just check for at least one state-transition we expected to
+        # get logged due to the --debug-state option
+        self.assertIn(
+            "recv.B[S0_empty].close",
+            args.stdout.getvalue(),
+        )
 
     @inlineCallbacks
     def test_wrong_password_error(self):
