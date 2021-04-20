@@ -38,6 +38,7 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
         self.tor = False  # XXX?
+        self.debug_state = None
 
 
 def _compose(*decorators):
@@ -87,12 +88,18 @@ class AliasedGroup(click.Group):
     metavar="FILE.json",
     help="(debug) write timing data to file",
 )
+@click.option(
+    "--debug-state",
+    type=type(u""),
+    default=None,
+    help="Debug state-machine transitions",
+)
 @click.version_option(
     message="magic-wormhole %(version)s",
     version=__version__,
 )
 @click.pass_context
-def wormhole(context, dump_timing, transit_helper, relay_url, appid):
+def wormhole(context, dump_timing, transit_helper, relay_url, appid, debug_state):
     """
     Create a Magic Wormhole and communicate through it.
 
@@ -105,6 +112,7 @@ def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.dump_timing = dump_timing
+    cfg.debug_state = debug_state
 
 
 @inlineCallbacks
