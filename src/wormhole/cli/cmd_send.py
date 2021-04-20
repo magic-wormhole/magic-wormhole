@@ -70,7 +70,7 @@ class Sender:
             tor=self._tor,
             timing=self._timing)
         if self._args.debug_state is not None:
-            w.debug_set_trace(self._args.debug_state)
+            w.debug_set_trace(self._args.debug_state, file=self._args.stdout)
         d = self._go(w)
 
         # if we succeed, we should close and return the w.close results
