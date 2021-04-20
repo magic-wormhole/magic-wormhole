@@ -84,6 +84,8 @@ class Receiver:
             self._reactor,
             tor=self._tor,
             timing=self.args.timing)
+        if self.args.debug_state is not None:
+            w.debug_set_trace(self.args.debug_state, file=self.args.stdout)
         self._w = w  # so tests can wait on events too
 
         # I wanted to do this instead:
