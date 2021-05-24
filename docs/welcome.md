@@ -14,7 +14,7 @@ wordlist. The receiving side offers tab-completion on the codewords, so
 usually only a few characters must be typed. Wormhole codes are single-use
 and do not need to be memorized.
 
-* PyCon 2016 presentation: [Slides](http://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf), [Video](https://youtu.be/oFrTqQw0_3c)
+* PyCon 2016 presentation: [Slides](https://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf), [Video](https://www.youtube.com/watch?v=oFrTqQw0_3c)
 
 ## Example
 
@@ -134,8 +134,7 @@ On Windows, python2 may work better than python3. On older systems, `$ pip
 install --upgrade pip` may be necessary to get a version that can compile all
 the dependencies. Most of the dependencies are published as binary wheels,
 but in case your system is unable to find these, it will have to compile
-them, for which Microsoft Visual C++ 9.0 may be required. Get it from
-http://aka.ms/vcpython27 .
+them, for which [Microsoft Visual C++ 9.0](https://support.microsoft.com/en-us/topic/the-latest-supported-visual-c-downloads-2647da03-1eea-4433-9aff-95f26a218cc0) may be required.
 
 ## Motivation
 
@@ -205,9 +204,7 @@ library for use as a default, and will be freely available until volume or
 abuse makes it infeasible to support. Applications which desire more
 reliability can easily run their own relay and configure their clients to use
 it instead. Code for the Mailbox Server is in a separate package named
-`magic-wormhole-mailbox-server`. and
-https://github.com/warner/magic-wormhole-mailbox-server/blob/master/docs/welcome.md
-has instructions to run your own copy. Both clients must use the same mailbox
+`magic-wormhole-mailbox-server` and has documentation [here](https://github.com/warner/magic-wormhole-mailbox-server/blob/master/docs/welcome.md). Both clients must use the same mailbox
 server. The default can be overridden with the `--relay-url` option.
 
 The file-transfer commands also use a "Transit Relay", which is another
@@ -218,10 +215,7 @@ other (inside the encrypted message), and both clients first attempt to
 connect directly. If this fails, they fall back to using the transit relay.
 As before, the host/port of a public server is baked into the library, and
 should be sufficient to handle moderate traffic. Code for the Transit Relay
-is provided a separate package named `magic-wormhole-transit-relay`, and you
-can read
-https://github.com/warner/magic-wormhole-transit-relay/blob/master/docs/running.md
-for instructions on running your own. The clients exchange transit relay
+is provided a separate package named `magic-wormhole-transit-relay` with instructions [here](https://github.com/warner/magic-wormhole-transit-relay/blob/master/docs/running.md). The clients exchange transit relay
 information during connection negotiation, so they can be configured to use
 different ones without problems. Use the `--transit-helper` option to
 override the default.
@@ -258,8 +252,8 @@ PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 
 ## Development
 
-* Bugs and Patches: https://github.com/warner/magic-wormhole
-* Chat: #magic-wormhole on irc.freenode.net
+* Bugs and patches at the [GitHub project page](https://github.com/warner/magic-wormhole).
+* Chat via [IRC](irc://irc.freenode.net/#magic-wormhole): #magic-wormhole on irc.freenode.net
 
 To set up Magic Wormhole for development, you will first need to
 install [virtualenv][].
@@ -322,7 +316,7 @@ pkg_resources.DistributionNotFound: The 'magic-wormhole==0.9.1-268.g66e0d86.dirt
 
 If this happens, run `pip install -e .[dev]` again.
 
-[virtualenv]: http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/
+[virtualenv]: https://docs.python.org/3/tutorial/venv.html
 
 ### Other
 
@@ -338,4 +332,4 @@ This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5, and
 
 <!-- footnotes -->
 
-[1]: http://www.di.ens.fr/~pointche/Documents/Papers/2005_rsa.pdf "RSA 2005"
+[1]: https://www.di.ens.fr/~pointche/Documents/Papers/2005_rsa.pdf "RSA 2005"
