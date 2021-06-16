@@ -253,7 +253,8 @@ PAKE phase. See `src/wormhole/cli/cmd_send.py` for examples.
 ## Development
 
 * Bugs and patches at the [GitHub project page](https://github.com/warner/magic-wormhole).
-* Chat via [IRC](irc://irc.freenode.net/#magic-wormhole): #magic-wormhole on irc.freenode.net
+* Chat via [IRC](irc://irc.libera.chat/#magic-wormhole): #magic-wormhole on irc.libera.chat
+* Chat via [Matrix](https://matrix.to/#/#magic-wormhole:matrix.org): #magic-wormhole on matrix.org
 
 To set up Magic Wormhole for development, you will first need to
 install [virtualenv][].
