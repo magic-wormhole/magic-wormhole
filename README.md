@@ -4,8 +4,8 @@
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/w1bdniovwm4egfyg/branch/master?svg=true)](https://ci.appveyor.com/project/warner/magic-wormhole)
 [![codecov.io](https://codecov.io/github/magic-wormhole/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/magic-wormhole/magic-wormhole?branch=master)
 [![Docs](https://readthedocs.org/projects/magic-wormhole/badge/?version=latest)](https://magic-wormhole.readthedocs.io)
-[![Irc][https://img.shields.io/badge/irc.libera.chat-%23magic--wormhole-brightgreen]](https://web.libera.chat/)
-[![Matrix][https://img.shields.io/badge/matrix.org-%23magic--wormhole-brightgreen]](https://matrix.to/#/#magic-wormhole:matrix.org)
+[![Irc](https://img.shields.io/badge/irc.libera.chat-%23magic--wormhole-brightgreen)](https://web.libera.chat/)
+[![Matrix](https://img.shields.io/badge/matrix.org-%23magic--wormhole-brightgreen)](https://matrix.to/#/#magic-wormhole:matrix.org)
 
 
 Get things from one computer to another, safely.
