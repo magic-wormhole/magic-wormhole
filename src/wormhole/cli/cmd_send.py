@@ -248,9 +248,9 @@ class Sender:
         ts = self._transit_sender
         ts.add_connection_hints(receiver_transit.get("hints-v1", []))
 
-    def _add_zip_entry(self, zip_file, basename, local_path, entry_name):
+    def _add_zip_entry(self, zip_file, base_path, local_path, entry_name):
         archive_path = os.path.join(*tuple(local_path + [entry_name]))
-        local_entry_path = os.path.join(basename, entry_name)
+        local_entry_path = os.path.join(base_path, entry_name)
 
         num_bytes = 0
         try:
@@ -296,12 +296,12 @@ class Sender:
                 local_path = list(path.split(os.sep)[tostrip:])
                 for dir_name in dirs:
                     num_bytes += self._add_zip_entry(
-                        zf, basename, local_path, dir_name
+                        zf, path, local_path, dir_name
                     )
 
                 for file_name in files:
                     num_bytes += self._add_zip_entry(
-                        zf, basename, local_path, file_name
+                        zf, path, local_path, file_name
                     )
                     num_files += 1
         fd_to_send.seek(0, 2)
