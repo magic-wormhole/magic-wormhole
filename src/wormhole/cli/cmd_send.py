@@ -2,9 +2,8 @@ from __future__ import print_function
 
 import hashlib
 import os
-import sys
-
 import stat
+import sys
 import tempfile
 import zipfile
 
@@ -12,7 +11,7 @@ import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.protocols import basic
 from twisted.python import log
 from wormhole import __version__, create
@@ -249,9 +248,78 @@ class Sender:
         ts = self._transit_sender
         ts.add_connection_hints(receiver_transit.get("hints-v1", []))
 
-    def _build_offer(self):
-        offer = {}
+    def _add_zip_entry(self, zip_file, basename, local_path, entry_name):
+        archive_path = os.path.join(*tuple(local_path + [entry_name]))
+        local_entry_path = os.path.join(basename, entry_name)
 
+        num_bytes = 0
+        try:
+            zip_file.write(local_entry_path, archive_path)
+            num_bytes += os.stat(local_entry_path).st_size
+        except OSError as e:
+            errmsg = u"{}: {}".format(entry_name, e.strerror)
+            if self._args.ignore_unsendable_files:
+                print(
+                    u"{} (ignoring error)".format(errmsg),
+                    file=self._args.stderr)
+            else:
+                raise UnsendableFileError(errmsg)
+
+        return num_bytes
+
+    def _zip_dir_offer(self, what, basename):
+        print(u"Building zipfile..", file=self._args.stderr)
+        # We're sending a directory. Create a zipfile and send that
+        # instead. SpooledTemporaryFile will use RAM until our size
+        # threshold (10MB) is reached, then moves everything into a
+        # tempdir (it tries $TMPDIR, $TEMP, $TMP, then platform-specific
+        # paths like /tmp).
+        fd_to_send = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
+        # workaround for https://bugs.python.org/issue26175 (STF doesn't
+        # fully implement IOBase abstract class), which breaks the new
+        # zipfile in py3.7.0 that expects .seekable
+        if not hasattr(fd_to_send, "seekable"):
+            # AFAICT all the filetypes that STF wraps can seek
+            fd_to_send.seekable = lambda: True
+        num_files = 0
+        num_bytes = 0
+        tostrip = len(what.split(os.sep))
+        with zipfile.ZipFile(
+                fd_to_send,
+                "w",
+                compression=zipfile.ZIP_DEFLATED,
+                allowZip64=True) as zf:
+            for path, dirs, files in os.walk(what):
+                # path always starts with args.what, then sometimes might
+                # have "/subdir" appended. We want the zipfile to contain
+                # "" or "subdir"
+                local_path = list(path.split(os.sep)[tostrip:])
+                for dir_name in dirs:
+                    num_bytes += self._add_zip_entry(
+                        zf, basename, local_path, dir_name
+                    )
+
+                for file_name in files:
+                    num_bytes += self._add_zip_entry(
+                        zf, basename, local_path, file_name
+                    )
+                    num_files += 1
+        fd_to_send.seek(0, 2)
+        filesize = fd_to_send.tell()
+        fd_to_send.seek(0, 0)
+        offer = {
+            "directory": {
+                "mode": "zipfile/deflated",
+                "dirname": basename,
+                "zipsize": filesize,
+                "numbytes": num_bytes,
+                "numfiles": num_files,
+            }
+        }
+
+        return offer, fd_to_send
+
+    def _build_offer(self):
         args = self._args
         text = args.text
         if text == "-":
@@ -320,9 +388,11 @@ class Sender:
         if os.path.isfile(what):
             # we're sending a file
             filesize = os.stat(what).st_size
-            offer["file"] = {
-                "filename": basename,
-                "filesize": filesize,
+            offer = {
+                "file": {
+                    "filename": basename,
+                    "filesize": filesize,
+                }
             }
             print(
                 u"Sending %s file named '%s'" % (naturalsize(filesize),
@@ -332,60 +402,11 @@ class Sender:
             return offer, fd_to_send
 
         if os.path.isdir(what):
-            print(u"Building zipfile..", file=args.stderr)
-            # We're sending a directory. Create a zipfile and send that
-            # instead. SpooledTemporaryFile will use RAM until our size
-            # threshold (10MB) is reached, then moves everything into a
-            # tempdir (it tries $TMPDIR, $TEMP, $TMP, then platform-specific
-            # paths like /tmp).
-            fd_to_send = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
-            # workaround for https://bugs.python.org/issue26175 (STF doesn't
-            # fully implement IOBase abstract class), which breaks the new
-            # zipfile in py3.7.0 that expects .seekable
-            if not hasattr(fd_to_send, "seekable"):
-                # AFAICT all the filetypes that STF wraps can seek
-                fd_to_send.seekable = lambda: True
-            num_files = 0
-            num_bytes = 0
-            tostrip = len(what.split(os.sep))
-            with zipfile.ZipFile(
-                    fd_to_send,
-                    "w",
-                    compression=zipfile.ZIP_DEFLATED,
-                    allowZip64=True) as zf:
-                for path, dirs, files in os.walk(what):
-                    # path always starts with args.what, then sometimes might
-                    # have "/subdir" appended. We want the zipfile to contain
-                    # "" or "subdir"
-                    localpath = list(path.split(os.sep)[tostrip:])
-                    for fn in files:
-                        archivename = os.path.join(*tuple(localpath + [fn]))
-                        localfilename = os.path.join(path, fn)
-                        try:
-                            zf.write(localfilename, archivename)
-                            num_bytes += os.stat(localfilename).st_size
-                            num_files += 1
-                        except OSError as e:
-                            errmsg = u"{}: {}".format(fn, e.strerror)
-                            if self._args.ignore_unsendable_files:
-                                print(
-                                    u"{} (ignoring error)".format(errmsg),
-                                    file=args.stderr)
-                            else:
-                                raise UnsendableFileError(errmsg)
-            fd_to_send.seek(0, 2)
-            filesize = fd_to_send.tell()
-            fd_to_send.seek(0, 0)
-            offer["directory"] = {
-                "mode": "zipfile/deflated",
-                "dirname": basename,
-                "zipsize": filesize,
-                "numbytes": num_bytes,
-                "numfiles": num_files,
-            }
+            offer, fd_to_send = self._zip_dir_offer(what, basename)
+            zipped_size = naturalsize(offer["directory"]["zipsize"])
             print(
                 u"Sending directory (%s compressed) named '%s'" %
-                (naturalsize(filesize), basename),
+                (zipped_size, basename),
                 file=args.stderr)
             return offer, fd_to_send
 
@@ -393,9 +414,11 @@ class Sender:
             fd_to_send = open(what, "rb")
             filesize = fd_to_send.seek(0, 2)
 
-            offer["file"] = {
-                "filename": basename,
-                "filesize": filesize,
+            offer = {
+                "file": {
+                    "filename": basename,
+                    "filesize": filesize,
+                }
             }
             print(
                 u"Sending %s block device named '%s'" % (naturalsize(filesize),
