@@ -252,10 +252,12 @@ class Sender:
         archive_path = os.path.join(*tuple(local_path + [entry_name]))
         local_entry_path = os.path.join(base_path, entry_name)
 
-        num_bytes = 0
+        entry_bytes = 0
+        entry_added = False
         try:
             zip_file.write(local_entry_path, archive_path)
-            num_bytes += os.stat(local_entry_path).st_size
+            entry_bytes += os.stat(local_entry_path).st_size
+            entry_added = True
         except OSError as e:
             errmsg = u"{}: {}".format(entry_name, e.strerror)
             if self._args.ignore_unsendable_files:
@@ -265,7 +267,7 @@ class Sender:
             else:
                 raise UnsendableFileError(errmsg)
 
-        return num_bytes
+        return entry_bytes, entry_added
 
     def _zip_dir_offer(self, what, basename):
         print(u"Building zipfile..", file=self._args.stderr)
@@ -295,15 +297,18 @@ class Sender:
                 # "" or "subdir"
                 local_path = list(path.split(os.sep)[tostrip:])
                 for dir_name in dirs:
-                    num_bytes += self._add_zip_entry(
+                    entry_bytes, _ = self._add_zip_entry(
                         zf, path, local_path, dir_name
                     )
+                    num_bytes += entry_bytes
 
                 for file_name in files:
-                    num_bytes += self._add_zip_entry(
+                    entry_bytes, entry_added = self._add_zip_entry(
                         zf, path, local_path, file_name
                     )
-                    num_files += 1
+                    num_bytes += entry_bytes
+                    if entry_added:
+                        num_files += 1
         fd_to_send.seek(0, 2)
         filesize = fd_to_send.tell()
         fd_to_send.seek(0, 0)
