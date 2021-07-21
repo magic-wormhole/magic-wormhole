@@ -223,6 +223,9 @@ class Boss(object):
     #   something we said badly, or due to CrowdedError)
     # * "error" is when an exception happened while it tried to deliver
     #   something else
+    # * "permission-required" is for DoS etc mitigation and allows the
+    #   server to ask for additional information / work to proceed. We
+    #   only support "hashcash" or "none" currently.
     def rx_welcome(self, welcome):
         try:
             if "error" in welcome:
@@ -234,6 +237,12 @@ class Boss(object):
             # middle of processing the rx_welcome input, and I wasn't sure
             # Automat would handle that correctly.
             self._W.got_welcome(welcome)  # TODO: let this raise WelcomeError?
+
+            permission = welcome.get("permission-required", {})
+            if "hashcash" in permission:
+                self._RC._send_hashcash(permission["hashcash"])
+            self._RC._send_bind()
+
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
 

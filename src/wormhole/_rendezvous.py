@@ -28,6 +28,7 @@ class WSClient(websocket.WebSocketClientProtocol):
 
     def onMessage(self, payload, isBinary):
         assert not isBinary
+        print("onMessage {}".format(payload))
         try:
             self._RC.ws_message(payload)
         except Exception:
@@ -174,6 +175,20 @@ class RendezvousConnector(object):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
         self._ws = proto
+
+    # from _boss machine, if hashcash permission is requried
+    def _send_hashcash(self, params):
+        print("XXX hashcash")
+        bits = params["bits"]
+        resource = params["resource-string"]
+        self._tx(
+            "submit-permissions",
+            type="hashcash",
+            stamp="1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005",
+        )
+
+    # from _boss machine, after it's done any permissions dancing
+    def _send_bind(self):
         try:
             self._tx(
                 "bind",
