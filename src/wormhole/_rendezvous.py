@@ -62,6 +62,54 @@ class WSFactory(websocket.WebSocketClientFactory):
         return proto
 
 
+def mint_hashcash(bits, resource):
+    "1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005"
+    counter = 0
+    timestamp = "210623"
+    import base64
+    while True:
+        attempt = "1:{}:{}:{}::{}:{}".format(
+            bits,
+            timestamp,
+            resource,
+            base64.b64encode(os.urandom(12)),
+            counter,
+        )
+        if valid_hashcash(attempt, bits):
+            return attempt
+        counter +=1
+
+
+def valid_hashcash(stamp, bits):
+    import hashlib
+    h = hashlib.sha1()
+    h.update(stamp.encode("utf8"))
+    return leading_bits(h.digest(), bits)
+
+
+def leading_bits(data, required_bits):
+    bits = 0
+    for byte in data:
+        if bits >= required_bits:
+            return True
+        if required_bits - bits > 8:
+            if byte == 0:
+                bits += 8
+            else:
+                return False
+        else:
+            mask = 1 << 7
+            while mask:
+                if byte & mask:
+                    return False
+                bits += 1
+                mask = mask >> 1
+                if bits >= required_bits:
+                    return True
+
+
+
+
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
 class RendezvousConnector(object):
@@ -183,8 +231,8 @@ class RendezvousConnector(object):
         resource = params["resource-string"]
         self._tx(
             "submit-permissions",
-            type="hashcash",
-            stamp="1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005",
+            method="hashcash",
+            stamp=mint_hashcash(bits, resource),
         )
 
     # from _boss machine, after it's done any permissions dancing
