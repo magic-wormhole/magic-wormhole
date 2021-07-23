@@ -38,6 +38,30 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
         self.tor = False  # XXX?
+        self._debug_state = None
+
+    @property
+    def debug_state(self):
+        return self._debug_state
+
+    @debug_state.setter
+    def debug_state(self, debug_state):
+        if not debug_state:
+            return
+        valid_machines = [
+            'B', 'N', 'M', 'S', 'O', 'K', 'SK', 'R', 'RC', 'L', 'C', 'T'
+        ]
+        debug_state = debug_state.split(",")
+        invalid_machines = [
+            machine
+            for machine in debug_state
+            if machine not in valid_machines
+        ]
+        if invalid_machines:
+            raise click.UsageError(
+                "Cannot debug unknown machines: {}".format(" ".join(invalid_machines))
+            )
+        self._debug_state = debug_state
 
 
 def _compose(*decorators):
@@ -236,6 +260,19 @@ def help(context, **kwargs):
     default=False,
     is_flag=True,
     help="Don't raise an error if a file can't be read.")
+@click.option(
+    "--debug-state",
+    is_flag=False,
+    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    default=None,
+    metavar="MACHINES",
+    help=(
+        "Debug state-machine transitions. "
+        "Possible machines to debug are accepted as a comma-separated list "
+        "and the default is all of them. Valid machines are "
+        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+    )
+)
 @click.argument("what", required=False, type=click.Path(path_type=type(u"")))
 @click.pass_obj
 def send(cfg, **kwargs):
@@ -276,6 +313,21 @@ def go(f, cfg):
     metavar="FILENAME|DIRNAME",
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
+)
+# --debug-state might be better at the top-level but Click can't parse
+# an option like "--debug-state <optional-value>" if there's a subcommand name next
+@click.option(
+    "--debug-state",
+    is_flag=False,
+    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    default=None,
+    metavar="MACHINES",
+    help=(
+        "Debug state-machine transitions. "
+        "Possible machines to debug are accepted as a comma-separated list "
+        "and the default is all of them. Valid machines are "
+        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+    )
 )
 @click.argument(
     "code",
