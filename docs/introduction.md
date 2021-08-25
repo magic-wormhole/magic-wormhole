@@ -53,4 +53,3 @@ describes this application's use of the client messages.
 Application use the `wormhole` library to establish wormhole connections and
 exchange data through them. Please see `api.md` for a complete description of
 this interface.
-

@@ -1017,7 +1017,7 @@ function OFF() {
             .attr("stroke", "red")
         ;
 
-        
+
 
 
         // horizontal scale markers: vertical lines at rational timestamps

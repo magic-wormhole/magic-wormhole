@@ -699,4 +699,3 @@ w.send_message(msg) |                    |
 .                   | d=w.get_message()  | dg.wormhole_got_message(msg)
 w.close()           |                    | dg.wormhole_closed(result)
 .                   | d=w.close()        |
-

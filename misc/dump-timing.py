@@ -56,4 +56,3 @@ def web():
     reactor.callLater(0, launch_browser)
     reactor.run()
 web()
-
