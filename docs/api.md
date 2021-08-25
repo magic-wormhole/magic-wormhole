@@ -102,7 +102,7 @@ author. Application developers can use this one, or they can run their own
 (see the [warner/magic-wormhole-mailbox-server
 ](https://github.com/warner/magic-wormhole-mailbox-server) repository)
 and configure their clients to use it instead. The URL of the public
-rendevouz server is passed as a unicode string. Note that because the server
+rendezvous server is passed as a unicode string. Note that because the server
 actually speaks WebSockets, the URL starts with `ws:` instead of `http:`.
 
 ## Wormhole Parameters

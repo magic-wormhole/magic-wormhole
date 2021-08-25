@@ -2,7 +2,7 @@
 
 The magic-wormhole (Python) distribution provides several things: an
 executable tool ("bin/wormhole"), an importable library (`import wormhole`),
-the URL of a publically-available Rendezvous Server, and the definition of a
+the URL of a publicly-available Rendezvous Server, and the definition of a
 protocol used by all three.
 
 The executable tool provides basic sending and receiving of files,
