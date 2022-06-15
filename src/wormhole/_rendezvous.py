@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, unicode_literals
 import os
 import base64
 import hashlib
+import datetime
 from six.moves.urllib_parse import urlparse
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
@@ -74,7 +75,7 @@ def mint_hashcash(bits, resource):
     `1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005`
     """
     counter = 0
-    timestamp = "210623"
+    timestamp = datetime.utcnow().strftime("%Y%m%d")
     while True:
         attempt = "1:{}:{}:{}::{}:{}".format(
             bits,
