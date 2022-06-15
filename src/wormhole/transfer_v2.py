@@ -6,6 +6,9 @@ from attr import define, field
 from automat import MethodicalMachine
 from zope.interface import implementer
 
+from twisted.internet.defer import Deferred
+from twisted.internet.protocol import Protocol, Factory
+
 from . import _interfaces
 from ._key import derive_phase_key, encrypt_data
 
@@ -13,7 +16,7 @@ from ._key import derive_phase_key, encrypt_data
 @define
 class Offer:
     id: int          # unique random identifier for this offer
-    filename: str    # utf8-encoded unicode relative pathname
+    filename: str    # unicode relative pathname
     timestamp: int   # Unix timestamp (seconds since the epoch in GMT)
     bytes: int       # total number of bytes in the file
     subchannel: int  # the subchannel which the file will be sent on
@@ -23,7 +26,7 @@ class Offer:
 @define
 class OfferReject:
     id: int          # matching identifier for an existing offer from the other side
-    reason: str      # utf8-encoded unicode string describing why the offer is rejected
+    reason: str      # unicode string describing why the offer is rejected
     kind: int = 2    #  "offer reject"
 
 
@@ -31,6 +34,71 @@ class OfferReject:
 class OfferAccept:
     id: int          # matching identifier for an existing offer from the other side
     kind: int = 3    #  "offer accpet"
+
+
+@define
+class Message:
+    message: str     # unicode string
+    kind: int = 4    # "text message"
+
+
+# wormhole: _DeferredWormhole,
+def deferred_transfer(wormhole, on_error):
+    """
+    Do transfer protocol over an async wormhole interface
+    """
+
+    control_proto = None
+
+    async def get_control_proto():
+        nonlocal control_proto
+
+        # XXX FIXME
+        wormhole.allocate_code(2)
+        code = await wormhole.get_code()
+        print("code", code)
+
+        versions = await wormhole.get_versions()
+        print("versions", versions)
+        try:
+            v2 = versions["transit-v2"]
+        except KeyError:
+            raise RuntimeError("Peer doesn't support transit-v2")
+        mode = v2.get("mode", None)
+        formats = v2.get("formats", ())
+
+        if mode not in ["send", "receive", "connect"]:
+            raise Exception("protocol error")
+        if 1 not in formats:
+            raise Exception("protocol error")
+        print("waiting to dilate")
+        endpoints = await wormhole.dilate()
+        print("got endpoints", endpoints)
+
+        class TransferControl(Protocol):
+            pass
+        control_proto = await endpoints.control_endpoint.connect(Factory.forProtocol(TransferControl))
+
+    d = Deferred.fromCoroutine(get_control_proto())
+    d.addBoth(print)
+
+    def send_control_message(message):
+        print(f"send_control: {message}")
+
+    def send_file_in_offer(offer, on_done):
+        print(f"send_file: {offer}")
+        on_done()
+        return
+
+    def receive_file_in_offer(offer, on_done):
+        print(f"receive:file: {offer}")
+        on_done()
+        return
+
+    transfer = TransferV2(send_control_message, send_file_in_offer, receive_file_in_offer)
+    return transfer
+
+
 
 
 @define
@@ -46,11 +114,22 @@ class TransferV2(object):
     # endpoints: EndpointRecord
 
     send_control_message: Callable[[Union[Offer, OfferReject, OfferAccept]], None]
+    send_file_in_offer: Callable[[Offer, Callable[[], None]], None]
+    receive_file_in_offer: Callable[[Offer, Callable[[], None]], None]
 
-    def __attrs_post_init__(self):
-        self._queued_offers = []
-        self._offers = {}  # id -> Offer
-        self._peer_offers = {}  # id -> Offer
+    _queued_offers = field(factory=list)
+    _offers = field(factory=dict)
+    _peer_offers = field(factory=dict)
+    _when_done = field(factory=list)
+
+    # XXX OneShotObserver
+    def when_done(self):
+        d = Deferred()
+        if self._when_done is None:
+            d.callback(None)
+        else:
+            self._when_done.append(d)
+        return d
 
     @m.state(initial=True)
     def await_dilation(self):
@@ -128,7 +207,7 @@ class TransferV2(object):
 
     @m.output()
     def _queue_offer(self, offer):
-        self._offers.append(offer)
+        self._queued_offers.append(offer)
 
     @m.output()
     def _send_queued_offers(self):
@@ -147,10 +226,10 @@ class TransferV2(object):
     def _send_file(self, accept):
         # XXX if not found, protocol-error
         offer = self._offers[accept.id]
-        # XXX async, probably?
-        self.send_file_in_offer(offer)
-        # ...or another input, about send completed?
-        del self._offers[accept.id]
+
+        def on_sent():
+            del self._offers[accept.id]
+        self.send_file_in_offer(offer, on_sent)
 
     @m.output()
     def _receive_file(self, offer_id):
@@ -178,7 +257,10 @@ class TransferV2(object):
 
     @m.output()
     def _notify_done(self):
-        pass
+        done = self._when_done
+        self._when_done = None
+        for d in done:
+            d.callback(None)
 
     await_dilation.upon(
         make_offer,

@@ -592,6 +592,9 @@ class Dilator(object):
 
     # this is the primary entry point, called when w.dilate() is invoked
     def dilate(self, transit_relay_location=None, no_listen=False):
+        """
+        :param transit_relay_location: anything _hints.parse_hint_argv accepts
+        """
         if not self._manager:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set

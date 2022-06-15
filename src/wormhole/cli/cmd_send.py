@@ -104,6 +104,15 @@ class Sender:
         handle_welcome(welcome, self._args.relay_url, __version__,
                        self._args.stderr)
 
+        def on_error(f):
+            print("ERR: {}".format(f))
+
+        from wormhole.transfer_v2 import deferred_transfer
+        transfer = deferred_transfer(w, on_error)
+        ##yield Deferred.fromCoroutine(transfer.when_done())
+        yield transfer.when_done()
+        return
+
         # TODO: run the blocking zip-the-directory IO in a thread, let the
         # wormhole exchange happen in parallel
         offer, self._fd_to_send = self._build_offer()

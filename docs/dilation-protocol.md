@@ -215,7 +215,9 @@ likely targets for L2 connections. Both sides will try to determine their
 external IP addresses, listen on a TCP port, and advertise `(tcp,
 external-IP, port)` as a connection hint. The Transit Relay is also used as a
 (lower-priority) hint. These are sent in `connection-hint` records, which can
-be sent any time after both sending and receiving a `please` record. Each
+be sent any time after both sending and receiving a `please` record.
+(XXX actually only in "CONNECTING" state)
+Each
 side will initiate connections upon receipt of the hints.
 
 ```
@@ -266,6 +268,8 @@ the connection will be dropped. For debugging purposes, the node might want
 to keep looking at data beyond the first incorrect character and log
 a few hundred characters until the first newline.
 
+(XXX does the "dilation key" change each generation?)
+
 Everything beyond that point is a Noise protocol message, which consists of a
 4-byte big-endian length field, followed by the indicated number of bytes.
 This uses the `NNpsk0` pattern with the Leader as the first party ("-> psk,
@@ -307,6 +311,7 @@ which point the L2 connection is delivered to the Dilation manager as the new
 L3), a disconnection, or an invalid message (which causes the connection to
 be dropped). Other connections and/or listening sockets are stopped.
 
+(XXX "DilatedConnectionProtocol")
 Internally, the L2Protocol object manages the Noise session itself. It knows
 (via a constructor argument) whether it is on the Leader or Follower side,
 which affects both the role is plays in the Noise pattern, and the reaction

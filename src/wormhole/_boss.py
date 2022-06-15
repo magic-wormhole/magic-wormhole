@@ -205,6 +205,9 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
+    # XXX we always have a Dilator (self._D) and so if that grew a
+    # "async def can_dilate" then we could decide things based on
+    # "supports dilation, or not"
     def dilate(self, transit_relay_location=None, no_listen=False):
         return self._D.dilate(transit_relay_location, no_listen=no_listen)  # fires with endpoints
 
