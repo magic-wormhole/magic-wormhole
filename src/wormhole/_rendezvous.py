@@ -1,5 +1,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 import os
+import base64
+import hashlib
 from six.moves.urllib_parse import urlparse
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
@@ -63,10 +65,16 @@ class WSFactory(websocket.WebSocketClientFactory):
 
 
 def mint_hashcash(bits, resource):
-    "1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005"
+    """
+    Create a new hashcase-format string with `bits` of hardness tied
+    to `resource` (an arbitrary string).
+
+    Hashcash strings look like:
+
+    `1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005`
+    """
     counter = 0
     timestamp = "210623"
-    import base64
     while True:
         attempt = "1:{}:{}:{}::{}:{}".format(
             bits,
@@ -81,13 +89,20 @@ def mint_hashcash(bits, resource):
 
 
 def valid_hashcash(stamp, bits):
-    import hashlib
+    """
+    :returns: True if `stamp` is a valid hashcash string with `bits`
+    hardness.
+    """
     h = hashlib.sha1()
     h.update(stamp.encode("utf8"))
     return leading_bits(h.digest(), bits)
 
 
 def leading_bits(data, required_bits):
+    """
+    :returns: True IFF the bytestring `data` has at least
+        `required_bits` leading bits that are 0.
+    """
     bits = 0
     for byte in data:
         if bits >= required_bits:
@@ -106,8 +121,6 @@ def leading_bits(data, required_bits):
                 mask = mask >> 1
                 if bits >= required_bits:
                     return True
-
-
 
 
 @attrs
