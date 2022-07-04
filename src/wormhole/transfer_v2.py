@@ -14,32 +14,32 @@ from ._key import derive_phase_key, encrypt_data
 
 
 @define
-class Offer:
-    id: int          # unique random identifier for this offer
+class FileOffer:
     filename: str    # unicode relative pathname
     timestamp: int   # Unix timestamp (seconds since the epoch in GMT)
     bytes: int       # total number of bytes in the file
-    subchannel: int  # the subchannel which the file will be sent on
-    kind: int = 1    # "offer"
+
+
+class DirectoryOffer:
+    base: str          # unicode pathname of the root directory (i.e. what the user selected)
+    size: int         # total number of bytes in _all_ files
+    files: list[str]   # a list containing relative paths for each file
 
 
 @define
 class OfferReject:
-    id: int          # matching identifier for an existing offer from the other side
     reason: str      # unicode string describing why the offer is rejected
-    kind: int = 2    #  "offer reject"
 
 
 @define
 class OfferAccept:
-    id: int          # matching identifier for an existing offer from the other side
-    kind: int = 3    #  "offer accpet"
+    pass
 
 
 @define
 class Message:
     message: str     # unicode string
-    kind: int = 4    # "text message"
+    kind: str = "text"
 
 
 # wormhole: _DeferredWormhole,
@@ -61,23 +61,31 @@ def deferred_transfer(wormhole, on_error):
         versions = await wormhole.get_versions()
         print("versions", versions)
         try:
-            v2 = versions["transit-v2"]
+            transfer = versions["transfer"]
         except KeyError:
-            raise RuntimeError("Peer doesn't support transit-v2")
-        mode = v2.get("mode", None)
-        formats = v2.get("formats", ())
+            # XXX fall back to "classic" file-trasfer
+            raise RuntimeError("Peer doesn't support Dilated tranfer")
+        mode = transfer.get("mode", None)
+        features = transfer.get("features", ())
 
         if mode not in ["send", "receive", "connect"]:
             raise Exception("protocol error")
-        if 1 not in formats:
+        if "basic" not in features:
             raise Exception("protocol error")
+        print("versions")
+        version = await wormhole.get_versions()
+        print(versions)
         print("waiting to dilate")
-        endpoints = await wormhole.dilate()
+        endpoints = wormhole.dilate()
         print("got endpoints", endpoints)
 
         class TransferControl(Protocol):
-            pass
-        control_proto = await endpoints.control_endpoint.connect(Factory.forProtocol(TransferControl))
+            def connectionMade(self):
+                print("control conneced")
+
+            def dataReceived(self, data):
+                print("data: {}".format(data))
+        control_proto = await endpoints.control.connect(Factory.forProtocol(TransferControl))
 
     d = Deferred.fromCoroutine(get_control_proto())
     d.addBoth(print)
@@ -113,9 +121,9 @@ class TransferV2(object):
     # just get "a Callable to send stuff"
     # endpoints: EndpointRecord
 
-    send_control_message: Callable[[Union[Offer, OfferReject, OfferAccept]], None]
-    send_file_in_offer: Callable[[Offer, Callable[[], None]], None]
-    receive_file_in_offer: Callable[[Offer, Callable[[], None]], None]
+    send_control_message: Callable[[Union[FileOffer, DirectoryOffer, OfferReject, OfferAccept]], None]
+    send_file_in_offer: Callable[[FileOffer, Callable[[], None]], None]
+    receive_file_in_offer: Callable[[FileOffer, Callable[[], None]], None]
 
     _queued_offers = field(factory=list)
     _offers = field(factory=dict)

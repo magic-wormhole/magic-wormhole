@@ -83,7 +83,16 @@ class Receiver:
             self.args.relay_url,
             self._reactor,
             tor=self._tor,
-            timing=self.args.timing)
+            timing=self.args.timing,
+            _enable_dilate=True,
+            versions={
+                "transfer": {
+                    "mode": "receive",
+                    "features": ["basic"],
+                    "permission": "ask",
+                }
+            }
+        )
         if self.args.debug_state:
             w.debug_set_trace("recv", which=" ".join(self.args.debug_state), file=self.args.stdout)
         self._w = w  # so tests can wait on events too
@@ -150,6 +159,18 @@ class Receiver:
             print(
                 u"Key established, waiting for confirmation...",
                 file=self.args.stderr)
+
+
+
+        def on_error(f):
+            print("ERR: {}".format(f))
+
+        from wormhole.transfer_v2 import deferred_transfer
+        transfer = deferred_transfer(w, on_error)
+        ##yield Deferred.fromCoroutine(transfer.when_done())
+        yield transfer.when_done()
+        return
+
 
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
         try:

@@ -124,6 +124,7 @@ class Mailbox(object):
 
     @m.output()
     def record_mailbox(self, mailbox):
+        print("MAILBOX: {}".format(mailbox))
         self._mailbox = mailbox
 
     @m.output()
@@ -139,6 +140,7 @@ class Mailbox(object):
 
     @m.output()
     def record_mailbox_and_RC_tx_open_and_drain(self, mailbox):
+        print("MAILBOX: {}".format(mailbox))
         self._mailbox = mailbox
         self._RC.tx_open(mailbox)
         self._drain()
