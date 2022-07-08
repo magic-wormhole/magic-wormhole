@@ -285,6 +285,47 @@ def send(cfg, **kwargs):
     return go(cmd_send.send, cfg)
 
 
+
+
+@wormhole.command()
+@click.pass_context
+def help(context, **kwargs):
+    print(context.find_root().get_help())
+
+
+# wormhole send (or "wormhole tx")
+@wormhole.command()
+@CommonArgs
+@TorArgs
+@click.option(
+    "--code",
+    metavar="CODE",
+    help="human-generated code phrase",
+)
+@click.option(
+    "--debug-state",
+    is_flag=False,
+    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    default=None,
+    metavar="MACHINES",
+    help=(
+        "Debug state-machine transitions. "
+        "Possible machines to debug are accepted as a comma-separated list "
+        "and the default is all of them. Valid machines are "
+        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+    )
+)
+@click.pass_obj
+def connect(cfg, **kwargs):
+    """Connect with Dilation"""
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
+    with cfg.timing.add("import", which="cmd_connect"):
+        from . import cmd_connect
+
+    return go(cmd_connect.connect, cfg)
+
+
 # this intermediate function can be mocked by tests that need to build a
 # Config object
 def go(f, cfg):
