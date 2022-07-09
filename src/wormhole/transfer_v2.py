@@ -254,7 +254,8 @@ async def send_offer(connect_ep, wormhole, boss, fpath):
     # just tell it "oh, we sent the offer ...? or we give it
     # callbacks? (but then those callbacks might be 'async def' or
     # not)
-    sender.send_offer(offer)
+    outmsg = sender.send_offer(offer)
+    proto.transport.write(outmsg)
     await d
     # XXX this isn't right .. we need to pass the data through the state machine
     # ...and it has a send_message() so then it encodes into the right "msg" and sends
