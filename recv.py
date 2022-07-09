@@ -43,14 +43,14 @@ async def main(reactor):
     code = sys.argv[1]
     w = create(
         u"lothar.com/wormhole/text-or-file-xfer",
-        u"ws://localhost:4000/v1",  # RENDEZVOUS_RELAY,
+        ##u"ws://localhost:4000/v1",  # RENDEZVOUS_RELAY,
+        RENDEZVOUS_RELAY,
         reactor,
         _enable_dilate=True,
         versions={
             "transfer": {
                 "mode": "receive",
-                "features": ["basic"],
-                "permission": "ask",
+                "features": {},
             }
         }
     )
@@ -61,8 +61,6 @@ async def main(reactor):
     print("versions: {}".format(versions))
 
     dilated = w.dilate()
-
-    # open a subchannel, i.e. pretend to do offer
 
     class Receiver(Protocol):
 

@@ -11,7 +11,7 @@ import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.python import log
 from wormhole import __version__, create, input_with_completion
 
@@ -88,8 +88,7 @@ class Receiver:
             versions={
                 "transfer": {
                     "mode": "receive",
-                    "features": ["basic"],
-                    "permission": "ask",
+                    "features": {},
                 }
             }
         )
@@ -132,43 +131,12 @@ class Receiver:
 
     @inlineCallbacks
     def _go(self, w):
-        welcome = yield w.get_welcome()
-        handle_welcome(welcome, self.args.relay_url, __version__,
-                       self.args.stderr)
-
-        yield self._handle_code(w)
-
-        def on_slow_key():
-            print(u"Waiting for sender...", file=self.args.stderr)
-
-        notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
-        try:
-            # We wait here until we connect to the server and see the senders
-            # PAKE message. If we used set_code() in the "human-selected
-            # offline codes" mode, then the sender might not have even
-            # started yet, so we might be sitting here for a while. Because
-            # of that possibility, it's probably not appropriate to give up
-            # automatically after some timeout. The user can express their
-            # impatience by quitting the program with control-C.
-            yield w.get_unverified_key()
-        finally:
-            if not notify.called:
-                notify.cancel()
-
-        def on_slow_verification():
-            print(
-                u"Key established, waiting for confirmation...",
-                file=self.args.stderr)
-
-
-
+        assert self.args.code, "need a code"
         def on_error(f):
             print("ERR: {}".format(f))
 
         from wormhole.transfer_v2 import deferred_transfer
-        transfer = deferred_transfer(w, on_error)
-        ##yield Deferred.fromCoroutine(transfer.when_done())
-        yield transfer.when_done()
+        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, self.args.code))
         return
 
 

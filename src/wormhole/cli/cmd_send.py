@@ -70,6 +70,12 @@ class Sender:
             tor=self._tor,
             timing=self._timing,
             _enable_dilate=True,
+            versions={
+                "transfer": {
+                    "mode": "send",
+                    "features": {},
+                }
+            }
         )
         if self._args.debug_state:
             w.debug_set_trace("send", which=" ".join(self._args.debug_state), file=self._args.stdout)
@@ -110,9 +116,9 @@ class Sender:
             print("ERR: {}".format(f))
 
         from wormhole.transfer_v2 import deferred_transfer
-        transfer = deferred_transfer(w, on_error)
-        ##yield Deferred.fromCoroutine(transfer.when_done())
-        yield transfer.when_done()
+        from pathlib import Path
+
+        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, code=self._args.code, offers=[Path(self._args.what)]))
         return
 
         # TODO: run the blocking zip-the-directory IO in a thread, let the
