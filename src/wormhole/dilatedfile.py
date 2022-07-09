@@ -2,6 +2,7 @@
 # prototype state-machine "diagrams" / skeleton code for Dilated File
 # Transfer
 
+from hashlib import blake2b
 from attr import define, field
 from automat import MethodicalMachine
 from twisted.internet.defer import Deferred  # danger..are we sans-io?
@@ -87,8 +88,12 @@ class DilatedFileSender:
     """
     m = MethodicalMachine()
 
-    def __init__(self, send_message):
+    def __init__(self, send_message, start_streaming, finished):
         self._send_message = send_message
+        self._start_streaming = start_streaming
+        self._finished = finished
+        self._hasher = blake2b(digest_size=32)
+        self._bytes = 0
 
     def on_message(self, msg):
         """
@@ -98,6 +103,8 @@ class DilatedFileSender:
             return self.offer_accepted()
         elif isinstance(msg, OfferReject):
             return self.offer_rejected()
+        elif isinstance(msg, FileAcknowledge):
+            return self.acknowledge_received(msg)
         else:
             raise Exception(f"Unknown message: {msg}")
 
@@ -176,6 +183,12 @@ class DilatedFileSender:
         """
 
     @m.input()
+    def acknowledge_received(self, acknowledge):
+        """
+        The other peer's FileAcknowledge message is received
+        """
+
+    @m.input()
     def subchannel_closed(self):
         """
         The subchannel has been closed
@@ -183,19 +196,18 @@ class DilatedFileSender:
 
     @m.output()
     def _send_offer(self, offer):
-        msg = self._message_encoder(offer)
-        self._send_message(msg)
+        self._send_message(offer)
+
+    @m.output()
+    def _push_data(self):
+        self._start_streaming()
 
     @m.output()
     def _send_data(self, data):
-        # XXX fixme put in data frame
-        print("AAAAA")
-        self._subchannel.transport.write(data)
-
-    @m.output()
-    def _notify_ready(self):
-        ##self._ready.callback(None)
-        self._on_ready()
+        print("SEND", len(data))
+        self._bytes += len(data)
+        self._hasher.update(data)
+        self._send_message(FileData(data))
 
     @m.output()
     def _close_input_file(self):
@@ -203,15 +215,19 @@ class DilatedFileSender:
 
     @m.output()
     def _send_acknowledge(self):
-        # XXX keep a real hash object in here, and put the actual
-        # output etc in .. for now, fake
-        import os
-        msg = FileAcknowledge(0, os.urandom(32))
+        msg = FileAcknowledge(self._bytes, self._hasher.digest())
         self._send_message(msg)
 
     @m.output()
+    def _check_acknowledge(self, acknowledge):
+        if acknowledge.bytes != self._bytes:
+            raise Exception(f"expected {self._bytes} bytes but got {acknowledge_msg.bytes}")
+        if acknowledge.hash != self._hasher.digest():
+            raise Exception("hash mismatch")
+
+    @m.output()
     def _close_subchannel(self):
-        pass
+        self._finished()
 
     @m.output()
     def _notify_accepted(self):
@@ -225,6 +241,12 @@ class DilatedFileSender:
         Peer has rejected the file
         """
 
+    @m.output()
+    def _notify_done(self):
+        """
+        Completed our journey
+        """
+        self._finished()
 
     start.upon(
         send_offer,
@@ -236,7 +258,7 @@ class DilatedFileSender:
     permission.upon(
         offer_accepted,
         enter=sending,
-        outputs=[_notify_ready],
+        outputs=[_push_data],
         collector=_last_one,
     )
     permission.upon(
@@ -262,14 +284,14 @@ class DilatedFileSender:
     await_acknowledge.upon(
         acknowledge_received,
         enter=closing,
-        outputs=[_close_subchannel, _notify_accepted],
+        outputs=[_check_acknowledge, _close_subchannel, _notify_accepted],
         collector=_last_one,
     )
 
     closing.upon(
         subchannel_closed,
         enter=closed,
-        outputs=[],  # actually, "_notify_accepted" here, probably .. so split "closing" case?
+        outputs=[_notify_done],
         collector=_last_one,
     )
 
@@ -283,6 +305,8 @@ class DilatedFileReceiver:
     def __init__(self, accept_or_reject_p, send_message):
         self._accept_or_reject = accept_or_reject_p
         self._send_message = send_message
+        self._hasher = blake2b(digest_size=32)  # compute the hash of received bytes
+        self._bytes = 0  # how many bytes we've received
 
     set_trace = getattr(m, "_setTrace", lambda self, f: None)
 
@@ -294,6 +318,8 @@ class DilatedFileReceiver:
             return self.offer_received(msg)
         elif isinstance(msg, FileData):
             return self.data_received(msg.data)
+        elif isinstance(msg, FileAcknowledge):
+            return self.acknowledge_received(msg)
         else:
             raise Exception(f"Unknown message: {msg}")
 
@@ -334,6 +360,12 @@ class DilatedFileReceiver:
         """
 
     @m.input()
+    def acknowledge_received(self, acknowledge_msg):
+        """
+        The peer has send a FileAcknowledge
+        """
+
+    @m.input()
     def subchannel_closed(self):
         """
         The subchannel has closed
@@ -366,15 +398,17 @@ class DilatedFileReceiver:
     @m.output()
     def _ask_about_offer(self, offer):
         """
-        Use an async callback to ask if this offer should be accepted;
-        hook up a "yes" to self.offer_accepted and "no" to
-        self.offer_rejected
+        Use a callback to ask if this offer should be accepted; the
+        callback should inject the correct event when it is ready
+        (which may be immediately or after some time if e.g. waiting
+        for a GUI).
         """
         self._accept_or_reject(self, offer)
 
     @m.output()
     def _open_output_file(self, offer):
-        self._output = open(offer.filename, "wb")
+        # XXX fixme this is IO
+        self._output = open("ZZZ" + offer.filename, "wb")
 
     @m.output()
     def _close_output_file(self):
@@ -392,16 +426,15 @@ class DilatedFileReceiver:
 
     @m.output()
     def _send_acknowledge(self):
-        # XXX keep a real hash object in here, and put the actual
-        # output etc in .. for now, fake
-        import os
-        msg = FileAcknowledge(0, os.urandom(32))
+        msg = FileAcknowledge(self._bytes, self._hasher.digest())
         self._send_message(msg)
 
     @m.output()
     def _check_acknowledge(self, acknowledge_msg):
-        # XXX check the hash-object against ours
-        pass
+        if acknowledge_msg.bytes != self._bytes:
+            raise Exception(f"expected {self._bytes} bytes but got {acknowledge_msg.bytes}")
+        if acknowledge_msg.hash != self._hasher.digest():
+            raise Exception("hash mismatch")
 
     @m.output()
     def _close_subchannel(self):
@@ -412,6 +445,8 @@ class DilatedFileReceiver:
         """
         Writing incoming data to our file
         """
+        self._bytes += len(data)
+        self._hasher.update(data)
         self._output.write(data)
 
     await_offer.upon(
@@ -441,7 +476,7 @@ class DilatedFileReceiver:
         collector=_last_one,
     )
     receive_data.upon(
-        got_acknowledge,
+        acknowledge_received,
         enter=closing,
         outputs=[_close_output_file, _send_acknowledge, _check_acknowledge],
         collector=_last_one,
@@ -541,7 +576,7 @@ class DilatedFileTransfer(object):
         # XXX DirectoryOffer conceptually similar, but little harder
 
     @m.input()
-    def make_offer(self, send_message):
+    def make_offer(self, send_message, start_streaming, finished):
         """
         Make an offer machine so we can give the other peer a file /
         directory.
@@ -567,11 +602,11 @@ class DilatedFileTransfer(object):
         return DilatedFileReceiver(accept_or_reject_p, send_message)
 
     @m.output()
-    def _create_sender(self, send_message):
+    def _create_sender(self, send_message, start_streaming, finished):
         """
         Make a DilatedFileSender
         """
-        return DilatedFileSender(send_message)
+        return DilatedFileSender(send_message, start_streaming, finished)
 
     @m.output()
     def _protocol_error(self):
