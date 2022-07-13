@@ -109,8 +109,8 @@ async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None)
     recv_factory.boss = boss
 
     def accept_always(receiver, offer):
-        # an output() will call this predicate, so we can't
-        # immediately re-enter with an input()
+        # an @output() will call this predicate, so we can't
+        # immediately re-enter with an @input()
         reactor.callLater(0, receiver.accept_offer, offer)
     recv_factory.accept_or_reject_p = accept_always
 
@@ -120,9 +120,36 @@ async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None)
     if offers:
         for offer in offers:
             await send_offer(endpoints.connect, wormhole, boss, offer)
+        #await wormhole.close()
+        # close control channel
+        proto = await endpoints.control.connect(Factory.forProtocol(Protocol))
+        proto.transport.loseConnection()
+        await wormhole.close()
+
     else:
-        print("waiting")
-        await Deferred()
+        class WhenClosed(Protocol):
+            _closed = None
+            def when_closed(self):
+                d = Deferred()
+                if self._closed is None:
+                    self._closed = [d]
+                elif self._closed is True:
+                    d.callback(None)
+                else:
+                    self._closed.append(d)
+                return d
+
+            def connectionLost(self, reason):
+                print("gone", reason)
+                notify = self._closed or []
+                self._closed = True
+                for d in notify:
+                    d.callback(None)
+
+        proto = await endpoints.control.connect(Factory.forProtocol(WhenClosed))
+        print("waiting for control channel to close")
+        await proto.when_closed()
+        await wormhole.close()
 
 
 class Receiver(Protocol):
@@ -200,6 +227,7 @@ class FileDataSource:
 
 class Sender(Protocol):
     _connection = None
+    _disconnection = None
     _sender = None
 
     def when_connected(self):
@@ -210,6 +238,16 @@ class Sender(Protocol):
             d.callback(None)
         else:
             self._connection.append(d)
+        return d
+
+    def when_closed(self):
+        d = Deferred()
+        if self._disconnection is None:
+            self._disconnection = [d]
+        elif self._disconnection is True:
+            d.callback(None)
+        else:
+            self._disconnection.append(d)
         return d
 
     def connectionMade(self):
@@ -232,6 +270,11 @@ class Sender(Protocol):
     def connectionLost(self, why):
         print(f"subchannel closed {why}")
         self._sender.subchannel_closed()
+        notify = self._disconnection
+        self._disconnection = True
+        if notify:
+            for d in notify:
+                d.callback(None)
 
 
 async def send_offer(connect_ep, wormhole, boss, fpath):
@@ -243,7 +286,6 @@ async def send_offer(connect_ep, wormhole, boss, fpath):
     assert fpath.is_file(), "file must exist and be a file"
     offer = FileOffer(fpath.name, fpath.stat().st_mtime, fpath.stat().st_size)
     file_data_streamer = FileDataSource(fpath.open("rb"))
-    done = Deferred()
 
     def send_message(msg):
         proto.transport.write(encode_message(msg))
@@ -261,7 +303,6 @@ async def send_offer(connect_ep, wormhole, boss, fpath):
     def finished():
         print("finished")
         proto.transport.loseConnection()
-##        done.callback(None)
 
 
     proto._sender = sender = boss.make_offer(send_message, start_streaming, finished)
@@ -269,5 +310,5 @@ async def send_offer(connect_ep, wormhole, boss, fpath):
     print("sending offer")
     sender.send_offer(offer)
 
-    await done
+    await proto.when_closed()
     print("done")

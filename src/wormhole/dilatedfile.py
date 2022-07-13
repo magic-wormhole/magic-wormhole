@@ -246,7 +246,7 @@ class DilatedFileSender:
         """
         Completed our journey
         """
-        self._finished()
+        pass  # _finished() should actually be "close_subchannel", approx?
 
     start.upon(
         send_offer,
