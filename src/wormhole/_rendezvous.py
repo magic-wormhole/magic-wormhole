@@ -241,7 +241,7 @@ class RendezvousConnector(object):
     # from _boss machine, if hashcash permission is requried
     def _send_hashcash_then_bind(self, params):
         bits = params["bits"]
-        resource = params["resource-string"]
+        resource = params["resource"]
         # the mint function is synchronous and is designed to take a
         # bit of time..
         hashcash_d = threads.deferToThread(mint_hashcash, bits, resource)
