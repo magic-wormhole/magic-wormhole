@@ -240,8 +240,9 @@ class Boss(object):
 
             permission = welcome.get("permission-required", {})
             if "hashcash" in permission:
-                self._RC._send_hashcash(permission["hashcash"])
-            self._RC._send_bind()
+                self._RC._send_hashcash_then_bind(permission["hashcash"])
+            else:
+                self._RC._send_bind()
 
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)

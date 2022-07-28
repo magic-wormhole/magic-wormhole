@@ -2,13 +2,13 @@ from __future__ import print_function, absolute_import, unicode_literals
 import os
 import base64
 import hashlib
-import datetime
+from datetime import datetime
 from six.moves.urllib_parse import urlparse
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
-from twisted.internet import defer, endpoints, task
+from twisted.internet import defer, endpoints, task, threads
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
@@ -239,15 +239,20 @@ class RendezvousConnector(object):
         self._ws = proto
 
     # from _boss machine, if hashcash permission is requried
-    def _send_hashcash(self, params):
-        print("XXX hashcash")
+    def _send_hashcash_then_bind(self, params):
         bits = params["bits"]
         resource = params["resource-string"]
-        self._tx(
-            "submit-permissions",
-            method="hashcash",
-            stamp=mint_hashcash(bits, resource),
-        )
+        # the mint function is synchronous and is designed to take a
+        # bit of time..
+        hashcash_d = threads.deferToThread(mint_hashcash, bits, resource)
+
+        print("making hashcash")
+
+        def got_cash(hashcash):
+            print("made it: {}".format(hashcash))
+            self._tx("submit-permissions", method="hashcash", stamp=hashcash)
+            self._send_bind()
+        hashcash_d.addCallback(got_cash)
 
     # from _boss machine, after it's done any permissions dancing
     def _send_bind(self):
