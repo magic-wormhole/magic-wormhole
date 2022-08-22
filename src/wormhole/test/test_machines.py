@@ -1591,6 +1591,8 @@ class Rendezvous(unittest.TestCase):
 
         with mock.patch("os.urandom", notrandom):
             rc.ws_open(ws)
+            # since "Boss" is a Dummy, have to fake it
+            rc._send_bind()
         self.assertEqual(events, [
             ("n.connected", ),
             ("m.connected", ),
