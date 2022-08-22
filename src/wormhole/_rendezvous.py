@@ -31,7 +31,6 @@ class WSClient(websocket.WebSocketClientProtocol):
 
     def onMessage(self, payload, isBinary):
         assert not isBinary
-        print("onMessage {}".format(payload))
         try:
             self._RC.ws_message(payload)
         except Exception:
@@ -81,7 +80,7 @@ def mint_hashcash(bits, resource):
             bits,
             timestamp,
             resource,
-            base64.b64encode(os.urandom(12)),
+            base64.b64encode(os.urandom(12)),  # can we move this out of loop?
             counter,
         )
         if valid_hashcash(attempt, bits):
@@ -240,16 +239,14 @@ class RendezvousConnector(object):
 
     # from _boss machine, if hashcash permission is requried
     def _send_hashcash_then_bind(self, params):
+
         bits = params["bits"]
         resource = params["resource"]
         # the mint function is synchronous and is designed to take a
         # bit of time..
         hashcash_d = threads.deferToThread(mint_hashcash, bits, resource)
 
-        print("making hashcash")
-
         def got_cash(hashcash):
-            print("made it: {}".format(hashcash))
             self._tx("submit-permissions", method="hashcash", stamp=hashcash)
             self._send_bind()
         hashcash_d.addCallback(got_cash)
