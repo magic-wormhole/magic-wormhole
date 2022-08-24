@@ -86,6 +86,15 @@ third-party package (published by the "snapcrafters" group):
 $ sudo snap install wormhole
 ```
 
+### Windows
+
+#### Chocolatey
+```
+$ choco install magic-wormhole
+```
+
+The binaries for Windows are provided from this project: https://github.com/aquacash5/magic-wormhole-exe
+
 ### Install from Source
 
 Magic-wormhole is a Python package, and can be installed in the usual ways.
