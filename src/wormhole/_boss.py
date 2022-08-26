@@ -239,10 +239,14 @@ class Boss(object):
             self._W.got_welcome(welcome)  # TODO: let this raise WelcomeError?
 
             permission = welcome.get("permission-required", {})
-            if "hashcash" in permission:
+            if not permission or "none" in permission:
+                self._RC._send_bind()
+            elif "hashcash" in permission:
                 self._RC._send_hashcash_then_bind(permission["hashcash"])
             else:
-                self._RC._send_bind()
+                raise WelcomeError(
+                    "Unknown permission-required: {}".format(", ".join(permission.keys()))
+                )
 
         except WelcomeError as welcome_error:
             self.rx_unwelcome(welcome_error)
