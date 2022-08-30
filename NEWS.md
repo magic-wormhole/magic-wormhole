@@ -1,5 +1,9 @@
 User-visible changes in "magic-wormhole":
 
+## Upcoming Release
+
+* Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
+
 ## Release 0.12.0 (04-Apr-2020)
 
 * A command like `wormhole send /dev/fd0` can send the contents of the named
