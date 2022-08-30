@@ -14,7 +14,7 @@ Just add ``--tor`` to use a running Tor daemon:
 
 ```
 wormhole send --tor myfile.jpg
- 
+
 wormhole receive --tor
 ```
 

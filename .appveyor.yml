@@ -47,7 +47,7 @@ test_script:
   # Put your test command here.
   # Note that you must use the environment variable %PYTHON% to refer to
   # the interpreter you're using - Appveyor does not do anything special
-  # to put the Python evrsion you want to use on PATH.
+  # to put the Python version you want to use on PATH.
   - |
     misc\windows-build.cmd %PYTHON%\Scripts\tox.exe
 

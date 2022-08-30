@@ -1,4 +1,3 @@
-
 User-visible changes in "magic-wormhole":
 
 ## Release 0.12.0 (04-Apr-2020)

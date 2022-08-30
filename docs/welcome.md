@@ -25,7 +25,7 @@ Sender:
 Sending 7924 byte file named 'README.md'
 On the other computer, please run: wormhole receive
 Wormhole code is: 7-crossover-clockwork
- 
+
 Sending (<-10.0.1.43:58988)..
 100%|=========================| 7.92K/7.92K [00:00<00:00, 6.02MB/s]
 File sent.. waiting for confirmation

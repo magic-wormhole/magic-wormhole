@@ -62,5 +62,3 @@ message body will be the hex-encoded output of a NaCl `SecretBox`, keyed by a
 phase+side -specific key (computed with HKDF-SHA256, using the shared PAKE
 key as the secret input, and `wormhole:phase:%s%s % (SHA256(side),
 SHA256(phase))` as the CTXinfo), with a random nonce.
-
-
