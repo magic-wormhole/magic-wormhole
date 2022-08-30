@@ -180,6 +180,3 @@ texinfo_documents = [
      author, 'Magic-Wormhole', 'One line description of project.',
      'Miscellaneous'),
 ]
-
-
-

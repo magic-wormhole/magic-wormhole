@@ -624,4 +624,3 @@ class TestManager(unittest.TestCase):
         self.flushLoggedErrors(UnknownDilationMessageType)
 
     # TODO: test transit relay is used
-    

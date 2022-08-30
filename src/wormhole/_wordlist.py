@@ -8,7 +8,7 @@ from zope.interface import implementer
 from ._interfaces import IWordlist
 
 # The PGP Word List, which maps bytes to phonetically-distinct words. There
-# are two lists, even and odd, and encodings should alternate between then to
+# are two lists, even and odd, and encodings should alternate between them to
 # detect dropped words. https://en.wikipedia.org/wiki/PGP_Words
 
 # Thanks to Warren Guy for transcribing them:

@@ -3,7 +3,7 @@ digraph {
 
         {rank=same; S0 P0_queue}
         {rank=same; S1 P1_send}
-        
+
         S0 [label="S0: unknown\nkey"]
         S0 -> P0_queue [label="send" style="dotted"]
         P0_queue [shape="box" label="queue" style="dotted"]

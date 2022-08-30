@@ -59,7 +59,7 @@ ones that I've considered (but haven't implemented yet) include:
   would-be vandals from feeling a sense of accomplishment at writing
   their own :). Not sure it would help much, but I vaguely remember
   hearing about something similar in the early multi-user unix systems
-  (a publically-executable /bin/crash or something, which new users
+  (a publicly-executable /bin/crash or something, which new users
   tended to only run once before learning some responsibility).
 
 Using the secret words as part of the "channel id" isn't safe, since it

@@ -51,7 +51,7 @@ class WrongPasswordError(WormholeError):
     """
     Key confirmation failed. Either you or your correspondent typed the code
     wrong, or a would-be man-in-the-middle attacker guessed incorrectly. Try
-    sending the file again. 
+    sending the file again.
     """
     # or the data blob was corrupted, and that's why decrypt failed
     pass

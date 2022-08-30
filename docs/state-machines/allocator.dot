@@ -25,5 +25,5 @@ digraph {
         P_allocated -> S2 [color="orange"]
 
         S2 [label="S2:\ndone" color="orange"]
-        
+
 }
