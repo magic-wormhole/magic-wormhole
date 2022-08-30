@@ -312,8 +312,7 @@ trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
 ```
 
 Developers can also just clone the source tree and run `tox` to run the unit
-tests on all supported (and installed) versions of python: 2.7, 3.4, 3.5, and
-3.6.
+tests on all supported (and installed) versions of python: 2.7, 3.7 and 3.8.
 
 ### Troubleshooting
 
@@ -336,8 +335,7 @@ Relevant [xkcd](https://xkcd.com/949/) :-)
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5, and
-3.6 .
+This library is compatible with python2.7, 3.7 and 3.8 .
 
 
 <!-- footnotes -->
