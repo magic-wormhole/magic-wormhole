@@ -130,7 +130,7 @@ class Hashcash(ServerBase, unittest.TestCase):
     def test_good_cash(self):
         w1 = wormhole.create(APPID, self.relayurl, reactor)
         w1.allocate_code()
-        code = yield w1.get_code()
+        yield w1.get_code()
         # w.close() fails because we closed before connecting
         yield self.assertFailure(w1.close(), LonelyError)
 
