@@ -216,10 +216,12 @@ class Receiver:
         if code:
             w.set_code(code)
         else:
-            if self.args.code_length:
+            if self.args.allocate:
                 w.allocate_code(self.args.code_length)
                 code = yield w.get_code()
-                print("Allocated code: {}".format(code))
+                print(u"Allocated code: {}".format(code), file=self.args.stderr)
+                print(u"On the other computer, please run:", file=self.args.stderr)
+                print(u"   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
 
             else:
                 prompt = "Enter receive wormhole code: "

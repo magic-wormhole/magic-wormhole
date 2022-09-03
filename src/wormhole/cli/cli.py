@@ -314,6 +314,12 @@ def go(f, cfg):
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
 )
+@click.option(
+    "--allocate",
+    "-a",
+    is_flag=True,
+    help="Allocate a fresh code (do not prompt for one)",
+)
 # --debug-state might be better at the top-level but Click can't parse
 # an option like "--debug-state <optional-value>" if there's a subcommand name next
 @click.option(
