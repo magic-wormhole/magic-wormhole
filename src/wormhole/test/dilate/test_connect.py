@@ -88,5 +88,3 @@ class Connect(unittest.TestCase):
 
         yield t_left.d
         yield t_right.d
-
-

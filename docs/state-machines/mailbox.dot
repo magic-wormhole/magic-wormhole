@@ -94,5 +94,5 @@ digraph {
         S0B -> P3B_done [label="close" color="red"]
         S1A -> P3A_done [label="close" color="red"]
         S2A -> S3A [label="close" color="red"]
-        
+
 }

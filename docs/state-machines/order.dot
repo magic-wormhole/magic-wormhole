@@ -21,7 +21,7 @@ digraph {
         P1_other [shape="box" label="R.got_message"]
         P1_other -> S1
 
-        
+
         /* the Mailbox will deliver each message exactly once, but doesn't
         guarantee ordering: if Alice starts the process, then disconnects,
         then Bob starts (reading PAKE, sending both his PAKE and his VERSION
