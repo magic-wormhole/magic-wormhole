@@ -64,7 +64,7 @@ class Disconnect(Exception):
 #    * a non-relay will probably send junk
 #    * wait for "ok\n", hang up if we get anything different
 # (all subsequent steps are for both inbound and outbound connections)
-# 2: send PROLOGUE_LEADER/FOLLOWER: "Magic-Wormhole Dilation Handshale v1 (l/f)\n\n"
+# 2: send PROLOGUE_LEADER/FOLLOWER: "Magic-Wormhole Dilation Handshake v1 (l/f)\n\n"
 # 3: wait for the opposite PROLOGUE string, else hang up
 # (everything past this point is a Frame, with be4 length prefix. Frames are
 #  either noise handshake or an encrypted message)
