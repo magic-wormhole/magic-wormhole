@@ -6,6 +6,8 @@ from binascii import unhexlify  # , hexlify
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 
+from .. import util
+
 # def generate_KAT():
 #     print("KAT = [")
 #     for salt in (b"", b"salt"):
@@ -45,6 +47,18 @@ class TestKAT(unittest.TestCase):
                     salt=salt.encode("ascii"),
                     info=context.encode("ascii"),
                 ).derive(skm.encode("ascii"))
+                self.assertEqual(out, expected_out[:outlen])
+
+    def test_util(self):
+        for (salt, context, skm, expected_hexout) in KAT:
+            expected_out = unhexlify(expected_hexout)
+            for outlen in range(0, len(expected_out)):
+                out = util.HKDF(
+                    skm.encode("ascii"),
+                    outlen,
+                    salt.encode("ascii"),
+                    context.encode("ascii"),
+                )
                 self.assertEqual(out, expected_out[:outlen])
 
 
