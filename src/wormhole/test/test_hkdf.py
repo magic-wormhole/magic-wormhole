@@ -3,7 +3,8 @@ from __future__ import print_function, unicode_literals
 import unittest
 from binascii import unhexlify  # , hexlify
 
-from hkdf import Hkdf
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 
 # def generate_KAT():
 #     print("KAT = [")
@@ -38,8 +39,12 @@ class TestKAT(unittest.TestCase):
         for (salt, context, skm, expected_hexout) in KAT:
             expected_out = unhexlify(expected_hexout)
             for outlen in range(0, len(expected_out)):
-                out = Hkdf(salt.encode("ascii"), skm.encode("ascii")).expand(
-                    context.encode("ascii"), outlen)
+                out = HKDF(
+                    algorithm=hashes.SHA256(),
+                    length=outlen,
+                    salt=salt.encode("ascii"),
+                    info=context.encode("ascii"),
+                ).derive(skm.encode("ascii"))
                 self.assertEqual(out, expected_out[:outlen])
 
 
