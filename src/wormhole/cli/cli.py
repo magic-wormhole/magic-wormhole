@@ -347,6 +347,12 @@ def receive(cfg, code, **kwargs):
     """
     Receive a text message, file, or directory (from 'wormhole send')
     """
+    if code:
+        if kwargs["allocate"]:
+            raise click.UsageError("Cannot specify a code when using --allocate")
+    if kwargs["code_length"] != 2 and not kwargs["allocate"]:
+        raise click.UsageError("Must use --allocate with --code-length")
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_receive"):
