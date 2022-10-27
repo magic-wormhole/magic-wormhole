@@ -33,27 +33,6 @@ jobs:
     - name: Upload Coverage
       run: codecov
 
-  testing-py27-nodilate:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 2.7
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip tox
-
-    - name: Test
-      run: |
-        python --version
-        # under py2.7, we run 'tox -e py-nodilate' instead
-        tox -e py-nodilate
-
   flake8:
     runs-on: ubuntu-latest
 

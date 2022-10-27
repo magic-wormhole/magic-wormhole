@@ -11,11 +11,6 @@ environment:
   matrix:
     # For Python versions available on Appveyor, see
     # http://www.appveyor.com/docs/installed-software#python
-    - PYTHON: "C:\\Python27"
-      TOXENV: py27-nodilate
-    - PYTHON: "C:\\Python27-x64"
-      DISTUTILS_USE_SDK: "1"
-      TOXENV: py27-nodilate
     - PYTHON: "C:\\Python37-x64"
       TOXENV: py37
 
