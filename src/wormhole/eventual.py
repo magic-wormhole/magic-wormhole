@@ -38,7 +38,7 @@ class EventualQueue(object):
         # (i.e. by the calls we just ran) only run in the _next_ turn
         # (as Foolscap does). Not doing this leads to some unexpected
         # dependency of the tests on the precise order things are run
-        # in a single turn, which defaults the purpose of this
+        # in a single turn, which defeats the purpose of this
         # "eventual queue".
         if len(self._calls):
             self._timer = self._clock.callLater(0, self._turn)
