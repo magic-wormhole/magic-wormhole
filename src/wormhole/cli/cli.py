@@ -187,7 +187,7 @@ CommonArgs = _compose(
     click.option(
         "-c",
         "--code-length",
-        default=2,
+        default=None,
         metavar="NUMWORDS",
         help="length of code (in bytes/words)",
     ),
@@ -277,6 +277,8 @@ def help(context, **kwargs):
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_send"):
@@ -350,8 +352,10 @@ def receive(cfg, code, **kwargs):
     if code:
         if kwargs["allocate"]:
             raise click.UsageError("Cannot specify a code when using --allocate")
-    if kwargs["code_length"] != 2 and not kwargs["allocate"]:
+    if kwargs["code_length"] and not kwargs["allocate"]:
         raise click.UsageError("Must use --allocate with --code-length")
+
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
 
     for name, value in kwargs.items():
         setattr(cfg, name, value)
