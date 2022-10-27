@@ -1420,3 +1420,25 @@ class Help(unittest.TestCase):
         result = CliRunner().invoke(cli.wormhole, ["--help"])
         self._check_top_level_help(result.output)
         self.assertEqual(result.exit_code, 0)
+
+    def test_inconsistent_receive_code_length(self):
+        """
+        specifying --code-length without --allocate is an error
+        """
+        result = CliRunner().invoke(
+            cli.wormhole,
+            ["receive", "--code-length", "3", "2-foo-bar"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Must use --allocate", result.stdout)
+
+    def test_inconsistent_receive_allocate(self):
+        """
+        specifying --allocate and a code is an error
+        """
+        result = CliRunner().invoke(
+            cli.wormhole,
+            ["receive", "--allocate", "2-foo-bar"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Cannot specify a code", result.stdout)
