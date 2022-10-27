@@ -25,8 +25,7 @@ class EventualQueue(object):
         return d
 
     def _turn(self):
-        to_call = self._calls
-        self._calls = []
+        self._calls, to_call = [], self._calls
         for f, args, kwargs in to_call:
             try:
                 f(*args, **kwargs)
