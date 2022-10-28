@@ -16,7 +16,7 @@ def HKDF(skm, outlen, salt=None, CTXinfo=b""):
     :param bytes skm: the input key material
     :param int outlen: output length, in bytes
     :param bytes salt: optional salt value (None for no salt)
-    :param bytes CTXinfo: contexct / application specific string (defaults to empty)
+    :param bytes CTXinfo: context / application-specific string (default is empty)
 
     :return bytes: the derived key material
     """
