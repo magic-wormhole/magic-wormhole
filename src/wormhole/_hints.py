@@ -50,7 +50,8 @@ def parse_hint_argv(hint, stderr=sys.stderr):
               file=stderr)
         return None
     hint_value = mo.group(2)
-    pieces = hint_value.split(":")
+    # Find all pieces that either match an IPv6 address in square brackets, or pieces that follow or are followed by a colon:
+    pieces = re.findall(r"(?<=\[)[a-fA-F0-9:]+(?=\])|[^:\[\]]+(?=:)|(?<=:)[^:\[\]]+", hint_value)
     if len(pieces) < 2:
         print("unparseable TCP hint (need more colons) '%s'" % (hint, ),
               file=stderr)
