@@ -4,6 +4,7 @@ User-visible changes in "magic-wormhole":
 
 * Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
 * Fix intermittant failing test (#458)
+* Python 2.7 support is dropped (#457)
 * `wormhole receive` now accepts `--allocate-code` so that a sender can
   use `--code` to send them a file (#450)
 
