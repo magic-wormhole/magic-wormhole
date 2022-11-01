@@ -4,6 +4,7 @@ User-visible changes in "magic-wormhole":
 
 * Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
 * Fix intermittant failing test (#458)
+* Use the HKDF primitive from "cryptography" (#462)
 
 ## Release 0.12.0 (04-Apr-2020)
 
