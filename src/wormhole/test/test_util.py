@@ -5,7 +5,7 @@ import unicodedata
 import six
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from .. import util
 

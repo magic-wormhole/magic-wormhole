@@ -1,7 +1,7 @@
 from __future__ import print_function, unicode_literals
 import io
 from collections import namedtuple
-import mock
+from unittest import mock
 from twisted.internet import endpoints, reactor
 from twisted.trial import unittest
 from .._hints import (endpoint_from_hint_obj, parse_hint_argv, parse_tcp_v1_hint,
