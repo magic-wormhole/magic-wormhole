@@ -3,7 +3,7 @@ from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock, Cooperator
 from twisted.internet.interfaces import IStreamServerEndpoint
-import mock
+from unittest import mock
 from ...eventual import EventualQueue
 from ..._interfaces import ISend, ITerminator, ISubChannel
 from ...util import dict_to_bytes

@@ -3,7 +3,7 @@ import sys
 
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from ..cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
 from .common import config

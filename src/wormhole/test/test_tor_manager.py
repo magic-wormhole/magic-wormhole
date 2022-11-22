@@ -6,7 +6,7 @@ from twisted.internet import defer
 from twisted.internet.error import ConnectError
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from .._interfaces import ITorManager
 from ..errors import NoTorError

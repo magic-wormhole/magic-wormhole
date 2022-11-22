@@ -7,7 +7,7 @@ from spake2 import SPAKE2_Symmetric
 from twisted.trial import unittest
 from zope.interface import directlyProvides, implementer
 
-import mock
+from unittest import mock
 
 from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
                 _mailbox, _nameplate, _order, _receive, _rendezvous, _send,

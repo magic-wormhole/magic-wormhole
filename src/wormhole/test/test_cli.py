@@ -20,7 +20,7 @@ from twisted.python import log, procutils
 from twisted.trial import unittest
 from zope.interface import implementer
 
-import mock
+from unittest import mock
 
 from .. import __version__
 from .._interfaces import ITorManager

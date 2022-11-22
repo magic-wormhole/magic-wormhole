@@ -8,7 +8,7 @@ from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from .. import _rendezvous, wormhole
 from ..errors import (KeyFormatError, LonelyError, NoKeyError,

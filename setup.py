@@ -57,7 +57,7 @@ setup(name="magic-wormhole",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
-          "dev": ["mock", "tox", "pyflakes",
+          "dev": ["tox", "pyflakes",
                   "magic-wormhole-transit-relay==0.1.2",
                   "magic-wormhole-mailbox-server==0.3.1"],
           "dilate": ["noiseprotocol"],
