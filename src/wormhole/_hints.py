@@ -40,22 +40,20 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
     # return tuple or None for an unparseable hint
     priority = 0.0
-    # parse hint type ('tcp' or 'tcp6')
+    # parse hint type
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
         print("unparseable hint '%s'" % (hint, ), file=stderr)
         return None
     hint_type = mo.group(1)
-    if not hint_type in ("tcp", "tcp6"):
+    if hint_type != "tcp":
         print("unknown hint type '%s' in '%s'" % (hint_type, hint),
               file=stderr)
         return None
     hint_value = mo.group(2)
-    # declare vars
     hint_host = ""
-    hint_port = -1
     pieces = []  # hint_value split into pieces
-    # check for IPv6 address (must have square brackets)
+    # parse IPv6 address (must have square brackets)
     mo = re.search(r'^\[([a-zA-Z0-9:]+)\]:(.*)$', hint_value)
     if mo:
         hint_host = mo.group(1)
@@ -72,17 +70,13 @@ def parse_hint_argv(hint, stderr=sys.stderr):
                   file=stderr)
             return None
         hint_host = pieces[0]
-        if isIPAddress(hint_host) and hint_type == "tcp6":
-            print("expected IPv6 address or hostname, got IPv4 address in TCP6 hint '%s'" % (hint, ),
-                  file=stderr)
-            return None
     # parse the port:
     mo = re.search(r'^(\d+)$', pieces[1])
     if not mo:
         print("non-numeric port in TCP hint '%s'" % (hint, ), file=stderr)
         return None
     hint_port = int(pieces[1])
-    # parse the rest, such as "priority=float"
+    # parse the rest ("priority=float")
     for more in pieces[2:]:
         if more.startswith("priority="):
             more_pieces = more.split("=")

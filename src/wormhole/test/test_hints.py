@@ -152,29 +152,25 @@ class Hints(unittest.TestCase):
             stderr,
             "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
 
+        h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]")
+        self.assertEqual(h, None)
+        self.assertEqual(
+            stderr, "non-numeric port in TCP hint 'tcp:[2001:0db8:85a3::8a2e:0370:7334]'\n")
+
         h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]:1234")
         self.assertEqual(h, DirectTCPV1Hint(
             "2001:0db8:85a3::8a2e:0370:7334", 1234, 0.0))
         self.assertEqual(stderr, "")
 
-        h, stderr = p("tcp6:[2001:0db8:85a3::8a2e:0370:7334]:1234")
+        h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]:1234:priority=2.6")
         self.assertEqual(h, DirectTCPV1Hint(
-            "2001:0db8:85a3::8a2e:0370:7334", 1234, 0.0))
+            "2001:0db8:85a3::8a2e:0370:7334", 1234, 2.6))
         self.assertEqual(stderr, "")
 
-        h, stderr = p("tcp6:[abc::xyz]:1234")
+        h, stderr = p("tcp:[abc::xyz]:1234")
         self.assertEqual(h, None)
         self.assertEqual(
-            stderr, "invalid IPv6 address in TCP hint 'tcp6:[abc::xyz]:1234'\n")
-
-        h, stderr = p("tcp6:host:1234")
-        self.assertEqual(h, DirectTCPV1Hint("host", 1234, 0.0))
-        self.assertEqual(stderr, "")
-
-        h, stderr = p("tcp6:172.0.0.1:1234")
-        self.assertEqual(h, None)
-        self.assertEqual(
-            stderr, "expected IPv6 address or hostname, got IPv4 address in TCP6 hint 'tcp6:172.0.0.1:1234'\n")
+            stderr, "invalid IPv6 address in TCP hint 'tcp:[abc::xyz]:1234'\n")
 
     def test_describe_hint_obj(self):
         d = describe_hint_obj
