@@ -19,7 +19,7 @@ digraph {
         Sno -> Sn [label="close"]
         Smo -> Sm [label="close" color="red"]
         S0o -> P_stop [label="close"]
-        
+
         Snm [label="Snm:\nnameplate active\nmailbox active\nclosing"
                      style="dashed"]
         Sn [label="Sn:\nnameplate active\nmailbox done\nclosing"
@@ -45,6 +45,5 @@ digraph {
 
         other [shape="box" style="dashed"
                label="close -> N.close, M.close"]
-               
 
 }

@@ -11,19 +11,6 @@ environment:
   matrix:
     # For Python versions available on Appveyor, see
     # http://www.appveyor.com/docs/installed-software#python
-    - PYTHON: "C:\\Python27"
-      TOXENV: py27-nodilate
-    - PYTHON: "C:\\Python27-x64"
-      DISTUTILS_USE_SDK: "1"
-      TOXENV: py27-nodilate
-    - PYTHON: "C:\\Python35"
-      TOXENV: py35
-    - PYTHON: "C:\\Python35-x64"
-      TOXENV: py35
-    - PYTHON: "C:\\Python36"
-      TOXENV: py36
-    - PYTHON: "C:\\Python36-x64"
-      TOXENV: py36
     - PYTHON: "C:\\Python37-x64"
       TOXENV: py37
 
@@ -47,7 +34,7 @@ test_script:
   # Put your test command here.
   # Note that you must use the environment variable %PYTHON% to refer to
   # the interpreter you're using - Appveyor does not do anything special
-  # to put the Python evrsion you want to use on PATH.
+  # to put the Python version you want to use on PATH.
   - |
     misc\windows-build.cmd %PYTHON%\Scripts\tox.exe
 

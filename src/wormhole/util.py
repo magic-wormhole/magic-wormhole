@@ -3,11 +3,29 @@ import json
 import os
 import unicodedata
 from binascii import hexlify, unhexlify
-from hkdf import Hkdf
+from cryptography.hazmat.primitives.kdf import hkdf
+from cryptography.hazmat.primitives import hashes
 
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
-    return Hkdf(salt, skm).expand(CTXinfo, outlen)
+    """
+    Return the RFC5869 'HMAC-based Key Derivation Function' result of
+    using the given `salt`, tag from `CTXinfo` and secret from `skm`
+    with a SHA256 hash.
+
+    :param bytes skm: the input key material
+    :param int outlen: output length, in bytes
+    :param bytes salt: optional salt value (None for no salt)
+    :param bytes CTXinfo: context / application-specific string (default is empty)
+
+    :return bytes: the derived key material
+    """
+    return hkdf.HKDF(
+        hashes.SHA256(),
+        outlen,
+        salt,
+        CTXinfo,
+    ).derive(skm)
 
 def to_bytes(u):
     return unicodedata.normalize("NFC", u).encode("utf-8")

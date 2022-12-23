@@ -25,7 +25,7 @@ Sender:
 Sending 7924 byte file named 'README.md'
 On the other computer, please run: wormhole receive
 Wormhole code is: 7-crossover-clockwork
- 
+
 Sending (<-10.0.1.43:58988)..
 100%|=========================| 7.92K/7.92K [00:00<00:00, 6.02MB/s]
 File sent.. waiting for confirmation
@@ -66,6 +66,10 @@ $ sudo apt install magic-wormhole
 
 ### Linux (Fedora)
 
+Note: magic-wormhole [was removed from
+Fedora](https://bugzilla.redhat.com/show_bug.cgi?id=2073777) starting in Fedora
+37. So this command will only work on Fedora 36 and earlier.
+
 ```
 $ sudo dnf install magic-wormhole
 ```
@@ -85,6 +89,15 @@ third-party package (published by the "snapcrafters" group):
 ```
 $ sudo snap install wormhole
 ```
+
+### Windows
+
+#### Chocolatey
+```
+$ choco install magic-wormhole
+```
+
+The binaries for Windows are provided from this project: https://github.com/aquacash5/magic-wormhole-exe
 
 ### Install from Source
 
@@ -303,8 +316,7 @@ trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
 ```
 
 Developers can also just clone the source tree and run `tox` to run the unit
-tests on all supported (and installed) versions of python: 2.7, 3.4, 3.5, and
-3.6.
+tests on all supported (and installed) versions of python: 2.7, 3.7 and 3.8.
 
 ### Troubleshooting
 
@@ -327,8 +339,7 @@ Relevant [xkcd](https://xkcd.com/949/) :-)
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.4 (non-Windows-only), 3.5, and
-3.6 .
+This library is compatible with python2.7, 3.7 and 3.8 .
 
 
 <!-- footnotes -->
