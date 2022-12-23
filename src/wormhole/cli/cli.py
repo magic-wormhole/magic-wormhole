@@ -316,14 +316,14 @@ def help(context, **kwargs):
     )
 )
 @click.pass_obj
-def connect(cfg, **kwargs):
-    """Connect with Dilation"""
+def forward(cfg, **kwargs):
+    """Forward TCP over Dilation subchannels"""
     for name, value in kwargs.items():
         setattr(cfg, name, value)
-    with cfg.timing.add("import", which="cmd_connect"):
-        from . import cmd_connect
+    with cfg.timing.add("import", which="cmd_forward"):
+        from . import cmd_forward
 
-    return go(cmd_connect.connect, cfg)
+    return go(cmd_forward.forward, cfg)
 
 
 # this intermediate function can be mocked by tests that need to build a
