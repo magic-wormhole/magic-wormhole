@@ -150,7 +150,7 @@ def _forward_loop(args, w):
                 proto.local = self
                 self.remote = proto
                 self._maybe_drain_queue()
-            d = self.factory.endpoint.connect(Factory.forProtocol(Forwarder))
+            d = connect_ep(Factory.forProtocol(Forwarder))
             d.addBoth(got_proto)
             return d
 
@@ -181,6 +181,8 @@ def _forward_loop(args, w):
 
         def connectionMade(self):
             print("incoming connection")
+            # XXX first message should tell us where to connect, locally
+            # (want some kind of opt-in on this side, probably)
 
         def connectionLost(self, reason):
             print("incoming connection lost")
