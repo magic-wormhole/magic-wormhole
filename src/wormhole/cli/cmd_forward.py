@@ -137,8 +137,10 @@ def _forward_loop(args, w):
             if self._buffer is not None:
                 self._buffer += data
                 bsize = len(self._buffer)
+                print("bsize", bsize)
                 if bsize >= 2:
                     msgsize, = struct.unpack("!H", self._buffer[:2])
+                    print("sze", msgsize)
                     if bsize > msgsize + 2:
                         raise RuntimeError("leftover")
                     elif bsize == msgsize + 2:
@@ -148,6 +150,8 @@ def _forward_loop(args, w):
                         if not msg.get("connected", False):
                             raise RuntimeError("no connection")
                         self._buffer = None
+                    else:
+                        print("need more", msgsize, bsize)
                 return
             else:
                 print("fwd {} {}".format(len(data), self.local.transport))
