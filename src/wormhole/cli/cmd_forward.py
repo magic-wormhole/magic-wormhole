@@ -215,11 +215,14 @@ def _forward_loop(args, w):
                 proto.transport.write(prefix + msg)
                 print("WROTE", prefix + msg)
                 # MUST wait for reply first
-            factory = Factory.forProtocol(Forwarder)
+            factory = Factory.forProtocol(ForwardConnecter)
             factory.server_proto = self
             d = connect_ep.connect(factory)
             d.addCallback(got_proto)
-            d.addErrback(print)
+
+            def err(f):
+                print("BADBAD", f)
+            d.addErrback(err)
             return d
 
         def _maybe_drain_queue(self):
