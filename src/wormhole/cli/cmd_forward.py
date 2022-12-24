@@ -150,7 +150,7 @@ def _forward_loop(args, w):
                 proto.local = self
                 self.remote = proto
                 self._maybe_drain_queue()
-            d = connect_ep(Factory.forProtocol(Forwarder))
+            d = connect_ep.connect(Factory.forProtocol(Forwarder))
             d.addBoth(got_proto)
             return d
 
