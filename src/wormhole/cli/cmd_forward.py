@@ -137,7 +137,7 @@ def _forward_loop(args, w):
                 self._buffer += data
                 bsize = len(self._buffer)
                 if bsize >= 2:
-                    msgsize = struct.unpack("!H", self._buffer[:2])
+                    msgsize, = struct.unpack("!H", self._buffer[:2])
                     if bsize > msgsize + 2:
                         raise RuntimeError("leftover")
                     elif bsize == msgsize + 2:
@@ -269,7 +269,7 @@ def _forward_loop(args, w):
                 self._buffer += data
                 bsize = len(self._buffer)
                 if bsize >= 2:
-                    expected_size = struct.unpack("!H", self._buffer[:2])
+                    expected_size, = struct.unpack("!H", self._buffer[:2])
                     if bsize >= expected_size + 2:
                         first_msg = self._buffer[2:2 + expected_size]
                         # there should be no "leftover" data
