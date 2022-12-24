@@ -232,6 +232,8 @@ def _forward_loop(args, w):
 
         def connectionLost(self, reason):
             print("local connection lost")
+            print("ZZ", dir(self.remote.transport))
+            self.remote.transport.loseConnection()
 
         def dataReceived(self, data):
             print("local {}b".format(len(data)))
