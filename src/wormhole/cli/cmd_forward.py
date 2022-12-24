@@ -11,6 +11,7 @@ import tempfile
 import zipfile
 
 import six
+import msgpack
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
@@ -141,17 +142,24 @@ def _forward_loop(args, w):
         def connectionMade(self):
             print("local connection")
             print(self.factory)
-            print(self.factory.endpoint)
+            print(self.factory.endpoint_str)
             self.queue = []
             self.remote = None
 
+            @inlineCallbacks
             def got_proto(proto):
                 print("PROTO", proto)
                 proto.local = self
                 self.remote = proto
+                proto.transport.write(
+                    msgpack.pack({
+                        "local-destination": self.factory.endpoint_str,
+                    })
+                )
                 self._maybe_drain_queue()
             d = connect_ep.connect(Factory.forProtocol(Forwarder))
-            d.addBoth(got_proto)
+            d.addCallback(got_proto)
+            d.addErrback(print)
             return d
 
         def _maybe_drain_queue(self):
@@ -177,18 +185,87 @@ def _forward_loop(args, w):
 
     class Incoming(Protocol):
         """
+        Handle an incoming Dilation subchannel. This will be from a
+        listener on the other end of the wormhole.
+
+        There is an opening message, and then we forward bytes.
+
+        The opening message is a length-prefixed blob; the first 2
+        bytes of the stream indicate the length (an unsigned short in
+        network byte order).
+
+        The message itself is msgpack-encoded.
+
+        A single reply is produced, following the same format: 2-byte
+        length prefix followed by a msgpack-encoded payload.
+
+        The opening message contains a dict like::
+
+            {
+                "local-desination": "tcp:localhost:1234",
+            }
+
+        The "forwarding" side (i.e the one that opened the subchannel)
+        MUST NOT send any data except the opening message until it
+        receives a reply from this side. This side (the connecting
+        side) may deny the connection for any reason (e.g. it might
+        not even try, if policy says not to).
+
+        XXX want some opt-in / permission on this side, probably? (for
+        now: anything goes)
         """
 
         def connectionMade(self):
             print("incoming connection")
             # XXX first message should tell us where to connect, locally
             # (want some kind of opt-in on this side, probably)
+            self._buffer = b""
+            self._local_connection = None
 
         def connectionLost(self, reason):
             print("incoming connection lost")
 
+        def forward(self, data):
+            print("forward {}".format(len(data)))
+            self._local_connection.transport.write()
+
+        @inlineCallbacks
+        def _establish_local_connection(self, first_msg):
+            data = msgpack.decode(first_msg)
+            print("local con", data)
+            ep = clientFromString(reactor, data["local-destination"])
+            print("ep", ep)
+            self._local_connection = yield ep.connect(Forwarder)
+            print("conn", self._local_connection)
+            # sending-reply maybe should move somewhere else?
+            self.transport.write(
+                msgpack.encode({
+                    "connected": True,
+                })
+            )
+
         def dataReceived(self, data):
             print("incoming {}b".format(len(data)))
+            if self._buffer is None:
+                self.forward(data)
+
+            else:
+                self._buffer += data
+                bsize = len(self._buffer)
+                if bsize >= 2:
+                    expected_size = struct.unpack("!H", self._buffer[:2])
+                    if bsize >= expected_size + 2:
+                        first_msg = self._buffer[2:2 + expected_size]
+                        # there should be no "leftover" data
+                        if bsize > 2 + expected_size:
+                            raise RuntimeError("protocol error: more than opening message sent")
+
+                        d = self._establish_local_connection(
+                            first_msg,
+                        )
+                        if leftover:
+                            self.forward(leftover)
+                        self._buffer = None
 
 
     class Outgoing(Protocol):
@@ -222,7 +299,7 @@ def _forward_loop(args, w):
         ep = serverFromString(reactor, cmd["endpoint"])
         print("ep", ep)
         factory = Factory.forProtocol(LocalServer)
-        factory.endpoint = clientFromString(reactor, cmd["local-endpoint"])
+        factory.endpoint_str = cmd["local-endpoint"]
         proto = yield ep.listen(factory)
         print(f"PROTO: {proto}")
         ##proto.transport.write(b'{"kind": "dummy"}\n')
