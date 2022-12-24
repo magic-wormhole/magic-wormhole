@@ -133,6 +133,7 @@ def _forward_loop(args, w):
             self._buffer = b""
 
         def dataReceived(self, data):
+            print("fwd incoming {}".format(len(data)))
             if self._buffer is not None:
                 self._buffer += data
                 bsize = len(self._buffer)
@@ -141,7 +142,9 @@ def _forward_loop(args, w):
                     if bsize > msgsize + 2:
                         raise RuntimeError("leftover")
                     elif bsize == msgsize + 2:
-                        msg = msgpack.unpack(self._buffer[2:2 + msgsize])
+                        msg, = msgpack.unpack(self._buffer[2:2 + msgsize])
+                        print("MSG", msg)
+                        self.factory.server_proto._maybe_drain_queue()
                         if not msg.get("connected", False):
                             raise RuntimeError("no connection")
                         self._buffer = None
@@ -173,7 +176,9 @@ def _forward_loop(args, w):
                 prefix = struct.pack("!H", len(msg))
                 proto.transport.write(prefix + msg)
                 # MUST wait for reply first
-            d = connect_ep.connect(Factory.forProtocol(Forwarder))
+            factory = Factory.forProtocol(Forwarder)
+            factory.server_proto = self
+            d = connect_ep.connect(factory)
             d.addCallback(got_proto)
             d.addErrback(print)
             return d
@@ -184,13 +189,14 @@ def _forward_loop(args, w):
                 self.remote.transport.write(msg)
                 print("wrote", len(msg))
                 print(msg)
+            self.queue = None
 
         def connectionLost(self, reason):
             print("local connection lost")
 
         def dataReceived(self, data):
             print("local {}b".format(len(data)))
-            if self.remote is None:
+            if self.queue is not None:
                 print("queue", len(data))
                 self.queue.append(data)
             else:
@@ -251,7 +257,9 @@ def _forward_loop(args, w):
             print("local con", data)
             ep = clientFromString(reactor, data["local-destination"])
             print("ep", ep)
-            self._local_connection = yield ep.connect(Factory.forProtocol(Forwarder))
+            d = ep.connect(Factory.forProtocol(Forwarder))
+            print("DDD", d)
+            self._local_connection = yield d
             print("conn", self._local_connection)
             # sending-reply maybe should move somewhere else?
             self.transport.write(
@@ -265,6 +273,8 @@ def _forward_loop(args, w):
             # XXX wait, still need to buffer? .. no, we _shouldn't_
             # get data until we've got the connection -- double-check
             if self._buffer is None:
+                print(data)
+                assert self._local_connection is not None, "expected local connection by now"
                 self.forward(data)
 
             else:
