@@ -7,6 +7,7 @@ import json
 import itertools
 
 import stat
+import struct
 import tempfile
 import zipfile
 
@@ -127,12 +128,28 @@ def _forward_loop(args, w):
     mapper = SubchannelMapper()
 
     class Forwarder(Protocol):
-        def connectinoMade(self):
+        def connectionMade(self):
             print("fwd conn")
+            self._buffer = b""
+
         def dataReceived(self, data):
-            print("fwd {} {}".format(len(data), self.local.transport))
-            self.local.transport.write(data)
-            print(data)
+            if self._buffer is not None:
+                self._buffer += data
+                bsize = len(self._buffer)
+                if bsize >= 2:
+                    msgsize = struct.unpack("!H", self._buffer[:2])
+                    if bsize > msgsize + 2:
+                        raise RuntimeError("leftover")
+                    elif bsize == msgsize + 2:
+                        msg = msgpack.unpack(self._buffer[2:2 + msgsize])
+                        if not msg.get("connected", False):
+                            raise RuntimeError("no connection")
+                        self._buffer = None
+                return
+            else:
+                print("fwd {} {}".format(len(data), self.local.transport))
+                self.local.transport.write(data)
+                print(data)
 
 
     class LocalServer(Protocol):
@@ -146,17 +163,16 @@ def _forward_loop(args, w):
             self.queue = []
             self.remote = None
 
-            @inlineCallbacks
             def got_proto(proto):
                 print("PROTO", proto)
                 proto.local = self
                 self.remote = proto
-                proto.transport.write(
-                    msgpack.pack({
-                        "local-destination": self.factory.endpoint_str,
-                    })
-                )
-                self._maybe_drain_queue()
+                msg = msgpack.pack({
+                    "local-destination": self.factory.endpoint_str,
+                })
+                prefix = struct.pack("!H", len(msg))
+                proto.transport.write(prefix + msg)
+                # MUST wait for reply first
             d = connect_ep.connect(Factory.forProtocol(Forwarder))
             d.addCallback(got_proto)
             d.addErrback(print)
