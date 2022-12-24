@@ -156,7 +156,7 @@ def _forward_loop(args, w):
                 return
             else:
                 print("fwd {} {}".format(len(data), self.local.transport))
-                self.local.transport.write(data)
+                self.factory.server_proto.transport.write(data)
                 print(data)
 
 
