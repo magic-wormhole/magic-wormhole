@@ -155,7 +155,7 @@ def _forward_loop(args, w):
                         print("need more", msgsize, bsize)
                 return
             else:
-                print("fwd {} {}".format(len(data), self.local.transport))
+                print("fwd {} {}".format(len(data), self.factory.server_proto))
                 self.factory.server_proto.transport.write(data)
                 print(data)
 
