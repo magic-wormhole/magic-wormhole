@@ -287,6 +287,7 @@ def _forward_loop(args, w):
 
         def connectionLost(self, reason):
             print("incoming connection lost")
+            self._local_connection.transport.loseConnection()
 
         def forward(self, data):
             print("forward {}".format(len(data)))
