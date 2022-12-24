@@ -268,11 +268,12 @@ def _forward_loop(args, w):
             self._local_connection = yield d
             print("conn", self._local_connection)
             # sending-reply maybe should move somewhere else?
-            self.transport.write(
-                msgpack.packb({
-                    "connected": True,
-                })
-            )
+            # XXX another section like this: pack_netstring() or something
+            msg = msgpack.packb({
+                "connected": True,
+            })
+            prefix = struct.pack("!H", len(msg))
+            self.transport.write(prefix + msg)
 
         def dataReceived(self, data):
             print("incoming {}b".format(len(data)))
