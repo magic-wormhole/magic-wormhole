@@ -247,21 +247,23 @@ def _forward_loop(args, w):
 
         @inlineCallbacks
         def _establish_local_connection(self, first_msg):
-            data = msgpack.decode(first_msg)
+            data = msgpack.unpackb(first_msg)
             print("local con", data)
             ep = clientFromString(reactor, data["local-destination"])
             print("ep", ep)
-            self._local_connection = yield ep.connect(Forwarder)
+            self._local_connection = yield ep.connect(Factory.forProtocol(Forwarder))
             print("conn", self._local_connection)
             # sending-reply maybe should move somewhere else?
             self.transport.write(
-                msgpack.encode({
+                msgpack.packb({
                     "connected": True,
                 })
             )
 
         def dataReceived(self, data):
             print("incoming {}b".format(len(data)))
+            # XXX wait, still need to buffer? .. no, we _shouldn't_
+            # get data until we've got the connection -- double-check
             if self._buffer is None:
                 self.forward(data)
 
@@ -279,8 +281,6 @@ def _forward_loop(args, w):
                         d = self._establish_local_connection(
                             first_msg,
                         )
-                        if leftover:
-                            self.forward(leftover)
                         self._buffer = None
 
 
