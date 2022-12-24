@@ -41,7 +41,10 @@ PROLOGUE_FOLLOWER = b"Magic-Wormhole Dilation Handshake v1 Follower\n\n"
 NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 
 def build_noise():
-    return NoiseConnection.from_name(NOISEPROTO)
+    noise = NoiseConnection.from_name(NOISEPROTO)
+    if noise is None:
+        raise RuntimeError("Can't build noise: {}".format(NOISEPROTO))
+    return noise
 
 @attrs(eq=False)
 @implementer(IDilationConnector)
