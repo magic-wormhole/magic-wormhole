@@ -136,6 +136,7 @@ def _forward_loop(args, w):
             print("fwd incoming {}".format(len(data)))
             if self._buffer is not None:
                 self._buffer += data
+                print(self._buffer)
                 bsize = len(self._buffer)
                 print("bsize", bsize)
                 if bsize >= 2:
@@ -179,6 +180,7 @@ def _forward_loop(args, w):
                 })
                 prefix = struct.pack("!H", len(msg))
                 proto.transport.write(prefix + msg)
+                print("WROTE", prefix + msg)
                 # MUST wait for reply first
             factory = Factory.forProtocol(Forwarder)
             factory.server_proto = self
