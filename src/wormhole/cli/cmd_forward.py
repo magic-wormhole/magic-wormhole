@@ -155,7 +155,7 @@ def _forward_loop(args, w):
                         print("need more", msgsize, bsize)
                 return
             else:
-                print("fwd {} {}".format(len(data), self.factory.server_proto))
+                print("fwd {} {}".format(len(data), dir(self.factory)))
                 self.factory.server_proto.transport.write(data)
                 print(data)
 
@@ -263,7 +263,9 @@ def _forward_loop(args, w):
             print("local con", data)
             ep = clientFromString(reactor, data["local-destination"])
             print("ep", ep)
-            d = ep.connect(Factory.forProtocol(Forwarder))
+            factory = Factory.forProtocol(Forwarder)
+            factory.server_proto = self
+            d = ep.connect(factory)
             print("DDD", d)
             self._local_connection = yield d
             print("conn", self._local_connection)
