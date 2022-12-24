@@ -112,22 +112,55 @@ def _forward_loop(args, w):
     )
 
     control_ep, connect_ep, listen_ep = w.dilate()
-    _next_id = itertools.count(1, 1)
 
-    def create_subchannel_id():
-        return next(_next_id)
+    class ForwardConnecter(Protocol):
+        """
+        Forwards data to the `.other_protocol` in the Factory only after
+        awaiting a single incoming length-prefixed msgpack message.
 
-    class SubchannelMapper:
-        id_to_incoming = dict()
+        This message tells us when the other side has successfully
+        connected (or not).
+        """
 
-        def subchannel_opened(self, incoming):
-            i = create_subchannel_id()
-            self.id_to_incoming[i] = incoming
-            return i
+        def connectionMade(self):
+            print("fwd conn")
+            self._buffer = b""
 
-    mapper = SubchannelMapper()
+        def dataReceived(self, data):
+            print("fwd incoming {}".format(len(data)))
+            if self._buffer is not None:
+                self._buffer += data
+                print(self._buffer)
+                bsize = len(self._buffer)
+                print("bsize", bsize)
+                if bsize >= 2:
+                    msgsize, = struct.unpack("!H", self._buffer[:2])
+                    print("sze", msgsize)
+                    if bsize > msgsize + 2:
+                        raise RuntimeError("leftover")
+                    elif bsize == msgsize + 2:
+                        msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
+                        print("MSG", msg)
+                        if not msg.get("connected", False):
+                            print(dir(self.transport))
+                            self.transport.loseConnection()
+                            raise RuntimeError("Other side failed to connect")
+                        self.factory.server_proto._maybe_drain_queue()
+                        self._buffer = None
+                    else:
+                        print("need more", msgsize, bsize)
+                return
+            else:
+                print("fwd {} {}".format(len(data), dir(self.factory)))
+                self.factory.server_proto.transport.write(data)
+                print(data)
+
 
     class Forwarder(Protocol):
+        """
+        Forwards data to the `.other_protocol` in the Factory.
+        """
+
         def connectionMade(self):
             print("fwd conn")
             self._buffer = b""
