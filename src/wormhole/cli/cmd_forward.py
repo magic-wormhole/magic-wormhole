@@ -287,7 +287,8 @@ def _forward_loop(args, w):
 
         def connectionLost(self, reason):
             print("incoming connection lost")
-            self._local_connection.transport.loseConnection()
+            if self._local_connection and self._local_connection.transport:
+                self._local_connection.transport.loseConnection()
 
         def forward(self, data):
             print("forward {}".format(len(data)))
@@ -303,7 +304,12 @@ def _forward_loop(args, w):
             factory.server_proto = self
             d = ep.connect(factory)
             print("DDD", d)
-            self._local_connection = yield d
+            try:
+                self._local_connection = yield d
+            except Exception as e:
+                print("BAD", e)
+                self.transport.loseConnection()
+                raise
             print("conn", self._local_connection)
             # this one doesn't have to wait for an incoming message
             self._local_connection._buffer = None
