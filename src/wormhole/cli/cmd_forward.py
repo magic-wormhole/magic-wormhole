@@ -267,6 +267,8 @@ def _forward_loop(args, w):
             print("DDD", d)
             self._local_connection = yield d
             print("conn", self._local_connection)
+            # this one doesn't have to wait for an incoming message
+            self._local_connection._buffer = None
             # sending-reply maybe should move somewhere else?
             # XXX another section like this: pack_netstring() or something
             msg = msgpack.packb({
