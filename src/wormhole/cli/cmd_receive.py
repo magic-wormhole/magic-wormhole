@@ -338,7 +338,10 @@ class Receiver:
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
-        f = tempfile.SpooledTemporaryFile()
+        # max_size here matches the magic-number in cmd_send and will
+        # use up to 10MB of memory before putting the file on disk
+        # instead.
+        f = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
         # workaround for https://bugs.python.org/issue26175 (STF doesn't
         # fully implement IOBase abstract class), which breaks the new
         # zipfile in py3.7.0 that expects .seekable
