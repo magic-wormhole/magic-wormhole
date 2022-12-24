@@ -145,7 +145,7 @@ def _forward_loop(args, w):
                     if bsize > msgsize + 2:
                         raise RuntimeError("leftover")
                     elif bsize == msgsize + 2:
-                        msg, = msgpack.unpack(self._buffer[2:2 + msgsize])
+                        msg, = msgpack.unpackb(self._buffer[2:2 + msgsize])
                         print("MSG", msg)
                         self.factory.server_proto._maybe_drain_queue()
                         if not msg.get("connected", False):
