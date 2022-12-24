@@ -167,7 +167,7 @@ def _forward_loop(args, w):
                 print("PROTO", proto)
                 proto.local = self
                 self.remote = proto
-                msg = msgpack.pack({
+                msg = msgpack.packb({
                     "local-destination": self.factory.endpoint_str,
                 })
                 prefix = struct.pack("!H", len(msg))
