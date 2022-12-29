@@ -242,6 +242,9 @@ class SubChannel(object):
     closing.upon(local_close, enter=closing, outputs=[error_closed_close])
     # the CLOSED state won't ever see messages, since we'll be deleted
 
+    # XXX meejah: actually, saw a local_close while in closed .. some
+    # shutdown case in "wormhole forward" .. ctrl-c from the "listen" side
+
     # our endpoints use these
 
     def _set_protocol(self, protocol):

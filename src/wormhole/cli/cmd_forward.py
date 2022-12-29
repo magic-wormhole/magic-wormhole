@@ -17,10 +17,11 @@ from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
-from twisted.protocols import basic
 from twisted.internet.endpoints import serverFromString, clientFromString
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet.process import ProcessWriter, ProcessReader
+from twisted.internet.stdio import StandardIO
+from twisted.protocols.basic import LineReceiver
 from twisted.python import log
 from twisted.python.failure import Failure
 from wormhole import __version__, create
@@ -60,7 +61,7 @@ def forward(args, reactor=reactor):
         _enable_dilate=True,
     )
     if args.debug_state:
-        w.debug_set_trace("send", which=" ".join(args.debug_state), file=args.stdout)
+        w.debug_set_trace("forward", which=" ".join(args.debug_state), file=args.stdout)
 
     try:
         # if we succeed, we should close and return the w.close results
@@ -89,6 +90,35 @@ def _forward_loop(args, w):
        - wait for commands (as single-line JSON messages) on stdin
        - write results to stdout (as single-line JSON messages)
        - service subchannels
+
+    The following commands are understood:
+
+    {
+        "kind": "local",
+        "endpoint": "tcp:8888",
+        "local-endpoint": "tcp:localhost:8888",
+    }
+
+    This instructs us to listen on `endpoint` (any Twisted server-type
+    endpoint string). On any connection to that listener, we open a
+    subchannel through the wormhome and send an opening message
+    (length-prefixed msgpack) like:
+
+    {
+        "local-destination": "tcp:localhost:8888",
+    }
+
+    This instructs the other end of the subchannel to open a local
+    connection to the Twisted client-type endpoint `local-destination`
+    .. after this, all traffic to either end is forwarded.
+
+    Before forwarding anything, the listening end waits for permission
+    to continue in a reply message (also length-prefixed msgpack)
+    like:
+
+    {
+        "connected": True,
+    }
     """
 
     welcome = yield w.get_welcome()
@@ -123,37 +153,26 @@ def _forward_loop(args, w):
         """
 
         def connectionMade(self):
-            print("fwd conn")
             self._buffer = b""
 
         def dataReceived(self, data):
-            print("fwd incoming {}".format(len(data)))
             if self._buffer is not None:
                 self._buffer += data
-                print(self._buffer)
                 bsize = len(self._buffer)
-                print("bsize", bsize)
                 if bsize >= 2:
                     msgsize, = struct.unpack("!H", self._buffer[:2])
-                    print("sze", msgsize)
                     if bsize > msgsize + 2:
-                        raise RuntimeError("leftover")
+                        raise RuntimeError("leftover data in first message")
                     elif bsize == msgsize + 2:
                         msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
-                        print("MSG", msg)
                         if not msg.get("connected", False):
-                            print(dir(self.transport))
                             self.transport.loseConnection()
                             raise RuntimeError("Other side failed to connect")
-                        self.factory.server_proto._maybe_drain_queue()
+                        self.factory.other_proto._maybe_drain_queue()
                         self._buffer = None
-                    else:
-                        print("need more", msgsize, bsize)
                 return
             else:
-                print("fwd {} {}".format(len(data), dir(self.factory)))
-                self.factory.server_proto.transport.write(data)
-                print(data)
+                self.factory.other_proto.transport.write(data)
 
 
     class Forwarder(Protocol):
@@ -162,50 +181,40 @@ def _forward_loop(args, w):
         """
 
         def connectionMade(self):
-            print("fwd conn")
             self._buffer = b""
 
         def dataReceived(self, data):
-            print("fwd incoming {}".format(len(data)))
             if self._buffer is not None:
                 self._buffer += data
-                print(self._buffer)
                 bsize = len(self._buffer)
-                print("bsize", bsize)
+
                 if bsize >= 2:
                     msgsize, = struct.unpack("!H", self._buffer[:2])
-                    print("sze", msgsize)
                     if bsize > msgsize + 2:
                         raise RuntimeError("leftover")
                     elif bsize == msgsize + 2:
                         msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
-                        print("MSG", msg)
-                        self.factory.server_proto._maybe_drain_queue()
+                        self.factory.other_proto._maybe_drain_queue()
                         if not msg.get("connected", False):
                             raise RuntimeError("no connection")
                         self._buffer = None
-                    else:
-                        print("need more", msgsize, bsize)
                 return
             else:
-                print("fwd {} {}".format(len(data), dir(self.factory)))
-                self.factory.server_proto.transport.write(data)
-                print(data)
+                self.factory.other_proto.transport.write(data)
 
 
     class LocalServer(Protocol):
         """
+        Listen on an endpoint. On every connection: open a subchannel,
+        follow the protocol from _forward_loop above (ultimately
+        forwarding data).
         """
 
         def connectionMade(self):
-            print("local connection")
-            print(self.factory)
-            print(self.factory.endpoint_str)
             self.queue = []
             self.remote = None
 
             def got_proto(proto):
-                print("PROTO", proto)
                 proto.local = self
                 self.remote = proto
                 msg = msgpack.packb({
@@ -213,10 +222,11 @@ def _forward_loop(args, w):
                 })
                 prefix = struct.pack("!H", len(msg))
                 proto.transport.write(prefix + msg)
-                print("WROTE", prefix + msg)
-                # MUST wait for reply first
+                # MUST wait for reply first -- queueing all messages
+                # until then
+                # XXX producer/consumer
             factory = Factory.forProtocol(ForwardConnecter)
-            factory.server_proto = self
+            factory.other_proto = self
             d = connect_ep.connect(factory)
             d.addCallback(got_proto)
 
@@ -229,24 +239,22 @@ def _forward_loop(args, w):
             while self.queue:
                 msg = self.queue.pop(0)
                 self.remote.transport.write(msg)
-                print("wrote", len(msg))
-                print(msg)
+                print("q wrote", len(msg))
             self.queue = None
 
         def connectionLost(self, reason):
             print("local connection lost")
-            print("ZZ", dir(self.remote.transport))
-            self.remote.transport.loseConnection()
+            if self.remote.transport:
+                self.remote.transport.loseConnection()
 
         def dataReceived(self, data):
-            print("local {}b".format(len(data)))
+            # XXX producer/consumer
             if self.queue is not None:
                 print("queue", len(data))
                 self.queue.append(data)
             else:
                 self.remote.transport.write(data)
                 print("wrote", len(data))
-                print(data)
 
 
     class Incoming(Protocol):
@@ -291,6 +299,7 @@ def _forward_loop(args, w):
         def connectionLost(self, reason):
             print("incoming connection lost")
             if self._local_connection and self._local_connection.transport:
+                print("doing a lose", self._local_connection)
                 self._local_connection.transport.loseConnection()
 
         def forward(self, data):
@@ -300,20 +309,20 @@ def _forward_loop(args, w):
         @inlineCallbacks
         def _establish_local_connection(self, first_msg):
             data = msgpack.unpackb(first_msg)
-            print("local con", data)
             ep = clientFromString(reactor, data["local-destination"])
-            print("ep", ep)
+            print("endpoint", data["local-destination"])
             factory = Factory.forProtocol(Forwarder)
-            factory.server_proto = self
-            d = ep.connect(factory)
-            print("DDD", d)
+            factory.other_proto = self
             try:
-                self._local_connection = yield d
+                self._local_connection = yield ep.connect(factory)
             except Exception as e:
                 print("BAD", e)
-                self.transport.loseConnection()
+                print(dir(self))
+                print(self._local_connection)
+                print(self.transport)
+                self.transport.local_close()
+                #XXXself.transport.loseConnection()
                 raise
-            print("conn", self._local_connection)
             # this one doesn't have to wait for an incoming message
             self._local_connection._buffer = None
             # sending-reply maybe should move somewhere else?
@@ -325,11 +334,10 @@ def _forward_loop(args, w):
             self.transport.write(prefix + msg)
 
         def dataReceived(self, data):
-            print("incoming {}b".format(len(data)))
+            print("incoming {}".format(len(data)))
             # XXX wait, still need to buffer? .. no, we _shouldn't_
             # get data until we've got the connection -- double-check
             if self._buffer is None:
-                print(data)
                 assert self._local_connection is not None, "expected local connection by now"
                 self.forward(data)
 
@@ -349,16 +357,6 @@ def _forward_loop(args, w):
                         )
                         self._buffer = None
 
-
-    class Outgoing(Protocol):
-        """
-        """
-        def connectionMade(self):
-            print("outgoing conn")
-
-        def dataReceived(self, data):
-            print(f"out_record: {data}")
-
     listen_ep.listen(Factory.forProtocol(Incoming))
 
     yield w.get_unverified_key()
@@ -367,27 +365,19 @@ def _forward_loop(args, w):
     if args.verify:
         raise NotImplementedError()
 
-    # arrange to read incoming commands from stdin
-    from twisted.internet.stdio import StandardIO
-    from twisted.protocols.basic import LineReceiver
-
     @inlineCallbacks
     def _local_to_remote_forward(cmd):
         """
         Listen locally, and for each local connection create an Outgoing
         subchannel which will connect on the other end.
         """
-        print("local forward", cmd)
         ep = serverFromString(reactor, cmd["endpoint"])
-        print("ep", ep)
+        print("listen endpoint", cmd["endpoint"])
         factory = Factory.forProtocol(LocalServer)
         factory.endpoint_str = cmd["local-endpoint"]
         proto = yield ep.listen(factory)
-        print(f"PROTO: {proto}")
-        ##proto.transport.write(b'{"kind": "dummy"}\n')
 
     def process_command(cmd):
-        print("cmd", cmd)
         if "kind" not in cmd:
             raise ValueError("no 'kind' in command")
 
@@ -395,12 +385,16 @@ def _forward_loop(args, w):
             # listens locally, conencts to other side
             "local": _local_to_remote_forward,
 
-            # asks the other side to listen, connects to us
+            # maybe?: asks the other side to listen, connects to us
             # "remote": _remote_to_local_forward,
         }[cmd["kind"]](cmd)
 
     class CommandDispatch(LineReceiver):
+        """
+        Wait for incoming commands (as lines of JSON) and dispatch them.
+        """
         delimiter = b"\n"
+
         def connectionMade(self):
             print(json.dumps({
                 "kind": "connected",
@@ -410,12 +404,11 @@ def _forward_loop(args, w):
             try:
                 cmd = json.loads(line)
                 d = process_command(cmd)
-                print("ZZZ", d)
                 d.addErrback(print)
                 return d
             except Exception as e:
                 print(f"{line.strip()}: failed: {e}")
 
-
+    # arrange to read incoming commands from stdin
     x = StandardIO(CommandDispatch())
     yield Deferred()
