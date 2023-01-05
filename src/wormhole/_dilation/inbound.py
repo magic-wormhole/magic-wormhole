@@ -100,6 +100,7 @@ class Inbound(object):
 
     def subchannel_closed(self, scid, sc):
         # connectionLost has just been signalled
+        print("sub.close", scid)
         assert self._open_subchannels[scid] is sc
         del self._open_subchannels[scid]
 

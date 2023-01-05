@@ -272,6 +272,7 @@ class Manager(object):
         # connectionLost to the Protocol, except for the control channel,
         # which might get connectionLost later after they use ep.connect.
         # TODO: is this inversion a problem?
+        print("manager.subchannel_closed", scid)
         self._inbound.subchannel_closed(scid, sc)
         self._outbound.subchannel_closed(scid, sc)
 
@@ -290,6 +291,7 @@ class Manager(object):
         pass
 
     def connector_connection_lost(self):
+        print("connector_connection_lost")
         self._stop_using_connection()
         if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine
