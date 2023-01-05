@@ -225,7 +225,7 @@ class LocalServer(Protocol):
         # -- handle in Dilation code?
 
         # XXX producer/consumer
-        max_noise = 65536
+        max_noise = 65535
         while len(data) > max_noise:
             d = data[:max_noise]
             data = data[max_noise:]
