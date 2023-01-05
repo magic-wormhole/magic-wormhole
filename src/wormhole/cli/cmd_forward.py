@@ -82,6 +82,217 @@ def forward(args, reactor=reactor):
         returnValue(f)
 
 
+class ForwardConnecter(Protocol):
+    """
+    Forwards data to the `.other_protocol` in the Factory only after
+    awaiting a single incoming length-prefixed msgpack message.
+
+    This message tells us when the other side has successfully
+    connected (or not).
+    """
+
+    def connectionMade(self):
+        self._buffer = b""
+
+    def dataReceived(self, data):
+        if self._buffer is not None:
+            self._buffer += data
+            bsize = len(self._buffer)
+            if bsize >= 2:
+                msgsize, = struct.unpack("!H", self._buffer[:2])
+                if bsize > msgsize + 2:
+                    raise RuntimeError("leftover data in first message")
+                elif bsize == msgsize + 2:
+                    msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
+                    if not msg.get("connected", False):
+                        self.transport.loseConnection()
+                        raise RuntimeError("Other side failed to connect")
+                    self.factory.other_proto._maybe_drain_queue()
+                    self._buffer = None
+            return
+        else:
+            self.factory.other_proto.transport.write(data)
+
+
+class Forwarder(Protocol):
+    """
+    Forwards data to the `.other_protocol` in the Factory.
+    """
+
+    def connectionMade(self):
+        self._buffer = b""
+
+    def dataReceived(self, data):
+        if self._buffer is not None:
+            self._buffer += data
+            bsize = len(self._buffer)
+
+            if bsize >= 2:
+                msgsize, = struct.unpack("!H", self._buffer[:2])
+                if bsize > msgsize + 2:
+                    raise RuntimeError("leftover")
+                elif bsize == msgsize + 2:
+                    msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
+                    self.factory.other_proto._maybe_drain_queue()
+                    if not msg.get("connected", False):
+                        raise RuntimeError("no connection")
+                    self._buffer = None
+            return
+        else:
+            self.factory.other_proto.transport.write(data)
+
+
+class LocalServer(Protocol):
+    """
+    Listen on an endpoint. On every connection: open a subchannel,
+    follow the protocol from _forward_loop above (ultimately
+    forwarding data).
+    """
+
+    def connectionMade(self):
+        self.queue = []
+        self.remote = None
+
+        def got_proto(proto):
+            proto.local = self
+            self.remote = proto
+            msg = msgpack.packb({
+                "local-destination": self.factory.endpoint_str,
+            })
+            prefix = struct.pack("!H", len(msg))
+            proto.transport.write(prefix + msg)
+            # MUST wait for reply first -- queueing all messages
+            # until then
+            # XXX producer/consumer
+        factory = Factory.forProtocol(ForwardConnecter)
+        factory.other_proto = self
+        d = connect_ep.connect(factory)
+        d.addCallback(got_proto)
+
+        def err(f):
+            print("BADBAD", f)
+        d.addErrback(err)
+        return d
+
+    def _maybe_drain_queue(self):
+        while self.queue:
+            msg = self.queue.pop(0)
+            self.remote.transport.write(msg)
+            print("q wrote", len(msg))
+        self.queue = None
+
+    def connectionLost(self, reason):
+        print("local connection lost")
+        if self.remote.transport:
+            self.remote.transport.loseConnection()
+
+    def dataReceived(self, data):
+        # XXX producer/consumer
+        if self.queue is not None:
+            print("queue", len(data))
+            self.queue.append(data)
+        else:
+            self.remote.transport.write(data)
+            print("wrote", len(data))
+
+
+class Incoming(Protocol):
+    """
+    Handle an incoming Dilation subchannel. This will be from a
+    listener on the other end of the wormhole.
+
+    There is an opening message, and then we forward bytes.
+
+    The opening message is a length-prefixed blob; the first 2
+    bytes of the stream indicate the length (an unsigned short in
+    network byte order).
+
+    The message itself is msgpack-encoded.
+
+    A single reply is produced, following the same format: 2-byte
+    length prefix followed by a msgpack-encoded payload.
+
+    The opening message contains a dict like::
+
+        {
+            "local-desination": "tcp:localhost:1234",
+        }
+
+    The "forwarding" side (i.e the one that opened the subchannel)
+    MUST NOT send any data except the opening message until it
+    receives a reply from this side. This side (the connecting
+    side) may deny the connection for any reason (e.g. it might
+    not even try, if policy says not to).
+
+    XXX want some opt-in / permission on this side, probably? (for
+    now: anything goes)
+    """
+
+    def connectionMade(self):
+        print("incoming connection")
+        # XXX first message should tell us where to connect, locally
+        # (want some kind of opt-in on this side, probably)
+        self._buffer = b""
+        self._local_connection = None
+
+    def connectionLost(self, reason):
+        print("incoming connection lost")
+        if self._local_connection and self._local_connection.transport:
+            print("doing a lose", self._local_connection)
+            self._local_connection.transport.loseConnection()
+
+    def forward(self, data):
+        print("forward {}".format(len(data)))
+        self._local_connection.transport.write(data)
+
+    @inlineCallbacks
+    def _establish_local_connection(self, first_msg):
+        data = msgpack.unpackb(first_msg)
+        ep = clientFromString(reactor, data["local-destination"])
+        print("endpoint", data["local-destination"])
+        factory = Factory.forProtocol(Forwarder)
+        factory.other_proto = self
+        try:
+            self._local_connection = yield ep.connect(factory)
+        except Exception as e:
+            print("BAD", e)
+            self.transport.loseConnection()
+            return
+        # this one doesn't have to wait for an incoming message
+        self._local_connection._buffer = None
+        # sending-reply maybe should move somewhere else?
+        # XXX another section like this: pack_netstring() or something
+        msg = msgpack.packb({
+            "connected": True,
+        })
+        prefix = struct.pack("!H", len(msg))
+        self.transport.write(prefix + msg)
+
+    def dataReceived(self, data):
+        print("incoming {}".format(len(data)))
+        # XXX wait, still need to buffer? .. no, we _shouldn't_
+        # get data until we've got the connection -- double-check
+        if self._buffer is None:
+            assert self._local_connection is not None, "expected local connection by now"
+            self.forward(data)
+
+        else:
+            self._buffer += data
+            bsize = len(self._buffer)
+            if bsize >= 2:
+                expected_size, = struct.unpack("!H", self._buffer[:2])
+                if bsize >= expected_size + 2:
+                    first_msg = self._buffer[2:2 + expected_size]
+                    # there should be no "leftover" data
+                    if bsize > 2 + expected_size:
+                        raise RuntimeError("protocol error: more than opening message sent")
+
+                    d = self._establish_local_connection(
+                        first_msg,
+                    )
+                    self._buffer = None
+
+
 @inlineCallbacks
 def _forward_loop(args, w):
     """
@@ -142,216 +353,6 @@ def _forward_loop(args, w):
     )
 
     control_ep, connect_ep, listen_ep = w.dilate()
-
-    class ForwardConnecter(Protocol):
-        """
-        Forwards data to the `.other_protocol` in the Factory only after
-        awaiting a single incoming length-prefixed msgpack message.
-
-        This message tells us when the other side has successfully
-        connected (or not).
-        """
-
-        def connectionMade(self):
-            self._buffer = b""
-
-        def dataReceived(self, data):
-            if self._buffer is not None:
-                self._buffer += data
-                bsize = len(self._buffer)
-                if bsize >= 2:
-                    msgsize, = struct.unpack("!H", self._buffer[:2])
-                    if bsize > msgsize + 2:
-                        raise RuntimeError("leftover data in first message")
-                    elif bsize == msgsize + 2:
-                        msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
-                        if not msg.get("connected", False):
-                            self.transport.loseConnection()
-                            raise RuntimeError("Other side failed to connect")
-                        self.factory.other_proto._maybe_drain_queue()
-                        self._buffer = None
-                return
-            else:
-                self.factory.other_proto.transport.write(data)
-
-
-    class Forwarder(Protocol):
-        """
-        Forwards data to the `.other_protocol` in the Factory.
-        """
-
-        def connectionMade(self):
-            self._buffer = b""
-
-        def dataReceived(self, data):
-            if self._buffer is not None:
-                self._buffer += data
-                bsize = len(self._buffer)
-
-                if bsize >= 2:
-                    msgsize, = struct.unpack("!H", self._buffer[:2])
-                    if bsize > msgsize + 2:
-                        raise RuntimeError("leftover")
-                    elif bsize == msgsize + 2:
-                        msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
-                        self.factory.other_proto._maybe_drain_queue()
-                        if not msg.get("connected", False):
-                            raise RuntimeError("no connection")
-                        self._buffer = None
-                return
-            else:
-                self.factory.other_proto.transport.write(data)
-
-
-    class LocalServer(Protocol):
-        """
-        Listen on an endpoint. On every connection: open a subchannel,
-        follow the protocol from _forward_loop above (ultimately
-        forwarding data).
-        """
-
-        def connectionMade(self):
-            self.queue = []
-            self.remote = None
-
-            def got_proto(proto):
-                proto.local = self
-                self.remote = proto
-                msg = msgpack.packb({
-                    "local-destination": self.factory.endpoint_str,
-                })
-                prefix = struct.pack("!H", len(msg))
-                proto.transport.write(prefix + msg)
-                # MUST wait for reply first -- queueing all messages
-                # until then
-                # XXX producer/consumer
-            factory = Factory.forProtocol(ForwardConnecter)
-            factory.other_proto = self
-            d = connect_ep.connect(factory)
-            d.addCallback(got_proto)
-
-            def err(f):
-                print("BADBAD", f)
-            d.addErrback(err)
-            return d
-
-        def _maybe_drain_queue(self):
-            while self.queue:
-                msg = self.queue.pop(0)
-                self.remote.transport.write(msg)
-                print("q wrote", len(msg))
-            self.queue = None
-
-        def connectionLost(self, reason):
-            print("local connection lost")
-            if self.remote.transport:
-                self.remote.transport.loseConnection()
-
-        def dataReceived(self, data):
-            # XXX producer/consumer
-            if self.queue is not None:
-                print("queue", len(data))
-                self.queue.append(data)
-            else:
-                self.remote.transport.write(data)
-                print("wrote", len(data))
-
-
-    class Incoming(Protocol):
-        """
-        Handle an incoming Dilation subchannel. This will be from a
-        listener on the other end of the wormhole.
-
-        There is an opening message, and then we forward bytes.
-
-        The opening message is a length-prefixed blob; the first 2
-        bytes of the stream indicate the length (an unsigned short in
-        network byte order).
-
-        The message itself is msgpack-encoded.
-
-        A single reply is produced, following the same format: 2-byte
-        length prefix followed by a msgpack-encoded payload.
-
-        The opening message contains a dict like::
-
-            {
-                "local-desination": "tcp:localhost:1234",
-            }
-
-        The "forwarding" side (i.e the one that opened the subchannel)
-        MUST NOT send any data except the opening message until it
-        receives a reply from this side. This side (the connecting
-        side) may deny the connection for any reason (e.g. it might
-        not even try, if policy says not to).
-
-        XXX want some opt-in / permission on this side, probably? (for
-        now: anything goes)
-        """
-
-        def connectionMade(self):
-            print("incoming connection")
-            # XXX first message should tell us where to connect, locally
-            # (want some kind of opt-in on this side, probably)
-            self._buffer = b""
-            self._local_connection = None
-
-        def connectionLost(self, reason):
-            print("incoming connection lost")
-            if self._local_connection and self._local_connection.transport:
-                print("doing a lose", self._local_connection)
-                self._local_connection.transport.loseConnection()
-
-        def forward(self, data):
-            print("forward {}".format(len(data)))
-            self._local_connection.transport.write(data)
-
-        @inlineCallbacks
-        def _establish_local_connection(self, first_msg):
-            data = msgpack.unpackb(first_msg)
-            ep = clientFromString(reactor, data["local-destination"])
-            print("endpoint", data["local-destination"])
-            factory = Factory.forProtocol(Forwarder)
-            factory.other_proto = self
-            try:
-                self._local_connection = yield ep.connect(factory)
-            except Exception as e:
-                print("BAD", e)
-                self.transport.loseConnection()
-                return
-            # this one doesn't have to wait for an incoming message
-            self._local_connection._buffer = None
-            # sending-reply maybe should move somewhere else?
-            # XXX another section like this: pack_netstring() or something
-            msg = msgpack.packb({
-                "connected": True,
-            })
-            prefix = struct.pack("!H", len(msg))
-            self.transport.write(prefix + msg)
-
-        def dataReceived(self, data):
-            print("incoming {}".format(len(data)))
-            # XXX wait, still need to buffer? .. no, we _shouldn't_
-            # get data until we've got the connection -- double-check
-            if self._buffer is None:
-                assert self._local_connection is not None, "expected local connection by now"
-                self.forward(data)
-
-            else:
-                self._buffer += data
-                bsize = len(self._buffer)
-                if bsize >= 2:
-                    expected_size, = struct.unpack("!H", self._buffer[:2])
-                    if bsize >= expected_size + 2:
-                        first_msg = self._buffer[2:2 + expected_size]
-                        # there should be no "leftover" data
-                        if bsize > 2 + expected_size:
-                            raise RuntimeError("protocol error: more than opening message sent")
-
-                        d = self._establish_local_connection(
-                            first_msg,
-                        )
-                        self._buffer = None
 
     listen_ep.listen(Factory.forProtocol(Incoming))
 
