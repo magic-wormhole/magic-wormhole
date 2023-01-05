@@ -383,6 +383,7 @@ def _forward_loop(args, w):
         print("listen endpoint", cmd["endpoint"])
         factory = Factory.forProtocol(LocalServer)
         factory.endpoint_str = cmd["local-endpoint"]
+        factory.connect_ep = connect_ep
         proto = yield ep.listen(factory)
 
     def process_command(cmd):
