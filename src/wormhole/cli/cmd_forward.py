@@ -289,6 +289,7 @@ class Incoming(Protocol):
             self._local_connection.transport.loseConnection()
 
     def forward(self, data):
+        print("FORWARD", type(data), len(data))
         print(json.dumps({
             "kind": "forward-bytes",
             "id": self._conn_id,
