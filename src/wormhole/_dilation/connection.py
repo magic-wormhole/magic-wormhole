@@ -455,6 +455,7 @@ class _Record(object):
 
     def send_record(self, r):
         message = encode_record(r)
+        print("MSG", len(message), type(message))
         frame = self._noise.encrypt(message)
         self._framer.send_frame(frame)
 
