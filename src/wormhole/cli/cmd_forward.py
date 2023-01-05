@@ -175,7 +175,7 @@ class LocalServer(Protocol):
             # XXX needs producer/consumer
         factory = Factory.forProtocol(ForwardConnecter)
         factory.other_proto = self
-        d = connect_ep.connect(factory)
+        d = self.factory.connect_ep.connect(factory)
         d.addCallback(got_proto)
 
         def err(f):
@@ -363,7 +363,9 @@ def _forward_loop(args, w):
 
     control_ep, connect_ep, listen_ep = w.dilate()
 
-    listen_ep.listen(Factory.forProtocol(Incoming))
+    in_factory = Factory.forProtocol(Incoming)
+    in_factory.connect_ep = connect_ep
+    listen_ep.listen(in_factory)
 
     yield w.get_unverified_key()
     verifier_bytes = yield w.get_verifier()  # might WrongPasswordError
