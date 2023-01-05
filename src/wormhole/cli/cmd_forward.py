@@ -117,6 +117,8 @@ class ForwardConnecter(Protocol):
 
     def connectionLost(self, reason):
         print("ForwardConnecter lost", reason)
+        if self.factory.other_proto:
+            self.factory.other_proto.transport.loseConnection()
 
 
 class Forwarder(Protocol):
