@@ -317,7 +317,7 @@ def help(context, **kwargs):
 )
 @click.pass_obj
 def forward(cfg, **kwargs):
-    """Forward TCP over Dilation subchannels"""
+    """EXPERIMENTAL: Forward TCP over Dilation subchannels"""
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_forward"):
