@@ -10,6 +10,7 @@ import stat
 import struct
 import tempfile
 import zipfile
+from functools import partial
 
 import six
 import msgpack
@@ -33,6 +34,19 @@ from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/forward"
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
+
+
+def _sequential_id():
+    """
+    Yield a stream of IDs, starting at 1
+    """
+    next_id = 0
+    while True:
+        next_id += 1
+        yield next_id
+
+
+allocate_connection_id = partial(next, _sequential_id())
 
 
 @inlineCallbacks
@@ -116,7 +130,7 @@ class ForwardConnecter(Protocol):
             self.factory.other_proto.transport.write(data)
 
     def connectionLost(self, reason):
-        print("ForwardConnecter lost", reason)
+        # print("ForwardConnecter lost", reason)
         if self.factory.other_proto:
             self.factory.other_proto.transport.loseConnection()
 
@@ -150,8 +164,8 @@ class Forwarder(Protocol):
             self.factory.other_proto.transport.write(data)
 
     def connectionLost(self, reason):
-        print("Forwarder lost", reason)
-
+        if self.factory.other_proto:
+            self.factory.other_proto.transport.loseConnection()
 
 class LocalServer(Protocol):
     """
@@ -189,22 +203,20 @@ class LocalServer(Protocol):
         while self.queue:
             msg = self.queue.pop(0)
             self.remote.transport.write(msg)
-            print("q wrote", len(msg))
+            # print("q wrote", len(msg))
         self.queue = None
 
     def connectionLost(self, reason):
-        print("local connection lost")
-#        if self.remote.transport:
-#            self.remote.transport.loseConnection()
+        pass # print("local connection lost")
 
     def dataReceived(self, data):
         # XXX producer/consumer
         if self.queue is not None:
-            print("queue", len(data))
+            # print("queue", len(data))
             self.queue.append(data)
         else:
             self.remote.transport.write(data)
-            print("wrote", len(data))
+            # print("wrote", len(data))
 
 
 class Incoming(Protocol):
@@ -240,20 +252,31 @@ class Incoming(Protocol):
     """
 
     def connectionMade(self):
-        print("incoming connection")
+        self._conn_id = allocate_connection_id()
+        print(json.dumps({
+            "kind": "incoming-connect",
+            "id": self._conn_id,
+        }))
         # XXX first message should tell us where to connect, locally
         # (want some kind of opt-in on this side, probably)
         self._buffer = b""
         self._local_connection = None
 
     def connectionLost(self, reason):
-        print("incoming connection lost")
+        print(json.dumps({
+            "kind": "incoming-lost",
+            "id": self._conn_id,
+        }))
         if self._local_connection and self._local_connection.transport:
-            print("doing a lose", self._local_connection)
+            # print("doing a lose", self._local_connection)
             self._local_connection.transport.loseConnection()
 
     def forward(self, data):
-        print("forward {}".format(len(data)))
+        print(json.dumps({
+            "kind": "forward-bytes",
+            "id": self._conn_id,
+            "bytes": len(data),
+        }))
         self._local_connection.transport.write(data)
 
     @inlineCallbacks
