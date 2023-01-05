@@ -317,12 +317,8 @@ def _forward_loop(args, w):
                 self._local_connection = yield ep.connect(factory)
             except Exception as e:
                 print("BAD", e)
-                print(dir(self))
-                print(self._local_connection)
-                print(self.transport)
-                self.transport.local_close()
-                #XXXself.transport.loseConnection()
-                raise
+                self.transport.loseConnection()
+                return
             # this one doesn't have to wait for an incoming message
             self._local_connection._buffer = None
             # sending-reply maybe should move somewhere else?
