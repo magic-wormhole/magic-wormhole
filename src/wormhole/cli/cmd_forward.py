@@ -115,6 +115,9 @@ class ForwardConnecter(Protocol):
         else:
             self.factory.other_proto.transport.write(data)
 
+    def connectionLost(self, reason):
+        print("ForwardConnecter lost", reason)
+
 
 class Forwarder(Protocol):
     """
@@ -143,6 +146,9 @@ class Forwarder(Protocol):
             return
         else:
             self.factory.other_proto.transport.write(data)
+
+    def connectionLost(self, reason):
+        print("Forwarder lost", reason)
 
 
 class LocalServer(Protocol):
