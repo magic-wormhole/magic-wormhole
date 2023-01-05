@@ -177,6 +177,7 @@ class LocalServer(Protocol):
     def connectionMade(self):
         self.queue = []
         self.remote = None
+        self._conn_id = allocate_connection_id()
 
         def got_proto(proto):
             proto.local = self
@@ -186,6 +187,12 @@ class LocalServer(Protocol):
             })
             prefix = struct.pack("!H", len(msg))
             proto.transport.write(prefix + msg)
+
+            print(json.dumps({
+                "kind": "local-connection",
+                "id": self._conn_id,
+            }))
+
             # MUST wait for reply first -- queueing all messages
             # until then
             # XXX needs producer/consumer
@@ -195,7 +202,11 @@ class LocalServer(Protocol):
         d.addCallback(got_proto)
 
         def err(f):
-            print("BADBAD", f)
+            print(json.dumps({
+                "kind": "error",
+                "id": self._conn_id,
+                "message": str(f.value),
+            }))
         d.addErrback(err)
         return d
 
@@ -203,7 +214,6 @@ class LocalServer(Protocol):
         while self.queue:
             msg = self.queue.pop(0)
             self.remote.transport.write(msg)
-            # print("q wrote", len(msg))
         self.queue = None
 
     def connectionLost(self, reason):
@@ -212,11 +222,9 @@ class LocalServer(Protocol):
     def dataReceived(self, data):
         # XXX producer/consumer
         if self.queue is not None:
-            # print("queue", len(data))
             self.queue.append(data)
         else:
             self.remote.transport.write(data)
-            # print("wrote", len(data))
 
 
 class Incoming(Protocol):
@@ -268,7 +276,6 @@ class Incoming(Protocol):
             "id": self._conn_id,
         }))
         if self._local_connection and self._local_connection.transport:
-            # print("doing a lose", self._local_connection)
             self._local_connection.transport.loseConnection()
 
     def forward(self, data):
@@ -283,13 +290,21 @@ class Incoming(Protocol):
     def _establish_local_connection(self, first_msg):
         data = msgpack.unpackb(first_msg)
         ep = clientFromString(reactor, data["local-destination"])
-        print("endpoint", data["local-destination"])
+        print(json.dumps({
+            "kind": "connect-local",
+            "id": self._conn_id,
+            "endpoint": data["local-destination"],
+        }))
         factory = Factory.forProtocol(Forwarder)
         factory.other_proto = self
         try:
             self._local_connection = yield ep.connect(factory)
         except Exception as e:
-            print("BAD", e)
+            print(json.dumps({
+                "kind": "error",
+                "id": self._conn_id,
+                "message": str(e),
+            }))
             self.transport.loseConnection()
             return
         # this one doesn't have to wait for an incoming message
@@ -303,9 +318,12 @@ class Incoming(Protocol):
         self.transport.write(prefix + msg)
 
     def dataReceived(self, data):
-        print("incoming {}".format(len(data)))
-        # XXX wait, still need to buffer? .. no, we _shouldn't_
-        # get data until we've got the connection -- double-check
+        # we _should_ get only enough data to comprise the first
+        # message, then we send a reply, and only then should the
+        # other side send us more data ... XXX so we need to produce
+        # an error if we get any data between "we got the message" and
+        # our reply is sent.
+
         if self._buffer is None:
             assert self._local_connection is not None, "expected local connection by now"
             self.forward(data)
@@ -405,11 +423,14 @@ def _forward_loop(args, w):
         subchannel which will connect on the other end.
         """
         ep = serverFromString(reactor, cmd["endpoint"])
-        print("listen endpoint", cmd["endpoint"])
         factory = Factory.forProtocol(LocalServer)
         factory.endpoint_str = cmd["local-endpoint"]
         factory.connect_ep = connect_ep
         proto = yield ep.listen(factory)
+        print(json.dumps({
+            "kind": "listening",
+            "endpoint": cmd["local-endpoint"],
+        }))
 
     def process_command(cmd):
         if "kind" not in cmd:
