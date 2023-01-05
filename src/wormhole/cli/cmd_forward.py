@@ -226,7 +226,7 @@ class LocalServer(Protocol):
 
         # XXX producer/consumer
         max_noise = 65535
-        while len(data) > max_noise:
+        while len(data):
             d = data[:max_noise]
             data = data[max_noise:]
 
