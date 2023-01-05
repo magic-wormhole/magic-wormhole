@@ -294,7 +294,13 @@ class Incoming(Protocol):
             "id": self._conn_id,
             "bytes": len(data),
         }))
-        self._local_connection.transport.write(data)
+
+        # XXX handle in Dilation? or something?
+        max_noise = 65535
+        while len(data):
+            d = data[:max_noise]
+            data = data[max_noise:]
+            self._local_connection.transport.write(d)
 
     @inlineCallbacks
     def _establish_local_connection(self, first_msg):
