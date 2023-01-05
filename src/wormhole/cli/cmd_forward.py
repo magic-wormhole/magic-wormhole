@@ -221,6 +221,7 @@ class LocalServer(Protocol):
         pass # print("local connection lost")
 
     def dataReceived(self, data):
+        print("DING", type(data), len(data))
         # XXX FIXME if len(data) >= 65535 must split "because noise"
         # -- handle in Dilation code?
 
