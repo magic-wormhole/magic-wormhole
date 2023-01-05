@@ -191,6 +191,7 @@ class LocalServer(Protocol):
             print(json.dumps({
                 "kind": "local-connection",
                 "id": self._conn_id,
+                "remote": str(proto),
             }))
 
             # MUST wait for reply first -- queueing all messages

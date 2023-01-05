@@ -274,7 +274,6 @@ class Outbound(object):
         self._connection = None
         self._queued_unsent.clear()
         self.pauseProducing()
-        print("stop_using_connection")
         # TODO: I expect this will call pauseProducing twice: the first time
         # when we get stopProducing (since we're registere with the
         # underlying connection as the producer), and again when the manager
