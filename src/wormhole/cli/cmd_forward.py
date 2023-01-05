@@ -161,7 +161,7 @@ class Forwarder(Protocol):
                     self._buffer = None
             return
         else:
-            max_noise = 65535
+            max_noise = 65534
             while len(data):
                 d = data[:max_noise]
                 data = data[max_noise:]
@@ -230,7 +230,7 @@ class LocalServer(Protocol):
         # -- handle in Dilation code?
 
         # XXX producer/consumer
-        max_noise = 65535
+        max_noise = 65534
         while len(data):
             d = data[:max_noise]
             data = data[max_noise:]
@@ -301,7 +301,7 @@ class Incoming(Protocol):
         }))
 
         # XXX handle in Dilation? or something?
-        max_noise = 65535
+        max_noise = 65534
         while len(data):
             d = data[:max_noise]
             data = data[max_noise:]
