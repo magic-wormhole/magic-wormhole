@@ -161,7 +161,11 @@ class Forwarder(Protocol):
                     self._buffer = None
             return
         else:
-            self.factory.other_proto.transport.write(data)
+            max_noise = 65535
+            while len(data):
+                d = data[:max_noise]
+                data = data[max_noise:]
+                self.factory.other_proto.transport.write(d)
 
     def connectionLost(self, reason):
         if self.factory.other_proto:
