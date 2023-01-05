@@ -194,8 +194,8 @@ class LocalServer(Protocol):
 
     def connectionLost(self, reason):
         print("local connection lost")
-        if self.remote.transport:
-            self.remote.transport.loseConnection()
+#        if self.remote.transport:
+#            self.remote.transport.loseConnection()
 
     def dataReceived(self, data):
         # XXX producer/consumer
