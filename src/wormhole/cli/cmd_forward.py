@@ -84,6 +84,8 @@ def forward(args, reactor=reactor):
 
 class ForwardConnecter(Protocol):
     """
+    Incoming connections from the other side produce this protocol.
+
     Forwards data to the `.other_protocol` in the Factory only after
     awaiting a single incoming length-prefixed msgpack message.
 
@@ -133,9 +135,10 @@ class Forwarder(Protocol):
                     raise RuntimeError("leftover")
                 elif bsize == msgsize + 2:
                     msg = msgpack.unpackb(self._buffer[2:2 + msgsize])
-                    self.factory.other_proto._maybe_drain_queue()
                     if not msg.get("connected", False):
+                        self.transport.loseConnection()
                         raise RuntimeError("no connection")
+                    self.factory.other_proto._maybe_drain_queue()
                     self._buffer = None
             return
         else:
@@ -163,7 +166,7 @@ class LocalServer(Protocol):
             proto.transport.write(prefix + msg)
             # MUST wait for reply first -- queueing all messages
             # until then
-            # XXX producer/consumer
+            # XXX needs producer/consumer
         factory = Factory.forProtocol(ForwardConnecter)
         factory.other_proto = self
         d = connect_ep.connect(factory)
