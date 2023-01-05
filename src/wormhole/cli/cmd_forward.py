@@ -191,7 +191,7 @@ class LocalServer(Protocol):
             print(json.dumps({
                 "kind": "local-connection",
                 "id": self._conn_id,
-                "remote": str(proto),
+                "remote": str(proto.transport) + str(dir(proto.transport)),
             }))
 
             # MUST wait for reply first -- queueing all messages
@@ -221,11 +221,19 @@ class LocalServer(Protocol):
         pass # print("local connection lost")
 
     def dataReceived(self, data):
+        # XXX FIXME if len(data) >= 65535 must split "because noise"
+        # -- handle in Dilation code?
+
         # XXX producer/consumer
-        if self.queue is not None:
-            self.queue.append(data)
-        else:
-            self.remote.transport.write(data)
+        max_noise = 65536
+        while len(data) > max_noise:
+            d = data[:max_noise]
+            data = data[max_noise:]
+
+            if self.queue is not None:
+                self.queue.append(d)
+            else:
+                self.remote.transport.write(d)
 
 
 class Incoming(Protocol):
