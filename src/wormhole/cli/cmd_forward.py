@@ -198,9 +198,9 @@ class LocalServer(Protocol):
                 "remote": str(proto.transport) + str(dir(proto.transport)),
             }))
 
-            # MUST wait for reply first -- queueing all messages
-            # until then
-            # XXX needs producer/consumer
+            # MUST wait for reply first -- queueing all data until
+            # then
+            self.transport.stopProducing()
         factory = Factory.forProtocol(ForwardConnecter)
         factory.other_proto = self
         d = self.factory.connect_ep.connect(factory)
