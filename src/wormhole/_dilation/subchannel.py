@@ -297,6 +297,7 @@ class SubChannel(object):
 
     # IProducer: throttle inbound data (wormhole "up" to local app's Protocol)
     def stopProducing(self):
+        print("subchannel stop producing")
         self._manager.subchannel_stopProducing(self)
 
     def pauseProducing(self):
