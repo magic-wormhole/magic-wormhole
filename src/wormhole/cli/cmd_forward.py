@@ -123,6 +123,7 @@ class ForwardConnecter(Protocol):
                     if not msg.get("connected", False):
                         self.transport.loseConnection()
                         raise RuntimeError("Other side failed to connect")
+                    self.factor.other_proto.transport.resumeProducing()
                     self.factory.other_proto._maybe_drain_queue()
                     self._buffer = None
             return
