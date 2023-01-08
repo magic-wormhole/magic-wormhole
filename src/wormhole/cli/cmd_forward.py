@@ -123,8 +123,8 @@ class ForwardConnecter(Protocol):
                     if not msg.get("connected", False):
                         self.transport.loseConnection()
                         raise RuntimeError("Other side failed to connect")
-                    print("resume", self.factory.other_proto.transport)
-                    self.factory.other_proto.transport.resumeProducing()
+                    #print("resume", self.factory.other_proto.transport)
+                    #self.factory.other_proto.transport.resumeProducing()
                     self.factory.other_proto._maybe_drain_queue()
                     self._buffer = None
             return
@@ -201,8 +201,9 @@ class LocalServer(Protocol):
 
             # MUST wait for reply first -- queueing all data until
             # then
-            print("stop", self.transport)
-            self.transport.stopProducing()
+            # XXX this seems to disconnect the client?
+            #print("stop", self.transport)
+            #self.transport.stopProducing()
         factory = Factory.forProtocol(ForwardConnecter)
         factory.other_proto = self
         d = self.factory.connect_ep.connect(factory)
