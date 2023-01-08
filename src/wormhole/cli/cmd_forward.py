@@ -131,7 +131,6 @@ class ForwardConnecter(Protocol):
             self.factory.other_proto.transport.write(data)
 
     def connectionLost(self, reason):
-        # print("ForwardConnecter lost", reason)
         if self.factory.other_proto:
             self.factory.other_proto.transport.loseConnection()
 
@@ -201,6 +200,8 @@ class LocalServer(Protocol):
             # MUST wait for reply first -- queueing all data until
             # then
             self.transport.pauseProducing()
+
+        # XXX do we need registerProducer somewhere here?
         factory = Factory.forProtocol(ForwardConnecter)
         factory.other_proto = self
         d = self.factory.connect_ep.connect(factory)
@@ -225,11 +226,9 @@ class LocalServer(Protocol):
         pass # print("local connection lost")
 
     def dataReceived(self, data):
-        print("DING", type(data), len(data))
         # XXX FIXME if len(data) >= 65535 must split "because noise"
         # -- handle in Dilation code?
 
-        # XXX producer/consumer
         max_noise = 65000
         while len(data):
             d = data[:max_noise]
@@ -293,7 +292,6 @@ class Incoming(Protocol):
             self._local_connection.transport.loseConnection()
 
     def forward(self, data):
-        print("FORWARD", type(data), len(data))
         print(json.dumps({
             "kind": "forward-bytes",
             "id": self._conn_id,
