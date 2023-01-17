@@ -488,6 +488,7 @@ def _forward_loop(args, w):
             "listen-endpoint": cmd["remote-endpoint"],
             "connect-endpoint": cmd["local-endpoint"],
         }).encode("utf8")
+        print("remote to local")
 
         class RemoteForwardRequest(Protocol):
             """
