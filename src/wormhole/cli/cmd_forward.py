@@ -474,8 +474,6 @@ def _forward_loop(args, w):
             "endpoint": cmd["local-endpoint"],
         }))
 
-
-    @inlineCallbacks
     def _remote_to_local_forward(cmd):
         """
         Ask the remote side to listen on a port, forwarding back here
