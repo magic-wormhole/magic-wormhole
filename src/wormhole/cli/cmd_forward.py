@@ -17,7 +17,7 @@ import msgpack
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred, succeed
 from twisted.internet.endpoints import serverFromString, clientFromString
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet.process import ProcessWriter, ProcessReader
@@ -431,9 +431,9 @@ def _forward_loop(args, w):
     control_ep, connect_ep, listen_ep = w.dilate()
     print("control", control_ep)
 
-    class IncomingCommand(Protocol):
+    class Commands(Protocol):
         """
-        Forwards data to the `.other_protocol` in the Factory.
+        Listen for (and send) commands over the command subchannel
         """
 
         def connectionMade(self):
@@ -445,7 +445,7 @@ def _forward_loop(args, w):
         def connectionLost(self, reason):
             print("command connectionLost", reason)
 
-    control_proto = yield control_ep.connect(Factory.forProtocol(IncomingCommand))
+    control_proto = yield control_ep.connect(Factory.forProtocol(Commands))
     print("ZZZZ", control_proto)
 
     in_factory = Factory.forProtocol(Incoming)
@@ -488,6 +488,7 @@ def _forward_loop(args, w):
         # XXX need framing!
         control_proto.transport.write(msg)
         print("wrote command")
+        return succeed(None)
 
     def process_command(cmd):
         if "kind" not in cmd:
