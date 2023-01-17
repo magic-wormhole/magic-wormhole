@@ -445,9 +445,8 @@ def _forward_loop(args, w):
         def connectionLost(self, reason):
             print("command connectionLost", reason)
 
-    proto = yield control_ep.connect(Factory.forProtocol(IncomingCommand))
-    print("ZZZZ", proto)
-
+    control_proto = yield control_ep.connect(Factory.forProtocol(IncomingCommand))
+    print("ZZZZ", control_proto)
 
     in_factory = Factory.forProtocol(Incoming)
     in_factory.connect_ep = connect_ep
@@ -488,25 +487,9 @@ def _forward_loop(args, w):
             "listen-endpoint": cmd["remote-endpoint"],
             "connect-endpoint": cmd["local-endpoint"],
         }).encode("utf8")
-        print("remote to local")
-
-        class RemoteForwardRequest(Protocol):
-            """
-            Forwards data to the `.other_protocol` in the Factory.
-            """
-
-            def connectionMade(self):
-                print("connection: write", msg)
-                self.transport.write(msg)
-
-            def dataReceived(self, data):
-                print("data", data)
-
-            def connectionLost(self, reason):
-                print("connectionLost", reason)
-
-        proto = yield control_ep.connect(Factory.forProtocol(RemoteForwardRequest))
-        print("PROTO", proto)
+        # XXX need framing!
+        control_proto.transport.write(msg)
+        print("wrote command")
 
     def process_command(cmd):
         if "kind" not in cmd:
