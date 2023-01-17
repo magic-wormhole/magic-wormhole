@@ -381,6 +381,11 @@ def _forward_loop(args, w):
         "local-endpoint": "tcp:localhost:8888",
     }
 
+    {
+        "kind": "remote",
+        ...
+    }
+
     This instructs us to listen on `endpoint` (any Twisted server-type
     endpoint string). On any connection to that listener, we open a
     subchannel through the wormhome and send an opening message
@@ -424,6 +429,24 @@ def _forward_loop(args, w):
     )
 
     control_ep, connect_ep, listen_ep = w.dilate()
+    print("control", control_ep)
+
+    class IncomingCommand(Protocol):
+        """
+        Forwards data to the `.other_protocol` in the Factory.
+        """
+
+        def connectionMade(self):
+            print("command connection")
+
+        def dataReceived(self, data):
+            print("command data", data)
+
+        def connectionLost(self, reason):
+            print("command connectionLost", reason)
+
+    control_ep.connect(Factory.forProtocol(IncomingCommand))
+
 
     in_factory = Factory.forProtocol(Incoming)
     in_factory.connect_ep = connect_ep
@@ -451,6 +474,38 @@ def _forward_loop(args, w):
             "endpoint": cmd["local-endpoint"],
         }))
 
+
+    @inlineCallbacks
+    def _remote_to_local_forward(cmd):
+        """
+        Ask the remote side to listen on a port, forwarding back here
+        (where our Incoming subchannel will be told what to connect
+        to).
+        """
+        msg = json.dumps({
+            "kind": "remote-to-local",
+            "listen-endpoint": cmd["remote-endpoint"],
+            "connect-endpoint": cmd["local-endpoint"],
+        }).encode("utf8")
+
+        class RemoteForwardRequest(Protocol):
+            """
+            Forwards data to the `.other_protocol` in the Factory.
+            """
+
+            def connectionMade(self):
+                print("connection: write", msg)
+                self.transport.write(msg)
+
+            def dataReceived(self, data):
+                print("data", data)
+
+            def connectionLost(self, reason):
+                print("connectionLost", reason)
+
+        proto = yield control_ep.connect(Factory.forProtocol(RemoteForwardRequest))
+        print("PROTO", proto)
+
     def process_command(cmd):
         if "kind" not in cmd:
             raise ValueError("no 'kind' in command")
@@ -459,8 +514,8 @@ def _forward_loop(args, w):
             # listens locally, conencts to other side
             "local": _local_to_remote_forward,
 
-            # maybe?: asks the other side to listen, connects to us
-            # "remote": _remote_to_local_forward,
+            # asks the other side to listen, connecting back to us
+            "remote": _remote_to_local_forward,
         }[cmd["kind"]](cmd)
 
     class CommandDispatch(LineReceiver):
