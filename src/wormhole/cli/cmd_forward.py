@@ -445,7 +445,8 @@ def _forward_loop(args, w):
         def connectionLost(self, reason):
             print("command connectionLost", reason)
 
-    control_ep.connect(Factory.forProtocol(IncomingCommand))
+    proto = yield control_ep.connect(Factory.forProtocol(IncomingCommand))
+    print("ZZZZ", proto)
 
 
     in_factory = Factory.forProtocol(Incoming)
