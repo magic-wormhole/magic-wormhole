@@ -118,7 +118,7 @@ class Sender:
         from wormhole.transfer_v2 import deferred_transfer
         from pathlib import Path
 
-        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, code=self._args.code, offers=[Path(self._args.what)]))
+        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, transit=self._args.transit_helper, code=self._args.code, offers=[Path(self._args.what)]))
         return
 
         # TODO: run the blocking zip-the-directory IO in a thread, let the
