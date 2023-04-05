@@ -175,7 +175,6 @@ class Receiver:
 
         while True:
             them_d = yield self._get_data(w)
-            # print("GOT", them_d)
             recognized = False
             if u"transit" in them_d:
                 recognized = True
@@ -354,6 +353,7 @@ class Receiver:
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
         destname = os.path.basename(destname)
+        destname = sanitize_user_provided_filename(destname)
         if self.args.output_file:
             destname = self.args.output_file  # override
         abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
