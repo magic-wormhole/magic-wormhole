@@ -18,7 +18,7 @@ from wormhole import __version__, create, input_with_completion
 from ..errors import TransferError
 from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    estimate_free_space)
+                    estimate_free_space, sanitize_user_provided_filename)
 from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
