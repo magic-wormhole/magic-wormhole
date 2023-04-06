@@ -708,7 +708,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
-            self.failUnlessIn(u"Receiving file ({size:s}) into: {name}".format(
+            self.failUnlessIn(u"Receiving file ({size:s}) into: {name!r}".format(
                 size=naturalsize(len(message)), name=receive_filename),
                 receive_stderr)
             self.failUnlessIn(u"Received file written to ", receive_stderr)
@@ -718,12 +718,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
             self.failUnlessEqual(receive_stdout, "")
-            want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
+            want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                     .format(name=receive_dirname))
             self.failUnless(
                 re.search(want, receive_stderr), (want, receive_stderr))
             self.failUnlessIn(
-                u"Received files written to {name}"
+                u"Received files written to {name!r}"
                 .format(name=receive_dirname),
                 receive_stderr)
             fn = os.path.join(receive_dir, receive_dirname)
@@ -917,7 +917,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     .format(NL=NL, size=size), receive_stderr)
         elif mode == "directory":
             self.failIfIn(
-                "Received files written to {name}".format(name=receive_name),
+                "Received files written to {name!r}".format(name=receive_name),
                 receive_stderr)
             # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
             #        .format(name=receive_name))
