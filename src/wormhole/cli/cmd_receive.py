@@ -18,7 +18,7 @@ from wormhole import __version__, create, input_with_completion
 from ..errors import TransferError
 from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    estimate_free_space, sanitize_user_provided_filename)
+                    estimate_free_space)
 from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
@@ -307,9 +307,13 @@ class Receiver:
                       (free, self.xfersize))
             raise TransferRejectedError()
 
+        # note the repr() here is (at least partially) to guard
+        # against malicious filenames that might play with how
+        # terminals display things. see also
+        # e.g. https://github.com/magic-wormhole/magic-wormhole/issues/476
         self._msg(u"Receiving file (%s) into: %s" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -353,7 +357,6 @@ class Receiver:
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
         destname = os.path.basename(destname)
-        destname = sanitize_user_provided_filename(destname)
         if self.args.output_file:
             destname = self.args.output_file  # override
         abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))

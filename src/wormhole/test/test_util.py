@@ -64,16 +64,3 @@ class Space(unittest.TestCase):
                 self.assertEqual(util.estimate_free_space("."), None)
         except AttributeError:  # raised by mock.get_original()
             pass
-
-
-class Sanitize(unittest.TestCase):
-
-    def test_sanitize_common(self):
-        for bad in ["\r", "\n", "\x00", "\x0a", "\x09", "\x0d", "\x85"]:
-            self.assertEqual(
-                util.sanitize_user_provided_filename(bad),
-                "X"
-            )
-    # XXX there's a couple (at least!) weird unicode characters
-    # for line-separator and paragraph-separator that _won't_ be
-    # in category C* (as the tested function does)

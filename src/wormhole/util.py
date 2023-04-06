@@ -74,14 +74,3 @@ def estimate_free_space(target):
         return s.f_frsize * s.f_bfree
     except AttributeError:
         return None
-
-
-def sanitize_user_provided_filename(name):
-    """
-    Sanitize a filename which may have come from another user. We
-    remove any 'control' category unicode from the name.
-    """
-    return "".join(
-        "X" if unicodedata.category(ch).startswith("C") else ch
-        for ch in name
-    )
