@@ -337,7 +337,7 @@ class Receiver:
 
         self._msg(u"Receiving directory (%s) into: %s/" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
@@ -364,12 +364,12 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if self.args.output_file:  # overwrite is intentional
-                self._msg(u"Overwriting '%s'" % destname)
+                self._msg(u"Overwriting %s" % repr(destname))
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
                 self._msg(
-                    u"Error: refusing to overwrite existing '%s'" % destname)
+                    u"Error: refusing to overwrite existing %s" % repr(destname))
                 raise TransferRejectedError()
         return abs_destname
 
@@ -461,8 +461,8 @@ class Receiver:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg(u"Received files written to %s/" % os.path.basename(
-                self.abs_destname))
+            self._msg(u"Received files written to %s/" % repr(os.path.basename(
+                self.abs_destname)))
             f.close()
 
     @inlineCallbacks
