@@ -175,7 +175,6 @@ class Receiver:
 
         while True:
             them_d = yield self._get_data(w)
-            # print("GOT", them_d)
             recognized = False
             if u"transit" in them_d:
                 recognized = True
@@ -308,9 +307,13 @@ class Receiver:
                       (free, self.xfersize))
             raise TransferRejectedError()
 
+        # note the repr() here is (at least partially) to guard
+        # against malicious filenames that might play with how
+        # terminals display things. see also
+        # e.g. https://github.com/magic-wormhole/magic-wormhole/issues/476
         self._msg(u"Receiving file (%s) into: %s" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -334,7 +337,7 @@ class Receiver:
 
         self._msg(u"Receiving directory (%s) into: %s/" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
@@ -361,12 +364,12 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if self.args.output_file:  # overwrite is intentional
-                self._msg(u"Overwriting '%s'" % destname)
+                self._msg(u"Overwriting %s" % repr(destname))
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
                 self._msg(
-                    u"Error: refusing to overwrite existing '%s'" % destname)
+                    u"Error: refusing to overwrite existing %s" % repr(destname))
                 raise TransferRejectedError()
         return abs_destname
 
@@ -458,8 +461,8 @@ class Receiver:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg(u"Received files written to %s/" % os.path.basename(
-                self.abs_destname))
+            self._msg(u"Received files written to %s/" % repr(os.path.basename(
+                self.abs_destname)))
             f.close()
 
     @inlineCallbacks
