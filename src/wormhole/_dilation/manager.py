@@ -434,14 +434,13 @@ class Manager(object):
 
     @m.output()
     def send_please(self):
-        assert self._dilation_version is not None, "Incompatible or missing dilation_version"
-        self.send_dilation_phase(
-            **{
-                "type": "please",
-                "side": self._my_side,
-                "use-version": self._dilation_version,  # only version that exists currently
-            }
-        )
+        msg = {
+            "type": "please",
+            "side": self._my_side,
+        }
+        if self._dilation_version is not None:
+            msg["use-version"] = self._dilation_version
+        self.send_dilation_phase(**msg)
 
     @m.output()
     def choose_role(self, message):
