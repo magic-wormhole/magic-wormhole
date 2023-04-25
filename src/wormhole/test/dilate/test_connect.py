@@ -55,13 +55,13 @@ class Connect(unittest.TestCase):
         d_left = manager.Dilator(reactor, eq, cooperator)
         d_left.wire(send_left, t_left)
         d_left.got_key(key)
-        d_left.got_wormhole_versions({"can-dilate": ["1"]})
+        d_left.got_wormhole_versions({"can-dilate": [1]})
         send_left.dilator = d_left
 
         d_right = manager.Dilator(reactor, eq, cooperator)
         d_right.wire(send_right, t_right)
         d_right.got_key(key)
-        d_right.got_wormhole_versions({"can-dilate": ["1"]})
+        d_right.got_wormhole_versions({"can-dilate": [1]})
         send_right.dilator = d_right
 
         with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
