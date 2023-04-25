@@ -7,7 +7,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from .._rlcompleter import (CodeInputter, _input_code_with_completion,
                             input_with_completion, warn_readline)
