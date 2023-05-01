@@ -242,10 +242,10 @@ class TestManager(unittest.TestCase):
         self.assertTrue(hasattr(eps, "connect"))
         self.assertEqual(eps.listen, h.listen_ep)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
+        m.got_wormhole_versions({"can-dilate": [1]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": LEADER}))
+                           dict_to_bytes({"type": "please", "side": LEADER, "use-version": 1}))
             ])
         clear_mock_calls(h.send)
 
@@ -441,10 +441,10 @@ class TestManager(unittest.TestCase):
     def test_follower(self):
         m, h = make_manager(leader=False)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
+        m.got_wormhole_versions({"can-dilate": [1]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": FOLLOWER}))
+                           dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": 1}))
             ])
         clear_mock_calls(h.send)
         clear_mock_calls(h.inbound)

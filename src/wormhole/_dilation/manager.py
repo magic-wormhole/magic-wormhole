@@ -32,7 +32,7 @@ from .outbound import Outbound
 
 
 # exported to Wormhole() for inclusion in versions message
-DILATION_VERSIONS = ["1"]
+DILATION_VERSIONS = [1]
 
 
 class OldPeerCannotDilateError(Exception):
@@ -74,7 +74,7 @@ def make_side():
 # * PLEASE includes a dilation-specific "side" (independent of the "side"
 #    used by mailbox messages)
 # * higher "side" is Leader, lower is Follower
-# * PLEASE includes can-dilate list of version integers, requires overlap
+# * PLEASE includes the selection of a version from the "can-dilate" list of versions integers, requires overlap
 #    "1" is current
 
 # * we start dilation after both w.dilate() and receiving VERSION, putting us
@@ -120,6 +120,7 @@ class Manager(object):
     _tor = None  # TODO
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
+    _dilation_version = None  # initialized in got_wormhole_versions
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -173,17 +174,17 @@ class Manager(object):
 
     def got_wormhole_versions(self, their_wormhole_versions):
         # this always happens before received_dilation_message
-        dilation_version = None
+        self._dilation_version = None
         their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
         my_versions = set(DILATION_VERSIONS)
         shared_versions = my_versions.intersection(their_dilation_versions)
-        if "1" in shared_versions:
-            dilation_version = "1"
+        if 1 in shared_versions:
+            self._dilation_version = 1
 
         # dilation_version is the best mutually-compatible version we have
         # with the peer, or None if we have nothing in common
 
-        if not dilation_version:  # "1" or None
+        if not self._dilation_version:  # 1 or None
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
@@ -433,7 +434,13 @@ class Manager(object):
 
     @m.output()
     def send_please(self):
-        self.send_dilation_phase(type="please", side=self._my_side)
+        msg = {
+            "type": "please",
+            "side": self._my_side,
+        }
+        if self._dilation_version is not None:
+            msg["use-version"] = self._dilation_version
+        self.send_dilation_phase(**msg)
 
     @m.output()
     def choose_role(self, message):
