@@ -1,7 +1,7 @@
 from __future__ import print_function, unicode_literals
 import io
 from collections import namedtuple
-import mock
+from unittest import mock
 from twisted.internet import endpoints, reactor
 from twisted.trial import unittest
 from .._hints import (endpoint_from_hint_obj, parse_hint_argv, parse_tcp_v1_hint,
@@ -24,6 +24,7 @@ class Hints(unittest.TestCase):
         self.assertEqual(efho(UnknownHint("foo")), None)
 
         tor = mock.Mock()
+
         def tor_ep(hostname, port):
             if hostname == "non-public":
                 raise ValueError
@@ -34,7 +35,7 @@ class Hints(unittest.TestCase):
                          ("tor_ep", "host", 1234))
         self.assertEqual(efho(TorTCPV1Hint("host2.onion", 1234, 0.0), tor),
                          ("tor_ep", "host2.onion", 1234))
-        self.assertEqual( efho(DirectTCPV1Hint("non-public", 1234, 0.0), tor), None)
+        self.assertEqual(efho(DirectTCPV1Hint("non-public", 1234, 0.0), tor), None)
 
         self.assertEqual(efho(UnknownHint("foo"), tor), None)
 
@@ -151,6 +152,26 @@ class Hints(unittest.TestCase):
             stderr,
             "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n")
 
+        h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]")
+        self.assertEqual(h, None)
+        self.assertEqual(
+            stderr, "non-numeric port in TCP hint 'tcp:[2001:0db8:85a3::8a2e:0370:7334]'\n")
+
+        h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]:1234")
+        self.assertEqual(h, DirectTCPV1Hint(
+            "2001:0db8:85a3::8a2e:0370:7334", 1234, 0.0))
+        self.assertEqual(stderr, "")
+
+        h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]:1234:priority=2.6")
+        self.assertEqual(h, DirectTCPV1Hint(
+            "2001:0db8:85a3::8a2e:0370:7334", 1234, 2.6))
+        self.assertEqual(stderr, "")
+
+        h, stderr = p("tcp:[abc::xyz]:1234")
+        self.assertEqual(h, None)
+        self.assertEqual(
+            stderr, "invalid IPv6 address in TCP hint 'tcp:[abc::xyz]:1234'\n")
+
     def test_describe_hint_obj(self):
         d = describe_hint_obj
         self.assertEqual(d(DirectTCPV1Hint("host", 1234, 0.0), False, False),
@@ -185,7 +206,7 @@ class Hints(unittest.TestCase):
                                "hostname": "bar",
                                "port": 13,
                                "priority": 0.0},
-                              ]})
+                          ]})
         self.assertEqual(e(TorTCPV1Hint("host", 1234, 1.0)),
                          {"type": "tor-tcp-v1",
                           "priority": 1.0,

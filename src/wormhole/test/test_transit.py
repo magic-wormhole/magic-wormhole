@@ -13,7 +13,7 @@ from twisted.python import log
 from twisted.test import proto_helpers
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 from wormhole_transit_relay import transit_server
 
 from .. import transit

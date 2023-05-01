@@ -66,6 +66,10 @@ $ sudo apt install magic-wormhole
 
 ### Linux (Fedora)
 
+Note: magic-wormhole [was removed from
+Fedora](https://bugzilla.redhat.com/show_bug.cgi?id=2073777) starting in Fedora
+37. So this command will only work on Fedora 36 and earlier.
+
 ```
 $ sudo dnf install magic-wormhole
 ```
