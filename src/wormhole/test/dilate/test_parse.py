@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals
-import mock
+from unittest import mock
 from twisted.trial import unittest
 from ..._dilation.connection import (parse_record, encode_record,
                                      KCM, Ping, Pong, Open, Data, Close, Ack)

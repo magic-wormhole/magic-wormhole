@@ -4,7 +4,7 @@ from twisted.application import internet, service
 from twisted.internet import defer, endpoints, reactor, task
 from twisted.python import log
 
-import mock
+from unittest import mock
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_mailbox_server.server import make_server
 from wormhole_mailbox_server.web import make_web_server

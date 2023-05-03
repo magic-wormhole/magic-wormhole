@@ -230,7 +230,7 @@ class IDeferredWormhole(Interface):
         happen if an attacker tried and failed to guess the wormhole code),
         this will instead errback with a ``WrongPasswordError``.
 
-        :return: the verisions dictionary
+        :return: the versions dictionary
         :rtype: ``Deferred[dict]``
         """
 
