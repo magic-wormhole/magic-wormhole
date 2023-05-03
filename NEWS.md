@@ -6,6 +6,8 @@ User-visible changes in "magic-wormhole":
 * Fix intermittant failing test (#458)
 * Python 2.7 support is dropped (#457)
 * Use the HKDF primitive from "cryptography" (#462)
+* `wormhole receive` now accepts `--allocate-code` so that a sender can
+  use `--code` to send them a file (#450)
 * Replace mock module with Python's builtin unittest.mock
 * Stream to disk after 10MB on directory receive (#447)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
