@@ -175,7 +175,6 @@ class Receiver:
 
         while True:
             them_d = yield self._get_data(w)
-            # print("GOT", them_d)
             recognized = False
             if u"transit" in them_d:
                 recognized = True
@@ -216,13 +215,21 @@ class Receiver:
         if code:
             w.set_code(code)
         else:
-            prompt = "Enter receive wormhole code: "
-            used_completion = yield input_with_completion(
-                prompt, w.input_code(), self._reactor)
-            if not used_completion:
-                print(
-                    " (note: you can use <Tab> to complete words)",
-                    file=self.args.stderr)
+            if self.args.allocate:
+                w.allocate_code(self.args.code_length)
+                code = yield w.get_code()
+                print(u"Allocated code: {}".format(code), file=self.args.stderr)
+                print(u"On the other computer, please run:", file=self.args.stderr)
+                print(u"   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
+
+            else:
+                prompt = "Enter receive wormhole code: "
+                used_completion = yield input_with_completion(
+                    prompt, w.input_code(), self._reactor)
+                if not used_completion:
+                    print(
+                        " (note: you can use <Tab> to complete words)",
+                        file=self.args.stderr)
         yield w.get_code()
 
     def _show_verifier(self, verifier_bytes):
@@ -308,9 +315,13 @@ class Receiver:
                       (free, self.xfersize))
             raise TransferRejectedError()
 
+        # note the repr() here is (at least partially) to guard
+        # against malicious filenames that might play with how
+        # terminals display things. see also
+        # e.g. https://github.com/magic-wormhole/magic-wormhole/issues/476
         self._msg(u"Receiving file (%s) into: %s" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._ask_permission()
         tmp_destname = self.abs_destname + ".tmp"
         return open(tmp_destname, "wb")
@@ -334,11 +345,14 @@ class Receiver:
 
         self._msg(u"Receiving directory (%s) into: %s/" %
                   (naturalsize(self.xfersize),
-                   os.path.basename(self.abs_destname)))
+                   repr(os.path.basename(self.abs_destname))))
         self._msg(u"%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
-        f = tempfile.SpooledTemporaryFile()
+        # max_size here matches the magic-number in cmd_send and will
+        # use up to 10MB of memory before putting the file on disk
+        # instead.
+        f = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
         # workaround for https://bugs.python.org/issue26175 (STF doesn't
         # fully implement IOBase abstract class), which breaks the new
         # zipfile in py3.7.0 that expects .seekable
@@ -358,12 +372,12 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if self.args.output_file:  # overwrite is intentional
-                self._msg(u"Overwriting '%s'" % destname)
+                self._msg(u"Overwriting %s" % repr(destname))
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
                 self._msg(
-                    u"Error: refusing to overwrite existing '%s'" % destname)
+                    u"Error: refusing to overwrite existing %s" % repr(destname))
                 raise TransferRejectedError()
         return abs_destname
 
@@ -455,8 +469,8 @@ class Receiver:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg(u"Received files written to %s/" % os.path.basename(
-                self.abs_destname))
+            self._msg(u"Received files written to %s/" % repr(os.path.basename(
+                self.abs_destname)))
             f.close()
 
     @inlineCallbacks

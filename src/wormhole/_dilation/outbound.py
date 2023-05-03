@@ -77,7 +77,7 @@ from .connection import KCM, Ping, Pong, Ack
 #     time.
 #   * If we're writing too slowly, we'll be left in the "unpaused" state: all
 #     Subchannel producers are unpaused, and the aggregate is unpaused too
-#     (resumeProducing is the last thing we've been told). In this satte,
+#     (resumeProducing is the last thing we've been told). In this state,
 #     activity is driven by the Subchannels doing a transport.write, which
 #     queues some data on the TCP connection (and then might call
 #     pauseProducing if it's now full).

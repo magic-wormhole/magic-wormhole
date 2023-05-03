@@ -187,7 +187,7 @@ CommonArgs = _compose(
     click.option(
         "-c",
         "--code-length",
-        default=2,
+        default=None,
         metavar="NUMWORDS",
         help="length of code (in bytes/words)",
     ),
@@ -277,6 +277,8 @@ def help(context, **kwargs):
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_send"):
@@ -314,6 +316,12 @@ def go(f, cfg):
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
 )
+@click.option(
+    "--allocate",
+    "-a",
+    is_flag=True,
+    help="Allocate a fresh code (do not prompt for one)",
+)
 # --debug-state might be better at the top-level but Click can't parse
 # an option like "--debug-state <optional-value>" if there's a subcommand name next
 @click.option(
@@ -341,6 +349,14 @@ def receive(cfg, code, **kwargs):
     """
     Receive a text message, file, or directory (from 'wormhole send')
     """
+    if code:
+        if kwargs["allocate"]:
+            raise click.UsageError("Cannot specify a code when using --allocate")
+    if kwargs["code_length"] and not kwargs["allocate"]:
+        raise click.UsageError("Must use --allocate with --code-length")
+
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_receive"):

@@ -164,7 +164,7 @@ be handled immediately. The complete example is here:
 ```python
 from twisted.internet.defer import inlineCallbacks
 from wormhole.transit import TransitSender
- 
+
 @inlineCallbacks
 def do_transit():
     s = TransitSender("tcp:relayhost.example.org:12345")

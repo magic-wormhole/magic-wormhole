@@ -3,7 +3,7 @@ import os
 
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from ..cli import cmd_ssh
 

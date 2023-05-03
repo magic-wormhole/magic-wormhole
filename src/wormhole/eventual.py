@@ -25,16 +25,27 @@ class EventualQueue(object):
         return d
 
     def _turn(self):
-        while self._calls:
-            (f, args, kwargs) = self._calls.pop(0)
+        self._calls, to_call = [], self._calls
+        for f, args, kwargs in to_call:
             try:
                 f(*args, **kwargs)
             except Exception:
                 log.err()
         self._timer = None
-        d, self._flush_d = self._flush_d, None
-        if d:
-            d.callback(None)
+
+        # Since the only guidance about semantics is the comment about
+        # Foolscap, we make sure that any calls added by the above
+        # (i.e. by the calls we just ran) only run in the _next_ turn
+        # (as Foolscap does). Not doing this leads to some unexpected
+        # dependency of the tests on the precise order things are run
+        # in a single turn, which defeats the purpose of this
+        # "eventual queue".
+        if len(self._calls):
+            self._timer = self._clock.callLater(0, self._turn)
+        else:
+            d, self._flush_d = self._flush_d, None
+            if d:
+                d.callback(None)
 
     def flush_sync(self):
         # if you have control over the Clock, this will synchronously flush the

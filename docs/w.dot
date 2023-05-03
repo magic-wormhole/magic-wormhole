@@ -1,5 +1,5 @@
 digraph {
-        
+
         /*
         NM_start [label="Nameplate\nMachine" style="dotted"]
         NM_start -> NM_S_unclaimed [style="invis"]
