@@ -11,11 +11,13 @@ User-visible changes in "magic-wormhole":
 * Replace mock module with Python's builtin unittest.mock
 * Stream to disk after 10MB on directory receive (#447)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
+* Handle SSH keys with comments properly (#434)
 
 Thanks to the many contributors of bugs, patches, and other help with this
 release:
 
 * Jelle van der Waa aka @jelly
+* Matthias Riße https://github.com/matrss
 
 ## Release 0.12.0 (04-Apr-2020)
 
