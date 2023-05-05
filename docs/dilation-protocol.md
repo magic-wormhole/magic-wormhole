@@ -221,7 +221,7 @@ The last Noise message will obviously be less than 65536 bytes.
 
 The entire decoded blob is then "one L2 message" and is develivered upstream.
 
-The Noice cryptography uses the `NNpsk0` pattern with the Leader as the first party (`"-> psk, e"` in the Noise spec), and the Follower as the second (`"<- e, ee"`).
+The Noise cryptography uses the `NNpsk0` pattern with the Leader as the first party (`"-> psk, e"` in the Noise spec), and the Follower as the second (`"<- e, ee"`).
 The pre-shared-key is the "Dilation key", which is statically derived from the master PAKE key using HKDF.
 Each L2 connection uses the same Dilation key, but different ephemeral keys, so each gets a different session key.
 
