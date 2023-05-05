@@ -4,20 +4,20 @@ The Dilation protocol is a "bulk data" protocol between two peers (either direct
 It is durable and reliable: connections are re-established, and data is definitely transmitted in-order to the other peer.
 There are subchannels: logically separate streams as the application protocol requires.
 Multiple ways to connect are supported, via "hints".
-These exist for direct TCP, TCP via Tor, and TCP to a central Transit helper. (see XXX link?)
+These exist for direct TCP, TCP via Tor, and TCP to a central Transit helper (see also "Canonical hint encodings" in the [Transit documentation](https://github.com/magic-wormhole/magic-wormhole-protocols/transit.md) ).
 
 These building-blocks allow "application" protocols to be simpler buy not having to deal with re-connection attempts and network problems.
-Dilation was conceived during development of a "next-generation" file-transfer protocol now called "Dilated File Transfer" (XXX link).
+Dilation was conceived during development of a "next-generation" file-transfer protocol now called "Dilated File Transfer" (XXX link to ticket / PR).
 
 This document asssumes you are familiar with the core Mailbox protocol and the general promises of Magic Wormhole.
-For more information see (XXX link).
+For more information see [the Server Protocol](server-protocol.md).
 
 
 # Dilation Internals
 
-This document sometimes mentions programming internals related to Python and Twisted; these may be ignored by other implementers (see also XXX for a more language-agnostic specification).
+This document sometimes mentions programming internals related to Python and Twisted; these may be ignored by other implementers (see also [the protocols repositories](https://github.com/magic-wormhole/magic-wormhole-protocols) for more language-agnostic specifications).
 
-Wormhole dilation involves several moving parts.
+Wormhole Dilation involves several moving parts.
 Both sides exchange messages through the Mailbox server to coordinate the establishment of a more direct
 connection.
 This connection might flow in either direction, so they trade "connection hints" to point at potential listening ports.
