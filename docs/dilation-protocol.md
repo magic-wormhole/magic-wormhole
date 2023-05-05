@@ -255,17 +255,26 @@ All listening sockets may or may not be shut down (TODO: think about it).
 After sending their KCM, the Follower will wait for either an empty KCM (at which point the L2 connection is delivered to the Dilation manager as the new L3), a disconnection, or an invalid message (which causes the connection to be dropped).
 Other connections and/or listening sockets are stopped.
 
-Internally, the L2Protocol object manages the Noise session itself.
-It knows (via a constructor argument) whether it is on the Leader or Follower side, which affects both the role is plays in the Noise pattern, and the reaction to receiving the handshake message / ephemeral key (for which only the Follower sends an empty KCM message).
-After that, the L2Protocol notifies the L3 object in three situations:
 
-* the Noise session produces a valid decrypted frame (for Leader, this includes the Follower's KCM, and thus indicates a viable candidate for connection selection)
-* the Noise session reports a failed decryption
-* the TCP session is lost
+For developers attempting to understand the Python reference implementation (in `wormhole._dilattion` package):
 
-All notifications include a reference to the L2Protocol object (`self`).
-The L3 object uses this reference to either close the connection (for errors or when the selection process chooses someone else), to send the KCM message (after selection, only for the Leader), or to send other L4 messages.
+Internally, the overall endeavour is managed by the `Manager` object.
+For each generation, a single `Connection` object is created; this object manages the race between potential hints-based peer connections.
+A `DilatedConnctionProtocol` instance manages the Noise session itself.
+
+It knows via its `_role` attribute whether it is on the Leader or Follower side, which affects both the role is plays in the Noise pattern, and the reaction to receiving the handshake message / ephemeral key (for which only the Follower sends an empty KCM message).
+
+After that, the `DilatedConnectionProtocol` notifies the management obects in three situations:
+
+* the Noise session prodces a valid KCM message (`Connector` notified with `add_candidate()`).
+* the Noise session reports a failed decryption (`Manager` notified via `connector_connection_lost()`)
+* the TCP session is lost (`Manager` notified via `connector_connection_lost()`)
+
+During "normal operation" (after handshakes and KCMs), the `Manager` is notified on every received and decrypted message (via `got_record`).
+
+The L3 management object uses this reference to either close the connection (for errors or when the selection process chooses someone else), to send the KCM message (after selection, only for the Leader), or to send other L4 messages.
 The L3 object will retain a reference to the winning L2 object.
+See also the state-machine diagrams.
 
 
 ## L3 protocol
