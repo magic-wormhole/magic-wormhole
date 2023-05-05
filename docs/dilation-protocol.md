@@ -203,19 +203,37 @@ Should each hint have its own priority, or just each endpoint?
 
 ## L2 protocol
 
-Upon ``connectionMade()``, both sides send their handshake message.
-The Leader sends "Magic-Wormhole Dilation Handshake v1 Leader\n\n".
-The Follower sends "Magic-Wormhole Dilation Handshake v1 Follower\n\n".
+Upon successful connection (``connectionMade()`` in Twisted), both sides send their handshake message.
+The Leader sends the ASCII bytes ``"Magic-Wormhole Dilation Handshake v1 Leader\n\n"``.
+The Follower sends the ASCII bytes ``"Magic-Wormhole Dilation Handshake v1 Follower\n\n"``.
 This should trigger an immediate error for most non-magic-wormhole listeners (e.g. HTTP servers that were contacted by accident).
-If the wrong handshake is received, the connection will be dropped.
+If the wrong handshake is received, the connection must be dropped.
 For debugging purposes, the node might want to keep looking at data beyond the first incorrect character and log a few hundred characters until the first newline.
 
-(XXX noise is max 65536 bytes, so the length field can and should be 2-bytes)
+Everything beyond the last byte of the handshake consists of Noise protocol messages.
+Noise itself has a 65536-byte (`2**16`) limit on message sizes.
+However, the L2 protocol will accept any message up to an unsigned 4-byte integer in length (4.0 GiB or `2**32` bytes).
 
-Everything beyond that point is a Noise protocol message, which consists of a 4-byte big-endian length field, followed by the indicated number of bytes.
-This uses the `NNpsk0` pattern with the Leader as the first party ("-> psk, e" in the Noise spec), and the Follower as the second ("<- e, ee").
-The pre-shared-key is the "dilation key", which is statically derived from the master PAKE key using HKDF.
+The encoding works like this: there is a 4-byte big-endian length field, followed by some number of Noise packets.
+There is no leading length field on each Noise packet: implementations MUST respect the Noise limits.
+So if the length field indicates a message bigger than 65536, the reader pulls 65536 bytes out of the stream, decrypts that blob as a Noise message, subtracts 65536 from the total and continues.
+The last Noise message will obviously be less than 65536 bytes.
+
+The entire decoded blob is then "one L2 message" and is develivered upstream.
+
+The Noice cryptography uses the `NNpsk0` pattern with the Leader as the first party (`"-> psk, e"` in the Noise spec), and the Follower as the second (`"<- e, ee"`).
+The pre-shared-key is the "Dilation key", which is statically derived from the master PAKE key using HKDF.
 Each L2 connection uses the same Dilation key, but different ephemeral keys, so each gets a different session key.
+
+The exact Noise protocol in use is `"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"`.
+
+The HKDF used is the RFC5869 HMAC construction, with:
+shared-key-material consisting of the PAKE key;
+a tag of the ASCII bytes `"dilation-v1"`;
+no salt;
+and length equal to 32 bytes.
+The hash algorithm is SHA256.
+(The exact HKDF derivation is in `wormhole/util.py`, wrapping an underlying `cryptography` primitive).
 
 The Leader sends the first message, which is a psk-encrypted ephemeral key.
 The Follower sends the next message, its own psk-encrypted ephemeral key.
