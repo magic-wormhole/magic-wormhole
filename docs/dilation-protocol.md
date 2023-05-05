@@ -233,7 +233,7 @@ a tag of the ASCII bytes `"dilation-v1"`;
 no salt;
 and length equal to 32 bytes.
 The hash algorithm is SHA256.
-(The exact HKDF derivation is in `wormhole/util.py`, wrapping an underlying `cryptography` primitive).
+(The exact HKDF derivation is in `wormhole/util.py`, wrapping an underlying `cryptography` library primitive).
 
 The Leader sends the first message, which is a psk-encrypted ephemeral key.
 The Follower sends the next message, its own psk-encrypted ephemeral key.
@@ -255,6 +255,8 @@ All listening sockets may or may not be shut down (TODO: think about it).
 After sending their KCM, the Follower will wait for either an empty KCM (at which point the L2 connection is delivered to the Dilation manager as the new L3), a disconnection, or an invalid message (which causes the connection to be dropped).
 Other connections and/or listening sockets are stopped.
 
+
+### Python Implementation Details
 
 For developers attempting to understand the Python reference implementation (in `wormhole._dilattion` package):
 
@@ -281,9 +283,11 @@ See also the state-machine diagrams.
 
 The L3 layer is responsible for connection selection, monitoring/keepalives, and message (de)serialization.
 Framing is handled by L2, so the inbound L3 codepath receives single-message bytestrings, and delivers the same down to L2 for encryption, framing, and transmission.
+As per the above section, each such message may be up to 2**32 bytes (4 GiB).
 
-Connection selection takes place exclusively on the Leader side, and includes
-the following:
+Note that while this is the *limit* we strongly recommend applications limits themselves to smaller messages than this; receivers will need to buffer the entire message before delivery.
+
+Connection selection takes place exclusively on the Leader side, and includes the following:
 
 * receipt of viable L2 connections from below (indicated by the first valid decrypted frame received for any given connection)
 * expiration of a timer
@@ -296,7 +300,8 @@ the following:
 On the Follower side, the L3 manager just waits for the first connection to receive the Leader's KCM, at which point it is retained and all others are dropped.
 
 The L3 manager knows which "generation" of connection is being established.
-Each generation uses a different Dilation key (?), and is triggered by a new set of L1 messages. Connections from one generation should not be confused with those of a different generation.
+Each generation uses a different Dilation key (?), and is triggered by a new set of L1 messages (XXX currently they do not).
+Connections from one generation should not be confused with those of a different generation.
 
 Each time a new L3 connection is established, the L4 protocol is notified.
 It will immediately send all the L4 messages waiting in its outbound queue.
