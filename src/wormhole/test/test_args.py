@@ -132,7 +132,7 @@ class Receive(unittest.TestCase):
         self.assertEqual(cfg.code, u"1-abc")
 
     def test_code_length(self):
-        cfg = config("receive", "-c", "3")
+        cfg = config("receive", "-c", "3", "--allocate")
         self.assertEqual(cfg.code_length, 3)
 
     def test_dump_timing(self):

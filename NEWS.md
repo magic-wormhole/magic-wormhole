@@ -6,14 +6,19 @@ User-visible changes in "magic-wormhole":
 * Fix intermittant failing test (#458)
 * Python 2.7 support is dropped (#457)
 * Use the HKDF primitive from "cryptography" (#462)
+* `wormhole receive` now accepts `--allocate-code` so that a sender can
+  use `--code` to send them a file (#450)
 * Replace mock module with Python's builtin unittest.mock
 * Stream to disk after 10MB on directory receive (#447)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
+* Handle SSH keys with comments properly (#434)
+* Properly send `use-version` in Dilation
 
 Thanks to the many contributors of bugs, patches, and other help with this
 release:
 
 * Jelle van der Waa aka @jelly
+* Matthias Riße https://github.com/matrss
 
 ## Release 0.12.0 (04-Apr-2020)
 
