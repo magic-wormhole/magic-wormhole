@@ -227,7 +227,7 @@ Each L2 connection uses the same Dilation key, but different ephemeral keys, so 
 
 The exact Noise protocol in use is `"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"`.
 
-The HKDF used is the RFC5869 HMAC construction, with:
+The HKDF used to derive the "Dilation key" is the RFC5869 HMAC construction, with:
 shared-key-material consisting of the PAKE key;
 a tag of the ASCII bytes `"dilation-v1"`;
 no salt;
