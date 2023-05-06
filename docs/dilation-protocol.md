@@ -258,7 +258,7 @@ Other connections and/or listening sockets are stopped.
 
 ### Python Implementation Details
 
-For developers attempting to understand the Python reference implementation (in `wormhole._dilattion` package):
+For developers attempting to understand the Python reference implementation (in the `wormhole._dilation` package):
 
 Internally, the overall endeavour is managed by the `Manager` object.
 For each generation, a single `Connection` object is created; this object manages the race between potential hints-based peer connections.
