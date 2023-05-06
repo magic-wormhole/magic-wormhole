@@ -12,6 +12,7 @@ User-visible changes in "magic-wormhole":
 * Stream to disk after 10MB on directory receive (#447)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
 * Handle SSH keys with comments properly (#434)
+* Properly send `use-version` in Dilation
 
 Thanks to the many contributors of bugs, patches, and other help with this
 release:

@@ -32,7 +32,10 @@ from .outbound import Outbound
 
 
 # exported to Wormhole() for inclusion in versions message
-DILATION_VERSIONS = [1]
+# note that these are strings, not numbers, to facilitate
+# experimentation or non-standard versions; the _order_ of versions in
+# "can-dilate" is important!
+DILATION_VERSIONS = ["1"]
 
 
 class OldPeerCannotDilateError(Exception):
@@ -74,7 +77,7 @@ def make_side():
 # * PLEASE includes a dilation-specific "side" (independent of the "side"
 #    used by mailbox messages)
 # * higher "side" is Leader, lower is Follower
-# * PLEASE includes the selection of a version from the "can-dilate" list of versions integers, requires overlap
+# * PLEASE includes the selection of a version from the "can-dilate" list of versions, requires overlap
 #    "1" is current
 
 # * we start dilation after both w.dilate() and receiving VERSION, putting us
@@ -178,13 +181,13 @@ class Manager(object):
         their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
         my_versions = set(DILATION_VERSIONS)
         shared_versions = my_versions.intersection(their_dilation_versions)
-        if 1 in shared_versions:
-            self._dilation_version = 1
+        if "1" in shared_versions:
+            self._dilation_version = "1"
 
         # dilation_version is the best mutually-compatible version we have
         # with the peer, or None if we have nothing in common
 
-        if not self._dilation_version:  # 1 or None
+        if not self._dilation_version:  # "1" or None
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
