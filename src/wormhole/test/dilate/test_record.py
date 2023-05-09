@@ -308,7 +308,6 @@ class Record(unittest.TestCase):
         noise1.set_psks(b"\x00" * 32)
         noise1.set_as_responder()  # follower
         framer0 = _Framer(transport0, b"out prolog", b"in prolog")
-        framer0.set_trace(print)
         record0 = _Record(framer0, noise0, LEADER)
         record0.set_role_leader()
         record0.connectionMade()
@@ -318,7 +317,6 @@ class Record(unittest.TestCase):
         )
 
         framer1 = _Framer(transport1, b"in prolog", b"out prolog")
-        framer1.set_trace(print)
         record1 = _Record(framer1, noise1, FOLLOWER)
         record1.set_role_follower()
         record1.connectionMade()
