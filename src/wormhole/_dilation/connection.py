@@ -437,7 +437,6 @@ class _Record(object):
             raise Disconnect()
         return parse_record(message)
 
-
     no_role_set.upon(set_role_leader, outputs=[], enter=want_prologue_leader)
     want_prologue_leader.upon(got_prologue, outputs=[send_handshake],
                               enter=want_handshake_leader)
