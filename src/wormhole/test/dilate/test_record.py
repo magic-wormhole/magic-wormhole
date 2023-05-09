@@ -4,7 +4,7 @@ from zope.interface import alsoProvides
 from twisted.trial import unittest
 from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
-                                     _Record, Handshake,
+                                     _Record, Handshake, KCM,
                                      Disconnect, Ping)
 from ..._dilation.roles import LEADER
 
@@ -126,13 +126,13 @@ class Record(unittest.TestCase):
         f = mock.Mock()
         alsoProvides(f, IFramer)
         n = mock.Mock()
-        f1 = object()
+        f1 = b"some bytes"
         n.encrypt = mock.Mock(return_value=f1)
         r1 = Ping(b"pingid")
         r = _Record(f, n, LEADER)
         r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
-        m1 = object()
+        m1 = b"some other bytes"
         with mock.patch("wormhole._dilation.connection.encode_record",
                         return_value=m1) as er:
             r.send_record(r1)
@@ -273,3 +273,116 @@ class Record(unittest.TestCase):
             self.assertEqual(pr.mock_calls, [mock.call(kcm), mock.call(msg1)])
         n.mock_calls[:] = []
         f.mock_calls[:] = []
+
+    def test_large_frame(self):
+        """
+        Noise only allows 64KiB message, but the API allows up to 4GiB
+        frames
+        """
+
+        # XXX make_record() just makes a fake framer and fake noise
+        # thing -- i want real ones.
+        from wormhole._dilation.connection import _Framer, _Record, Data
+        from wormhole._dilation.connector import build_noise
+        from wormhole._dilation.roles import LEADER, FOLLOWER
+        from zope.interface import implementer
+        from twisted.internet.interfaces import ITransport
+
+        @implementer(ITransport)
+        class FakeTransport:
+            def __init__(self):
+                self.data = []  # list of bytes
+
+            def write(self, data):
+                self.data.append(data)
+
+        class FakeManager:
+            pass
+
+        transport0 = FakeTransport()
+        transport1 = FakeTransport()
+        noise0 = build_noise()
+        noise0.set_psks(b"\x00" * 32)
+        noise0.set_as_initiator()  # leader
+        noise1 = build_noise()
+        noise1.set_psks(b"\x00" * 32)
+        noise1.set_as_responder()  # follower
+        framer0 = _Framer(transport0, b"out prolog", b"in prolog")
+        framer0.set_trace(print)
+        record0 = _Record(framer0, noise0, LEADER)
+        record0.set_role_leader()
+        record0.connectionMade()
+        self.assertEqual(
+            list(record0.add_and_unframe(b"in prolog")),
+            []
+        )
+
+        framer1 = _Framer(transport1, b"in prolog", b"out prolog")
+        framer1.set_trace(print)
+        record1 = _Record(framer1, noise1, FOLLOWER)
+        record1.set_role_follower()
+        record1.connectionMade()
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[0])),  # b"out prolog"
+            []
+        )
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[1])),
+            [Handshake()]
+        )
+        record1.send_record(KCM())
+        self.assertEqual(
+            list(record0.add_and_unframe(transport1.data[1])),
+            [Handshake()]
+        )
+        record0.send_record(KCM())
+
+        # both sides are now done their handshakes (XXX probably want
+        # the above in setUp or some helper function)
+
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[2])),
+            [KCM()]
+        )
+
+        # we've "delt" with all the message to now, so reset them to
+        # keep the encryption state in sync
+
+        # Now, we send a message that's bigger than a single Noise one
+        input_plaintext = b"\xff" * 65537
+        #assert len(input_plaintext) == 65537
+        record0.send_record(
+            Data(
+                seqnum=123,
+                scid=456,
+                data=input_plaintext,
+            )
+        )
+
+        # we still send out "the message" as a single Data, because
+        # _our_ framing handles 4-byte lengths .. inside will be 2
+        # Noise packets.
+        if False:
+            self.assertEqual(
+                len(transport0.data[3]),
+                4 + len(input_plaintext) + (16 * 2) + 1 + 4 + 4
+            )
+        #   ^-- frame-length
+        #       ^-- plaintext size
+        #               ^-- Noise associated data, x2 noise packets
+        #                          ^-- "data" kind, 0x04
+        #                              ^-- subchannel-id
+        #                                  ^-- sequence number
+
+        # now, send the records through the other end and ensure we
+        # get the right data back out (that is, this test is
+        # essentially taking the role for the Protocol, which forward
+        # all data to the underlying "record" machine)
+        outputs = list(
+            record1.add_and_unframe(transport0.data[3])
+        )
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(
+            outputs[0].data,
+            input_plaintext
+        )

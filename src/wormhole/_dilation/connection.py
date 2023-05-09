@@ -12,7 +12,7 @@ from .._interfaces import IDilationConnector
 from ..observer import OneShotObserver
 from .encode import to_be4, from_be4
 from .roles import LEADER, FOLLOWER
-from ._noise import NoiseInvalidMessage, NoiseHandshakeError
+from ._noise import NoiseInvalidMessage, NoiseHandshakeError, NOISE_MAX_PAYLOAD, NOISE_MAX_CIPHERTEXT
 
 # InboundFraming is given data and returns Frames (Noise wire-side
 # bytestrings). It handles the relay handshake and the prologue. The Frames it
@@ -231,6 +231,10 @@ class _Framer(object):
             else:
                 break
 
+    # XXX insufficient API i think: if a frame can be up to 2**32
+    # ... but is also noise-encrypted under the hood ... uhm .. I
+    # guess that's okay? we just need _all_ the noise frames stacked
+    # together in "frame" essentially...?
     def send_frame(self, frame):
         assert self._can_send_frames
         self._transport.write(to_be4(len(frame)) + frame)
@@ -332,6 +336,7 @@ def _is_role(_record, _attr, value):
 class _Record(object):
     _framer = attrib(validator=provides(IFramer))
     _noise = attrib()
+
     _role = attrib(default="unspecified", validator=_is_role) # for debugging
 
     n = MethodicalMachine()
@@ -416,13 +421,29 @@ class _Record(object):
 
     @n.output()
     def decrypt_message(self, frame):
+        # opposite of the encoding: if we have _more_ than what a
+        # single Noise packet can hold, we have to build up the real
+        # plaintext incrementally.
+        size = len(frame)
         try:
-            message = self._noise.decrypt(frame)
+            if size <= NOISE_MAX_CIPHERTEXT:
+                message = self._noise.decrypt(frame)
+            else:
+                start = 0
+                message = b""
+                while start < size:
+                    ciphertext = frame[start:start + NOISE_MAX_CIPHERTEXT]
+                    message += self._noise.decrypt(ciphertext)
+                    start += NOISE_MAX_CIPHERTEXT
         except NoiseInvalidMessage as e:
             # if this happens during tests, flunk the test
             log.err(e, "bad inbound noise frame")
             raise Disconnect()
         return parse_record(message)
+
+    def _decode_frame(self, frame):
+            message = self._noise.decrypt(frame)
+
 
     no_role_set.upon(set_role_leader, outputs=[], enter=want_prologue_leader)
     want_prologue_leader.upon(got_prologue, outputs=[send_handshake],
@@ -455,7 +476,19 @@ class _Record(object):
 
     def send_record(self, r):
         message = encode_record(r)
-        frame = self._noise.encrypt(message)
+        if len(message) <= NOISE_MAX_PAYLOAD:
+            frame = self._noise.encrypt(message)
+        else:
+            # we want to put all the encrypted bytes into one "frame",
+            # but there are more bytes than we can fit in a Noise
+            # message .. so we chop them up
+            start = 0
+            frame = b""
+            while start < len(message):
+                this_msg = message[start:start + NOISE_MAX_PAYLOAD]
+                cip = self._noise.encrypt(this_msg)
+                frame += cip
+                start += NOISE_MAX_PAYLOAD
         self._framer.send_frame(frame)
 
 
