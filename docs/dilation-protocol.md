@@ -219,7 +219,7 @@ There is no leading length field on each Noise packet: implementations MUST resp
 So if the length field indicates a message bigger than 65536, the reader pulls 65536 bytes out of the stream, decrypts that blob as a Noise message, subtracts 65536 from the total and continues.
 The last Noise message will obviously be less than 65536 bytes.
 
-The entire decoded blob is then "one L2 message" and is develivered upstream.
+The entire decoded blob is then "one L2 message" and is delivered upstream.
 
 The Noise cryptography uses the `NNpsk0` pattern with the Leader as the first party (`"-> psk, e"` in the Noise spec), and the Follower as the second (`"<- e, ee"`).
 The pre-shared-key is the "Dilation key", which is statically derived from the master PAKE key using HKDF.
@@ -264,11 +264,11 @@ Internally, the overall endeavour is managed by the `Manager` object.
 For each generation, a single `Connection` object is created; this object manages the race between potential hints-based peer connections.
 A `DilatedConnctionProtocol` instance manages the Noise session itself.
 
-It knows via its `_role` attribute whether it is on the Leader or Follower side, which affects both the role is plays in the Noise pattern, and the reaction to receiving the handshake message / ephemeral key (for which only the Follower sends an empty KCM message).
+It knows via its `_role` attribute whether it is on the Leader or Follower side, which affects both the role it plays in the Noise pattern, and the reaction to receiving the handshake message / ephemeral key (for which only the Follower sends an empty KCM message).
 
 After that, the `DilatedConnectionProtocol` notifies the management obects in three situations:
 
-* the Noise session prodces a valid KCM message (`Connector` notified with `add_candidate()`).
+* the Noise session produces a valid KCM message (`Connector` notified with `add_candidate()`).
 * the Noise session reports a failed decryption (`Manager` notified via `connector_connection_lost()`)
 * the TCP session is lost (`Manager` notified via `connector_connection_lost()`)
 
