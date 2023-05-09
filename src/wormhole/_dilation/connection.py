@@ -231,10 +231,6 @@ class _Framer(object):
             else:
                 break
 
-    # XXX insufficient API i think: if a frame can be up to 2**32
-    # ... but is also noise-encrypted under the hood ... uhm .. I
-    # guess that's okay? we just need _all_ the noise frames stacked
-    # together in "frame" essentially...?
     def send_frame(self, frame):
         assert self._can_send_frames
         self._transport.write(to_be4(len(frame)) + frame)
