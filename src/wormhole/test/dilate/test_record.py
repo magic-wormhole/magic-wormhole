@@ -301,13 +301,14 @@ class Record(unittest.TestCase):
         # structures can be set up and paired properly. Essentially
         # this test is acting like the L2 Protocol object, and can
         # feed bytes to / from either side
+        pake_secret = b"\x00" * 32
         transport0 = FakeTransport()
         transport1 = FakeTransport()
         noise0 = build_noise()
-        noise0.set_psks(b"\x00" * 32)
+        noise0.set_psks(pake_secret)
         noise0.set_as_initiator()  # leader
         noise1 = build_noise()
-        noise1.set_psks(b"\x00" * 32)
+        noise1.set_psks(pake_secret)
         noise1.set_as_responder()  # follower
         framer0 = _Framer(transport0, b"out prolog", b"in prolog")
         record0 = _Record(framer0, noise0, LEADER)
