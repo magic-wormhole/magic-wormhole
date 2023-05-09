@@ -2,11 +2,15 @@ from __future__ import print_function, unicode_literals
 from unittest import mock
 from zope.interface import alsoProvides
 from twisted.trial import unittest
+from twisted.internet.interfaces import ITransport
 from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake, KCM,
-                                     Disconnect, Ping)
-from ..._dilation.roles import LEADER
+                                     Disconnect, Ping, _Framer,
+                                     _Record, Data)
+from ..._dilation.connector import build_noise
+from ..._dilation.roles import LEADER, FOLLOWER
+from zope.interface import implementer
 
 
 def make_record():
@@ -279,14 +283,6 @@ class Record(unittest.TestCase):
         Noise only allows 64KiB message, but the API allows up to 4GiB
         frames
         """
-
-        # XXX make_record() just makes a fake framer and fake noise
-        # thing -- i want real ones.
-        from wormhole._dilation.connection import _Framer, _Record, Data
-        from wormhole._dilation.connector import build_noise
-        from wormhole._dilation.roles import LEADER, FOLLOWER
-        from zope.interface import implementer
-        from twisted.internet.interfaces import ITransport
 
         @implementer(ITransport)
         class FakeTransport:
