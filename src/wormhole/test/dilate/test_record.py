@@ -386,6 +386,10 @@ class Record(unittest.TestCase):
         )
         self.assertEqual(len(outputs), 1)
         self.assertEqual(
-            outputs[0].data,
-            input_plaintext
+            outputs[0],
+            Data(
+                seqnum=123,
+                scid=456,
+                data=input_plaintext,
+            )
         )
