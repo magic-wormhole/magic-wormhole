@@ -297,10 +297,10 @@ class Record(unittest.TestCase):
             def write(self, data):
                 self.data.append(data)
 
-        # we build both sides of a connection so that a underlying
-        # Noise structures can be set up and paired
-        # properly. Essentially this test is acting like the L2
-        # Protocol object, and can feed bytes to / from either side
+        # we build both sides of a connection so that underlying Noise
+        # structures can be set up and paired properly. Essentially
+        # this test is acting like the L2 Protocol object, and can
+        # feed bytes to / from either side
         transport0 = FakeTransport()
         transport1 = FakeTransport()
         noise0 = build_noise()
