@@ -356,11 +356,10 @@ class Record(unittest.TestCase):
         # we still send out "the message" as a single Data, because
         # _our_ framing handles 4-byte lengths .. inside will be 2
         # Noise packets.
-        if False:
-            self.assertEqual(
-                len(transport0.data[3]),
-                4 + len(input_plaintext) + (16 * 2) + 1 + 4 + 4
-            )
+        self.assertEqual(
+            len(transport0.data[3]),
+            4 + len(input_plaintext) + (16 * 2) + 1 + 4 + 4
+        )
         #   ^-- frame-length
         #       ^-- plaintext size
         #               ^-- Noise associated data, x2 noise packets
