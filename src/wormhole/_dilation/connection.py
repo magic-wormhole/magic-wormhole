@@ -442,7 +442,7 @@ class _Record(object):
         return parse_record(message)
 
     def _decode_frame(self, frame):
-            message = self._noise.decrypt(frame)
+        message = self._noise.decrypt(frame)
 
 
     no_role_set.upon(set_role_leader, outputs=[], enter=want_prologue_leader)

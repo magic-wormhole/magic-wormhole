@@ -6,8 +6,7 @@ from twisted.internet.interfaces import ITransport
 from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake, KCM,
-                                     Disconnect, Ping, _Framer,
-                                     _Record, Data)
+                                     Disconnect, Ping, _Framer, Data)
 from ..._dilation.connector import build_noise
 from ..._dilation.roles import LEADER, FOLLOWER
 from zope.interface import implementer
