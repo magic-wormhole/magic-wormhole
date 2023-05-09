@@ -283,18 +283,25 @@ class Record(unittest.TestCase):
         Noise only allows 64KiB message, but the API allows up to 4GiB
         frames
         """
+        # XXX could really benefit from some Hypothesis style
+        # exploration of more cases .. but we don't already depend on
+        # that library, so a future improvement
 
         @implementer(ITransport)
         class FakeTransport:
+            """
+            Record which write()s happen
+            """
             def __init__(self):
                 self.data = []  # list of bytes
 
             def write(self, data):
                 self.data.append(data)
 
-        class FakeManager:
-            pass
-
+        # we build both sides of a connection so that a underlying
+        # Noise structures can be set up and paired
+        # properly. Essentially this test is acting like the L2
+        # Protocol object, and can feed bytes to / from either side
         transport0 = FakeTransport()
         transport1 = FakeTransport()
         noise0 = build_noise()
@@ -312,10 +319,16 @@ class Record(unittest.TestCase):
             []
         )
 
+        # note that in connector the prologues flip around depending
+        # on who is the leader or follower
         framer1 = _Framer(transport1, b"in prolog", b"out prolog")
         record1 = _Record(framer1, noise1, FOLLOWER)
         record1.set_role_follower()
         record1.connectionMade()
+
+        # the leader has now sent the prolog and the opening handshake
+        # message, so we consume them on the follower side
+
         self.assertEqual(
             list(record1.add_and_unframe(transport0.data[0])),  # b"out prolog"
             []
@@ -324,27 +337,24 @@ class Record(unittest.TestCase):
             list(record1.add_and_unframe(transport0.data[1])),
             [Handshake()]
         )
+
+        # the follower sends the first KCM; the leader is waiting for
+        # this and will complete the handshake after that
         record1.send_record(KCM())
         self.assertEqual(
             list(record0.add_and_unframe(transport1.data[1])),
             [Handshake()]
         )
         record0.send_record(KCM())
-
-        # both sides are now done their handshakes (XXX probably want
-        # the above in setUp or some helper function)
-
         self.assertEqual(
             list(record1.add_and_unframe(transport0.data[2])),
             [KCM()]
         )
+        # both sides are now done their handshakes
 
-        # we've "delt" with all the message to now, so reset them to
-        # keep the encryption state in sync
-
-        # Now, we send a message that's bigger than a single Noise one
+        # Now, we send a message that's definitely bigger than a
+        # single Noise message can deal with
         input_plaintext = b"\xff" * 65537
-        #assert len(input_plaintext) == 65537
         record0.send_record(
             Data(
                 seqnum=123,
@@ -353,12 +363,11 @@ class Record(unittest.TestCase):
             )
         )
 
-        # we still send out "the message" as a single Data, because
-        # _our_ framing handles 4-byte lengths .. inside will be 2
-        # Noise packets.
+        # ...despite its size the message should still be sent out as
+        # a single Data, because _our_ framing handles 4-byte lengths
         self.assertEqual(
             len(transport0.data[3]),
-            4 + len(input_plaintext) + (16 * 2) + 1 + 4 + 4
+            4 + 65537 + (16 * 2) + 1 + 4 + 4
         )
         #   ^-- frame-length
         #       ^-- plaintext size
@@ -366,11 +375,12 @@ class Record(unittest.TestCase):
         #                          ^-- "data" kind, 0x04
         #                              ^-- subchannel-id
         #                                  ^-- sequence number
+        #
+        # (maybe we don't need the above assert, since if any of that
+        # isn't true the next step will fail)
 
-        # now, send the records through the other end and ensure we
-        # get the right data back out (that is, this test is
-        # essentially taking the role for the Protocol, which forward
-        # all data to the underlying "record" machine)
+        # round-trip the data to the other side and ensure we get the
+        # plaintext back
         outputs = list(
             record1.add_and_unframe(transport0.data[3])
         )
