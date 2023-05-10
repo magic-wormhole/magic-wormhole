@@ -13,12 +13,15 @@ User-visible changes in "magic-wormhole":
 * SECURITY: Replace "weird" characters in receiver's display (#476)
 * Handle SSH keys with comments properly (#434)
 * Properly send `use-version` in Dilation
+* Split Noise messages invisibly to the application layer (#484)
 
 Thanks to the many contributors of bugs, patches, and other help with this
 release:
 
 * Jelle van der Waa aka @jelly
 * Matthias Riße https://github.com/matrss
+* meejah https://meejah.ca
+
 
 ## Release 0.12.0 (04-Apr-2020)
 

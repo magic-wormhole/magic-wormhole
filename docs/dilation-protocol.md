@@ -211,15 +211,23 @@ If the wrong handshake is received, the connection must be dropped.
 For debugging purposes, the node might want to keep looking at data beyond the first incorrect character and log a few hundred characters until the first newline.
 
 Everything beyond the last byte of the handshake consists of Noise protocol messages.
-Noise itself has a 65536-byte (`2**16`) limit on message sizes.
-However, the L2 protocol will accept any message up to an unsigned 4-byte integer in length (4.0 GiB or `2**32` bytes).
+
+### L2 Message Framing
+
+Noise itself has a 65535-byte (`2**16 - 1`) limit on encoded message sizes -- however the *payload* is 16 bytes smaller that this limit.
+The L2 protocol can deliver any *encoded* message up to an unsigned 4-byte integer in length (4.0 GiB or `2**32` bytes).
+Due to overhead, the actual limit for the payload of each frame is 4293918703 bytes (65537 Noise messages with 65519 bytes of payload each).
 
 The encoding works like this: there is a 4-byte big-endian length field, followed by some number of Noise packets.
 There is no leading length field on each Noise packet: implementations MUST respect the Noise limits.
-So if the length field indicates a message bigger than 65536, the reader pulls 65536 bytes out of the stream, decrypts that blob as a Noise message, subtracts 65536 from the total and continues.
-The last Noise message will obviously be less than 65536 bytes.
+So if the length field indicates a message bigger than 65535, the reader pulls 65535 bytes out of the stream, decrypts that blob as a Noise message, subtracts 65535 from the total and continues.
+The last Noise message will obviously be less than or exactly 65535 bytes.
 
 The entire decoded blob is then "one L2 message" and is delivered upstream.
+
+On the encoding side, note that 16 bytes of each maximum 65535-byte Noise message is used for authentication data.
+This means that when encoding _payload_, implementations pull at most 65519 bytes of plaintext at once and encrypt it (yielding 65535 bytes of ciphertext).
+Implementations should avoid sending enormous messages like this, but it is possible.
 
 The Noise cryptography uses the `NNpsk0` pattern with the Leader as the first party (`"-> psk, e"` in the Noise spec), and the Follower as the second (`"<- e, ee"`).
 The pre-shared-key is the "Dilation key", which is statically derived from the master PAKE key using HKDF.
@@ -254,6 +262,39 @@ All listening sockets may or may not be shut down (TODO: think about it).
 
 After sending their KCM, the Follower will wait for either an empty KCM (at which point the L2 connection is delivered to the Dilation manager as the new L3), a disconnection, or an invalid message (which causes the connection to be dropped).
 Other connections and/or listening sockets are stopped.
+
+
+### L2 Message Payload Encoding
+
+Above, we talk about *frames*.
+Inside each frame is a plaintext payload (of maximum 4293918703 bytes as above).
+These plaintexts are binary-encoded messages of the L2 protocol layer, consisting of these types with corresponding 1-byte tags:
+
+- KCM: `0x00`
+- PING: `0x01`
+- PONG: `0x02`
+- OPEN: `0x03`
+- DATA: `0x04`
+- CLOSE: `0x05`
+- ACK: `0x06`
+
+Every message starts with its tag.
+Following the tag is a message-specific encoding.
+In all messages, a "subchannel-id" (if present) is a 4-byte big-endian unsigned int.
+A "sequence-number" (if present) is a 4-byte big-endian unsigned int.
+
+The messages are encoded like this (after the tag):
+
+- KCM: no other data
+- PING: arbitrary 4 byte "ping id"
+- PONG: arbitrary 4 byte "ping id"
+- OPEN: subchannel-id, sequence-number
+- DATA: subchannel-id, sequence-number, data
+- CLOSE: subchannel-id, sequence-number
+- ACK: sequence-number
+
+For example, an OPEN would be encoded in 9 bytes of payload -- so the resulting Noise message is 9 + 16 bytes, surrounded by a frame with leading 4-byte size for 29 bytes.
+A DATA message is thus 9 bytes plus the actual "data payload" (when wrapped in Noise, and following the limits in the framing section, this means the absolute biggest single application message possible is 4293918703 - 9 or 4293918694 bytes).
 
 
 ### Python Implementation Details

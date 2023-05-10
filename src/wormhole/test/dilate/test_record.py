@@ -2,11 +2,14 @@ from __future__ import print_function, unicode_literals
 from unittest import mock
 from zope.interface import alsoProvides
 from twisted.trial import unittest
+from twisted.internet.interfaces import ITransport
 from ..._dilation._noise import NoiseInvalidMessage
 from ..._dilation.connection import (IFramer, Frame, Prologue,
-                                     _Record, Handshake,
-                                     Disconnect, Ping)
-from ..._dilation.roles import LEADER
+                                     _Record, Handshake, KCM,
+                                     Disconnect, Ping, _Framer, Data)
+from ..._dilation.connector import build_noise
+from ..._dilation.roles import LEADER, FOLLOWER
+from zope.interface import implementer
 
 
 def make_record():
@@ -126,13 +129,13 @@ class Record(unittest.TestCase):
         f = mock.Mock()
         alsoProvides(f, IFramer)
         n = mock.Mock()
-        f1 = object()
+        f1 = b"some bytes"
         n.encrypt = mock.Mock(return_value=f1)
         r1 = Ping(b"pingid")
         r = _Record(f, n, LEADER)
         r.set_role_leader()
         self.assertEqual(f.mock_calls, [])
-        m1 = object()
+        m1 = b"some other bytes"
         with mock.patch("wormhole._dilation.connection.encode_record",
                         return_value=m1) as er:
             r.send_record(r1)
@@ -273,3 +276,120 @@ class Record(unittest.TestCase):
             self.assertEqual(pr.mock_calls, [mock.call(kcm), mock.call(msg1)])
         n.mock_calls[:] = []
         f.mock_calls[:] = []
+
+    def test_large_frame(self):
+        """
+        Noise only allows 64KiB message, but the API allows up to 4GiB
+        frames
+        """
+        # XXX could really benefit from some Hypothesis style
+        # exploration of more cases .. but we don't already depend on
+        # that library, so a future improvement
+
+        @implementer(ITransport)
+        class FakeTransport:
+            """
+            Record which write()s happen
+            """
+            def __init__(self):
+                self.data = []  # list of bytes
+
+            def write(self, data):
+                self.data.append(data)
+
+        # we build both sides of a connection so that underlying Noise
+        # structures can be set up and paired properly. Essentially
+        # this test is acting like the L2 Protocol object, and can
+        # feed bytes to / from either side
+        pake_secret = b"\x00" * 32
+        transport0 = FakeTransport()
+        transport1 = FakeTransport()
+        noise0 = build_noise()
+        noise0.set_psks(pake_secret)
+        noise0.set_as_initiator()  # leader
+        noise1 = build_noise()
+        noise1.set_psks(pake_secret)
+        noise1.set_as_responder()  # follower
+        framer0 = _Framer(transport0, b"out prolog", b"in prolog")
+        record0 = _Record(framer0, noise0, LEADER)
+        record0.set_role_leader()
+        record0.connectionMade()
+        self.assertEqual(
+            list(record0.add_and_unframe(b"in prolog")),
+            []
+        )
+
+        # note that in connector the prologues flip around depending
+        # on who is the leader or follower
+        framer1 = _Framer(transport1, b"in prolog", b"out prolog")
+        record1 = _Record(framer1, noise1, FOLLOWER)
+        record1.set_role_follower()
+        record1.connectionMade()
+
+        # the leader has now sent the prolog and the opening handshake
+        # message, so we consume them on the follower side
+
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[0])),  # b"out prolog"
+            []
+        )
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[1])),
+            [Handshake()]
+        )
+
+        # the follower sends the first KCM; the leader is waiting for
+        # this and will complete the handshake after that
+        record1.send_record(KCM())
+        self.assertEqual(
+            list(record0.add_and_unframe(transport1.data[1])),
+            [Handshake()]
+        )
+        record0.send_record(KCM())
+        self.assertEqual(
+            list(record1.add_and_unframe(transport0.data[2])),
+            [KCM()]
+        )
+        # both sides are now done their handshakes
+
+        # Now, we send a message that's definitely bigger than a
+        # single Noise message can deal with
+        input_plaintext = b"\xff" * 65537
+        record0.send_record(
+            Data(
+                seqnum=123,
+                scid=456,
+                data=input_plaintext,
+            )
+        )
+
+        # ...despite its size the message should still be sent out as
+        # a single Data, because _our_ framing handles 4-byte lengths
+        self.assertEqual(
+            len(transport0.data[3]),
+            4 + 65537 + (16 * 2) + 1 + 4 + 4
+        )
+        #   ^-- frame-length
+        #       ^-- plaintext size
+        #               ^-- Noise associated data, x2 noise packets
+        #                          ^-- "data" kind, 0x04
+        #                              ^-- subchannel-id
+        #                                  ^-- sequence number
+        #
+        # (maybe we don't need the above assert, since if any of that
+        # isn't true the next step will fail)
+
+        # round-trip the data to the other side and ensure we get the
+        # plaintext back
+        outputs = list(
+            record1.add_and_unframe(transport0.data[3])
+        )
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(
+            outputs[0],
+            Data(
+                seqnum=123,
+                scid=456,
+                data=input_plaintext,
+            )
+        )
