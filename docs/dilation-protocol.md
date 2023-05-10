@@ -279,11 +279,11 @@ These plaintexts are binary-encoded messages of the L2 protocol layer, consistin
 - ACK: `0x06`
 
 Every message starts with its tag.
-Following the is a message-specific encoding.
-In all messages, a "subchannel-id" is a 4-byte big-endian unsigned int.
-A "sequence-number" is a 4-byte big-endian unsigned int.
+Following the tag is a message-specific encoding.
+In all messages, a "subchannel-id" (if present) is a 4-byte big-endian unsigned int.
+A "sequence-number" (if present) is a 4-byte big-endian unsigned int.
 
-The messages are encoded like this:
+The messages are encoded like this (after the tag):
 
 - KCM: no other data
 - PING: arbitrary 4 byte "ping id"
