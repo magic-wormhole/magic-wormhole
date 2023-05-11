@@ -11,6 +11,7 @@ Magic-Wormhole: Get Things From One Computer To Another, Safely
    :caption: Contents:
 
    welcome
+   ecosystem
    tor
 
    introduction

@@ -1,0 +1,137 @@
+The Magic-Wormhole Ecosystem
+============================
+
+This page attempts to summarize the current state of various codebases that implement or extend the Magic Wormhole protocols.
+If you feel something is missing, please open an Issue or (better yet) a Pull Request at https://github.com/magic-wormhole/magic-wormhole
+
+This document represents our best knowledge as of: May, 2023.
+
+
+Documentation
+-------------
+
+There are many documents in this repository itself, which tend to be more Python-specific.
+The `Magic Wormhole Protocols <https://github.com/magic-wormhole/magic-wormhole-protocols>`_ repository aims to collect programming-language-agnostic documentation and specifications of the core Magic Wormhole protocol and extensions.
+Currently, it is still not complete, and sometimes fails to describe existing features or describes enhancements that don't yet have an implementation.
+
+Rendered versions of this document exist at `magic-wormhole.readthedocs.io <https://magic-wormhole.readthedocs.io/en/latest/>`_.
+
+
+Protocols Overview
+------------------
+
+There are several main pieces of the protocol:
+
+* the core "mailbox protocol", spoken via the `mailbox server <>`_ (formerly called "rendezvous server" in some places) and client implementations
+* the "transit relay" protocol, spoken by the `transit relay server <>`_
+* the Dilation protocol (which depends on the core mailbox protocol), spoken by client implementations
+
+It is possible for clients to specify zero or many Transit Relays, but both peers must use the same Mailbox Server to successfully communicate (even if they end up with a direct, non-relay connection).
+
+This document does not try to describe any of these protocols in detail.
+
+
+Implementations and Support
+---------------------------
+
+There are several main features of the core protocol; while implementations strive for completeness, we document here what features those implementations actually support.
+
+The only known Mailbox Server is https://github.com/magic-wormhole/magic-wormhole-mailbox-server
+The only known Transit Relay implementation is https://github.com/magic-wormhole/magic-wormhole-transit-relay
+
+The Dilation protocol itself is still in development (with a basically-complete Python implementation, a servicable specification and an in-development Rust implementation).
+
+The "Seeds" extension is a plan with no known implementations or specifications
+
+The "Permissions" extension has a "proof-of-concept" Python client and server implementation and a specification but is not in any releases.
+
+
+Features Supported by Implementations
+-------------------------------------
+
+The separate features represented in the below table are:
+
+* *Core*: the basic client-visible features of the core mailbox protocol to `open`, `allocate`, `claim` and `close` a mailbox (as well as `add` messages to it)
+* *Reconnect*: client state and behavior to re-connect to an in-progress or existing mailbox (e.g. in case of network failure, etc)
+* *File Transfer v1* ("File v1"): the exsting file-transfer protocol (allowing single Files or Directories or text-messages to be transferred in one direction)
+* *Permissions*: an extension to allow the server to request additional work or information from clients before allowing access.
+* *Dilation*: the core Dilation protocol
+* *Dilated File Transfer* ("Dilated Transfer"): a more fully-featured file-transfer protocol on top of *Dilation*.
+
+
+Support is described as:
+
+* *Full*: supports the feature
+* *Partial*: supports the feature, with some caveats
+* *Experimental*: supports the feature fully, but not quite final (e.g. needs flags to turn on, API may change, etc)
+* *PoC*: some level of implementation exists, but not enough to be considered "Experimental".
+* *No*: the feature is not supported
+
+
+.. list-table:: Implementation Support
+    :widths: 25 15 15 15 15 15
+    :header-rows: 1
+
+    * - Language
+      - Core
+      - Reconnect
+      - File v1
+      - Dilation
+      - Dilated Transfer
+
+    * - `Python <>`_
+      - Full
+      - Full
+      - Full
+      - Experimental
+      - PoC
+
+    * - `Rust <>`_
+      - Full
+      - Partial
+      - Partial
+      - PoC
+      - No
+
+    * - `Haskell <>`_
+      - Full
+      - No
+      - Full
+      - No
+      - No
+
+    * - `Go <>`_
+      - Full
+      - ???
+      - Full
+      - No
+      - No
+
+Notes:
+- the Rust implementation v1 file-transfer doesn't support text-messages, or directory transfer (although it will produce a tarball and send it, that is not automatically unpacked on the other side)
+- there are two parts to the Haskell implementation: a library, and the file-transfer CLI client.
+
+
+End User / Client Applications
+------------------------------
+
+Based on the above libraries, there are several end-user applications targeting different platforms.
+Unless otherwise noted, these "inherit" any limitations of their langauge's library implementation from the above table.
+
+* `magic-wormhole <>`_ the Python reference implementation and CLI
+* `haskell <>`_ a Haskell CLI for file-transfer
+* `rust <>`_ a Rust CLI for file-transfer
+* `warp <>`_ a GNOME GUI written in Rust
+* `Winden <>`_ a Web client and deployment (using the Go implemtation via WASM)
+* `Destiny <>`_ a Android (and iOS) app using Flutter (with the Go implementation for wormhole)
+
+
+Other Uses
+~~~~~~~~~~
+
+Some other interesting uses of Magic Wormhole that don't directly use the file-transfer protocol.
+If you know of others, please send them along!
+
+* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fow>`_ (foward-over-wormhole).
+* Invite / key-exchange: `Magic Folder <https://magic-folder.readthedocs.io/en/latest/invites.html>`_ implements a custom protocol to do "introduction" / key-exchange.
+* Invite / configuration exchange: `Tahoe-LAFS <https://tahoe-lafs.readthedocs.io/en/latest/magic-wormhole-invites.html>`_ uses Magic Wormhole to exchange configuration (and keys) for participants to join a Grid.
