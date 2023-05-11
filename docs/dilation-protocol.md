@@ -118,7 +118,8 @@ Each `DILATE-n` message is a JSON-encoded dictionary with a `type` field that ha
 The dictionary will have other keys that depend upon the type.
 
 `w.dilate()` triggers transmission of a `please` (i.e. "please Dilate") record with a set of versions that can be accepted.
-Versions use strings, rather than integers, to support experimental protocols, however there is still a total ordering of preferability. (XXX FIXME)
+Versions use strings, rather than integers, to support experimental protocols, however there is still a total ordering of preferability.
+That simply means that the *order* in the list is important; do not sort the list.
 
 ```
 { "type": "please",
@@ -413,8 +414,6 @@ The current L3 connection's `IProducer`/`IConsumer` interface is made available 
 
 The L4 protocol manages a durable stream of OPEN/DATA/CLOSE/ACK messages.
 Since each will be enclosed in a Noise frame before they pass to L3, they do not need length fields or other framing.
-
-(XXX i think we do want to add a 4-byte unsigned size here, so that these messages don't depend on Noise limits)
 
 Each OPEN/DATA/CLOSE has a sequence number, starting at 0, and monotonically increasing by 1 for each message.
 Each direction has a separate number space.
