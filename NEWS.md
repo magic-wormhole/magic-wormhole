@@ -2,6 +2,11 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* add release-notes here when making PRs
+
+
+## Release 0.13.0 (10-Aug-2023)
+
 * Python 2.7 support is dropped (#457)
 * Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
