@@ -12,16 +12,20 @@ from ..._dilation._noise import NoiseConnection
 
 APPID = u"lothar.com/dilate-test"
 
+
 def doBoth(d1, d2):
     return gatherResults([d1, d2], True)
+
 
 class L(Protocol):
     def connectionMade(self):
         print("got connection")
         self.transport.write(b"hello\n")
+
     def dataReceived(self, data):
         print("dataReceived: {}".format(data))
         self.factory.d.callback(data)
+
     def connectionLost(self, why):
         print("connectionLost")
 
@@ -83,26 +87,33 @@ class ReconP(Protocol):
     def eventually(self, which, data):
         d = self.factory.deferreds[which]
         self.factory.eq.fire_eventually(data).addCallback(d.callback)
+
     def connectionMade(self):
         self.eventually("connectionMade", self)
-        #self.transport.write(b"hello\n")
+        # self.transport.write(b"hello\n")
+
     def dataReceived(self, data):
         self.eventually("dataReceived", data)
+
     def connectionLost(self, why):
         self.eventually("connectionLost", (self, why))
 
+
 class ReconF(Factory):
     protocol = ReconP
+
     def __init__(self, eq):
         Factory.__init__(self)
         self.eq = eq
         self.deferreds = {}
         for name in ["connectionMade", "dataReceived", "connectionLost"]:
             self.deferreds[name] = Deferred()
+
     def resetDeferred(self, name):
         d = Deferred()
         self.deferreds[name] = d
         return d
+
 
 class Reconnect(ServerBase, unittest.TestCase):
     @inlineCallbacks
@@ -126,12 +137,13 @@ class Reconnect(ServerBase, unittest.TestCase):
         eps2 = w2.dilate()
         print("w.dilate ready")
 
-        f1 = ReconF(eq); f2 = ReconF(eq)
-        d1 = eps1.control.connect(f1); d2 = eps2.control.connect(f2)
+        f1, f2 = ReconF(eq), ReconF(eq)
+        d1, d2 = eps1.control.connect(f1), eps2.control.connect(f2)
         yield d1
         yield d2
 
         protocols = {}
+
         def p_connected(p, index):
             protocols[index] = p
             msg = "hello from %s\n" % index
@@ -193,12 +205,13 @@ class Reconnect(ServerBase, unittest.TestCase):
         eps2 = w2.dilate()
         print("w.dilate ready")
 
-        f1 = ReconF(eq); f2 = ReconF(eq)
-        d1 = eps1.control.connect(f1); d2 = eps2.control.connect(f2)
+        f1, f2 = ReconF(eq), ReconF(eq)
+        d1, d2 = eps1.control.connect(f1), eps2.control.connect(f2)
         yield d1
         yield d2
 
         protocols = {}
+
         def p_connected(p, index):
             protocols[index] = p
             msg = "hello from %s\n" % index
@@ -219,8 +232,8 @@ class Reconnect(ServerBase, unittest.TestCase):
         d2 = f2.resetDeferred("dataReceived")
 
         # switch off connections
-        assert w1._boss._D._manager._debug_stall_connector == False
-        cd1 = Deferred(); cd2 = Deferred()
+        assert not w1._boss._D._manager._debug_stall_connector
+        cd1, cd2 = Deferred(), Deferred()
         w1._boss._D._manager._debug_stall_connector = cd1.callback
         w2._boss._D._manager._debug_stall_connector = cd2.callback
 

@@ -25,6 +25,7 @@ TorTCPV1Hint = namedtuple("TorTCPV1Hint", ["hostname", "port", "priority"])
 # rest of the V1 protocol. Only one hint per relay is useful.
 RelayV1Hint = namedtuple("RelayV1Hint", ["hints"])
 
+
 def describe_hint_obj(hint, relay, tor):
     prefix = "tor->" if tor else "->"
     if relay:
@@ -35,6 +36,7 @@ def describe_hint_obj(hint, relay, tor):
         return prefix + "tor:%s:%d" % (hint.hostname, hint.port)
     else:
         return prefix + str(hint)
+
 
 def parse_hint_argv(hint, stderr=sys.stderr):
     assert isinstance(hint, type(u""))
@@ -88,6 +90,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
 
+
 def endpoint_from_hint_obj(hint, tor, reactor):
     if tor:
         if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
@@ -107,6 +110,7 @@ def endpoint_from_hint_obj(hint, tor, reactor):
         return HostnameEndpoint(reactor, hint.hostname, hint.port)
     return None
 
+
 def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
     hint_type = hint.get("type", "")
     if hint_type not in ["direct-tcp-v1", "tor-tcp-v1"]:
@@ -125,6 +129,7 @@ def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
         return DirectTCPV1Hint(hint["hostname"], hint["port"], priority)
     else:
         return TorTCPV1Hint(hint["hostname"], hint["port"], priority)
+
 
 def parse_hint(hint_struct):
     hint_type = hint_struct.get("type", "")

@@ -152,6 +152,7 @@ class SubChannelAPI(unittest.TestCase):
         sc.registerProducer(None, True)
         sc.unregisterProducer()
 
+
 class HalfCloseable(unittest.TestCase):
 
     def test_create(self):
@@ -176,11 +177,11 @@ class HalfCloseable(unittest.TestCase):
         p.mock_calls[:] = []
 
         with self.assertRaises(NormalCloseUsedOnHalfCloseable) as e:
-            sc.loseConnection() # TODO: maybe this shouldn't be an error
+            sc.loseConnection()  # TODO: maybe this shouldn't be an error
 
         # after a local close, we can't write anymore, but we can still
         # receive data
-        sc.loseWriteConnection() # TODO or loseConnection?
+        sc.loseWriteConnection()  # TODO or loseConnection?
         self.assertEqual(m.mock_calls, [mock.call.send_close(scid)])
         m.mock_calls[:] = []
         self.assertEqual(p.mock_calls, [mock.call.writeConnectionLost()])
@@ -197,7 +198,7 @@ class HalfCloseable(unittest.TestCase):
                          "loseConnection not allowed on closed subchannel")
 
         with self.assertRaises(NormalCloseUsedOnHalfCloseable) as e:
-            sc.loseConnection() # TODO: maybe expect AlreadyClosedError
+            sc.loseConnection()  # TODO: maybe expect AlreadyClosedError
 
         sc.remote_data(b"inbound2")
         self.assertEqual(p.mock_calls, [mock.call.dataReceived(b"inbound2")])

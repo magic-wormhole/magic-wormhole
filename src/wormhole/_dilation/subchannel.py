@@ -20,7 +20,8 @@ from ..observer import OneShotObserver
 # with a 4-byte length prefix (which only covers the padded message, not the
 # length prefix itself), so the padded message must be less than 2**32 bytes
 # long.
-MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16;
+MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
+
 
 @attrs
 class Once(object):
@@ -56,8 +57,11 @@ class SingleUseEndpointError(Exception):
 class AlreadyClosedError(Exception):
     pass
 
+
 class NormalCloseUsedOnHalfCloseable(Exception):
     pass
+
+
 class HalfCloseUsedOnNonHalfCloseable(Exception):
     pass
 
@@ -251,7 +255,7 @@ class SubChannel(object):
             self.connect_protocol_half()
         else:
             # move from UNCONNECTED to OPEN
-            self.connect_protocol_full();
+            self.connect_protocol_full()
 
     def _deliver_queued_data(self):
         for data in self._pending_remote_data:
@@ -274,7 +278,7 @@ class SubChannel(object):
         if not IHalfCloseableProtocol.providedBy(self._protocol):
             # this is a clear error
             raise HalfCloseUsedOnNonHalfCloseable()
-        self.local_close();
+        self.local_close()
 
     def loseConnection(self):
         # TODO: what happens if an IHalfCloseableProtocol calls normal
@@ -326,6 +330,7 @@ class ControlEndpoint(object):
 
     def _main_channel_ready(self):
         self._wait_for_main_channel.fire(None)
+
     def _main_channel_failed(self, f):
         self._wait_for_main_channel.error(f)
 
@@ -355,6 +360,7 @@ class SubchannelConnectorEndpoint(object):
 
     def _main_channel_ready(self):
         self._wait_for_main_channel.fire(None)
+
     def _main_channel_failed(self, f):
         self._wait_for_main_channel.error(f)
 
@@ -403,6 +409,7 @@ class SubchannelListenerEndpoint(object):
 
     def _main_channel_ready(self):
         self._wait_for_main_channel.fire(None)
+
     def _main_channel_failed(self, f):
         self._wait_for_main_channel.error(f)
 

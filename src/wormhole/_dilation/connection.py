@@ -49,8 +49,8 @@ class IRecord(Interface):
     pass
 
 
-def first(l):
-    return l[0]
+def first(seq):
+    return seq[0]
 
 
 class Disconnect(Exception):
@@ -327,13 +327,14 @@ def _is_role(_record, _attr, value):
     if value not in [LEADER, FOLLOWER]:
         raise ValueError("role must be LEADER or FOLLOWER")
 
+
 @attrs
 @implementer(IRecord)
 class _Record(object):
     _framer = attrib(validator=provides(IFramer))
     _noise = attrib()
 
-    _role = attrib(default="unspecified", validator=_is_role) # for debugging
+    _role = attrib(default="unspecified", validator=_is_role)  # for debugging
 
     n = MethodicalMachine()
     # TODO: set_trace
@@ -620,7 +621,8 @@ class DilatedConnectionProtocol(Protocol, object):
             else:
                 self._record.set_role_follower()
             self._record.connectionMade()
-        except:
+
+        except:  # noqa
             log.err()
             raise
 
