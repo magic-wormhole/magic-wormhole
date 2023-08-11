@@ -65,14 +65,20 @@ w.allocate_code()
 Deferred mode:
 
 ```python
-w = wormhole.create(appid, relay_url, reactor)
-w.allocate_code()
-def print_code(code):
-    print("code: %s" % code)
-w.get_code().addCallback(print_code)
-def received(msg):
-    print("got data, %d bytes" % len(msg))
-w.get_message().addCallback(received) # gets exactly one message
+async def example_initiator(reactor):
+    appid = "lothar.com/example"
+    relay_url = public_relay.RENDEZVOUS_RELAY
+    relay_url = "ws://localhost:4000/v1"
+    w = wormhole.create(appid, relay_url, reactor)
+    w.allocate_code()
+
+    code = await w.get_code()
+    print(f"code: {code}")
+
+    msg = await w.get_message() # gets exactly one message
+    print(f"got msg: {len(msg)} bytes")
+    result = await w.close()
+    print(f"closed: {result}")
 ```
 
 ## Application Identifier
