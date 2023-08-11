@@ -243,9 +243,11 @@ code-entry helper to do tab completion of wormhole codes:
 
 ```python
 from wormhole import create, input_with_completion
-w = create(appid, relay_url, reactor)
-input_with_completion("Wormhole code:", w.input_code(), reactor)
-d = w.get_code()
+
+async def example(reactor):
+    w = create(appid, relay_url, reactor)
+    input_with_completion("Wormhole code:", w.input_code(), reactor)
+    code = await w.get_code()
 ```
 
 This helper runs python's (raw) `input()` function inside a thread, since
@@ -294,7 +296,7 @@ easier to transcribe: e.g. rolling 6 dice could result in a code like
 The first message sent by the mailbox server is a "welcome" message (a
 dictionary). This is sent as soon as the client connects to the server,
 generally before the code is established. Clients should use
-`d=get_welcome()` to get and process the `motd` key (and maybe
+`await get_welcome()` to get and process the `motd` key (and maybe
 `current_cli_version`) inside the welcome message.
 
 The welcome message serves three main purposes:
@@ -359,11 +361,11 @@ do so before using stdin/stdout for interactive code entry (`w.input_code()`)
 should wait for `get_welcome()` before starting the entry process:
 
 ```python
-@inlineCallbacks
-def go():
+async def go():
     w = wormhole.create(appid, relay_url, reactor)
-    welcome = yield w.get_welcome()
-    if "motd" in welcome: print welcome["motd"]
+    welcome = await w.get_welcome()
+    if "motd" in welcome:
+        print(welcome["motd"])
     input_with_completion("Wormhole code:", w.input_code(), reactor)
     ...
 ```
