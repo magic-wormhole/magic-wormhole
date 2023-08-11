@@ -4,7 +4,7 @@
 
 By default, wormhole codes contain 16 bits of entropy. If an attacker
 can intercept your network connection (either by owning your network, or
-owning the rendezvous server), they can attempt an attack. They will
+owning the mailbox server), they can attempt an attack. They will
 have a one-in-65536 chance of successfully guessing your code, allowing
 them to pose as your intended partner. If they succeed, they can turn
 around and immediately start a new wormhole (using the same code),
@@ -30,16 +30,16 @@ Of course, an attacker who learns your secret wormhole code directly
 attack with 100% reliability.
 
 
-## DoS Attack on the Rendezvous Server
+## DoS Attack on the Mailbox Server
 
 Wormhole codes can be so short because they implicitly contain a common
-rendezvous server URL (any two applications that use magic-wormhole
+mailbox server URL (any two applications that use magic-wormhole
 should be configured to use the same server). As a result, successful
 operation depends upon both clients being able to contact that server,
 making it a SPOF (single point of failure).
 
 In particular, grumpy people could disrupt service for everyone by
-writing a program that just keeps connecting to the rendezvous server,
+writing a program that just keeps connecting to the mailbox server,
 pretending to be real clients, and claiming messages meant for
 legitimate users.
 
@@ -63,7 +63,7 @@ ones that I've considered (but haven't implemented yet) include:
   tended to only run once before learning some responsibility).
 
 Using the secret words as part of the "channel id" isn't safe, since it
-would allow a network attacker, or the rendezvous server, to deduce what
+would allow a network attacker, or the mailbox server, to deduce what
 the secret words are: since they only have 16 bits of entropy, the
 attacker just makes a table of hash(words) -> channel-id, then reverses
 it. To make that safer we'd need to increase the codes to maybe 80 bits
@@ -80,7 +80,7 @@ I don't have a good answer for this one. I'm hoping that it isn't
 sufficiently interesting to attack that it'll be an issue, but I can't
 think of any simple answers. If the API is sufficiently compelling for
 other applications to incorporate Wormhole "technology" into their apps,
-I'm expecting that they'll run their own rendezvous server, and of
+I'm expecting that they'll run their own mailbox server, and of
 course those apps can incorporate whatever sort of DoS protection seems
 appropriate. For the built-in/upstream send-text/file/directory tools,
 using the public relay that I run, it may just have to be a best-effort
