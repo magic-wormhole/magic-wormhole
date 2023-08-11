@@ -324,10 +324,6 @@ operator needs to signal a problem).
   same version. The CLI tools compare this string against their `__version__`
   and can print a short message to stderr if an upgrade is warranted.
 
-There is currently no facility in the server to actually send `motd`, but a
-static `error` string can be included by running the server with
-`--signal-error=MESSAGE`.
-
 The main idea of `error` is to allow the server to cleanly inform the client
 about some necessary action it didn't take. The server currently sends the
 welcome message as soon as the client connects (even before it receives the
