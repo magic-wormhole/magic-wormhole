@@ -327,28 +327,6 @@ class TestConnector(unittest.TestCase):
                          [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
                                     is_relay=True)])
 
-    def test_add_relay(self):
-        c, h = make_connector(listen=False, relay=None, role=roles.LEADER)
-        c._schedule_connection = mock.Mock()
-        c.start()
-        self.assertEqual(h.manager.mock_calls, [])
-        self.assertEqual(c._schedule_connection.mock_calls, [])
-        hint = RelayV1Hint([DirectTCPV1Hint("foo", 55, 0.0)])
-        c.add_relay([hint])
-        self.assertEqual(h.manager.mock_calls,
-                         [mock.call.send_hints([{"type": "relay-v1",
-                                                 "hints": [
-                                                     {"type": "direct-tcp-v1",
-                                                      "hostname": "foo",
-                                                      "port": 55,
-                                                      "priority": 0.0
-                                                      },
-                                                     ],
-                                                 }])])
-        self.assertEqual(c._schedule_connection.mock_calls,
-                         [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
-                                    is_relay=True)])
-
     def test_tor_no_manager(self):
         # tor hints should be ignored if we don't have a Tor manager to use them
         c, h = make_connector(listen=False, role=roles.LEADER)
