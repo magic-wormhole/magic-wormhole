@@ -67,7 +67,7 @@ Deferred mode:
 ```python
 async def example_initiator(reactor):
     appid = "lothar.com/example"
-    relay_url = public_relay.RENDEZVOUS_RELAY
+    relay_url = public_relay.MAILBOX_RELAY
     relay_url = "ws://localhost:4000/v1"
     w = wormhole.create(appid, relay_url, reactor)
     w.allocate_code()
