@@ -24,17 +24,17 @@ A quick example:
 
 ```python
 import wormhole
-from twisted.internet.defer import inlineCallbacks
 
-@inlineCallbacks
-def go():
+async def example_initiator(reactor):
     w = wormhole.create(appid, relay_url, reactor)
     w.allocate_code()
-    code = yield w.get_code()
-    print "code:", code
+
+    code = await w.get_code()
+    print(f"code: {code}")
+
     w.send_message(b"outbound data")
-    inbound = yield w.get_message()
-    yield w.close()
+    inbound = await w.get_message()
+    await w.close()
 ```
 
 ## Modes
@@ -68,7 +68,6 @@ Deferred mode:
 async def example_initiator(reactor):
     appid = "lothar.com/example"
     relay_url = public_relay.MAILBOX_RELAY
-    relay_url = "ws://localhost:4000/v1"
     w = wormhole.create(appid, relay_url, reactor)
     w.allocate_code()
 
