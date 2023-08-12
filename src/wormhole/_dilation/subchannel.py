@@ -240,7 +240,10 @@ class SubChannel(object):
     # we won't ever see an OPEN, since L4 will log+ignore those for us
     closing.upon(local_data, enter=closing, outputs=[error_closed_write])
     closing.upon(local_close, enter=closing, outputs=[error_closed_close])
-    # the CLOSED state won't ever see messages, since we'll be deleted
+    # the CLOSED state shouldn't ever see messages, since we'll be deleted
+    # (but a local user should be able to call "close" without having
+    # to know what state we're in)
+    closed.upon(local_close, enter=closed, outputs=[])
 
     # our endpoints use these
 
