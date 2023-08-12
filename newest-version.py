@@ -1,32 +1,12 @@
 #
-# this updates the (tagged) version of the software
+# print out the most-recent version
 #
-# it will only update the "minor" version (e.g. 0.12.* -> 0.13.0)
-#
-# Any "options" are hard-coded in here (e.g. the GnuPG key to use)
-#
-
-author = "meejah <meejah@meejah.ca>"
-
-
-import sys
-import time
-import itertools
-from datetime import datetime
 
 from dulwich.repo import Repo
-from dulwich.porcelain import (
-    tag_list,
-    tag_create,
-    status,
-)
+from dulwich.porcelain import tag_list
 
-from twisted.internet.task import (
-    react,
-)
-from twisted.internet.defer import (
-    ensureDeferred,
-)
+from twisted.internet.task import react
+from twisted.internet.defer import ensureDeferred
 
 
 def existing_tags(git):

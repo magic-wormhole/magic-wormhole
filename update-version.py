@@ -6,12 +6,8 @@
 # Any "options" are hard-coded in here (e.g. the GnuPG key to use)
 #
 
-author = "meejah <meejah@meejah.ca>"
-
-
 import sys
 import time
-import itertools
 from datetime import datetime
 
 from dulwich.repo import Repo
@@ -27,6 +23,8 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     ensureDeferred,
 )
+
+author = "meejah <meejah@meejah.ca>"
 
 
 def existing_tags(git):
@@ -76,7 +74,9 @@ async def main(reactor):
     s = now.utctimetuple()
     ts = int(
         time.mktime(
-            time.struct_time((s.tm_year, s.tm_mon, s.tm_mday, 0, 0, 0, 0, s.tm_yday, 0))
+            time.struct_time((
+                s.tm_year, s.tm_mon, s.tm_mday, 0, 0, 0, 0, s.tm_yday, 0
+            ))
         )
     )
     tag_create(
