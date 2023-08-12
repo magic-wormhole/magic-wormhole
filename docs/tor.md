@@ -36,7 +36,7 @@ most common locations:
 If ``wormhole`` is unable to establish a control-port connection to any
 of those locations, it will assume there is a SOCKS daemon listening on
 ``tcp:localhost:9050``, and hope for the best (if no SOCKS daemon is
-available on that port, the initial Rendezvous connection will fail, and
+available on that port, the initial Mailbox connection will fail, and
 the program will exit with an error before doing anything else).
 
 The default behavior will Just Work if:

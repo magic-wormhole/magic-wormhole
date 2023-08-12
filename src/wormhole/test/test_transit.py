@@ -141,7 +141,6 @@ class Misc(unittest.TestCase):
         self.assertIsInstance(portno, int)
 
 
-
 # ipaddrs.py currently uses native strings: bytes on py2, unicode on
 # py3
 if six.PY2:
