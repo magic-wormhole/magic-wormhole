@@ -57,7 +57,7 @@ release-test:
 	rm -rf testmf_venv
 
 release-upload:
-	twine upload dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-wormhole-`git describe --abbrev=0`.tar.gz dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
+	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-wormhole-`git describe --abbrev=0`.tar.gz dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 
 
 dilation.png: dilation.seqdiag

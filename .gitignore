@@ -57,3 +57,6 @@ target/
 
 # Virtual environment stuff
 venv/
+
+# do not accidentally commit
+PRIVATE-release-token
