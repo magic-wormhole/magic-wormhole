@@ -281,7 +281,7 @@ def create(
         "dilation-abilities": Connector.get_connection_abilities(),
     }
     if not _enable_dilate:
-        wormhole_versions = {} # don't advertise Dilation yet: not ready
+        wormhole_versions = {}  # don't advertise Dilation yet: not ready
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):

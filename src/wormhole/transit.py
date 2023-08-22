@@ -92,7 +92,6 @@ def build_sided_relay_handshake(key, side):
         "ascii") + b"\n"
 
 
-
 TIMEOUT = 60  # seconds
 
 

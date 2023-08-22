@@ -14,8 +14,10 @@ from ..._dilation.subchannel import (ControlEndpoint,
                                      SingleUseEndpointError)
 from .common import mock_manager
 
+
 class CannotDilateError(Exception):
     pass
+
 
 class Control(unittest.TestCase):
     def test_early_succeed(self):
@@ -119,12 +121,14 @@ class Control(unittest.TestCase):
         d = ep.connect(f)
         self.failureResultOf(d, SingleUseEndpointError)
 
+
 class Endpoints(unittest.TestCase):
     def OFFassert_makeConnection(self, mock_calls):
         self.assertEqual(len(mock_calls), 1)
         self.assertEqual(mock_calls[0][0], "makeConnection")
         self.assertEqual(len(mock_calls[0][1]), 1)
         return mock_calls[0][1][0]
+
 
 class Connector(unittest.TestCase):
     def test_early_succeed(self):
@@ -222,6 +226,7 @@ class Connector(unittest.TestCase):
         self.assertEqual(f.buildProtocol.mock_calls, [])
         self.assertEqual(sc.mock_calls, [])
         self.assertEqual(t.mock_calls, [])
+
 
 class Listener(unittest.TestCase):
     def test_early_succeed(self):

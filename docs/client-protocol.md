@@ -1,7 +1,7 @@
 # Client-to-Client Protocol
 
 Wormhole clients do not talk directly to each other (at least at first): they
-only connect directly to the Rendezvous Server. They ask this server to
+only connect directly to the Mailbox Server. They ask this server to
 convey messages to the other client (via the `add` command and the `message`
 response). This document explains the format of these client-to-client
 messages.
@@ -9,7 +9,7 @@ messages.
 Each such message contains a "phase" string, and a hex-encoded binary "body".
 
 Any phase which is purely numeric (`^\d+$`) is reserved for encrypted
-application data. The Rendezvous server may deliver these messages multiple
+application data. The Mailbox server may deliver these messages multiple
 times, or out-of-order, but the wormhole client will deliver the
 corresponding decrypted data to the application in strict numeric order. All
 other (non-numeric) phases are reserved for the Wormhole client itself.
@@ -40,7 +40,7 @@ wormhole code as us. This event pushes the client mood from "lonely" to
 "happy".
 
 This might be triggered by the peer's `version` message, but if we had to
-re-establish the Rendezvous Server connection, we might get peer messages out
+re-establish the Mailbox Server connection, we might get peer messages out
 of order and see some application-level message first.
 
 When a `version` message is successfully decrypted, the application is

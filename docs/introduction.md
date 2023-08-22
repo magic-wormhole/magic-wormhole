@@ -2,7 +2,7 @@
 
 The magic-wormhole (Python) distribution provides several things: an
 executable tool ("bin/wormhole"), an importable library (`import wormhole`),
-the URL of a publicly-available Rendezvous Server, and the definition of a
+the URL of a publicly-available Mailbox Server, and the definition of a
 protocol used by all three.
 
 The executable tool provides basic sending and receiving of files,
@@ -17,7 +17,7 @@ arbitrary-sized bytestring). This does not provide file-transfer directly:
 the "bin/wormhole" tool speaks a simple protocol through this record pipe to
 negotiate and perform the file transfer.
 
-`wormhole/cli/public_relay.py` contains the URLs of a Rendezvous Server and a
+`wormhole/cli/public_relay.py` contains the URLs of a Mailbox Server and a
 Transit Relay which I provide to support the file-transfer tools, which other
 developers should feel free to use for their applications as well. I cannot
 make any guarantees about performance or uptime for these servers: if you
@@ -29,7 +29,7 @@ and modify the URLs in your application to point at it).
 
 There are several layers to the protocol.
 
-At the bottom level, each client opens a WebSocket to the Rendezvous Server,
+At the bottom level, each client opens a WebSocket to the Mailbox Server,
 sending JSON-based commands to the server, and receiving similarly-encoded
 messages. Some of these commands are addressed to the server itself, while
 others are instructions to queue a message to other clients, or are

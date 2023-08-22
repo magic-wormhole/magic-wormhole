@@ -17,8 +17,10 @@ from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from ..._dilation.subchannel import _SubchannelAddress
 from .common import clear_mock_calls
 
+
 class Holder():
     pass
+
 
 def make_dilator():
     h = Holder()
@@ -53,8 +55,8 @@ class TestDilator(unittest.TestCase):
         m.get_endpoints = mock.Mock(return_value=eps)
         mm = mock.Mock(side_effect=[m])
         with mock.patch("wormhole._dilation.manager.Manager", mm), \
-                 mock.patch("wormhole._dilation.manager.make_side",
-                            return_value=side):
+             mock.patch("wormhole._dilation.manager.make_side",
+                        return_value=side):
             eps1 = dil.dilate()
             eps2 = dil.dilate()
         self.assertIdentical(eps1, eps)
@@ -163,11 +165,12 @@ class TestDilator(unittest.TestCase):
         m = mock.Mock()
         mm = mock.Mock(side_effect=[m])
         with mock.patch("wormhole._dilation.manager.Manager", mm), \
-                 mock.patch("wormhole._dilation.manager.make_side",
-                            return_value=side):
+             mock.patch("wormhole._dilation.manager.make_side",
+                        return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
                                                    h.reactor, h.eq, h.coop, False)])
+
 
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
@@ -202,10 +205,10 @@ def make_manager(leader=True):
     h.listen_ep = mock.Mock()
     alsoProvides(h.listen_ep, IStreamServerEndpoint)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
-             mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
-             mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
-             mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
-                        return_value=h.listen_ep):
+         mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
+         mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
+         mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
+                    return_value=h.listen_ep):
         m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
