@@ -25,7 +25,7 @@ For packagers: PyPI has stopped serving detached signature files.
 Going forward, all signatures will be committed to Git (in the signatures/ subdirectory).
 All available signatures from PyPI for historic releases have been added here too.
 
-Thanks to the many contributors of bugs, patches, and other help with this
+Thanks to the many contributors of bug-fixes, patches, and other help with this
 release:
 
 * Jelle van der Waa https://github.com/jelly (#466)
