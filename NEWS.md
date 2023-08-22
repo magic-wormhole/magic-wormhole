@@ -10,6 +10,7 @@ User-visible changes in "magic-wormhole":
 * Python 2.7 support is dropped (#457)
 * Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
 * SECURITY: Replace "weird" characters in receiver's display (#476)
+* SECURITY: all past binary signatures are now in Git
 * Use the HKDF primitive from "cryptography" (#462)
 * `wormhole receive` now accepts `--allocate-code` so that a sender can
   use `--code` to send them a file (#450)
@@ -19,6 +20,10 @@ User-visible changes in "magic-wormhole":
 
 Also of interest to developers in this release are a few changes to the experimental Dilation implementation and description; some documentation cleanups; dropping of dependencies; and some test cleanups.
 The Dilation changes properly send `use-version` and split messages over Noise-sized chunks more seamlessly (allowing the specified 4-byte maximum message size at the application layer).
+
+For packagers: PyPI has stopped serving detached signature files.
+Going forward, all signatures will be committed to Git (in the signatures/ subdirectory).
+All available signatures from PyPI for historic releases have been added here too.
 
 Thanks to the many contributors of bugs, patches, and other help with this
 release:
