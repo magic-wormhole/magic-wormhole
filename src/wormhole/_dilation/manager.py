@@ -57,15 +57,19 @@ class UnexpectedKCM(Exception):
 class UnknownMessageType(Exception):
     pass
 
+
 @attrs
 class EndpointRecord(Sequence):
     control = attrib(validator=provides(IStreamClientEndpoint))
     connect = attrib(validator=provides(IStreamClientEndpoint))
     listen = attrib(validator=provides(IStreamServerEndpoint))
+
     def __len__(self):
         return 3
+
     def __getitem__(self, n):
         return (self.control, self.connect, self.listen)[n]
+
 
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
@@ -221,7 +225,6 @@ class Manager(object):
 
     def when_stopped(self):
         return self._stopped.when_fired()
-
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase

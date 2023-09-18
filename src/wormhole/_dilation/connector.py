@@ -40,8 +40,10 @@ PROLOGUE_LEADER = b"Magic-Wormhole Dilation Handshake v1 Leader\n\n"
 PROLOGUE_FOLLOWER = b"Magic-Wormhole Dilation Handshake v1 Follower\n\n"
 NOISEPROTO = b"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"
 
+
 def build_noise():
     return NoiseConnection.from_name(NOISEPROTO)
+
 
 @attrs(eq=False)
 @implementer(IDilationConnector)
@@ -148,12 +150,6 @@ class Connector(object):
 
     # TODO: unify the tense of these method-name verbs
 
-    # add_relay() and got_hints() are called by the Manager as it receives
-    # messages from our peer. stop() is called when the Manager shuts down
-    @m.input()
-    def add_relay(self, hint_objs):
-        pass
-
     @m.input()
     def got_hints(self, hint_objs):
         pass
@@ -177,7 +173,6 @@ class Connector(object):
     @m.input()
     def accept(self, c):
         pass
-
 
     @m.output()
     def use_hints(self, hint_objs):
@@ -229,7 +224,7 @@ class Connector(object):
         self.break_cycles()
 
     def stop_listeners(self):
-        d = DeferredList([l.stopListening() for l in self._listeners])
+        d = DeferredList([sub.stopListening() for sub in self._listeners])
         self._listeners.clear()
         return d  # synchronization for tests
 
@@ -250,8 +245,6 @@ class Connector(object):
         self._winning_connection = None
 
     connecting.upon(listener_ready, enter=connecting, outputs=[publish_hints])
-    connecting.upon(add_relay, enter=connecting, outputs=[use_hints,
-                                                          publish_hints])
     connecting.upon(got_hints, enter=connecting, outputs=[use_hints])
     connecting.upon(add_candidate, enter=connecting, outputs=[consider])
     connecting.upon(accept, enter=connected, outputs=[
@@ -260,7 +253,6 @@ class Connector(object):
 
     # once connected, we ignore everything except stop
     connected.upon(listener_ready, enter=connected, outputs=[])
-    connected.upon(add_relay, enter=connected, outputs=[])
     connected.upon(got_hints, enter=connected, outputs=[])
     # TODO: tell them to disconnect? will they hang out forever? I *think*
     # they'll drop this once they get a KCM on the winning connection.
@@ -424,6 +416,7 @@ class OutboundConnectionFactory(ClientFactory, object):
             p.use_relay(self._relay_handshake)
         return p
 
+
 def describe_inbound(addr):
     if isinstance(addr, HostnameAddress):
         return "<-tcp:%s:%d" % (addr.hostname, addr.port)
@@ -432,6 +425,7 @@ def describe_inbound(addr):
     elif isinstance(addr, IPv6Address):
         return "<-tcp:[%s]:%d" % (addr.host, addr.port)
     return "<-%r" % addr
+
 
 @attrs(repr=False)
 class InboundConnectionFactory(ServerFactory, object):

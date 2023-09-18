@@ -1,8 +1,8 @@
-# Rendezvous Server Protocol
+# Mailbox Server Protocol
 
 ## Concepts
 
-The Rendezvous Server provides queued delivery of binary messages from one
+The Mailbox Server provides queued delivery of binary messages from one
 client to a second, and vice versa. Each message contains a "phase" (a
 string) and a body (bytestring). These messages are queued in a "Mailbox"
 until the other side connects and retrieves them, but are delivered
@@ -33,7 +33,7 @@ file-transfer tool uses `lothar.com/wormhole/text-or-file-xfer`.
 ## WebSocket Transport
 
 At the lowest level, each client establishes (and maintains) a WebSocket
-connection to the Rendezvous Server. If the connection is lost (which could
+connection to the Mailbox Server. If the connection is lost (which could
 happen because the server was rebooted for maintenance, or because the
 client's network connection migrated from one network to another, or because
 the resident network gremlins decided to mess with you today), clients should
@@ -109,7 +109,7 @@ original message dictionary in `orig`.
 Wormhole codes look like `4-purple-sausages`, consisting of a number followed
 by some random words. This number is called a "Nameplate".
 
-On the Rendezvous Server, the Nameplate contains a pointer to a Mailbox.
+On the Mailbox Server, the Nameplate contains a pointer to a Mailbox.
 Clients can "claim" a nameplate, and then later "release" it. Each claim is
 for a specific side (so one client claiming the same nameplate multiple times
 only counts as one claim). Nameplates are deleted once the last client has
@@ -162,7 +162,7 @@ The `close` command accepts an optional "mood" string: this allows clients to
 tell the server (in general terms) about their experiences with the wormhole
 interaction. The server records the mood in its "usage" record, so the server
 operator can get a sense of how many connections are succeeding and failing.
-The moods currently recognized by the Rendezvous Server are:
+The moods currently recognized by the Mailbox Server are:
 
 * `happy` (default): the PAKE key-establishment worked, and the client saw at
   least one valid encrypted message from its peer
@@ -192,7 +192,7 @@ blob (for the VERSION message, as well as all application-provided payloads).
 The `message` response will also include `id`, copied from the `id` of the
 `add` message (and used only by the timing-diagram tool).
 
-The Rendezvous Server does not de-duplicate messages, nor does it retain
+The Mailbox Server does not de-duplicate messages, nor does it retain
 ordering: clients must do both if they need to.
 
 ## All Message Types

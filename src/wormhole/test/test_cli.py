@@ -389,6 +389,7 @@ class FakeTor:
         self.endpoints.append((host, port, tls))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
+
 def strip_deprecations(stderr, NL):
     lines = [line
              for line in stderr.split(NL)
@@ -398,6 +399,7 @@ def strip_deprecations(stderr, NL):
                      )
              ]
     return NL.join(lines)
+
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
