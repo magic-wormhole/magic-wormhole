@@ -79,28 +79,28 @@ Support is described as:
       - Dilation
       - Dilated Transfer
 
-    * - `Python <>`_
+    * - `Python <https://github.com/Jacalz/rymdport>`_
       - Full
       - Full
       - Full
       - Experimental
       - PoC
 
-    * - `Rust <>`_
+    * - `Rust <https://github.com/magic-wormhole/magic-wormhole.rs/>`_
       - Full
       - Partial
       - Partial
       - PoC
       - No
 
-    * - `Haskell <>`_
+    * - `Haskell <https://github.com/LeastAuthority/haskell-magic-wormhole/>`_
       - Full
       - No
       - Full
       - No
       - No
 
-    * - `Go <>`_
+    * - `Go <https://github.com/psanford/wormhole-william>`_
       - Full
       - ???
       - Full
@@ -109,7 +109,7 @@ Support is described as:
 
 Notes:
 - the Rust implementation v1 file-transfer doesn't support text-messages, or directory transfer (although it will produce a tarball and send it, that is not automatically unpacked on the other side)
-- there are two parts to the Haskell implementation: a library, and the file-transfer CLI client.
+- there are two parts to the Haskell implementation: a library, and `a Haskell file-transfer CLI client <https://github.com/LeastAuthority/wormhole-client>`_
 
 
 End User / Client Applications
@@ -124,6 +124,20 @@ Unless otherwise noted, these "inherit" any limitations of their langauge's libr
 * `warp <https://github.com/magic-wormhole/magic-wormhole.rs/>`_ a GNOME GUI written in Rust
 * `Winden <https://winden.app/>`_ a Web client and deployment (using the Go implemtation via WASM)
 * `Destiny (fdroid) <https://f-droid.org/packages/com.leastauthority.destiny/>`_ a Android (and iOS) app using Flutter (with the Go implementation for wormhole). Also on proprietary app stores.
+* `Wormhole <https://gitlab.com/lukas-heiligenbrunner/wormhole>`_ for Android. Based on the Rust implementation.
+* `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy
+* `Wormhole William Mobile <https://github.com/psanford/wormhole-william-mobile>`_ for Android and iOS.
+* `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
+* `dart bindings <https://github.com/LeastAuthority/dart_wormhole_william>`_ allowing Wormhole William to be used in Flutter.
+
+
+Integrations
+------------
+
+These use the basic file-transfer functionality of the protocol, but build it in to some other application.
+
+* `tmux-wormhole <https://github.com/gcla/tmux-wormhole>`_ a tmux plugin allowing use of file-transfer from within a tmux session (based on the Go implementation).
+* `termshark <https://github.com/gcla/termshark/>`_ integrates ``wormhole-william`` (the Go implementation) to facilitate transfer of ``.pcap`` files (see the `termshark User Guide <https://github.com/gcla/termshark/blob/master/docs/UserGuide.md#transfer-a-pcap-file>`_
 
 
 Other Uses
