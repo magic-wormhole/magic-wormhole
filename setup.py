@@ -36,6 +36,7 @@ setup(name="magic-wormhole",
                 "wormhole.test",
                 "wormhole.test.dilate",
                 ],
+      data_files=[(".", ["wormhole_complete.bash", "wormhole_complete.zsh", "wormhole_complete.fish"])],
       entry_points={
           "console_scripts":
           [
