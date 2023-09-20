@@ -124,7 +124,7 @@ class Mailbox(object):
 
     @m.output()
     def record_mailbox(self, mailbox):
-        print("MAILBOX: {}".format(mailbox))
+        ##print("MAILBOX: {}".format(mailbox))
         self._mailbox = mailbox
 
     @m.output()
