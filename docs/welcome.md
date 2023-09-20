@@ -249,6 +249,14 @@ Both commands accept additional arguments to influence their behavior:
 * `--code-length WORDS`: use more or fewer than 2 words for the code
 * `--verify` : print (and ask user to compare) extra verification string
 
+### Tab-Completion
+
+Wormhole codes will tab-complete for receivers out-of-the-box.
+
+If you desire shell tab-completion on sub-commands, we include generated files [from Click](https://click.palletsprojects.com/en/8.1.x/shell-completion/) for Bash, Zsh and Fish shells in [wormhole_completion.bash](https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_completion.bash) (or `.zsh`, `.fish`).
+Put this file in your favourite location and add a line like `source ~/wormhole_completion.bash` to `~/.bashrc` (or similar for `zsh` and `fish` shells).
+
+
 ## Library
 
 The `wormhole` module makes it possible for other applications to use these
