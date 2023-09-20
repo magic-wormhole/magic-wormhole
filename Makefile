@@ -9,6 +9,11 @@
 default:
 	echo "see Makefile"
 
+completions:
+	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
+	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'
+	fish -c '_WORMHOLE_COMPLETE=fish_source wormhole > wormhole_complete.fish'
+
 release-clean:
 	@echo "Cleanup stale release: " `python newest-version.py`
 	-rm NEWS.md.asc
