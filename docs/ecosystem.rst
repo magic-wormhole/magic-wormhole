@@ -79,7 +79,7 @@ Support is described as:
       - Dilation
       - Dilated Transfer
 
-    * - `Python <https://github.com/magic-wormhole/magic-wormhole>>`_
+    * - `Python <https://github.com/magic-wormhole/magic-wormhole>`_
       - Full
       - Full
       - Full
