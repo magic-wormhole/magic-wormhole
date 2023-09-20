@@ -1,3 +1,6 @@
+NOISE_MAX_PAYLOAD = (2**16 - 1) - 16  # 65535 minus 16 bytes authentication data
+NOISE_MAX_CIPHERTEXT = (2**16 - 1)  # 65535
+
 try:
     from noise.exceptions import NoiseInvalidMessage
 except ImportError:

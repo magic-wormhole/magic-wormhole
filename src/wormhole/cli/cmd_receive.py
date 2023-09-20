@@ -204,13 +204,21 @@ class Receiver:
         if code:
             w.set_code(code)
         else:
-            prompt = "Enter receive wormhole code: "
-            used_completion = yield input_with_completion(
-                prompt, w.input_code(), self._reactor)
-            if not used_completion:
-                print(
-                    " (note: you can use <Tab> to complete words)",
-                    file=self.args.stderr)
+            if self.args.allocate:
+                w.allocate_code(self.args.code_length)
+                code = yield w.get_code()
+                print(u"Allocated code: {}".format(code), file=self.args.stderr)
+                print(u"On the other computer, please run:", file=self.args.stderr)
+                print(u"   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
+
+            else:
+                prompt = "Enter receive wormhole code: "
+                used_completion = yield input_with_completion(
+                    prompt, w.input_code(), self._reactor)
+                if not used_completion:
+                    print(
+                        " (note: you can use <Tab> to complete words)",
+                        file=self.args.stderr)
         yield w.get_code()
 
     def _show_verifier(self, verifier_bytes):

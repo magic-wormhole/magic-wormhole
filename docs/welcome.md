@@ -16,6 +16,9 @@ and do not need to be memorized.
 
 * PyCon 2016 presentation: [Slides](https://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf), [Video](https://www.youtube.com/watch?v=oFrTqQw0_3c)
 
+As of now (2023) the magic-wormhole protocol has several client implementations; see the "Ecosystem" section.
+
+
 ## Example
 
 Sender:
@@ -248,6 +251,14 @@ Both commands accept additional arguments to influence their behavior:
 
 * `--code-length WORDS`: use more or fewer than 2 words for the code
 * `--verify` : print (and ask user to compare) extra verification string
+
+### Tab-Completion
+
+Wormhole codes will tab-complete for receivers out-of-the-box.
+
+If you desire shell tab-completion on sub-commands, we include generated files [from Click](https://click.palletsprojects.com/en/8.1.x/shell-completion/) for Bash, Zsh and Fish shells in [wormhole_completion.bash](https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_completion.bash) (or `.zsh`, `.fish`).
+Put this file in your favourite location and add a line like `source ~/wormhole_completion.bash` to `~/.bashrc` (or similar for `zsh` and `fish` shells).
+
 
 ## Library
 

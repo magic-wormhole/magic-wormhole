@@ -12,7 +12,7 @@ from .._interfaces import IDilationConnector
 from ..observer import OneShotObserver
 from .encode import to_be4, from_be4
 from .roles import LEADER, FOLLOWER
-from ._noise import NoiseInvalidMessage, NoiseHandshakeError
+from ._noise import NoiseInvalidMessage, NoiseHandshakeError, NOISE_MAX_PAYLOAD, NOISE_MAX_CIPHERTEXT
 
 # InboundFraming is given data and returns Frames (Noise wire-side
 # bytestrings). It handles the relay handshake and the prologue. The Frames it
@@ -49,8 +49,8 @@ class IRecord(Interface):
     pass
 
 
-def first(l):
-    return l[0]
+def first(seq):
+    return seq[0]
 
 
 class Disconnect(Exception):
@@ -327,12 +327,14 @@ def _is_role(_record, _attr, value):
     if value not in [LEADER, FOLLOWER]:
         raise ValueError("role must be LEADER or FOLLOWER")
 
+
 @attrs
 @implementer(IRecord)
 class _Record(object):
     _framer = attrib(validator=provides(IFramer))
     _noise = attrib()
-    _role = attrib(default="unspecified", validator=_is_role) # for debugging
+
+    _role = attrib(default="unspecified", validator=_is_role)  # for debugging
 
     n = MethodicalMachine()
     # TODO: set_trace
@@ -416,8 +418,20 @@ class _Record(object):
 
     @n.output()
     def decrypt_message(self, frame):
+        # opposite of the encoding: if we have _more_ than what a
+        # single Noise packet can hold, we have to build up the real
+        # plaintext incrementally.
+        size = len(frame)
         try:
-            message = self._noise.decrypt(frame)
+            if size <= NOISE_MAX_CIPHERTEXT:
+                message = self._noise.decrypt(frame)
+            else:
+                start = 0
+                message = b""
+                while start < size:
+                    ciphertext = frame[start:start + NOISE_MAX_CIPHERTEXT]
+                    message += self._noise.decrypt(ciphertext)
+                    start += NOISE_MAX_CIPHERTEXT
         except NoiseInvalidMessage as e:
             # if this happens during tests, flunk the test
             log.err(e, "bad inbound noise frame")
@@ -455,7 +469,19 @@ class _Record(object):
 
     def send_record(self, r):
         message = encode_record(r)
-        frame = self._noise.encrypt(message)
+        if len(message) <= NOISE_MAX_PAYLOAD:
+            frame = self._noise.encrypt(message)
+        else:
+            # we want to put all the encrypted bytes into one "frame",
+            # but there are more bytes than we can fit in a Noise
+            # message .. so we chop them up
+            start = 0
+            frame = b""
+            while start < len(message):
+                this_msg = message[start:start + NOISE_MAX_PAYLOAD]
+                cip = self._noise.encrypt(this_msg)
+                frame += cip
+                start += NOISE_MAX_PAYLOAD
         self._framer.send_frame(frame)
 
 
@@ -595,7 +621,8 @@ class DilatedConnectionProtocol(Protocol, object):
             else:
                 self._record.set_role_follower()
             self._record.connectionMade()
-        except:
+
+        except:  # noqa
             log.err()
             raise
 

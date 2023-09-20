@@ -6,7 +6,7 @@ transfer the data. This application-layer protocol is described here.
 
 All application-level messages are dictionaries, which are JSON-encoded and
 and UTF-8 encoded before being handed to `wormhole.send` (which then encrypts
-them before sending through the rendezvous server to the peer).
+them before sending through the mailbox server to the peer).
 
 ## Sender
 
@@ -70,7 +70,7 @@ received message:
 The Wormhole API does not currently provide for large-volume data transfer
 (this feature will be added to a future version, under the name "Dilated
 Wormhole"). For now, bulk data is sent through a "Transit" object, which does
-not use the Rendezvous Server. Instead, it tries to establish a direct TCP
+not use the Mailbox Server. Instead, it tries to establish a direct TCP
 connection from sender to recipient (or vice versa). If that fails, both
 sides connect to a "Transit Relay", a very simple Server that just glues two
 TCP sockets together when asked.

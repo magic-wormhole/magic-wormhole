@@ -36,6 +36,7 @@ setup(name="magic-wormhole",
                 "wormhole.test",
                 "wormhole.test.dilate",
                 ],
+      data_files=[(".", ["wormhole_complete.bash", "wormhole_complete.zsh", "wormhole_complete.fish"])],
       entry_points={
           "console_scripts":
           [
@@ -61,6 +62,7 @@ setup(name="magic-wormhole",
                   "magic-wormhole-transit-relay==0.1.2",
                   "magic-wormhole-mailbox-server==0.3.1"],
           "dilate": ["noiseprotocol", "msgpack"],
+          "build": ["twine", "dulwich", "readme_renderer", "gpg", "wheel"],
       },
       test_suite="wormhole.test",
       cmdclass=commands,

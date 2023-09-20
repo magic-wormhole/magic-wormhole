@@ -7,14 +7,14 @@ contact each other ahead of time.
 
 Security and connectivity is provided by means of a "wormhole code": a short
 string that is transcribed from one machine to the other by the users at the
-keyboard. This works in conjunction with a baked-in "rendezvous server" that
+keyboard. This works in conjunction with a baked-in "mailbox server" that
 relays information from one machine to the other.
 
 The "Wormhole" object provides a secure record pipe between any two programs
 that use the same wormhole code (and are configured with the same application
-ID and rendezvous server). Each side can send multiple messages to the other,
+ID and mailbox server). Each side can send multiple messages to the other,
 but the encrypted data for all messages must pass through (and be temporarily
-stored on) the rendezvous server, which is a shared resource. For this
+stored on) the mailbox server, which is a shared resource. For this
 reason, larger data (including bulk file transfers) should use the Transit
 class instead. The Wormhole can be used to create a Transit object for this
 purpose. In the future, Transit will be deprecated, and this functionality
@@ -24,17 +24,17 @@ A quick example:
 
 ```python
 import wormhole
-from twisted.internet.defer import inlineCallbacks
 
-@inlineCallbacks
-def go():
+async def example_initiator(reactor):
     w = wormhole.create(appid, relay_url, reactor)
     w.allocate_code()
-    code = yield w.get_code()
-    print "code:", code
+
+    code = await w.get_code()
+    print(f"code: {code}")
+
     w.send_message(b"outbound data")
-    inbound = yield w.get_message()
-    yield w.close()
+    inbound = await w.get_message()
+    await w.close()
 ```
 
 ## Modes
@@ -65,14 +65,19 @@ w.allocate_code()
 Deferred mode:
 
 ```python
-w = wormhole.create(appid, relay_url, reactor)
-w.allocate_code()
-def print_code(code):
-    print("code: %s" % code)
-w.get_code().addCallback(print_code)
-def received(msg):
-    print("got data, %d bytes" % len(msg))
-w.get_message().addCallback(received) # gets exactly one message
+async def example_initiator(reactor):
+    appid = "lothar.com/example"
+    relay_url = public_relay.MAILBOX_RELAY
+    w = wormhole.create(appid, relay_url, reactor)
+    w.allocate_code()
+
+    code = await w.get_code()
+    print(f"code: {code}")
+
+    msg = await w.get_message() # gets exactly one message
+    print(f"got msg: {len(msg)} bytes")
+    result = await w.close()
+    print(f"closed: {result}")
 ```
 
 ## Application Identifier
@@ -83,27 +88,28 @@ uniqueness, use a domain name. To use multiple apps for a single domain,
 append a URL-like slash and path, like `example.com/app1`. This string must
 be the same on both clients, otherwise they will not see each other. The
 invitation codes are scoped to the app-id. Note that the app-id must be
-unicode, not bytes, so on python2 use `u"appid"`.
+unicode, not bytes.
 
 Distinct app-ids reduce the size of the connection-id numbers. If fewer than
 ten Wormholes are active for a given app-id, the connection-id will only need
 to contain a single digit, even if some other app-id is currently using
 thousands of concurrent sessions.
 
-## Rendezvous Servers
+## Mailbox Servers
 
-The library depends upon a "rendezvous server", which is a service (on a
+The library depends upon a "mailbox server" which is a service (on a
 public IP address) that delivers small encrypted messages from one client to
 the other. This must be the same for both clients, and is generally baked-in
 to the application source code or default config.
 
-This library includes the URL of a public rendezvous server run by the
-author. Application developers can use this one, or they can run their own
-(see the [warner/magic-wormhole-mailbox-server
+This library includes the URL of a public mailbox server run by the
+author. Application developers can use this one, or they can run their
+own (see the [warner/magic-wormhole-mailbox-server
 ](https://github.com/warner/magic-wormhole-mailbox-server) repository)
 and configure their clients to use it instead. The URL of the public
-rendezvous server is passed as a unicode string. Note that because the server
-actually speaks WebSockets, the URL starts with `ws:` instead of `http:`.
+mailbox server is passed as a unicode string. Note that because the
+server actually speaks WebSockets, the URL starts with `ws:` (or
+`wss:`) instead of `http:`.
 
 ## Wormhole Parameters
 
@@ -123,7 +129,7 @@ optional arguments:
   not with deferred mode.
 * `tor_manager`: to enable Tor support, create a `wormhole.TorManager`
   instance and pass it here. This will hide the client's IP address by
-  proxying all connections (rendezvous and transit) through Tor. It also
+  proxying all connections (mailbox and transit) through Tor. It also
   enables connecting to Onion-service transit hints, and (in the future) will
   enable the creation of Onion-services for transit purposes.
 * `timing`: this accepts a DebugTiming instance, mostly for internal
@@ -132,7 +138,7 @@ optional arguments:
   JSON-format data bundle, and the `misc/dump-timing.py` tool can build a
   scrollable timing diagram from these bundles.
 * `welcome_handler`: this is a function that will be called when the
-  Rendezvous Server's "welcome" message is received. It is used to display
+  Mailbox Server's "welcome" message is received. It is used to display
   important server messages in an application-specific way.
 * `versions`: this can accept a dictionary (JSON-encodable) of data that will
   be made available to the peer via the `got_version` event. This data is
@@ -149,7 +155,7 @@ the sender's program to create the code, and for the receiver to type it in.
 
 The code is a (unicode) string in the form `NNN-code-words`. The numeric
 "NNN" prefix is the "channel id" or "nameplate", and is a short integer
-allocated by talking to the rendezvous server. The rest is a
+allocated by talking to the mailbox server. The rest is a
 randomly-generated selection from the PGP wordlist, providing a default of 16
 bits of entropy. The initiating program should display this code to the user,
 who should transcribe it to the receiving user, who gives it to their local
@@ -159,7 +165,7 @@ completion of allocated channel-ids and known codewords.
 
 The Wormhole object has three APIs for generating or accepting a code:
 
-* `w.allocate_code(length=2)`: this contacts the Rendezvous Server, allocates
+* `w.allocate_code(length=2)`: this contacts the Mailbox Server, allocates
   a short numeric nameplate, chooses a configurable number of random words,
   then assembles them into the code
 * `w.set_code(code)`: this accepts the complete code as an argument
@@ -178,7 +184,7 @@ for consistency.
 The code-entry Helper object has the following API:
 
 * `refresh_nameplates()`: requests an updated list of nameplates from the
-  Rendezvous Server. These form the first portion of the wormhole code (e.g.
+  Mailbox Server. These form the first portion of the wormhole code (e.g.
   "4" in "4-purple-sausages"). Note that they are unicode strings (so "4",
   not 4). The Helper will get the response in the background, and calls to
   `get_nameplate_completions()` after the response will use the new list.
@@ -236,9 +242,11 @@ code-entry helper to do tab completion of wormhole codes:
 
 ```python
 from wormhole import create, input_with_completion
-w = create(appid, relay_url, reactor)
-input_with_completion("Wormhole code:", w.input_code(), reactor)
-d = w.get_code()
+
+async def example(reactor):
+    w = create(appid, relay_url, reactor)
+    input_with_completion("Wormhole code:", w.input_code(), reactor)
+    code = await w.get_code()
 ```
 
 This helper runs python's (raw) `input()` function inside a thread, since
@@ -284,10 +292,10 @@ easier to transcribe: e.g. rolling 6 dice could result in a code like
 
 ## Welcome Messages
 
-The first message sent by the rendezvous server is a "welcome" message (a
+The first message sent by the mailbox server is a "welcome" message (a
 dictionary). This is sent as soon as the client connects to the server,
 generally before the code is established. Clients should use
-`d=get_welcome()` to get and process the `motd` key (and maybe
+`await get_welcome()` to get and process the `motd` key (and maybe
 `current_cli_version`) inside the welcome message.
 
 The welcome message serves three main purposes:
@@ -303,21 +311,17 @@ operator needs to signal a problem).
 
 * `motd`: if this key is present, it will be a string with embedded newlines.
   The client should display this string to the user, including a note that it
-  comes from the magic-wormhole Rendezvous Server and that server's URL.
+  comes from the magic-wormhole Mailbox Server and that server's URL.
 * `error`: if present, the server has decided it cannot service this client.
   The string will be wrapped in a `WelcomeError` (which is a subclass of
   `WormholeError`), and all API calls will signal errors (pending Deferreds
-  will errback). The rendezvous connection will be closed.
+  will errback). The mailbox connection will be closed.
 * `current_cli_version`: if present, the server is advising instances of the
   CLI tools (the `wormhole` command included in the python distribution) that
   there is a newer release available, thus users should upgrade if they can,
   because more features will be available if both clients are running the
   same version. The CLI tools compare this string against their `__version__`
   and can print a short message to stderr if an upgrade is warranted.
-
-There is currently no facility in the server to actually send `motd`, but a
-static `error` string can be included by running the server with
-`--signal-error=MESSAGE`.
 
 The main idea of `error` is to allow the server to cleanly inform the client
 about some necessary action it didn't take. The server currently sends the
@@ -352,11 +356,11 @@ do so before using stdin/stdout for interactive code entry (`w.input_code()`)
 should wait for `get_welcome()` before starting the entry process:
 
 ```python
-@inlineCallbacks
-def go():
+async def go():
     w = wormhole.create(appid, relay_url, reactor)
-    welcome = yield w.get_welcome()
-    if "motd" in welcome: print welcome["motd"]
+    welcome = await w.get_welcome()
+    if "motd" in welcome:
+        print(welcome["motd"])
     input_with_completion("Wormhole code:", w.input_code(), reactor)
     ...
 ```
@@ -455,7 +459,7 @@ Each side can do an arbitrary number of `send_message()` calls. The Wormhole
 is not meant as a long-term communication channel, but some protocols work
 better if they can exchange an initial pair of messages (perhaps offering
 some set of negotiable capabilities), and then follow up with a second pair
-(to reveal the results of the negotiation). The Rendezvous Server does not
+(to reveal the results of the negotiation). The Mailbox Server does not
 currently enforce any particular limits on number of messages, size of
 messages, or rate of transmission, but in general clients are expected to
 send fewer than a dozen messages, of no more than perhaps 20kB in size
@@ -532,12 +536,11 @@ can be "dilated" into a form that uses a direct TCP connection between the
 two endpoints.
 
 All wormholes start out "undilated". In this state, all messages are queued
-on the Rendezvous Server for the lifetime of the wormhole, and server-imposed
+on the Mailbox Server for the lifetime of the wormhole, and server-imposed
 number/size/rate limits apply. Calling `w.dilate()` initiates the dilation
-process, and eventually yields a set of Endpoints. Once dilated, the usual
-`.send_message()`/`.get_message()` APIs are disabled (TODO: really?), and
-these endpoints can be used to establish multiple (encrypted) "subchannel"
-connections to the other side.
+process, and eventually yields a set of Endpoints. Once dilated these endpoints
+can be used to establish multiple (encrypted) "subchannel" connections to the
+other side.
 
 Each subchannel behaves like a regular Twisted `ITransport`, so they can be
 glued to the Protocol instance of your choice. They also implement the
@@ -563,7 +566,7 @@ What's good about dilated wormholes?:
 
 Use non-dilated wormholes when your application only needs to exchange a
 couple of messages, for example to set up public keys or provision access
-tokens. Use a dilated wormhole to move files.
+tokens. Use a dilated wormhole to move files, stream data, etc
 
 Dilated wormholes can provide multiple "subchannels": these are multiplexed
 through the single (encrypted) TCP connection. Each subchannel is a separate

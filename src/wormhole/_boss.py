@@ -209,7 +209,8 @@ class Boss(object):
     # "async def can_dilate" then we could decide things based on
     # "supports dilation, or not"
     def dilate(self, transit_relay_location=None, no_listen=False):
-        return self._D.dilate(transit_relay_location, no_listen=no_listen)  # fires with endpoints
+        # fires with endpoints
+        return self._D.dilate(transit_relay_location, no_listen=no_listen)
 
     @m.input()
     def send(self, plaintext):

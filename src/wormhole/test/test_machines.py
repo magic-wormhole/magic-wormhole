@@ -393,10 +393,10 @@ class Input(unittest.TestCase):
     def build(self):
         events = []
         i = _input.Input(timing.DebugTiming())
-        c = Dummy("c", events, ICode, "got_nameplate", "finished_input")
-        l = Dummy("l", events, ILister, "refresh")
-        i.wire(c, l)
-        return i, c, l, events
+        code = Dummy("c", events, ICode, "got_nameplate", "finished_input")
+        lister = Dummy("l", events, ILister, "refresh")
+        i.wire(code, lister)
+        return i, code, lister, events
 
     def test_ignore_completion(self):
         i, c, l, events = self.build()
@@ -1556,9 +1556,9 @@ class Rendezvous(unittest.TestCase):
         n = Dummy("n", events, INameplate, "connected", "lost")
         m = Dummy("m", events, IMailbox, "connected", "lost")
         a = Dummy("a", events, IAllocator, "connected", "lost")
-        l = Dummy("l", events, ILister, "connected", "lost")
+        x = Dummy("l", events, ILister, "connected", "lost")
         t = Dummy("t", events, ITerminator)
-        rc.wire(b, n, m, a, l, t)
+        rc.wire(b, n, m, a, x, t)
         return rc, events
 
     def test_basic(self):
@@ -1685,8 +1685,6 @@ class Rendezvous(unittest.TestCase):
         ep = rc._make_endpoint("wss://host/v1")
         self.assertEqual(tor_manager.mock_calls,
                          [mock.call.stream_via("host", 443, tls=True)])
-
-
 
 
 # TODO

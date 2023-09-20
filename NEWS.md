@@ -2,18 +2,45 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
-* Fix intermittant failing test (#458)
-* Python 2.7 support is dropped (#457)
-* Use the HKDF primitive from "cryptography" (#462)
-* Replace mock module with Python's builtin unittest.mock
-* Stream to disk after 10MB on directory receive (#447)
-* SECURITY: Replace "weird" characters in receiver's display (#476)
+* add release-notes here when making PRs
+* Add completion files for bash, zsh and fish (#498)
 
-Thanks to the many contributors of bugs, patches, and other help with this
+
+## Release 0.13.0 (10-Aug-2023)
+
+* Python 2.7 support is dropped (#457)
+* Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
+* SECURITY: Replace "weird" characters in receiver's display (#476)
+* SECURITY: all past binary signatures are now in Git
+* Use the HKDF primitive from "cryptography" (#462)
+* `wormhole receive` now accepts `--allocate-code` so that a sender can
+  use `--code` to send them a file (#450)
+* Stream to disk after 10MB on directory receive (#447)
+* Handle SSH keys with comments properly (#434)
+* Properly parse IPv6 Transit address (#461)
+
+Also of interest to developers in this release are a few changes to the experimental Dilation implementation and description; some documentation cleanups; dropping of dependencies; and some test cleanups.
+The Dilation changes properly send `use-version` and split messages over Noise-sized chunks more seamlessly (allowing the specified 4-byte maximum message size at the application layer).
+
+For packagers: PyPI has stopped serving detached signature files.
+Going forward, all signatures will be committed to Git (in the signatures/ subdirectory).
+All available signatures from PyPI for historic releases have been added here too.
+
+Thanks to the many contributors of bug-fixes, patches, and other help with this
 release:
 
-* Jelle van der Waa aka @jelly
+* Jelle van der Waa https://github.com/jelly (#466)
+* Matthias Riße https://github.com/matrss (#432, #434)
+* meejah https://meejah.ca (#484, #481, #483, #455, #477, #464, #456, #460)
+* Perseid https://github.com/Perseid (#476)
+* FelisDiligens https://github.com/FelisDiligens (#461)
+* Casey Link https://github.com/Ramblurr (#468)
+* Kian-Meng Ang https://github.com/kianmeng (#452)
+* sitiom https://github.com/sitiom (#436)
+* Sagar Howal https://github.com/sagarhowal (#410)
+* Adam Sroka https://github.com/adam-sroka (#403, #404)
+* vu3rdd https://github.com/vu3rdd (reviews)
+
 
 ## Release 0.12.0 (04-Apr-2020)
 
