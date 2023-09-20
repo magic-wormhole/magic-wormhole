@@ -8,6 +8,7 @@ import stat
 import tempfile
 import zipfile
 
+import click
 import six
 from humanize import naturalsize
 from tqdm import tqdm
@@ -117,6 +118,9 @@ class Sender:
 
         from wormhole.transfer_v2 import deferred_transfer
         from pathlib import Path
+
+        if self._args.what is None:
+            raise click.UsageError("Cannot transfer text-messages in dilated-transfer yet")
 
         yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, code=self._args.code, offers=[Path(self._args.what)]))
         return

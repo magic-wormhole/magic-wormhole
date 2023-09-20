@@ -144,6 +144,9 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
+    except click.UsageError as e:
+        print(e)
+        raise SystemExit(e.exit_code)
     except (WrongPasswordError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
