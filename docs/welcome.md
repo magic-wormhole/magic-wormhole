@@ -16,6 +16,9 @@ and do not need to be memorized.
 
 * PyCon 2016 presentation: [Slides](https://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf), [Video](https://www.youtube.com/watch?v=oFrTqQw0_3c)
 
+As of now (2023) the magic-wormhole protocol has several client implementations; see the "Ecosystem" section.
+
+
 ## Example
 
 Sender:
