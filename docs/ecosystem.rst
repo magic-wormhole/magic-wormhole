@@ -4,7 +4,7 @@ The Magic-Wormhole Ecosystem
 This page attempts to summarize the current state of various codebases that implement or extend the Magic Wormhole protocols.
 If you feel something is missing, please open an Issue or (better yet) a Pull Request at https://github.com/magic-wormhole/magic-wormhole
 
-This document represents our best knowledge as of: May, 2023.
+This document represents our best knowledge as of September, 2023.
 
 
 Documentation
