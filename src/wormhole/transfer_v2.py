@@ -77,7 +77,7 @@ def encode_message(msg):
 
 
 # wormhole: _DeferredWormhole,
-async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None, receive_directory=None):
+async def deferred_transfer(reactor, wormhole, on_error, transit=None, code=None, offers=None, receive_directory=None):
     """
     Do transfer protocol over an async wormhole interface
     """
@@ -106,7 +106,7 @@ async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None,
     boss.got_peer_versions(transfer)
 
     print("waiting to dilate")
-    endpoints = wormhole.dilate()
+    endpoints = wormhole.dilate(transit)
 
     recv_factory = Factory.forProtocol(Receiver)
     recv_factory.boss = boss

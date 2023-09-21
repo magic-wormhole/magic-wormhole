@@ -126,6 +126,7 @@ class Sender:
             deferred_transfer(
                 self._reactor, w, on_error,
                 code=self._args.code,
+                transit=self._args.transit_helper,
                 offers=[
                     Path(what)
                     for what in self._args.what
