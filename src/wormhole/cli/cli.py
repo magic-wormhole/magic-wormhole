@@ -276,11 +276,14 @@ def help(context, **kwargs):
         "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
     )
 )
-@click.argument("what", required=False, type=click.Path(path_type=type(u"")))
+@click.argument("what", required=False, type=click.Path(path_type=type(u"")), nargs=-1)
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
     kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
+    if not kwargs["what"]:
+        kwargs["what"] = None
 
     for name, value in kwargs.items():
         setattr(cfg, name, value)

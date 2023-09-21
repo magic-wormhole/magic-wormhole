@@ -9,6 +9,7 @@ from zope.interface import implementer
 
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, Factory
+from twisted.python.filepath import FilePath
 
 import msgpack
 
@@ -22,6 +23,7 @@ from wormhole.dilatedfile import (
     FileData,
     FileAcknowledge,
     Message,
+    DilatedFileTransfer,
 )
 
 
@@ -75,7 +77,7 @@ def encode_message(msg):
 
 
 # wormhole: _DeferredWormhole,
-async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None):
+async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None, receive_directory=None):
     """
     Do transfer protocol over an async wormhole interface
     """
@@ -89,7 +91,8 @@ async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None)
         await wormhole.get_code()
     print("code", code)
 
-    from wormhole.dilatedfile import DilatedFileTransfer
+    if receive_directory is None:
+        receive_directory = FilePath(".")
 
     versions = await wormhole.get_versions()
 
@@ -111,7 +114,8 @@ async def deferred_transfer(reactor, wormhole, on_error, code=None, offers=None)
     def accept_always(receiver, offer):
         # an @output() will call this predicate, so we can't
         # immediately re-enter with an @input()
-        reactor.callLater(0, receiver.accept_offer, offer)
+        the_file = receive_directory.child(offer.filename).open("wb")
+        reactor.callLater(0, receiver.accept_offer, offer, the_file)
     recv_factory.accept_or_reject_p = accept_always
 
     port = await endpoints.listen.listen(recv_factory)
@@ -166,7 +170,7 @@ class Receiver(Protocol):
     def dataReceived(self, raw_data):
         # should be an entire record (right??)
         msg = decode_message(raw_data)
-        print(f"recv: {msg}")
+        print(f"recv: {type(msg)}")
         print(self._machine)
         self._machine.on_message(msg)
 

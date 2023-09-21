@@ -372,7 +372,7 @@ class DilatedFileReceiver:
         """
 
     @m.input()
-    def accept_offer(self, offer):
+    def accept_offer(self, offer, file_like):
         """
         A decision to accept the offer
         """
@@ -406,16 +406,12 @@ class DilatedFileReceiver:
         self._accept_or_reject(self, offer)
 
     @m.output()
-    def _open_output_file(self, offer):
-        # XXX fixme this is IO
-        self._output = open("ZZZ" + offer.filename, "wb")
-
-    @m.output()
     def _close_output_file(self):
         self._output.close()
 
     @m.output()
-    def _send_accept(self, offer):
+    def _send_accept(self, offer, file_like):
+        self._output = file_like
         msg = OfferAccept()
         self._send_message(msg)
 
@@ -459,7 +455,7 @@ class DilatedFileReceiver:
     permission.upon(
         accept_offer,
         enter=receive_data,
-        outputs=[_open_output_file, _send_accept],
+        outputs=[_send_accept],
         collector=_last_one,
     )
     permission.upon(

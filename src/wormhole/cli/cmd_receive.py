@@ -13,6 +13,7 @@ from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.python import log
+from twisted.python.filepath import FilePath
 from wormhole import __version__, create, input_with_completion
 
 from ..errors import TransferError
@@ -136,7 +137,16 @@ class Receiver:
             print("ERR: {}".format(f))
 
         from wormhole.transfer_v2 import deferred_transfer
-        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, self.args.code))
+        yield Deferred.fromCoroutine(
+            deferred_transfer(
+                self._reactor,
+                w,
+                on_error,
+                self.args.code,
+                # this can be None, but that's handled inside
+                receive_directory=FilePath(self.args.output_file),
+            )
+        )
         return
 
 

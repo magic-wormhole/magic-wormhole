@@ -122,7 +122,16 @@ class Sender:
         if self._args.what is None:
             raise click.UsageError("Cannot transfer text-messages in dilated-transfer yet")
 
-        yield Deferred.fromCoroutine(deferred_transfer(self._reactor, w, on_error, code=self._args.code, offers=[Path(self._args.what)]))
+        yield Deferred.fromCoroutine(
+            deferred_transfer(
+                self._reactor, w, on_error,
+                code=self._args.code,
+                offers=[
+                    Path(what)
+                    for what in self._args.what
+                ],
+            )
+        )
         return
 
         # TODO: run the blocking zip-the-directory IO in a thread, let the
