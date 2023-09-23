@@ -87,6 +87,11 @@ def _last_one(things):
     return list(things)[-1] if things else None
 
 
+## can we make a generic machine here?
+## or do we actually _want_ different machines for file vs directory vs text?
+## (probably the latter? they're pretty different processes...)
+
+
 class DilatedFileSender:
     """
     Manages the sending of a single file
@@ -400,6 +405,12 @@ class DilatedFileReceiver:
         All expected data is received
         """
 
+    @m.input()
+    def unexpected_error(self, e):
+        """
+        Something unexpected happened
+        """
+
     @m.output()
     def _ask_about_offer(self, offer):
         """
@@ -576,6 +587,8 @@ class DilatedFileTransfer(object):
         """
         # XXX DirectoryOffer conceptually similar, but little harder
 
+    # _can_ we make a generic 'make_offer' method, or is that foolish
+    # and we should have one per offer-type anyway?
     @m.input()
     def make_offer(self, send_message, start_streaming, finished):
         """

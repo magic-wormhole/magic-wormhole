@@ -137,22 +137,16 @@ class Sender:
         def on_error(f):
             print("ERR: {}".format(f))
 
-        from wormhole.transfer_v2 import deferred_transfer, incremental_text
+        from wormhole.transfer_v2 import deferred_transfer
         from pathlib import Path
 
         if self._args.what is None:
             ##raise click.UsageError("Cannot transfer text-messages in dilated-transfer yet")
             line_reader = LocalLineReader(EventualQueue(reactor))
             stdin = StandardIO(line_reader)
-            yield Deferred.fromCoroutine(
-                incremental_text(
-                    reactor,
-                    w,
-                    on_error,
-                    line_reader.next_line,
-                    code=self._args.code,
-                )
-            )
+            next_message = line_reader.next_line
+        else:
+            next_message = None
 
         yield Deferred.fromCoroutine(
             deferred_transfer(
@@ -161,8 +155,9 @@ class Sender:
                 transit=self._args.transit_helper,
                 offers=[
                     Path(what)
-                    for what in self._args.what
+                    for what in (self._args.what or [])
                 ],
+                next_message=next_message,
             )
         )
         return

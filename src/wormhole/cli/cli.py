@@ -311,6 +311,11 @@ def go(f, cfg):
     help="refuse file transfers, only accept text transfers",
 )
 @click.option(
+    "--stdin",
+    is_flag=True,
+    help="Read text-messages to send from stdin",
+)
+@click.option(
     "--accept-file",
     is_flag=True,
     help="accept file transfer without asking for confirmation",

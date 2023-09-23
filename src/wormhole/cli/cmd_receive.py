@@ -12,11 +12,13 @@ from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.stdio import StandardIO
 from twisted.python import log
 from twisted.python.filepath import FilePath
 from wormhole import __version__, create, input_with_completion
 
 from ..errors import TransferError
+from ..eventual import EventualQueue
 from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
@@ -139,9 +141,17 @@ class Receiver:
 
         def on_message(msg):
             if isinstance(msg, Message):
-                print(">>>: {}".format(msg.message))
+                print("<<< {}".format(msg.message))
             else:
                 print("Unknown control-channel message: {}".format(type(msg)))
+
+        if self.args.stdin:
+            from .cmd_send import LocalLineReader  # XXX FIXME
+            line_reader = LocalLineReader(EventualQueue(reactor))
+            stdin = StandardIO(line_reader)
+            next_message = line_reader.next_line
+        else:
+            next_message = None
 
         from wormhole.transfer_v2 import deferred_transfer
         yield Deferred.fromCoroutine(
@@ -154,6 +164,7 @@ class Receiver:
                 code=self.args.code,
                 # this can be None, but that's handled inside
                 receive_directory=FilePath("." if self.args.output_file is None else self.args.output_file),
+                next_message=next_message,
             )
         )
         return
