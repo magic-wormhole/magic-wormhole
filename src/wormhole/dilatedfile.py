@@ -68,7 +68,12 @@ class FileAcknowledge:
 @define
 class Message:
     message: str     # unicode string
-    kind: str = "text"
+
+    def marshal(self):
+        return {
+            "message": self.message,
+            "kind": "text",
+        }
 
 
 def _last_one(things):

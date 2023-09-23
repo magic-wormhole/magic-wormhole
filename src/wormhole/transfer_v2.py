@@ -7,7 +7,7 @@ from attr import define, field
 from automat import MethodicalMachine
 from zope.interface import implementer
 
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, maybeDeferred, DeferredList
 from twisted.internet.protocol import Protocol, Factory
 from twisted.python.filepath import FilePath
 
@@ -51,6 +51,21 @@ def decode_message(msg):
             return Class(**payload)
 
 
+def decode_control_message(raw_data):
+    """
+    Decodes an incoming control-channel message, raising exception on
+    error.
+    """
+    msg = msgpack.loads(raw_data)
+    try:
+        kind = msg["kind"]
+    except KeyError:
+        raise Exception("Control messages must include 'kind' field")
+    if kind == "text":
+        return Message(msg["message"])
+    raise Exception("Unknown control message '{}'".format(kind))
+
+
 def encode_message(msg):
     """
     :returns: a bytes consisting of the kind byte plus msgpack-encoded
@@ -77,7 +92,7 @@ def encode_message(msg):
 
 
 # wormhole: _DeferredWormhole,
-async def deferred_transfer(reactor, wormhole, on_error, transit=None, code=None, offers=None, receive_directory=None):
+async def deferred_transfer(reactor, wormhole, on_error, on_message, transit=None, code=None, offers=None, receive_directory=None):
     """
     Do transfer protocol over an async wormhole interface
     """
@@ -123,7 +138,7 @@ async def deferred_transfer(reactor, wormhole, on_error, transit=None, code=None
 
     if offers:
         for offer in offers:
-            await send_offer(endpoints.connect, wormhole, boss, offer)
+            await send_file_offer(endpoints.connect, wormhole, boss, offer)
         #await wormhole.close()
         # close control channel
         proto = await endpoints.control.connect(Factory.forProtocol(Protocol))
@@ -143,6 +158,11 @@ async def deferred_transfer(reactor, wormhole, on_error, transit=None, code=None
                     self._closed.append(d)
                 return d
 
+            def dataReceived(self, data):
+                if on_message is not None:
+                    msg = decode_control_message(data)
+                    on_message(msg)
+
             def connectionLost(self, reason):
                 print("gone", reason)
                 notify = self._closed or []
@@ -154,6 +174,85 @@ async def deferred_transfer(reactor, wormhole, on_error, transit=None, code=None
         print("waiting for control channel to close")
         await proto.when_closed()
         await wormhole.close()
+
+
+
+
+# wormhole: _DeferredWormhole,
+async def incremental_text(reactor, wormhole, on_error, get_next_message, code=None):
+    """
+    Text-messages over Dilated wormhole.
+
+    `get_next_message` is an async-callable that returns one more text
+    message to send.
+
+    Since the classic transfer does 'one message, one direction' the
+    logical extension to the next-genration transfer is 'many
+    messages, in either direction'. So this is a basic chat application!
+    """
+
+    # XXX FIXME
+    if code is None:
+        wormhole.allocate_code(2)
+        code = await wormhole.get_code()
+    else:
+        wormhole.set_code(code)
+        await wormhole.get_code()
+    print("code", code)
+
+    versions = await wormhole.get_versions()
+
+    try:
+        transfer = versions["transfer"]  # XXX transfer-v2
+    except KeyError:
+        # XXX fall back to "classic" file-trasfer
+        raise RuntimeError("Peer doesn't support Dilated tranfer")
+
+    print("waiting to dilate")
+    endpoints = wormhole.dilate()
+
+    class WhenClosed(Protocol):
+        _closed = None
+        def when_closed(self):
+            d = Deferred()
+            if self._closed is None:
+                self._closed = [d]
+            elif self._closed is True:
+                d.callback(None)
+            else:
+                self._closed.append(d)
+            return d
+
+        def dataReceived(self, data):
+            print("DATA", data)
+
+        def connectionLost(self, reason):
+            print("gone", reason)
+            notify = self._closed or []
+            self._closed = True
+            for d in notify:
+                d.callback(None)
+
+    proto = await endpoints.control.connect(Factory.forProtocol(WhenClosed))
+
+    control_closed_d = maybeDeferred(proto.when_closed)
+
+    while True:
+        got_message_d = maybeDeferred(get_next_message)
+        result, index = await DeferredList(
+            [control_closed_d, got_message_d],
+            fireOnOneCallback=True,
+            fireOnOneErrback=True,
+        )
+        if index == 0:  # "control_closed_d" fired
+            break
+        offer_text = await got_message_d
+        print("DING", offer_text, type(offer_text))
+        msg = Message(offer_text)
+        proto.transport.write(msgpack.dumps(msg.marshal()))
+        print("okay", msg)
+
+    await wormhole.close()
 
 
 class Receiver(Protocol):
@@ -281,7 +380,7 @@ class Sender(Protocol):
                 d.callback(None)
 
 
-async def send_offer(connect_ep, wormhole, boss, fpath):
+async def send_file_offer(connect_ep, wormhole, boss, fpath):
     proto = await connect_ep.connect(Factory.forProtocol(Sender))
     print("proto", proto)
     await proto.when_connected()
@@ -312,7 +411,7 @@ async def send_offer(connect_ep, wormhole, boss, fpath):
     proto._sender = sender = boss.make_offer(send_message, start_streaming, finished)
 
     print("sending offer")
-    sender.send_offer(offer)
+    sender.send_file_offer(offer)
 
     await proto.when_closed()
     print("done")

@@ -20,6 +20,7 @@ from ..errors import TransferError
 from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
+from ..dilatedfile import Message
 from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
@@ -136,15 +137,23 @@ class Receiver:
         def on_error(f):
             print("ERR: {}".format(f))
 
+        def on_message(msg):
+            if isinstance(msg, Message):
+                print(">>>: {}".format(msg.message))
+            else:
+                print("Unknown control-channel message: {}".format(type(msg)))
+
         from wormhole.transfer_v2 import deferred_transfer
         yield Deferred.fromCoroutine(
             deferred_transfer(
                 self._reactor,
                 w,
                 on_error,
-                self.args.code,
+                on_message,
+                transit=self.args.transit_helper,
+                code=self.args.code,
                 # this can be None, but that's handled inside
-                receive_directory=FilePath(self.args.output_file),
+                receive_directory=FilePath("." if self.args.output_file is None else self.args.output_file),
             )
         )
         return
