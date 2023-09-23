@@ -141,9 +141,12 @@ class Sender:
         from pathlib import Path
 
         if self._args.what is None:
-            ##raise click.UsageError("Cannot transfer text-messages in dilated-transfer yet")
+            # XXX FIXME if we have --text specified, probably want to send _just_ that and then exit?
             line_reader = LocalLineReader(EventualQueue(reactor))
             stdin = StandardIO(line_reader)
+            # want to handle "Stdio was open, but closed" to mean
+            # "close control channel"? unless we have outstanding
+            # offers?
             next_message = line_reader.next_line
         else:
             next_message = None

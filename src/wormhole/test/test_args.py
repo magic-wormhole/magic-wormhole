@@ -34,7 +34,7 @@ class Send(unittest.TestCase):
 
     def test_file(self):
         cfg = config("send", "fn")
-        self.assertEqual(cfg.what, u"fn")
+        self.assertEqual(cfg.what, (u"fn", ))
         self.assertEqual(cfg.text, None)
 
     def test_text(self):
