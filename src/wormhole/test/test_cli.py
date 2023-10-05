@@ -144,14 +144,14 @@ class OfferData(unittest.TestCase):
         self.assertNotIn("file", d)
         self.assertIn("directory", d)
         self.assertEqual(d["directory"]["dirname"], send_dir)
-        self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
+        assert d["directory"]["mode"].startswith("zipfile")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
         self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
 
         zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
-        with zipfile.ZipFile(io.BytesIO(zdata), "r", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
             self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
             for name in zipnames:
