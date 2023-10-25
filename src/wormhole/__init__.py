@@ -1,5 +1,5 @@
 from ._rlcompleter import input_with_completion
-from .wormhole import create, __version__
+from .wormhole import create
 
 from . import _version
 __version__ = _version.get_versions()['version']
