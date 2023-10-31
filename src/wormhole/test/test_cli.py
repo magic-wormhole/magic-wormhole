@@ -144,7 +144,7 @@ class OfferData(unittest.TestCase):
         self.assertNotIn("file", d)
         self.assertIn("directory", d)
         self.assertEqual(d["directory"]["dirname"], send_dir)
-        assert d["directory"]["mode"].startswith("zipfile")
+        self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
         self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
