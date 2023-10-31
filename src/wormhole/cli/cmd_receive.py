@@ -329,7 +329,7 @@ class Receiver:
     def _handle_directory(self, them_d):
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
-        if zipmode != "zipfile/deflated":
+        if not zipmode.startswith("zipfile"):
             self._msg(u"Error: unknown directory-transfer mode '%s'" %
                       (zipmode, ))
             raise RespondError("unknown mode")
@@ -465,7 +465,7 @@ class Receiver:
 
         self._msg(u"Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
-            with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 

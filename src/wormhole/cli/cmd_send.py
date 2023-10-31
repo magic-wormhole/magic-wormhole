@@ -1,12 +1,11 @@
 from __future__ import print_function
 
+import errno
 import hashlib
 import os
 import sys
 
 import stat
-import tempfile
-import zipfile
 
 import six
 from humanize import naturalsize
@@ -21,6 +20,9 @@ from ..errors import TransferError, UnsendableFileError
 from ..transit import TransitSender
 from ..util import bytes_to_dict, bytes_to_hexstr, dict_to_bytes
 from .welcome import handle_welcome
+
+from iterableio import open_iterable
+from zipstream.ng import ZipStream, walk
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
@@ -335,61 +337,41 @@ class Sender:
 
         if os.path.isdir(what):
             print(u"Building zipfile..", file=args.stderr)
-            # We're sending a directory. Create a zipfile and send that
-            # instead. SpooledTemporaryFile will use RAM until our size
-            # threshold (10MB) is reached, then moves everything into a
-            # tempdir (it tries $TMPDIR, $TEMP, $TMP, then platform-specific
-            # paths like /tmp).
-            fd_to_send = tempfile.SpooledTemporaryFile(max_size=10*1000*1000)
-            # workaround for https://bugs.python.org/issue26175 (STF doesn't
-            # fully implement IOBase abstract class), which breaks the new
-            # zipfile in py3.7.0 that expects .seekable
-            if not hasattr(fd_to_send, "seekable"):
-                # AFAICT all the filetypes that STF wraps can seek
-                fd_to_send.seekable = lambda: True
-            num_files = 0
-            num_bytes = 0
-            tostrip = len(what.split(os.sep))
-            with zipfile.ZipFile(
-                    fd_to_send,
-                    "w",
-                    compression=zipfile.ZIP_DEFLATED,
-                    allowZip64=True) as zf:
-                for path, dirs, files in os.walk(what):
-                    # path always starts with args.what, then sometimes might
-                    # have "/subdir" appended. We want the zipfile to contain
-                    # "" or "subdir"
-                    localpath = list(path.split(os.sep)[tostrip:])
-                    for fn in files:
-                        archivename = os.path.join(*tuple(localpath + [fn]))
-                        localfilename = os.path.join(path, fn)
-                        try:
-                            zf.write(localfilename, archivename)
-                            num_bytes += os.stat(localfilename).st_size
-                            num_files += 1
-                        except OSError as e:
-                            errmsg = u"{}: {}".format(fn, e.strerror)
-                            if self._args.ignore_unsendable_files:
-                                print(
-                                    u"{} (ignoring error)".format(errmsg),
-                                    file=args.stderr)
-                            else:
-                                raise UnsendableFileError(errmsg)
-            fd_to_send.seek(0, 2)
-            filesize = fd_to_send.tell()
-            fd_to_send.seek(0, 0)
+            # We're sending a directory, stream it as a zipfile
+
+            zs = ZipStream(sized=True)
+            for filepath in walk(what, preserve_empty=True, followlinks=True):
+                try:
+                    if not os.access(filepath, os.R_OK):
+                        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), filepath)
+                    zs.add_path(
+                        filepath,
+                        arcname=os.path.relpath(filepath, what),
+                        recurse=False,
+                    )
+                except OSError as e:
+                    errmsg = "{}: {}".format(filepath, e.strerror)
+                    if not self._args.ignore_unsendable_files:
+                        raise UnsendableFileError(errmsg)
+                    print(
+                        "{} (ignoring error)".format(errmsg),
+                        file=args.stderr
+                    )
+
+            filesizes = [x["size"] for x in zs.info_list() if not x["is_dir"]]
+            filesize = len(zs)
             offer["directory"] = {
                 "mode": "zipfile/deflated",
                 "dirname": basename,
                 "zipsize": filesize,
-                "numbytes": num_bytes,
-                "numfiles": num_files,
+                "numbytes": sum(filesizes),
+                "numfiles": len(filesizes),
             }
             print(
                 u"Sending directory (%s compressed) named '%s'" %
                 (naturalsize(filesize), basename),
                 file=args.stderr)
-            return offer, fd_to_send
+            return offer, zs
 
         if stat.S_ISBLK(os.stat(what).st_mode):
             fd_to_send = open(what, "rb")
@@ -427,9 +409,13 @@ class Sender:
     def _send_file(self):
         ts = self._transit_sender
 
-        self._fd_to_send.seek(0, 2)
-        filesize = self._fd_to_send.tell()
-        self._fd_to_send.seek(0, 0)
+        if isinstance(self._fd_to_send, ZipStream):
+            filesize = len(self._fd_to_send)
+            self._fd_to_send = open_iterable(self._fd_to_send, "rb")
+        else:
+            self._fd_to_send.seek(0, 2)
+            filesize = self._fd_to_send.tell()
+            self._fd_to_send.seek(0, 0)
 
         record_pipe = yield ts.connect()
         self._timing.add("transit connected")

@@ -149,11 +149,9 @@ class OfferData(unittest.TestCase):
         self.assertIn("numbytes", d["directory"])
         self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
 
-        self.assertEqual(fd_to_send.tell(), 0)
-        zdata = fd_to_send.read()
+        zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
-        fd_to_send.seek(0, 0)
-        with zipfile.ZipFile(fd_to_send, "r", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
             self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
             for name in zipnames:
