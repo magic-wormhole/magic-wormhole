@@ -52,7 +52,7 @@ release:
 release-test:
 	gpg --verify dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
-	virtualenv testmf_venv
+	python -m venv testmf_venv
 	testmf_venv/bin/pip install --upgrade pip
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
