@@ -5,6 +5,7 @@ User-visible changes in "magic-wormhole":
 * add release-notes here when making PRs
 * Add completion files for bash, zsh and fish (#498)
 * Python 3.12 added to CI, versioneer updated (#505)
+* Support streaming compression of directories (#503, from https://github.com/pR0Ps/)
 
 
 ## Release 0.13.0 (10-Aug-2023)
