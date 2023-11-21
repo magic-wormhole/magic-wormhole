@@ -8,10 +8,50 @@ All application-level messages are dictionaries, which are JSON-encoded and
 and UTF-8 encoded before being handed to `wormhole.send` (which then encrypts
 them before sending through the mailbox server to the peer).
 
+## Versions
+
+During the initial connection phase, the two wormhole clients each send a
+version dictionary to each other, as described in `api.md`. This dictionary
+can be used to describe the capabilities of each client in a
+backwards-compatible manner. 
+
+Currently the following version dictionary options are defined:
+
+* `{'v0': {'mode': 'single'}}` : the client only supports `single` mode, where
+  the wormhole it closed immediately after a single transfer operation.
+* `{'v0': {'mode': 'connect'}}` : the client supports `connect` mode, where the
+  wormhole is left open after each transfer, and only closed when one client
+  sends a `shutdown` command.
+
+An empty version dictionary is treated the same as `{'v0': {'mode': 'single'}}`.
+
+## Connect Mode
+
+Clients can declare support for `connect` mode, to support a GUI that lets you
+open the wormhole then drop files into it from either end. When one client has
+finished with the wormhole and wants to exit, it should indicate this to the
+other client by sending a `shutdown` command.
+
+If either of the clients advertises `single` mode (either explicitly or by
+sending an empty version dictionary) this indicates that `connect` mode cannot
+be used for this session, and the wormhole is closed immediately after a single
+transfer operation.
+
+## Commands
+
+A command is signalled using a dictionary containing a single `command` key and
+an associated value. Currently only a single command value is defined:
+
+* `shutdown` : indicate that the client has finished with the wormhole and
+  wishes to exit. This command is only valid if both clients have advertised
+  `connect` mode in their version dictionaries.
+
 ## Sender
 
 `wormhole send` has two main modes: file/directory (which requires a
-non-wormhole Transit connection), or text (which does not).
+non-wormhole Transit connection), or text (which does not). The wormhole CLI
+client only supports the `single` mode of operation, so closes the wormhole
+connection and exits after each transfer.
 
 If the sender is doing files or directories, its first message contains just
 a `transit` key, whose value is a dictionary with `abilities-v1` and
@@ -51,7 +91,9 @@ last one: it will stop looking for wormhole messages at that point.
 ## Recipient
 
 `wormhole receive` is used for both file/directory-mode and text-mode: it
-learns which is being used from the `offer` message.
+learns which is being used from the `offer` message. The wormhole CLI
+client only supports the `single` mode of operation, so closes the wormhole
+connection and exits after each transfer.
 
 The recipient enters a loop where it processes the following keys from each
 received message:
@@ -169,10 +211,6 @@ Transit will be extended to provide other connection techniques:
 
 The file-transfer protocol will be extended too:
 
-* "command mode": establish the connection, *then* figure out what we want to
-  use it for, allowing multiple files to be exchanged, in either direction.
-  This is to support a GUI that lets you open the wormhole, then drop files
-  into it on either end.
 * some Transit messages being sent early, so ports and Onion services can be
   spun up earlier, to reduce overall waiting time
 * transit messages being sent in multiple phases: maybe the transit
@@ -180,12 +218,4 @@ The file-transfer protocol will be extended too:
 
 The hope is that by sending everything in dictionaries and multiple messages,
 there will be enough wiggle room to make these extensions in a
-backwards-compatible way. For example, to add "command mode" while allowing
-the fancy new (as yet unwritten) GUI client to interoperate with
-old-fashioned one-file-only CLI clients, we need the GUI tool to send an "I'm
-capable of command mode" in the VERSION message, and look for it in the
-received VERSION. If it isn't present, it will either expect to see an offer
-(if the other side is sending), or nothing (if it is waiting to receive), and
-can explain the situation to the user accordingly. It might show a locked set
-of bars over the wormhole graphic to mean "cannot send", or a "waiting to
-send them a file" overlay for send-only.
+backwards-compatible way.
