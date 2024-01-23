@@ -53,7 +53,7 @@ The separate features represented in the below table are:
 
 * *Core*: the basic client-visible features of the core mailbox protocol to `open`, `allocate`, `claim` and `close` a mailbox (as well as `add` messages to it)
 * *Reconnect*: client state and behavior to re-connect to an in-progress or existing mailbox (e.g. in case of network failure, etc)
-* *File Transfer v1* ("File v1"): the exsting file-transfer protocol (allowing single Files or Directories or text-messages to be transferred in one direction)
+* *File Transfer v1* ("File v1"): the existing file-transfer protocol (allowing single Files or Directories or text-messages to be transferred in one direction)
 * *Permissions*: an extension to allow the server to request additional work or information from clients before allowing access.
 * *Dilation*: the core Dilation protocol
 * *Dilated File Transfer* ("Dilated Transfer"): a more fully-featured file-transfer protocol on top of *Dilation*.
