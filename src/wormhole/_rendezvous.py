@@ -1,5 +1,5 @@
 import os
-import urllib.parse as urlparse
+from urllib.parse import urlparse
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from zope.interface import implementer
