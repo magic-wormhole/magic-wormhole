@@ -1,7 +1,5 @@
-from __future__ import print_function, unicode_literals
 import sys
 import re
-import six
 from collections import namedtuple
 from twisted.internet.endpoints import TCP4ClientEndpoint, TCP6ClientEndpoint, HostnameEndpoint
 from twisted.internet.abstract import isIPAddress, isIPv6Address
@@ -121,7 +119,7 @@ def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
         log.msg("invalid hostname in hint: %r" % (hint, ))
         return None
     if not ("port" in hint and
-            isinstance(hint["port"], six.integer_types)):
+            isinstance(hint["port"], int)):
         log.msg("invalid port in hint: %r" % (hint, ))
         return None
     priority = hint.get("priority", 0.0)

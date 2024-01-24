@@ -1,6 +1,4 @@
-from __future__ import print_function, unicode_literals
 from collections import namedtuple
-import six
 from attr import attrs, attrib
 from attr.validators import instance_of, provides
 from automat import MethodicalMachine
@@ -306,19 +304,19 @@ def encode_record(r):
     if isinstance(r, Pong):
         return b"\x02" + r.ping_id
     if isinstance(r, Open):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x03" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Data):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x04" + to_be4(r.scid) + to_be4(r.seqnum) + r.data
     if isinstance(r, Close):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x05" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Ack):
-        assert isinstance(r.resp_seqnum, six.integer_types)
+        assert isinstance(r.resp_seqnum, int)
         return b"\x06" + to_be4(r.resp_seqnum)
     raise TypeError(r)
 

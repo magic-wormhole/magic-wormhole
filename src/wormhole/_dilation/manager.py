@@ -1,13 +1,6 @@
-from __future__ import print_function, unicode_literals
-import six
 import os
 from collections import deque
-try:
-    # py >= 3.3
-    from collections.abc import Sequence
-except ImportError:
-    # py 2 and py3 < 3.3
-    from collections import Sequence
+from collections.abc import Sequence
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from automat import MethodicalMachine
@@ -256,15 +249,15 @@ class Manager(object):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Open, scid)
 
     def send_data(self, scid, data):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Data, scid, data)
 
     def send_close(self, scid):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Close, scid)
 
     def _queue_and_send(self, record_type, *args):

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import io
 import os
 import re
@@ -8,7 +6,6 @@ import sys
 import zipfile
 from textwrap import dedent, fill
 
-import six
 from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
@@ -147,7 +144,7 @@ class OfferData(unittest.TestCase):
         self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
+        self.assertIsInstance(d["directory"]["numbytes"], int)
 
         zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
@@ -607,8 +604,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
-                        with mock.patch.object(
-                                cmd_receive.six.moves, 'input',
+                        with mock.patch.object(builtins, 'input',
                                 return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:
