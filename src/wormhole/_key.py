@@ -1,8 +1,5 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 from hashlib import sha256
 
-import six
 from attr import attrib, attrs
 from attr.validators import instance_of, provides
 from automat import MethodicalMachine
@@ -25,7 +22,7 @@ def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
         raise TypeError(type(key))
     if not isinstance(purpose, type(b"")):
         raise TypeError(type(purpose))
-    if not isinstance(length, six.integer_types):
+    if not isinstance(length, int):
         raise TypeError(type(length))
     return HKDF(key, length, CTXinfo=purpose)
 

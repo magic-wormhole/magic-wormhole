@@ -1,6 +1,5 @@
-from __future__ import print_function, absolute_import, unicode_literals
 import os
-from six.moves.urllib_parse import urlparse
+from urllib.parse import urlparse
 from attr import attrs, attrib
 from attr.validators import provides, instance_of, optional
 from zope.interface import implementer

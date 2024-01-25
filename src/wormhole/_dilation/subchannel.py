@@ -1,4 +1,3 @@
-import six
 from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of, provides
@@ -74,7 +73,7 @@ class _WormholeAddress(object):
 @implementer(IAddress)
 @attrs
 class _SubchannelAddress(object):
-    _scid = attrib(validator=instance_of(six.integer_types))
+    _scid = attrib(validator=instance_of(int))
 
 
 @attrs(eq=False)
@@ -83,7 +82,7 @@ class _SubchannelAddress(object):
 @implementer(IConsumer)
 @implementer(ISubChannel)
 class SubChannel(object):
-    _scid = attrib(validator=instance_of(six.integer_types))
+    _scid = attrib(validator=instance_of(int))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _peer_addr = attrib(validator=instance_of(_SubchannelAddress))

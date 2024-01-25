@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import errno
 import hashlib
 import os
@@ -7,7 +5,6 @@ import sys
 
 import stat
 
-import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
@@ -240,7 +237,7 @@ class Sender:
     def _check_verifier(self, w, verifier_bytes):
         verifier = bytes_to_hexstr(verifier_bytes)
         while True:
-            ok = six.moves.input("Verifier %s. ok? (yes/no): " % verifier)
+            ok = input("Verifier %s. ok? (yes/no): " % verifier)
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":
@@ -262,7 +259,7 @@ class Sender:
             print(u"Reading text message from stdin..", file=args.stderr)
             text = sys.stdin.read()
         if not text and not args.what:
-            text = six.moves.input("Text to send: ")
+            text = input("Text to send: ")
 
         if text is not None:
             print(
