@@ -1318,7 +1318,7 @@ class Boss(unittest.TestCase):
                      timing.DebugTiming())
         b._T = Dummy("t", events, ITerminator, "close")
         b._S = Dummy("s", events, ISend, "send")
-        b._RC = Dummy("rc", events, IRendezvousConnector, "start")
+        b._RC = Dummy("rc", events, IRendezvousConnector, "start", "_send_bind")
         b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                      "set_code")
         b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key")
@@ -1338,6 +1338,7 @@ class Boss(unittest.TestCase):
         b.rx_welcome(welcome)
         self.assertEqual(events, [
             ("w.got_welcome", welcome),
+            ("rc._send_bind", ),
         ])
         events[:] = []
 
@@ -1590,6 +1591,8 @@ class Rendezvous(unittest.TestCase):
 
         with mock.patch("os.urandom", notrandom):
             rc.ws_open(ws)
+            # since "Boss" is a Dummy, have to fake it
+            rc._send_bind()
         self.assertEqual(events, [
             ("n.connected", ),
             ("m.connected", ),
