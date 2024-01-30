@@ -37,8 +37,7 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-source_suffix = ['.rst', '.md']
-#source_suffix = '.md'
+source_suffix = ['.rst']
 
 # The master toctree document.
 master_doc = 'index'
@@ -99,7 +98,14 @@ html_theme = 'alabaster'
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "logo": "wormhole.png",
+    "logo_name": True,
+    "logo_text_align": "center",
+    "description": "Get things from one computer to another, safely.",
+    "github_user": "magic-wormhole",
+    "github_repo": "magic-wormhole",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -113,8 +119,10 @@ html_static_path = ['_static']
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
     '**': [
+        'about.html',
         'relations.html',  # needs 'show_related': True theme option to display
         'searchbox.html',
+        'navigation.html',
     ]
 }
 
