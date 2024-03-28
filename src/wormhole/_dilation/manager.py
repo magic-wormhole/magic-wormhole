@@ -1,7 +1,8 @@
 import os
+import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib, evolve
+from attr import attrs, attrib, evolve, frozen
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -88,6 +89,20 @@ class EndpointRecord(Sequence):
 
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
+
+
+# XXX move me somewhere sensible
+# XXX attempt at a "dilation status" API
+
+@frozen
+class DilationStarted:
+    timestamp: int
+
+
+@frozen
+class DilationReconnecting:
+    timestamp: int = 0
+
 
 
 # new scheme:
@@ -221,6 +236,7 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
+        ##self._maybe_send_status(DilationStarted())
         self.start()
 
     # from _boss.Boss
