@@ -1,7 +1,8 @@
 import os
+import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib
+from attr import attrs, attrib, frozen
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -68,6 +69,20 @@ def make_side():
     return bytes_to_hexstr(os.urandom(8))
 
 
+# XXX move me somewhere sensible
+# XXX attempt at a "dilation status" API
+
+@frozen
+class DilationStarted:
+    timestamp: int
+
+
+@frozen
+class DilationReconnecting:
+    timestamp: int = 0
+
+
+
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
 #    w.dilate has been called,
@@ -115,6 +130,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
+    _status = attrib(default=None)
 
     _dilation_key = None
     _tor = None  # TODO
@@ -191,7 +207,12 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
+        ##self._maybe_send_status(DilationStarted())
         self.start()
+
+    def _maybe_send_status(self, status_msg):
+        if self._status is not None:
+            self._status.update(status_msg)
 
     def fail(self, f):
         self._endpoints.control._main_channel_failed(f)
@@ -433,6 +454,7 @@ class Manager(object):
 
     @m.output()
     def send_please(self):
+        print("send please")
         msg = {
             "type": "please",
             "side": self._my_side,
@@ -445,11 +467,13 @@ class Manager(object):
     def choose_role(self, message):
         their_side = message["side"]
         if self._my_side > their_side:
+            print("i am leader")
             self._my_role = LEADER
             # scid 0 is reserved for the control channel. the leader uses odd
             # numbers starting with 1
             self._next_subchannel_id = 1
         elif their_side > self._my_side:
+            print("i am follower")
             self._my_role = FOLLOWER
             # the follower uses even numbers starting with 2
             self._next_subchannel_id = 2
@@ -460,11 +484,13 @@ class Manager(object):
 
     @m.output()
     def start_connecting_ignore_message(self, message):
+        print("start connecting, ignore message")
         del message  # ignored
         return self._start_connecting()
 
     @m.output()
     def start_connecting(self):
+        print("start connecting")
         self._start_connecting()
 
     def _start_connecting(self):
@@ -487,14 +513,17 @@ class Manager(object):
 
     @m.output()
     def send_reconnect(self):
+        print("reconect")
         self.send_dilation_phase(type="reconnect")  # TODO: generation number?
 
     @m.output()
     def send_reconnecting(self):
+        print("reconnecting")
         self.send_dilation_phase(type="reconnecting")  # TODO: generation?
 
     @m.output()
     def use_hints(self, hint_message):
+        print("use hints", hint_message)
         hint_objs = filter(lambda h: h,  # ignore None, unrecognizable
                            [parse_hint(hs) for hs in hint_message["hints"]])
         hint_objs = list(hint_objs)
@@ -502,16 +531,19 @@ class Manager(object):
 
     @m.output()
     def stop_connecting(self):
+        print("stop connecting")
         self._connector.stop()
 
     @m.output()
     def abandon_connection(self):
+        print("abandon connection")
         # we think we're still connected, but the Leader disagrees. Or we've
         # been told to shut down.
         self._connection.disconnect()  # let connection_lost do cleanup
 
     @m.output()
     def notify_stopped(self):
+        print("notify stopped")
         self._stopped.fire(None)
 
     # We are born WAITING after the local app calls w.dilate(). We enter
@@ -597,7 +629,9 @@ class Dilator(object):
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None, no_listen=False):
+    def dilate(self, transit_relay_location=None, no_listen=False, status=None):
+        # XXX this is just fed through directly from the public API;
+        # effectively, this _is_ a public API
         if not self._manager:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
@@ -605,7 +639,7 @@ class Dilator(object):
             m = Manager(self._S, my_dilation_side,
                         transit_relay_location,
                         self._reactor, self._eventual_queue,
-                        self._cooperator, no_listen)
+                        self._cooperator, no_listen, status)
             self._manager = m
             if self._pending_dilation_key is not None:
                 m.got_dilation_key(self._pending_dilation_key)

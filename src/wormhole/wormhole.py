@@ -88,6 +88,8 @@ class _DelegatedWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
+    # FFFFFUUUUk sakes, DelegatedWormhole doesn't support dilation??
+
     def close(self):
         self._boss.close()
 
@@ -191,10 +193,26 @@ class _DeferredWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
+    # XXX note that only DeferredWormhole has this .. the
+    # DelegatedWormhole thus has no way to dilate?
+
+    # XXX need some way to have "feedback" -- could give a delegate
+    # here? or have e.g. "listen_status()" or similar.
+    # want to know stuff like:
+    # - are we connected? (to the peer? to the mailbox?)
+    # - are we "connecting"
+    # - did we try to re-connect? (i.e. make a new generation)
     def dilate(self, transit_relay_location=None, no_listen=False):
         if not self._enable_dilate:
             raise NotImplementedError
         return self._boss.dilate(transit_relay_location, no_listen)  # returns endpoints
+
+    def when_closed(self):
+        """
+        :returns: A Deferred that fires when this connection is closed
+            (calling this does _not_ initiate a close from our side)
+        """
+        return self._closed_observer.when_fired()
 
     def close(self):
         # fails with WormholeError unless we established a connection
