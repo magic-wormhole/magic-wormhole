@@ -538,3 +538,26 @@ class IInbound(Interface):
 
 class IOutbound(Interface):
     pass
+
+
+class IDilationStatus(Interface):
+    """
+    XXX better name?
+
+    This interface is used by the Dilation manager to assist with the
+    program giving relevant feedback to users, e.g. to keep informed
+    of connection status and re-connection attempts.
+
+    Instances of this may be hooked up by passing the status= argument
+    to `.dilate()`
+
+    (XXX for both Delegated and Deferred wormholes?)
+    """
+
+    def dilation_status_update(self, new_status: "DilationStatus"):
+        """
+        The current Dilation status has changed.
+
+        The current status is passed as a frozen `DilationStatus`
+        instance.
+        """

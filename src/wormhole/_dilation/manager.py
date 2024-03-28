@@ -1,7 +1,8 @@
 import os
+import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib, evolve
+from attr import attrs, attrib, evolve, frozen
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -90,6 +91,20 @@ def make_side():
     return bytes_to_hexstr(os.urandom(8))
 
 
+# XXX move me somewhere sensible
+# XXX attempt at a "dilation status" API
+
+@frozen
+class DilationStarted:
+    timestamp: int
+
+
+@frozen
+class DilationReconnecting:
+    timestamp: int = 0
+
+
+
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
 #    w.dilate has been called,
@@ -125,6 +140,112 @@ def make_side():
 #   "want" (doesn't send anything)
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
+
+
+@attrs(eq=False)
+class TrafficTimer(object):
+    on_reconnect = attrib()  # a callback when we expire our timer
+    start_timer = attrib()  # a callable that should start the interval timer
+
+    m = MethodicalMachine()
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
+
+    @m.state(initial=True)
+    def no_connection(self):
+        """
+        We aren't even connected yet
+        """
+
+    @m.state()
+    def connected(self):
+        """
+        We are conencted, and have recently seen traffic
+        """
+
+    @m.state()
+    def idle_traffic(self):
+        """
+        We haven't seen and data for an interval
+        """
+
+    @m.input()
+    def got_connection(self):
+        """
+        A connection has been established
+        """
+
+    @m.input()
+    def lost_connection(self):
+        """
+        The connection has been lost
+        """
+
+    @m.input()
+    def interval_elapsed(self):
+        """
+        One interval is an arbitrary amount of time; when two have
+        elapsed, we emit a 'reconnect' signal
+        """
+
+    @m.input()
+    def traffic_seen(self):
+        """
+        We have seen some traffic
+        """
+
+    @m.output()
+    def signal_reconnect(self):
+        print("signal reconnect")
+        self.on_reconnect()
+
+    @m.output()
+    def begin_timing(self):
+        print("begin timing")
+        self.start_timer()
+
+    no_connection.upon(
+        got_connection,
+        enter=connected,
+        outputs=[begin_timing]
+    )
+    no_connection.upon(
+        interval_elapsed,
+        enter=no_connection,
+        outputs=[begin_timing]
+    )
+    connected.upon(
+        lost_connection,
+        enter=no_connection,
+        outputs=[]
+    )
+
+    connected.upon(
+        interval_elapsed,
+        enter=idle_traffic,
+        outputs=[begin_timing]
+    )
+    connected.upon(
+        traffic_seen,
+        enter=connected,
+        outputs=[begin_timing]
+    )
+
+    idle_traffic.upon(
+        interval_elapsed,
+        enter=connected,
+        outputs=[signal_reconnect]
+    )
+    idle_traffic.upon(
+        traffic_seen,
+        enter=connected,
+        outputs=[]
+    )
+    idle_traffic.upon(
+        lost_connection,
+        enter=no_connection,
+        outputs=[]
+    )
+
 
 @attrs(eq=False)
 @implementer(IDilationManager)
@@ -195,6 +316,27 @@ class Manager(object):
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
 
+        # manage our notion of "we have seen traffic recently" or not
+        self._traffic = TrafficTimer(self._signal_reconnect, self._reset_timer)
+        self._traffic.set_trace(print)
+        self._timer = None
+
+    def _signal_reconnect(self):
+        print("DO RECONNECT!")
+
+    def _reset_timer(self):
+        print("reset timer", self._timer)
+        if self._timer is None:
+            def foo():
+                print("FOO", self._connection)
+                if self._connection:
+                    self._connection.disconnect()
+                self._timer = None
+                self._traffic.interval_elapsed()
+            self._timer = self._reactor.callLater(5.0, foo)
+        else:
+            self._timer.delay(5.0)
+
     def get_endpoints(self):
         return self._endpoints
 
@@ -221,6 +363,7 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
+        ##self._maybe_send_status(DilationStarted())
         self.start()
 
     # from _boss.Boss
@@ -324,6 +467,7 @@ class Manager(object):
     # our Connector calls these
 
     def connector_connection_made(self, c):
+        self._traffic.got_connection()
         self.connection_made()  # state machine update
         self._connection = c
         self._inbound.use_connection(c)
@@ -352,6 +496,7 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
+        self._traffic.traffic_seen()
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -584,6 +729,7 @@ class Manager(object):
 
     @m.output()
     def send_status_connecting(self):
+        print("status: connecting")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -593,6 +739,7 @@ class Manager(object):
 
     @m.output()
     def send_status_reconnecting(self):
+        print("status: reconnecting")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -613,6 +760,7 @@ class Manager(object):
         )
     @m.output()
     def send_status_stopped(self):
+        print("status: stopped")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
