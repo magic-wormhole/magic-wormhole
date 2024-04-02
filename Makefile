@@ -33,7 +33,7 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Is GPG Agent running, and has key?"
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --sign NEWS.md
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign NEWS.md
 
 	@echo "Bump version and create tag"
 	python3 update-version.py
@@ -68,6 +68,7 @@ release-upload:
 	git add signatures/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	git add signatures/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	git commit -m "signatures for release"
+	git push origin `git describe --abbrev=0`
 
 
 dilation.png: dilation.seqdiag
