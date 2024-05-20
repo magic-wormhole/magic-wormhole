@@ -13,6 +13,8 @@ from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
 
 from ._status import WormholeStatus, Disconnected, Connecting, Connected
 
+from ._status import WormholeStatus, Disconnected, Connecting, Connected
+
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
@@ -96,10 +98,6 @@ class RendezvousConnector(object):
         # if the initial connection fails, signal an error and shut down. do
         # this in a different reactor turn to avoid some hazards
 
-#        def connected(proto):
-#            self._maybe_send_status(WormholeStatus(Connected(self._url)))
-#            return proto
-#        d.addCallback(connected)
 
         d.addBoth(lambda res: task.deferLater(self._reactor, 0.0, lambda: res))
         # TODO: use EventualQueue
