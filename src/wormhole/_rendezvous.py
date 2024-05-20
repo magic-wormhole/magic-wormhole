@@ -13,6 +13,8 @@ from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
 
 from ._status import WormholeStatus, Disconnected, Connecting, Connected
 
+from ._status import WormholeStatus, Disconnected, Connecting, Connected
+
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
