@@ -11,17 +11,19 @@ from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
                    dict_to_bytes, provides)
 
+from ._status import WormholeStatus, Disconnected, Connecting, Connected
+
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        # print("onConnect", response)
+        print("onConnect", response)
         pass
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
-        # print("onOpen", args)
+        print("onOpen", args)
         # self.wormhole_open = True
         self._RC.ws_open(self)
 
@@ -36,7 +38,7 @@ class WSClient(websocket.WebSocketClientProtocol):
             raise
 
     def onClose(self, wasClean, code, reason):
-        # print("onClose")
+        print("onClose", code, reason)
         self._RC.ws_close(wasClean, code, reason)
         # if self.wormhole_open:
         #     self.wormhole._ws_closed(wasClean, code, reason)
@@ -71,6 +73,7 @@ class RendezvousConnector(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
+    _status = attrib(default=None)
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -81,15 +84,34 @@ class RendezvousConnector(object):
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         ep = self._make_endpoint(self._url)
+        self._maybe_send_status(WormholeStatus())
+
+        orig = ep.connect
+        def connect_wrap(*args, **kw):
+            self._maybe_send_status(WormholeStatus(Connecting(self._url)))
+            return orig(*args, **kw)
+        ep.connect = connect_wrap
+
         self._connector = internet.ClientService(ep, f)
         faf = None if self._have_made_a_successful_connection else 1
         d = self._connector.whenConnected(failAfterFailures=faf)
         # if the initial connection fails, signal an error and shut down. do
         # this in a different reactor turn to avoid some hazards
+
+        def connected(proto):
+            self._maybe_send_status(WormholeStatus(Connected(self._url)))
+            return proto
+        d.addCallback(connected)
+
         d.addBoth(lambda res: task.deferLater(self._reactor, 0.0, lambda: res))
         # TODO: use EventualQueue
         d.addErrback(self._initial_connection_failed)
         self._debug_record_inbound_f = None
+
+    def _maybe_send_status(self, status_msg):
+        print("rendevous status update", status_msg)
+        if self._status is not None:
+            self._status.update(status_msg)
 
     def set_trace(self, f):
         self._trace = f
@@ -172,6 +194,7 @@ class RendezvousConnector(object):
     def ws_open(self, proto):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
+        self._maybe_send_status(WormholeStatus(Connected(self._url)))
         self._ws = proto
         try:
             self._tx(
@@ -216,6 +239,7 @@ class RendezvousConnector(object):
             raise
 
     def ws_close(self, wasClean, code, reason):
+        self._maybe_send_status(WormholeStatus(Disconnected()))
         self._debug("R.lost")
         was_open = bool(self._ws)
         self._ws = None

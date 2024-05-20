@@ -562,6 +562,7 @@ class DilatedConnectionProtocol(Protocol, object):
     @m.output()
     def set_manager(self, manager):
         self._manager = manager
+        self._manager.have_peer(self)
         self.when_disconnected().addCallback(lambda c:
                                              manager.connector_connection_lost())
 
@@ -609,6 +610,7 @@ class DilatedConnectionProtocol(Protocol, object):
     # IProtocol methods
 
     def connectionMade(self):
+        ##print("connectionMade", self._description)
         try:
             framer = _Framer(self.transport,
                              self._outbound_prologue, self._inbound_prologue)

@@ -23,6 +23,7 @@ from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
+from .._status import DilationStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected
 
 
 # exported to Wormhole() for inclusion in versions message
@@ -211,6 +212,7 @@ class Manager(object):
         self.start()
 
     def _maybe_send_status(self, status_msg):
+        print("status!", status_msg)
         if self._status is not None:
             self._status.update(status_msg)
 
@@ -242,6 +244,7 @@ class Manager(object):
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
+        self._maybe_send_status(DilationStatus(phase=dilation_phase))
         self._next_dilation_phase += 1
         self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
 
@@ -311,6 +314,8 @@ class Manager(object):
         pass
 
     def connector_connection_lost(self):
+        # ultimately called after a DilatedConnectionProtocol disconnects
+        print("connector lost")
         self._stop_using_connection()
         if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine
@@ -366,6 +371,20 @@ class Manager(object):
     def handle_pong(self, ping_id):
         # TODO: update is-alive timer
         pass
+
+    # status
+
+    def have_peer(self, conn):
+        """
+        Signal that we have selected a peer connection to use
+        """
+        self._maybe_send_status(
+            DilationStatus(
+                phase=self._next_dilation_phase,
+                connection=Connected("don't know it here"),
+                peer_connection = ConnectedPeer(),
+            )
+        )
 
     # subchannel maintenance
     def allocate_subchannel_id(self):
@@ -484,12 +503,24 @@ class Manager(object):
 
     @m.output()
     def start_connecting_ignore_message(self, message):
+        self._maybe_send_status(
+            DilationStatus(
+                phase=self._next_dilation_phase,
+                connection=Connected("don't know it here"),
+            )
+        )
         print("start connecting, ignore message")
         del message  # ignored
         return self._start_connecting()
 
     @m.output()
     def start_connecting(self):
+        self._maybe_send_status(
+            DilationStatus(
+                phase=self._next_dilation_phase,
+                connection=Connected("don't know it here"),
+            )
+        )
         print("start connecting")
         self._start_connecting()
 
@@ -532,6 +563,7 @@ class Manager(object):
     @m.output()
     def stop_connecting(self):
         print("stop connecting")
+        self._maybe_send_status()
         self._connector.stop()
 
     @m.output()
@@ -677,6 +709,7 @@ class Dilator(object):
             self._pending_dilation_key = dilation_key
 
     def got_wormhole_versions(self, their_wormhole_versions):
+        print("got versions", their_wormhole_versions)
         if self._manager:
             self._manager.got_wormhole_versions(their_wormhole_versions)
         else:
