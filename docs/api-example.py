@@ -52,7 +52,7 @@ async def example_responder(reactor, code):
     versions = await w.get_versions()
 
     # our simple protocol is: the responder sends a single
-    # message. the flow of messgaes after "versions" is exchanged is
+    # message. the flow of messages after "versions" is exchanged is
     # up to application requirements
     w.send_message(b"privacy is a human right")
     result = await w.close()

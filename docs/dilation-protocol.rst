@@ -18,7 +18,7 @@ Dilation was conceived during development of a “next-generation”
 file-transfer protocol now called “`Dilated File
 Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
 
-This document asssumes you are familiar with the core Mailbox protocol
+This document assumes you are familiar with the core Mailbox protocol
 and the general promises of Magic Wormhole. For more information see
 `the Server Protocol <server-protocol.md>`__.
 
@@ -459,7 +459,7 @@ pattern, and the reaction to receiving the handshake message / ephemeral
 key (for which only the Follower sends an empty KCM message).
 
 After that, the ``DilatedConnectionProtocol`` notifies the management
-obects in three situations:
+objects in three situations:
 
 -  the Noise session produces a valid KCM message (``Connector``
    notified with ``add_candidate()``).

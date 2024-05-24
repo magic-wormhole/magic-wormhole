@@ -121,7 +121,7 @@ Unless otherwise noted, these "inherit" any limitations of their langauge's libr
 Library and CLI
 ~~~~~~~~~~~~~~~
 
-* `magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_ the Python reference implementation and CLI (the command-line progam is called ``wormhole`` in most distributions)
+* `magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_ the Python reference implementation and CLI (the command-line program is called ``wormhole`` in most distributions)
 * `wormhole-william <https://github.com/psanford/wormhole-william>`_ is a Go library and CLI for file-transfer
 * `magic-wormhole.rs <https://github.com/magic-wormhole/magic-wormhole.rs/>`_ provides a library and CLI for file-transfer
 * `haskell-magic-wormhole <https://github.com/LeastAuthority/haskell-magic-wormhole>`_ and `wormhole-client <https://github.com/LeastAuthority/wormhole-client>`_ are a library and CLI for file-transfer in Haskell
@@ -132,7 +132,7 @@ GUIs for Desktop, Mobile, Web
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * `Warp <https://apps.gnome.org/Warp/>`_ is a GNOME GUI written in Rust
-* `Winden <https://winden.app/>`_ is a Web client and deployment (using the Go implemtation via WASM)
+* `Winden <https://winden.app/>`_ is a Web client and deployment (using the Go implementation via WASM)
 * `Destiny <https://f-droid.org/packages/com.leastauthority.destiny/>`_ is an Android (and iOS) app using Flutter (with the Go implementation for wormhole). Also on proprietary app stores.
 * `Wormhole <https://gitlab.com/lukas-heiligenbrunner/wormhole>`_ for Android. Based on the Rust implementation.
 * `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy

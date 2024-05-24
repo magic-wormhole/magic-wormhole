@@ -14,7 +14,7 @@ partner to connect to them instead of you. By passing, observing, and
 possibly modifying messages between these two connections, they could
 perform an MitM (Man In The Middle) attack.
 
-If the server refused to re-use the same channel id (aka “nameplate”)
+If the server refused to reuse the same channel id (aka “nameplate”)
 right away (issue #31), a network attacker would be unable to set up the
 second connection, cutting this attack in half. An attacker who controls
 the server would not be affected.
