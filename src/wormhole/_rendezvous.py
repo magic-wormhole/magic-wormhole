@@ -1,7 +1,7 @@
 import os
 from urllib.parse import urlparse
 from attr import attrs, attrib
-from attr.validators import provides, instance_of, optional
+from attr.validators import instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
 from twisted.internet import defer, endpoints, task
@@ -9,7 +9,7 @@ from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
-                   dict_to_bytes)
+                   dict_to_bytes, provides)
 
 
 class WSClient(websocket.WebSocketClientProtocol):

@@ -1,7 +1,7 @@
 from hashlib import sha256
 
 from attr import attrib, attrs
-from attr.validators import instance_of, provides
+from attr.validators import instance_of
 from automat import MethodicalMachine
 from nacl import utils
 from nacl.exceptions import CryptoError
@@ -11,7 +11,7 @@ from zope.interface import implementer
 
 from . import _interfaces
 from .util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                   hexstr_to_bytes, to_bytes, HKDF)
+                   hexstr_to_bytes, to_bytes, HKDF, provides)
 
 CryptoError
 __all__ = ["derive_key", "derive_phase_key", "CryptoError", "Key"]

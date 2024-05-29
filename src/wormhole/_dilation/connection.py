@@ -1,6 +1,6 @@
 from collections import namedtuple
 from attr import attrs, attrib
-from attr.validators import instance_of, provides
+from attr.validators import instance_of
 from automat import MethodicalMachine
 from zope.interface import Interface, implementer
 from twisted.python import log
@@ -8,6 +8,7 @@ from twisted.internet.protocol import Protocol
 from twisted.internet.interfaces import ITransport
 from .._interfaces import IDilationConnector
 from ..observer import OneShotObserver
+from ..util import provides
 from .encode import to_be4, from_be4
 from .roles import LEADER, FOLLOWER
 from ._noise import NoiseInvalidMessage, NoiseHandshakeError, NOISE_MAX_PAYLOAD, NOISE_MAX_CIPHERTEXT

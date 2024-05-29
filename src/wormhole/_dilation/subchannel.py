@@ -1,6 +1,6 @@
 from collections import deque
 from attr import attrs, attrib
-from attr.validators import instance_of, provides
+from attr.validators import instance_of
 from zope.interface import implementer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
@@ -12,6 +12,7 @@ from twisted.internet.error import ConnectionDone
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 from ..observer import OneShotObserver
+from ..util import provides
 
 # each subchannel frame (the data passed into transport.write(data)) gets a
 # 9-byte header prefix (type, subchannel id, and sequence number), then gets

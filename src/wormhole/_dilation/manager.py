@@ -2,7 +2,7 @@ import os
 from collections import deque
 from collections.abc import Sequence
 from attr import attrs, attrib
-from attr.validators import provides, instance_of, optional
+from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred
@@ -10,7 +10,7 @@ from twisted.internet.interfaces import (IStreamClientEndpoint,
                                          IStreamServerEndpoint)
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
 from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,

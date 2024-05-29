@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * add release-notes here when making PRs
+* Incorporate attrs' zope-interface support (#492)
 
 
 ## Release 0.14.0 (28-Mar-2024)
