@@ -48,13 +48,13 @@ def find_public_key(hint=None):
                     ans = None
                 else:
                     got_key = True
-                    with open(join(hint, pubkeys[ans]), 'r') as f:
+                    with open(join(hint, pubkeys[ans]), 'r', encoding='utf-8') as f:
                         pubkey = f.read()
 
             except Exception:
                 got_key = False
     else:
-        with open(join(hint, pubkeys[0]), 'r') as f:
+        with open(join(hint, pubkeys[0]), 'r', encoding='utf-8') as f:
             pubkey = f.read()
     parts = pubkey.strip().split(maxsplit=2)
     kind = parts[0]
@@ -97,7 +97,7 @@ def invite(cfg, reactor=reactor):
             print("      '{}' doesn't exist either".format(ssh_path))
     else:
         try:
-            open(auth_key_path, 'a').close()
+            open(auth_key_path, 'a', encoding='utf-8').close()
         except OSError:
             print("No write permission on '{}'".format(auth_key_path))
             return
@@ -125,7 +125,7 @@ def invite(cfg, reactor=reactor):
     if not exists(auth_key_path):
         if not exists(ssh_path):
             os.mkdir(ssh_path, mode=0o700)
-    with open(auth_key_path, 'a', 0o600) as f:
+    with open(auth_key_path, 'a', 0o600, encoding='utf-8') as f:
         f.write('{}\n'.format(pubkey.strip()))
     print("Appended key type='{kind}' id='{key_id}' to '{auth_file}'".format(
         kind=kind, key_id=keyid, auth_file=auth_key_path))
