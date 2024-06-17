@@ -162,7 +162,7 @@ def git_get_keywords(versionfile_abs: str) -> Dict[str, str]:
     # _version.py.
     keywords: Dict[str, str] = {}
     try:
-        with open(versionfile_abs, "r") as fobj:
+        with open(versionfile_abs, "r", encoding="utf-8") as fobj:
             for line in fobj:
                 if line.strip().startswith("git_refnames ="):
                     mo = re.search(r'=\s*"(.*)"', line)

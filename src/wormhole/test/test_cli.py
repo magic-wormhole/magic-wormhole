@@ -446,7 +446,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             if mode == "empty-file":
                 message = ""
             send_filename = u"testfil\u00EB"  # e-with-diaeresis
-            with open(os.path.join(send_dir, send_filename), "w") as f:
+            with open(os.path.join(send_dir, send_filename), "w", encoding="utf-8") as f:
                 f.write(message)
             send_cfg.what = send_filename
             receive_filename = send_filename
@@ -457,7 +457,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             if overwrite:
                 recv_cfg.output_file = receive_filename
                 existing_file = os.path.join(receive_dir, receive_filename)
-                with open(existing_file, 'w') as f:
+                with open(existing_file, 'w', encoding='utf-8') as f:
                     f.write('pls overwrite me')
 
         elif mode == "directory":
@@ -480,7 +480,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             modes = {}
             for i in range(5):
                 path = os.path.join(source_dir, str(i))
-                with open(path, "w") as f:
+                with open(path, "w", encoding="utf-8") as f:
                     f.write(message(i))
                 if i == 3:
                     os.chmod(path, 0o755)
@@ -711,7 +711,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnlessIn(u"Received file written to ", receive_stderr)
             fn = os.path.join(receive_dir, receive_filename)
             self.failUnless(os.path.exists(fn))
-            with open(fn, "r") as f:
+            with open(fn, "r", encoding="utf-8") as f:
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
             self.failUnlessEqual(receive_stdout, "")
@@ -727,7 +727,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             self.failUnless(os.path.exists(fn), fn)
             for i in range(5):
                 fn = os.path.join(receive_dir, receive_dirname, str(i))
-                with open(fn, "r") as f:
+                with open(fn, "r", encoding="utf-8") as f:
                     self.failUnlessEqual(f.read(), message(i))
                 self.failUnlessEqual(modes[i], stat.S_IMODE(
                     os.stat(fn).st_mode))
@@ -810,7 +810,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             message = "test message\n"
             send_cfg.what = receive_name = send_filename = "testfile"
             fn = os.path.join(send_dir, send_filename)
-            with open(fn, "w") as f:
+            with open(fn, "w", encoding="utf-8") as f:
                 f.write(message)
             size = os.stat(fn).st_size
 
@@ -827,14 +827,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             os.mkdir(os.path.join(send_dir, send_dirname))
             for i in range(5):
                 path = os.path.join(send_dir, send_dirname, str(i))
-                with open(path, "w") as f:
+                with open(path, "w", encoding="utf-8") as f:
                     f.write("test message %d\n" % i)
                 size += os.stat(path).st_size
 
         if failmode == "noclobber":
             PRESERVE = "don't clobber me\n"
             clobberable = os.path.join(receive_dir, receive_name)
-            with open(clobberable, "w") as f:
+            with open(clobberable, "w", encoding="utf-8") as f:
                 f.write(PRESERVE)
 
         send_cfg.cwd = send_dir
@@ -935,7 +935,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if failmode == "noclobber":
             fn = os.path.join(receive_dir, receive_name)
             self.failUnless(os.path.exists(fn))
-            with open(fn, "r") as f:
+            with open(fn, "r", encoding="utf-8") as f:
                 self.failUnlessEqual(f.read(), PRESERVE)
 
     def test_fail_file_noclobber(self):

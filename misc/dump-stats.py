@@ -4,7 +4,7 @@ import time, json
 # Run this as 'watch python misc/dump-stats.py' against a 'wormhole-server
 # start --stats-file=stats.json'
 
-with open("stats.json") as f:
+with open("stats.json", "r", encoding="utf-8") as f:
     data_s = f.read()
 
 now = time.time()

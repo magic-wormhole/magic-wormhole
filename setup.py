@@ -21,7 +21,7 @@ trove_classifiers = [
 setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
-      long_description=open('README.md', 'r').read(),
+      long_description=open('README.md', 'r', encoding='utf-8').read(),
       long_description_content_type='text/markdown',
       author="Brian Warner",
       author_email="warner-magic-wormhole@lothar.com",
