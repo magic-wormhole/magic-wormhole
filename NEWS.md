@@ -3,7 +3,14 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * add release-notes here when making PRs
-* Incorporate attrs' zope-interface support (#492)
+
+
+## Release 0.15.0 (7-Aug-2024)
+
+* Incorporate attrs' zope-interface support (#492, #527, from https://github.com/meejah)
+* Add "codespell" to correct spelling (#526, from https://github.com/yarikoptic)
+* Fix bash completions (#525, from https://github.com/RobertoD91)
+* run tests propely when Noise not installed (#522, from https://github.com/anarcat)
 
 
 ## Release 0.14.0 (28-Mar-2024)
