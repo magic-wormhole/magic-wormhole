@@ -68,7 +68,7 @@ release-upload:
 	git add signatures/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	git add signatures/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	git commit -m "signatures for release"
-	git push origin `git describe --abbrev=0`
+	git push origin-push `git describe --abbrev=0`
 
 
 dilation.png: dilation.seqdiag
