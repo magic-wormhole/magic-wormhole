@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from collections import defaultdict
 from binascii import hexlify
 from attr import attrs, attrib

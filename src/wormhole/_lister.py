@@ -1,5 +1,3 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 from attr import attrib, attrs
 from automat import MethodicalMachine
 from zope.interface import implementer

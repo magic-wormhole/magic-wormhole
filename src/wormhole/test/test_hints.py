@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 import io
 from collections import namedtuple
 from unittest import mock

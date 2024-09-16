@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock, Cooperator

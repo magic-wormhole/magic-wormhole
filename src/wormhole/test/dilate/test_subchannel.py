@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from unittest import mock
 from zope.interface import directlyProvides
 from twisted.trial import unittest
