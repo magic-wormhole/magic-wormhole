@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from attr import attrs, attrib
 from zope.interface import implementer
 from twisted.python import log

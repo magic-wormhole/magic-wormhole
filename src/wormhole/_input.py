@@ -1,5 +1,3 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 # We use 'threading' defensively here, to detect if we're being called from a
 # non-main thread. _rlcompleter.py is the only internal Wormhole code that
 # deliberately creates a new thread.

@@ -1,4 +1,3 @@
-from __future__ import print_function, absolute_import, unicode_literals
 import wormhole
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks, gatherResults
