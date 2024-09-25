@@ -96,6 +96,9 @@ class Boss(object):
     def start(self):
         self._RC.start()
 
+    def get_client_port(self):
+        return self._RC.get_client_port()
+
     def _print_trace(self, old_state, input, new_state, client_name, machine,
                      file):
         if new_state:

@@ -179,12 +179,23 @@ class Sender:
                                  verifier_bytes)  # blocks, can TransferError
 
         if self._fd_to_send:
+            portnum = w.get_client_port()
+            punched_hint = None
+            if "you" in welcome:
+                punched_port = welcome["you"].get("port")
+                punched_ipv4 = welcome["you"].get("ipv4")
+                punched_ipv6 = welcome["you"].get("ipv6")
+                punched_addr = punched_ipv6 or punched_ipv4
+                if type(punched_port) == int and type(punched_addr) == str:
+                    punched_hint = (punched_addr, punched_port)
             ts = TransitSender(
                 args.transit_helper,
                 no_listen=(not args.listen),
                 tor=self._tor,
                 reactor=self._reactor,
-                timing=self._timing)
+                timing=self._timing,
+                portnum=portnum,
+                punched_hint=punched_hint)
             self._transit_sender = ts
 
             # for now, send this before the main offer

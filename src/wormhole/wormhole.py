@@ -101,6 +101,8 @@ class _DelegatedWormhole(object):
     def got_welcome(self, welcome):
         self._delegate.wormhole_got_welcome(welcome)
 
+    # TODO: get_listening_port, if that's even coherent here
+
     def got_code(self, code):
         self._delegate.wormhole_got_code(code)
 
@@ -151,6 +153,9 @@ class _DeferredWormhole(object):
 
     def get_welcome(self):
         return self._welcome_observer.when_fired()
+
+    def get_client_port(self):
+        return self._boss.get_client_port()
 
     def get_unverified_key(self):
         return self._key_observer.when_fired()

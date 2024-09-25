@@ -555,7 +555,9 @@ class Common:
                  no_listen=False,
                  tor=None,
                  reactor=None,
-                 timing=None):
+                 timing=None,
+                 portnum=None,
+                 punched_hint=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
             if not isinstance(transit_relay, type(u"")):
@@ -579,11 +581,13 @@ class Common:
         self._reactor = reactor
         self._timing = timing or DebugTiming()
         self._timing.add("transit")
+        self._portnum = portnum
+        self._punched_hint = punched_hint
 
     def _build_listener(self):
         if self._no_listen or self._tor:
             return ([], None)
-        portnum = allocate_tcp_port()
+        portnum = self._portnum or allocate_tcp_port()
         addresses = ipaddrs.find_addresses()
         non_loopback_addresses = [a for a in addresses if a != "127.0.0.1"]
         if non_loopback_addresses:
@@ -616,6 +620,26 @@ class Common:
                 u"priority": dh.priority,
                 u"hostname": dh.hostname,
                 u"port": dh.port,  # integer
+            })
+        if self._punched_hint:
+            # We want hole-punched hints to have a lower priority than "local"
+            # direct hints, so when both sides are inside the same NAT, we
+            # prefer a direct connection over a hairpin-routed path (out
+            # through the NAT and then right back in again), if the NAT/router
+            # supports that). But note that _connect() only pays attention to
+            # priority for relay hints, not direct hints. We publish the
+            # priority in the hopes that some day the other side can benefit
+            # from it. Also note that relay hints have priority=0.0 by default,
+            # so that future mechanism needs to stack all relay hints *lower*
+            # than the lowest-priority direct hint.
+
+            punched_hostname, punched_port = self._punched_hint
+            punched_priority = -1.0 # lower than direct, higher than relay
+            hints.append({
+                u"type": u"direct-tcp-v1",
+                u"priority": punched_priority,
+                u"hostname": punched_hostname,
+                u"port": punched_port,  # integer
             })
         for relay in self._transit_relays:
             rhint = {u"type": u"relay-v1", u"hints": []}
@@ -784,7 +808,8 @@ class Common:
             # Check the hint type to see if we can support it (e.g. skip
             # onion hints on a non-Tor client). Do not increase relay_delay
             # unless we have at least one viable hint.
-            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
+            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor,
+                                        self._portnum)
             if not ep:
                 continue
             d = self._start_connector(ep,
