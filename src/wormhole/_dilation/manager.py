@@ -2,7 +2,7 @@ import os
 import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib, frozen
+from attr import attrs, attrib, frozen, evolve
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -23,7 +23,7 @@ from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
-from .._status import DilationStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected
+from .._status import DilationStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected, ConnectingPeer
 
 
 # exported to Wormhole() for inclusion in versions message
@@ -131,7 +131,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
-    _status = attrib(default=None)
+    _status = attrib(default=None)  # IDilationStatus
 
     _dilation_key = None
     _tor = None  # TODO
@@ -154,6 +154,7 @@ class Manager(object):
         self._debug_stall_connector = False
 
         self._next_dilation_phase = 0
+        self._latest_status = DilationStatus(phase=0)
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
@@ -211,10 +212,20 @@ class Manager(object):
         ##self._maybe_send_status(DilationStarted())
         self.start()
 
+    # from _boss.Boss
+    def _wormhole_status(self, wormhole_status):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                mailbox=wormhole_status,
+            )
+        )
+
     def _maybe_send_status(self, status_msg):
         print("status!", status_msg)
+        self._latest_status = status_msg
         if self._status is not None:
-            self._status.update(status_msg)
+            self._status(status_msg)
 
     def fail(self, f):
         self._endpoints.control._main_channel_failed(f)
@@ -244,7 +255,12 @@ class Manager(object):
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
-        self._maybe_send_status(DilationStatus(phase=dilation_phase))
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                phase=dilation_phase,
+            )
+        )
         self._next_dilation_phase += 1
         self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
 
@@ -379,10 +395,9 @@ class Manager(object):
         Signal that we have selected a peer connection to use
         """
         self._maybe_send_status(
-            DilationStatus(
-                phase=self._next_dilation_phase,
-                connection=Connected("don't know it here"),
-                peer_connection = ConnectedPeer(),
+            evolve(
+                self._latest_status,
+                peer_connection=ConnectedPeer(),
             )
         )
 
@@ -504,9 +519,9 @@ class Manager(object):
     @m.output()
     def start_connecting_ignore_message(self, message):
         self._maybe_send_status(
-            DilationStatus(
-                phase=self._next_dilation_phase,
-                connection=Connected("don't know it here"),
+            evolve(
+                self._latest_status,
+                peer_connection = ConnectingPeer(),
             )
         )
         print("start connecting, ignore message")
@@ -516,9 +531,9 @@ class Manager(object):
     @m.output()
     def start_connecting(self):
         self._maybe_send_status(
-            DilationStatus(
-                phase=self._next_dilation_phase,
-                connection=Connected("don't know it here"),
+            evolve(
+                self._latest_status,
+                peer_connection = ConnectingPeer(),
             )
         )
         print("start connecting")
@@ -563,7 +578,7 @@ class Manager(object):
     @m.output()
     def stop_connecting(self):
         print("stop connecting")
-        self._maybe_send_status()
+        ###XXX self._maybe_send_status()
         self._connector.stop()
 
     @m.output()
@@ -655,6 +670,7 @@ class Dilator(object):
         self._pending_dilation_key = None
         self._pending_wormhole_versions = None
         self._pending_inbound_dilate_messages = deque()
+        self._status_updated_cb = None
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
@@ -664,6 +680,7 @@ class Dilator(object):
     def dilate(self, transit_relay_location=None, no_listen=False, status=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
+        self._status_updated_cb = status
         if not self._manager:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set

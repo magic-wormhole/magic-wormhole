@@ -73,7 +73,7 @@ class RendezvousConnector(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
-    _status = attrib(default=None)
+    _status = attrib(default=None)  # or callable(WormholeStatus)
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -109,9 +109,9 @@ class RendezvousConnector(object):
         self._debug_record_inbound_f = None
 
     def _maybe_send_status(self, status_msg):
-        print("rendevous status update", status_msg)
         if self._status is not None:
-            self._status.update(status_msg)
+            # it's a 1-arg callable
+            self._status(status_msg)
 
     def set_trace(self, f):
         self._trace = f

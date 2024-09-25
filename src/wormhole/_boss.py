@@ -19,6 +19,7 @@ from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._send import Send
+from ._status import WormholeStatus
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
@@ -58,7 +59,7 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
-                                       self._timing, self._client_version)
+                                       self._timing, self._client_version, self._wormhole_status)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
@@ -91,6 +92,12 @@ class Boss(object):
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
+##        self._current_wormhole_status = WormholeStatus()
+
+    def _wormhole_status(self, status):
+        print("wormhole status", status)
+        if hasattr(self, "_D") and self._D._manager is not None:
+            self._D._manager._wormhole_status(status)
 
     # these methods are called from outside
     def start(self):
@@ -202,8 +209,9 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, transit_relay_location=None, no_listen=False):
-        return self._D.dilate(transit_relay_location, no_listen=no_listen)  # returns endpoints
+    def dilate(self, transit_relay_location=None, no_listen=False, status=None):
+        # fires with endpoints
+        return self._D.dilate(transit_relay_location, no_listen=no_listen, status=status)
 
     @m.input()
     def send(self, plaintext):

@@ -202,10 +202,10 @@ class _DeferredWormhole(object):
     # - are we connected? (to the peer? to the mailbox?)
     # - are we "connecting"
     # - did we try to re-connect? (i.e. make a new generation)
-    def dilate(self, transit_relay_location=None, no_listen=False):
+    def dilate(self, transit_relay_location=None, no_listen=False, status=None):
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen)  # returns endpoints
+        return self._boss.dilate(transit_relay_location, no_listen, status)  # fires with (endpoints)
 
     def when_closed(self):
         """
