@@ -2,7 +2,8 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* add release-notes here when making PRs
+* Updated to python-spake2 version 0.9
+* (add release-notes here when making PRs)
 
 
 ## Release 0.15.0 (7-Aug-2024)
