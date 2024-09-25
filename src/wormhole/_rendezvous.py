@@ -5,6 +5,7 @@ from attr.validators import instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
 from twisted.internet import defer, endpoints, task
+from twisted.internet.address import IPv4Address, IPv6Address
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
@@ -18,7 +19,10 @@ class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        pass
+        # print("onConnect", response)
+        client_addr = self.transport.getHost()
+        if isinstance(client_addr, (IPv4Address, IPv6Address)):
+            self._RC.ws_got_client_port(client_addr.port)
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
@@ -78,6 +82,7 @@ class RendezvousConnector:
 
         self._trace = None
         self._ws = None
+        self._ws_client_port = None
         f = WSFactory(self, self._url)
         # kind-of match what Dilation does for peer connections;
         # there, we send a ping every 30s and give up on the
@@ -138,6 +143,9 @@ class RendezvousConnector:
     def start(self):
         self._connector.startService()
 
+    def get_client_port(self):
+        return self._ws_client_port
+
     # from Mailbox
     def tx_claim(self, nameplate):
         self._tx("claim", nameplate=nameplate)
@@ -186,6 +194,9 @@ class RendezvousConnector:
             d.addCallback(lambda _: self._B.error(sce))
 
     # from our WSClient (the WebSocket protocol)
+    def ws_got_client_port(self, port):
+        self._ws_client_port = port
+
     def ws_open(self, proto):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
