@@ -229,6 +229,7 @@ class RendezvousConnector(object):
         self._debug("R.lost")
         was_open = bool(self._ws)
         self._ws = None
+        self._ws_client_port = None
         # when Autobahn connects to a non-websocket server, it gets a
         # CLOSE_STATUS_CODE_ABNORMAL_CLOSE, and delivers onClose() without
         # ever calling onOpen first. This confuses our state machines, so

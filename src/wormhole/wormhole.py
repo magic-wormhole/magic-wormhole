@@ -101,7 +101,7 @@ class _DelegatedWormhole(object):
     def got_welcome(self, welcome):
         self._delegate.wormhole_got_welcome(welcome)
 
-    # TODO: get_listening_port, if that's even coherent here
+    # TODO: get_client_port, if that's even coherent here
 
     def got_code(self, code):
         self._delegate.wormhole_got_code(code)
