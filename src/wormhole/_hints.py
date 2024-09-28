@@ -101,9 +101,9 @@ def endpoint_from_hint_obj(hint, tor, reactor, local_portnum=None):
         return None
     if isinstance(hint, DirectTCPV1Hint):
         # bind to local_portnum if possible, to help with hole-punching. We
-        # don't really want to bind to a specific interface, but I don't think
-        # it's possible to bind one without the other.
-        bindAddress = ("::1", local_portnum) if local_portnum else None
+        # don't really want to bind to a specific interface, so we use "",
+        # which tells the python socket library to use INADDR_ANY
+        bindAddress = ("", local_portnum) if local_portnum else None
         # avoid DNS lookup unless necessary
         if isIPAddress(hint.hostname):
             return TCP4ClientEndpoint(reactor, hint.hostname, hint.port, bindAddress)
