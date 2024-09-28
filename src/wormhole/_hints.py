@@ -104,12 +104,13 @@ def endpoint_from_hint_obj(hint, tor, reactor, local_portnum=None):
         # don't really want to bind to a specific interface, so we use "",
         # which tells the python socket library to use INADDR_ANY
         bindAddress = ("", local_portnum) if local_portnum else None
+        timeout = 30
         # avoid DNS lookup unless necessary
         if isIPAddress(hint.hostname):
-            return TCP4ClientEndpoint(reactor, hint.hostname, hint.port, bindAddress)
+            return TCP4ClientEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
         if isIPv6Address(hint.hostname):
-            return TCP6ClientEndpoint(reactor, hint.hostname, hint.port, bindAddress)
-        return HostnameEndpoint(reactor, hint.hostname, hint.port, bindAddress)
+            return TCP6ClientEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
+        return HostnameEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
     return None
 
 
