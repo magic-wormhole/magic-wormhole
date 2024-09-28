@@ -810,6 +810,28 @@ class Common:
             # unless we have at least one viable hint.
             ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor,
                                         self._portnum)
+
+            # TODO: we only really need the bindAddress (self._portnum) for the
+            # peer's punched hint. If they could deliver that to us in a
+            # separate place (perhaps a new hint type), we could use random
+            # local ports for all the direct hints, and only bind the local
+            # port for the one we try to punch with.
+            #
+            # I'm not sure if that helps with anything. Binding might fail (if
+            # our version of Twisted lacks control over SO_REUSEPORT), but we
+            # should probably react to that by trying again without the
+            # bindAddress. When the two sides *can* make a direct connection,
+            # binding the local ports means those connections will be identical
+            # (same full 4-tuple), so we'll hit the TCP "simultaneous open"
+            # corner case more often, which will look weird in tcpdump, and
+            # will have both sides show a "received" indicator on their
+            # connection, but maybe not harmful.
+            #
+            # Making it a new hint type means an older client can't use it. But
+            # older clients also don't know to bind the local port correctly,
+            # so it's not like presenting it as a direct hint would be
+            # sufficient on its own.
+
             if not ep:
                 continue
             d = self._start_connector(ep,
