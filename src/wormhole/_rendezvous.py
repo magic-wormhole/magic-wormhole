@@ -108,10 +108,15 @@ class RendezvousConnector(object):
         port = p.port or (443 if tls else 80)
         if self._tor:
             return self._tor.stream_via(p.hostname, port, tls=tls)
+        timeout = 30
+        # a wildcard bindAddress doesn't really bind anything, but tells
+        # Twisted to set SO_REUSEPORT, so we can share this port later
+        bindAddress = ("", 0)
         if tls:
+            # give the "tls:" endpoint parser effectively the same thing
             return endpoints.clientFromString(self._reactor,
-                                              "tls:%s:%s" % (p.hostname, port))
-        return endpoints.HostnameEndpoint(self._reactor, p.hostname, port)
+                                              "tls:%s:%s:bindAddress=" % (p.hostname, port))
+        return endpoints.HostnameEndpoint(self._reactor, p.hostname, port, timeout, bindAddress)
 
     def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):
         self._B = _interfaces.IBoss(boss)
