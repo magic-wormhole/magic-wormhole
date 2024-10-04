@@ -21,6 +21,8 @@ release-clean:
 	rm dist/magic_wormhole-`python newest-version.py`-py3-none-any.whl*
 	git tag -d `python newest-version.py`
 
+# create a branch, like: git checkout -b prepare-release-0.16.0
+# then run these, so CI can run on the release
 release:
 	@echo "Is checkout clean?"
 	git diff-files --quiet
