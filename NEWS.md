@@ -2,6 +2,7 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
 * (add release-notes here when making PRs)
 
 
