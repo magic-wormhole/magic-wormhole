@@ -1526,11 +1526,16 @@ class RelayHandshake(unittest.TestCase):
         tc = transit_server.TransitConnection()
         tc.factory = mock.Mock()
         tc.factory.connection_got_token = mock.Mock()
+        tc.transport = mock.Mock()
+        tc.connectionMade()
+        tc._state.please_relay = mock.Mock()
+        tc._state.please_relay_for_side = mock.Mock()
         tc.dataReceived(old_handshake[:-1])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        self.assertEqual(tc._state.please_relay.mock_calls, [])
         tc.dataReceived(old_handshake[-1:])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls,
-                         [mock.call(hexlify(token), None, tc)])
+        self.assertEqual(tc._state.please_relay.mock_calls,
+                         [mock.call(hexlify(token))])
+        self.assertEqual(tc._state.please_relay_for_side.mock_calls, [])
 
     def test_new(self):
         c = transit.Common(None)
@@ -1540,13 +1545,15 @@ class RelayHandshake(unittest.TestCase):
 
         tc = transit_server.TransitConnection()
         tc.factory = mock.Mock()
-        tc.factory.connection_got_token = mock.Mock()
+        tc.transport = mock.Mock()
+        tc.connectionMade()
+        tc._state._real_register_token_for_side = m = mock.Mock()
         tc.dataReceived(new_handshake[:-1])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        self.assertEqual(m.mock_calls, [])
         tc.dataReceived(new_handshake[-1:])
         self.assertEqual(
-            tc.factory.connection_got_token.mock_calls,
-            [mock.call(hexlify(token), c._side.encode("ascii"), tc)])
+            m.mock_calls,
+            [mock.call(hexlify(token), c._side.encode("ascii"))])
 
 
 class Full(ServerBase, unittest.TestCase):
