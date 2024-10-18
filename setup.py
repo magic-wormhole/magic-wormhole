@@ -44,7 +44,7 @@ setup(name="magic-wormhole",
           ]
       },
       install_requires=[
-          "spake2==0.8", "pynacl",
+          "spake2==0.9", "pynacl",
           "attrs >= 19.2.0", # 19.2.0 replaces cmp parameter with eq/order
           "twisted[tls] >= 17.5.0", # 17.5.0 adds failAfterFailures=
           "autobahn[twisted] >= 0.14.1",
