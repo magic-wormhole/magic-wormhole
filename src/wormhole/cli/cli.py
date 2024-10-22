@@ -129,56 +129,6 @@ def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     cfg.dump_timing = dump_timing
 
 
-from twisted.internet import tcp
-from functools import wraps
-import socket
-
-class ReusePort(tcp.Port):
-    def createInternetSocket(self, *args, **kw):
-        skt = tcp.Port.createInternetSocket(self, *args, **kw)
-        # REUSE_ADDR already set by twisted
-        if tcp.platformType == "posix" and sys.platform != "cygwin":
-            skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        return skt
-
-
-class ReuseClient(tcp.Client):
-    def createInternetSocket(self, *args, **kw):
-        skt = tcp.Client.createInternetSocket(self, *args, **kw)
-        # copied platform logic from Port, but Twisted issue comments
-        # say REUSEADDR along on Windows is similar-enough to both on
-        # Linux (?)
-        if tcp.platformType == "posix" and sys.platform != "cygwin":
-            skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        return skt
-
-
-class ReuseConnector(tcp.Connector):
-    def _makeTransport(self):
-        return ReuseClient(self.host, self.port, self.bindAddress, self, self.reactor)
-
-
-
-def _wrap_reactor(reactor):
-
-    @wraps(reactor.listenTCP)
-    def _listenTCP(port, factory, backlog=50, interface=""):
-        p = ReusePort(port, factory, backlog, interface, reactor)
-        p.startListening()
-        return p
-    reactor.listenTCP = _listenTCP
-
-    @wraps(reactor.connectTCP)
-    def _connectTCP(host, port, factory, timeout=30, bindAddress=None):
-        c = ReuseConnector(host, port, factory, timeout, bindAddress, reactor)
-        c.connect()
-        return c
-    reactor.connectTCP = _connectTCP
-
-    return reactor
-
-
 @inlineCallbacks
 def _dispatch_command(reactor, cfg, command):
     """
@@ -187,7 +137,12 @@ def _dispatch_command(reactor, cfg, command):
     errors for the user.
     """
 
-    reactor = _wrap_reactor(reactor)
+    # See https://github.com/twisted/twisted/issues/9101
+    # There is no API in Twisted for setting both SO_REUSEADDR and
+    # SO_REUSEPORT, so until there is we use the following wrapping
+    # code.
+    from . import _workaround_9101
+    reactor = _workaround_9101._wrap_reactor(reactor)
 
     cfg.timing.add("command dispatch")
     cfg.timing.add(
