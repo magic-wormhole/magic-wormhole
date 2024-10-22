@@ -5,6 +5,7 @@ import re
 import stat
 import sys
 import tempfile
+import socket
 import zipfile
 from functools import partial
 from textwrap import dedent, fill
@@ -13,7 +14,7 @@ from pathlib import Path
 from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
-from twisted.internet import endpoints, reactor
+from twisted.internet import endpoints, reactor, tcp
 from twisted.internet.defer import gatherResults, CancelledError, ensureDeferred
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
@@ -1621,3 +1622,29 @@ def test_inconsistent_receive_allocate():
     )
     assert result.exit_code != 0
     assert "Cannot specify a code" in result.output
+
+
+def test_workaround_required_listen():
+    """
+    this should start _failing_ when Twisted supports the feature that
+    cli._workaround_9101 implements
+    """
+
+    from twisted.internet import tcp
+    port = tcp.Port(0, object())
+    skt = port.createInternetSocket()
+
+    assert skt.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) == 0, "The workaround code for 9101 is no longer required by Twisted"
+
+
+def test_workaround_required_client():
+    """
+    client-side of above test
+    """
+
+    r = mock.Mock()
+    port = tcp.Client('127.0.0.1', 0, None, object(), r)
+    skt = port.createInternetSocket()
+
+    assert skt.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) == 0, "The workaround code for 9101 is no longer required by Twisted"
+    assert skt.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0, "The workaround code for 9101 is no longer required by Twisted"
