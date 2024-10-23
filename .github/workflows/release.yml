@@ -1,0 +1,49 @@
+name: Build and Push Docker Image
+on:
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            release_tag:
+                description: "Release tag to build and push"
+                required: true
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # Allows read access to the repository code
+            packages: write # Allows pushing images to GitHub Container Registry
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Determine the release tag
+              id: get_tag
+              run: |
+                  if [ "${{ github.event_name }}" == "release" ]; then
+                    echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+                  else
+                    echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  push: true
+                  tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.get_tag.outputs.tag }}
+                  # platforms: linux/arm64/v8,darwin/amd64,linux/amd64,windows/amd64,linux/amd64 # was what I was aiming for
+                  # but locally I only got to these 3 (specifically linux/arm64/v8 but yeah)
+                  platforms: linux/arm64,linux/amd64
