@@ -6,6 +6,7 @@ import sys
 import stat
 
 from humanize import naturalsize
+from qrcode import QRCode
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
@@ -129,6 +130,11 @@ class Sender:
         print(u"", file=args.stderr)
         print(other_cmd, file=args.stderr)
         print(u"", file=args.stderr)
+        if not args.zeromode and args.qrcode:
+            qr = QRCode()
+            qr.add_data(u"wormhole-transfer:%s" % code)
+            qr.print_ascii(out=args.stderr)
+            print(u"", file=args.stderr)
         # flush stderr so the code is displayed immediately
         args.stderr.flush()
 
