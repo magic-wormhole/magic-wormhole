@@ -267,9 +267,10 @@ Two normal clients connect and successfully establish Mailbox-based communicatio
 
 .. seqdiag::
 
-    seqdiag {
+    seqdiag mailbox {
         laptop -> Mailbox [label="BIND(appid side0)"]
         laptop <- Mailbox [label="WELCOME(motd)"]
+
 
         laptop -> Mailbox [label="ALLOCATE()"]
         laptop <- Mailbox [label="ALLOCATED(nameplate=42)"]
@@ -293,6 +294,6 @@ Two normal clients connect and successfully establish Mailbox-based communicatio
         desktop -> Mailbox [label="ADD(side=side1 phase=pake_v1 body=<hex>)"]
         desktop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)"]
 
-        laptop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)", leftnode="laptop gets desktop's pake_v1"]
+        laptop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)", leftnote="laptop gets desktop's pake_v1"]
     }
 
