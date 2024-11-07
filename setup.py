@@ -56,7 +56,7 @@ setup(name="magic-wormhole",
           "txtorcon >= 18.0.2", # 18.0.2 fixes py3.4 support
           "zipstream-ng >= 1.7.1, <2.0.0",
           "iterable-io >= 1.0.0, <2.0.0",
-          "qrcode",
+          "qrcode >= 8.0",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
