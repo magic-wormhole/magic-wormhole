@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
+* Fix test regression under Twisted 24.10.0 (#553)
 * (add release-notes here when making PRs)
 
 

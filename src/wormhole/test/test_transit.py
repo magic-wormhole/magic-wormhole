@@ -490,6 +490,11 @@ class InboundConnectionFactory(unittest.TestCase):
         log.msg("=== note: the next RandomError is expected ===")
         # Make sure the Deferred has gone out of scope, so the UnhandledError
         # happens quickly. We must manually break the gc cycle.
+
+        # note: Twisted 24.10.0 stopped calling cleanFailure() which
+        # made this test break -- is there a better way to achieve
+        # this result?
+        p1._d.result.cleanFailure()
         del p1._d
         gc.collect()  # make PyPy happy
         errors = self.flushLoggedErrors(RandomError)
