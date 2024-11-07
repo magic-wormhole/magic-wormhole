@@ -295,3 +295,4 @@ Two normal clients connect and successfully establish Mailbox-based communicatio
 
         laptop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)", leftnode="laptop gets desktop's pake_v1"]
     }
+
