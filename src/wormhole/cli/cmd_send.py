@@ -126,15 +126,17 @@ class Sender:
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
             other_cmd += u" " + code
-        print(u"On the other computer, please run:", file=args.stderr)
-        print(u"", file=args.stderr)
-        print(other_cmd, file=args.stderr)
-        print(u"", file=args.stderr)
-        if not args.zeromode and args.qrcode:
+
+        if not args.zeromode and args.qr:
             qr = QRCode()
             qr.add_data(u"wormhole-transfer:%s" % code)
             qr.print_ascii(out=args.stderr)
             print(u"", file=args.stderr)
+
+        print(u"On the other computer, please run:", file=args.stderr)
+        print(u"", file=args.stderr)
+        print(other_cmd, file=args.stderr)
+        print(u"", file=args.stderr)
         # flush stderr so the code is displayed immediately
         args.stderr.flush()
 

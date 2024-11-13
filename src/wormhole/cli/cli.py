@@ -271,7 +271,7 @@ def help(context, **kwargs):
     )
 )
 @click.option(
-    "--qrcode/--no-qrcode",
+    "--qr/--no-qr",
     default=True,
     help="Generate and show ASCII-based QR code.")
 @click.argument("what", required=False, type=click.Path(path_type=type(u"")))
