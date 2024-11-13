@@ -2,10 +2,13 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
-* Fix test regression under Twisted 24.10.0 (#553)
+* Drop support for Python 3.8 (#556)
 * (add release-notes here when making PRs)
 
+## Release 0.17.0 (23-Oct-2024)
+
+* Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
+* Fix test regression under Twisted 24.10.0 (#553)
 
 ## Release 0.16.0 (3-Oct-2024)
 
