@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 from twisted.trial import unittest
 
 from unittest import mock

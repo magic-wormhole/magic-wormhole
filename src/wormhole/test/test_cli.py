@@ -1,5 +1,4 @@
-from __future__ import print_function
-
+import builtins
 import io
 import os
 import re
@@ -8,7 +7,6 @@ import sys
 import zipfile
 from textwrap import dedent, fill
 
-import six
 from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
@@ -147,13 +145,11 @@ class OfferData(unittest.TestCase):
         self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
+        self.assertIsInstance(d["directory"]["numbytes"], int)
 
-        self.assertEqual(fd_to_send.tell(), 0)
-        zdata = fd_to_send.read()
+        zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
-        fd_to_send.seek(0, 0)
-        with zipfile.ZipFile(fd_to_send, "r", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
             self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
             for name in zipnames:
@@ -389,6 +385,7 @@ class FakeTor:
         self.endpoints.append((host, port, tls))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
+
 def strip_deprecations(stderr, NL):
     lines = [line
              for line in stderr.split(NL)
@@ -398,6 +395,7 @@ def strip_deprecations(stderr, NL):
                      )
              ]
     return NL.join(lines)
+
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -607,8 +605,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
-                        with mock.patch.object(
-                                cmd_receive.six.moves, 'input',
+                        with mock.patch.object(builtins, 'input',
                                 return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:

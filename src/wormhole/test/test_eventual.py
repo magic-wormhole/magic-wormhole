@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.task import Clock

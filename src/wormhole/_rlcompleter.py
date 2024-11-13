@@ -1,10 +1,7 @@
-from __future__ import print_function, unicode_literals
-
 import traceback
 from sys import stderr
 
 from attr import attrib, attrs
-from six.moves import input
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.threads import blockingCallFromThread, deferToThread
 

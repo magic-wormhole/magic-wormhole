@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from collections import namedtuple
 from itertools import cycle
 from unittest import mock

@@ -18,9 +18,11 @@ class MySend(object):
     def __init__(self, side):
         self.rx_phase = 0
         self.side = side
+
     def send(self, phase, plaintext):
-        #print("SEND[%s]" % self.side, phase, plaintext)
+        # print("SEND[%s]" % self.side, phase, plaintext)
         self.peer.got(phase, plaintext)
+
     def got(self, phase, plaintext):
         d_mo = re.search(r'^dilate-(\d+)$', phase)
         p = int(d_mo.group(1))
@@ -28,19 +30,22 @@ class MySend(object):
         self.rx_phase += 1
         self.dilator.received_dilate(plaintext)
 
+
 @implementer(ITerminator)
 class FakeTerminator(object):
     def __init__(self):
         self.d = Deferred()
+
     def stoppedD(self):
         self.d.callback(None)
+
 
 class Connect(unittest.TestCase):
     @inlineCallbacks
     def test1(self):
         if not NoiseConnection:
             raise unittest.SkipTest("noiseprotocol unavailable")
-        #print()
+        # print()
         send_left = MySend("left")
         send_right = MySend("right")
         send_left.peer = send_right
@@ -55,13 +60,13 @@ class Connect(unittest.TestCase):
         d_left = manager.Dilator(reactor, eq, cooperator)
         d_left.wire(send_left, t_left)
         d_left.got_key(key)
-        d_left.got_wormhole_versions({"can-dilate": [1]})
+        d_left.got_wormhole_versions({"can-dilate": ["1"]})
         send_left.dilator = d_left
 
         d_right = manager.Dilator(reactor, eq, cooperator)
         d_right.wire(send_right, t_right)
         d_right.got_key(key)
-        d_right.got_wormhole_versions({"can-dilate": [1]})
+        d_right.got_wormhole_versions({"can-dilate": ["1"]})
         send_right.dilator = d_right
 
         with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
@@ -72,13 +77,11 @@ class Connect(unittest.TestCase):
         eps_left = yield eps_left_d
         eps_right = yield eps_right_d
 
-        #print("left connected", eps_left)
-        #print("right connected", eps_right)
+        # print("left connected", eps_left)
+        # print("right connected", eps_right)
 
         control_ep_left, connect_ep_left, listen_ep_left = eps_left
         control_ep_right, connect_ep_right, listen_ep_right = eps_right
-
-        #control_ep_left.connect(
 
         # we normally shut down with w.close(), which calls Dilator.stop(),
         # which calls Terminator.stoppedD(), which (after everything else is

@@ -1,9 +1,8 @@
-from __future__ import print_function, unicode_literals
 from attr import attrs, attrib
-from attr.validators import provides
 from zope.interface import implementer
 from twisted.python import log
 from .._interfaces import IDilationManager, IInbound, ISubChannel
+from ..util import provides
 from .subchannel import (SubChannel, _SubchannelAddress)
 
 

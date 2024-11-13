@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import hashlib
 import os
 import shutil
@@ -7,7 +5,6 @@ import sys
 import tempfile
 import zipfile
 
-import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
@@ -329,7 +326,7 @@ class Receiver:
     def _handle_directory(self, them_d):
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
-        if zipmode != "zipfile/deflated":
+        if not zipmode.startswith("zipfile"):
             self._msg(u"Error: unknown directory-transfer mode '%s'" %
                       (zipmode, ))
             raise RespondError("unknown mode")
@@ -390,7 +387,7 @@ class Receiver:
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
             while True and not self.args.accept_file:
-                ok = six.moves.input("ok? (Y/n): ")
+                ok = input("ok? (Y/n): ")
                 if ok.lower().startswith("y") or len(ok) == 0:
                     if os.path.exists(self.abs_destname):
                         self._remove_existing(self.abs_destname)
@@ -465,7 +462,7 @@ class Receiver:
 
         self._msg(u"Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
-            with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 

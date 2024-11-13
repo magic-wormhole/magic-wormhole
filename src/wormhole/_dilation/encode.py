@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 import struct
 
 assert len(struct.pack("<L", 0)) == 4
