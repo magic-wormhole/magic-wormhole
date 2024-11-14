@@ -128,10 +128,9 @@ class Sender:
             other_cmd += u" " + code
 
         if not args.zeromode and args.qr:
-            qr = QRCode()
+            qr = QRCode(border=1)
             qr.add_data(u"wormhole-transfer:%s" % code)
             qr.print_ascii(out=args.stderr)
-            print(u"", file=args.stderr)
 
         print(u"On the other computer, please run:", file=args.stderr)
         print(u"", file=args.stderr)
