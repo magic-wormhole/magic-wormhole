@@ -1,5 +1,73 @@
-
 User-visible changes in "magic-wormhole":
+
+## Upcoming Release
+
+* Drop support for Python 3.8 (#556)
+* (add release-notes here when making PRs)
+
+## Release 0.17.0 (23-Oct-2024)
+
+* Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
+* Fix test regression under Twisted 24.10.0 (#553)
+
+## Release 0.16.0 (3-Oct-2024)
+
+* Updated to python-spake2 version 0.9
+* Removed more Python2-isms
+
+
+## Release 0.15.0 (7-Aug-2024)
+
+* Incorporate attrs' zope-interface support (#492, #527, from https://github.com/meejah)
+* Add "codespell" to correct spelling (#526, from https://github.com/yarikoptic)
+* Fix bash completions (#525, from https://github.com/RobertoD91)
+* run tests properly when Noise is not installed (#522, from https://github.com/anarcat)
+
+
+## Release 0.14.0 (28-Mar-2024)
+
+* Add completion files for bash, zsh and fish (#498)
+* Python 3.12 added to CI, versioneer updated (#505)
+* Support streaming compression of directories (#503, from https://github.com/pR0Ps/)
+* Remove obsolete compatibility code (thanks https://github.com/a-detiste/)
+* Add "ecosystem" document
+
+
+## Release 0.13.0 (10-Aug-2023)
+
+* Python 2.7 support is dropped (#457)
+* Python 3.5 and 3.6 are past their EOL date and support is dropped (#448)
+* SECURITY: Replace "weird" characters in receiver's display (#476)
+* SECURITY: all past binary signatures are now in Git
+* Use the HKDF primitive from "cryptography" (#462)
+* `wormhole receive` now accepts `--allocate-code` so that a sender can
+  use `--code` to send them a file (#450)
+* Stream to disk after 10MB on directory receive (#447)
+* Handle SSH keys with comments properly (#434)
+* Properly parse IPv6 Transit address (#461)
+
+Also of interest to developers in this release are a few changes to the experimental Dilation implementation and description; some documentation cleanups; dropping of dependencies; and some test cleanups.
+The Dilation changes properly send `use-version` and split messages over Noise-sized chunks more seamlessly (allowing the specified 4-byte maximum message size at the application layer).
+
+For packagers: PyPI has stopped serving detached signature files.
+Going forward, all signatures will be committed to Git (in the signatures/ subdirectory).
+All available signatures from PyPI for historic releases have been added here too.
+
+Thanks to the many contributors of bug-fixes, patches, and other help with this
+release:
+
+* Jelle van der Waa https://github.com/jelly (#466)
+* Matthias Riße https://github.com/matrss (#432, #434)
+* meejah https://meejah.ca (#484, #481, #483, #455, #477, #464, #456, #460)
+* Perseid https://github.com/Perseid (#476)
+* FelisDiligens https://github.com/FelisDiligens (#461)
+* Casey Link https://github.com/Ramblurr (#468)
+* Kian-Meng Ang https://github.com/kianmeng (#452)
+* sitiom https://github.com/sitiom (#436)
+* Sagar Howal https://github.com/sagarhowal (#410)
+* Adam Sroka https://github.com/adam-sroka (#403, #404)
+* vu3rdd https://github.com/vu3rdd (reviews)
+
 
 ## Release 0.12.0 (04-Apr-2020)
 
@@ -575,7 +643,7 @@ import wormhole must be updated.
 ## Release 0.3.0 (24-Jun-2015)
 
 Add preliminary Twisted support, only for symmetric endpoints (no
-initator/receiver distinction). Lacks code-entry tab-completion. May still
+initiator/receiver distinction). Lacks code-entry tab-completion. May still
 leave timers lingering. Add test suite (only for Twisted, so far).
 
 Use a sqlite database for Relay server state, to survive reboots with less

@@ -1,0 +1,8 @@
+PyPI no longer accepts signatures for uploaded packages.
+
+This directory contains detached signatures for assets found on PyPI.
+
+These signatures SHOULD VERIFY against the corresponding assets from PyPI.
+
+"meejah" and "warner" are both valid release signers (and both have
+the ability to upload to PyPI).

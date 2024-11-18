@@ -1,5 +1,4 @@
-from __future__ import print_function, unicode_literals
-import mock
+from unittest import mock
 from zope.interface import alsoProvides
 from ..._interfaces import IDilationManager, IWormhole
 

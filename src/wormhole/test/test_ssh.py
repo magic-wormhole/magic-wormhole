@@ -3,7 +3,7 @@ import os
 
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from ..cli import cmd_ssh
 
@@ -62,4 +62,22 @@ class FindPubkey(unittest.TestCase):
         kind, keyid, pubkey = res
         self.assertEqual(kind, "ssh-rsa")
         self.assertEqual(keyid, "email@host")
+        self.assertEqual(pubkey, pubkey_data)
+
+    def test_comment_with_spaces(self):
+        files = OTHERS + ["id_ed25519.pub", "id_ed25519"]
+        pubkey_data = u"ssh-ed25519 AAAAkeystuff comment with spaces"
+        pubkey_file = io.StringIO(pubkey_data)
+
+        with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
+            with mock.patch("os.listdir", return_value=files) as ld:
+                with mock.patch(
+                        "wormhole.cli.cmd_ssh.open", return_value=pubkey_file):
+                    res = cmd_ssh.find_public_key()
+        self.assertEqual(ld.mock_calls,
+                         [mock.call(os.path.expanduser("~/.ssh/"))])
+        self.assertEqual(len(res), 3, res)
+        kind, keyid, pubkey = res
+        self.assertEqual(kind, "ssh-ed25519")
+        self.assertEqual(keyid, "comment with spaces")
         self.assertEqual(pubkey, pubkey_data)

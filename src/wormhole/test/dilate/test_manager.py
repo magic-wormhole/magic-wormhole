@@ -1,9 +1,8 @@
-from __future__ import print_function, unicode_literals
 from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock, Cooperator
 from twisted.internet.interfaces import IStreamServerEndpoint
-import mock
+from unittest import mock
 from ...eventual import EventualQueue
 from ..._interfaces import ISend, ITerminator, ISubChannel
 from ...util import dict_to_bytes
@@ -17,8 +16,10 @@ from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from ..._dilation.subchannel import _SubchannelAddress
 from .common import clear_mock_calls
 
+
 class Holder():
     pass
+
 
 def make_dilator():
     h = Holder()
@@ -53,8 +54,8 @@ class TestDilator(unittest.TestCase):
         m.get_endpoints = mock.Mock(return_value=eps)
         mm = mock.Mock(side_effect=[m])
         with mock.patch("wormhole._dilation.manager.Manager", mm), \
-                 mock.patch("wormhole._dilation.manager.make_side",
-                            return_value=side):
+             mock.patch("wormhole._dilation.manager.make_side",
+                        return_value=side):
             eps1 = dil.dilate()
             eps2 = dil.dilate()
         self.assertIdentical(eps1, eps)
@@ -151,7 +152,7 @@ class TestDilator(unittest.TestCase):
         eps = dil.dilate()
 
         dil.got_key(b"\x01" * 32)
-        dil.got_wormhole_versions({"can-dilate": [-1]})
+        dil.got_wormhole_versions({"can-dilate": ["-1"]})
         d = eps.connect.connect(None)
         h.eq.flush_sync()
         self.failureResultOf(d).check(OldPeerCannotDilateError)
@@ -163,11 +164,12 @@ class TestDilator(unittest.TestCase):
         m = mock.Mock()
         mm = mock.Mock(side_effect=[m])
         with mock.patch("wormhole._dilation.manager.Manager", mm), \
-                 mock.patch("wormhole._dilation.manager.make_side",
-                            return_value=side):
+             mock.patch("wormhole._dilation.manager.make_side",
+                        return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
                                                    h.reactor, h.eq, h.coop, False)])
+
 
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
@@ -202,10 +204,10 @@ def make_manager(leader=True):
     h.listen_ep = mock.Mock()
     alsoProvides(h.listen_ep, IStreamServerEndpoint)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
-             mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
-             mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
-             mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
-                        return_value=h.listen_ep):
+         mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
+         mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
+         mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
+                    return_value=h.listen_ep):
         m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
@@ -245,7 +247,7 @@ class TestManager(unittest.TestCase):
         m.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": LEADER}))
+                           dict_to_bytes({"type": "please", "side": LEADER, "use-version": "1"}))
             ])
         clear_mock_calls(h.send)
 
@@ -444,7 +446,7 @@ class TestManager(unittest.TestCase):
         m.got_wormhole_versions({"can-dilate": ["1"]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": FOLLOWER}))
+                           dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "1"}))
             ])
         clear_mock_calls(h.send)
         clear_mock_calls(h.inbound)
@@ -624,4 +626,3 @@ class TestManager(unittest.TestCase):
         self.flushLoggedErrors(UnknownDilationMessageType)
 
     # TODO: test transit relay is used
-    

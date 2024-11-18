@@ -22,7 +22,7 @@ digraph {
         S1B -> S2B [style="invis"]
         {rank=same; S1A S1B}
         S1A -> S1B [style="invis"]
-        
+
         {rank=same; S2A P2_connected S2B}
         S2A [label="S2A:\nmaybe claimed"]
         S2A -> P2_connected [label="connected"]
@@ -96,6 +96,5 @@ digraph {
         S2B -> P3_release [label="close" color="red"]
         S3B -> P3_release [label="close" color="red"]
         S4B -> S4B [label="close" color="red"]
-        
 
 }

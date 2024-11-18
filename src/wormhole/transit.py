@@ -1,6 +1,3 @@
-# no unicode_literals, revisit after twisted patch
-from __future__ import absolute_import, print_function
-
 import os
 import socket
 import sys
@@ -8,7 +5,6 @@ import time
 from binascii import hexlify, unhexlify
 from collections import deque
 
-import six
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, task)
@@ -90,7 +86,6 @@ def build_sided_relay_handshake(key, side):
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
         "ascii") + b"\n"
-
 
 
 TIMEOUT = 60  # seconds
@@ -596,7 +591,7 @@ class Common:
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
         direct_hints = [
-            DirectTCPV1Hint(six.u(addr), portnum, 0.0) for addr in addresses
+            DirectTCPV1Hint(str(addr), portnum, 0.0) for addr in addresses
         ]
         ep = endpoints.serverFromString(self._reactor, "tcp:%d" % portnum)
         return direct_hints, ep

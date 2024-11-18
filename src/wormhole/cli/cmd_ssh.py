@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import os
 from os.path import exists, expanduser, join
 
@@ -56,7 +54,7 @@ def find_public_key(hint=None):
     else:
         with open(join(hint, pubkeys[0]), 'r') as f:
             pubkey = f.read()
-    parts = pubkey.strip().split()
+    parts = pubkey.strip().split(maxsplit=2)
     kind = parts[0]
     keyid = 'unknown' if len(parts) <= 2 else parts[2]
 

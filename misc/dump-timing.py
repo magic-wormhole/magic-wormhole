@@ -2,7 +2,6 @@
 # * cd misc
 # * npm install d3@3.5.17 d3-tip@0.6.7 zepto
 
-from __future__ import print_function
 import os, sys, time, json, random
 
 
@@ -56,4 +55,3 @@ def web():
     reactor.callLater(0, launch_browser)
     reactor.run()
 web()
-

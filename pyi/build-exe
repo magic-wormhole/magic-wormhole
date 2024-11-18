@@ -14,4 +14,3 @@
 pyinstaller --clean --distpath=dist wormhole.exe.spec
 
 # result will be in dist/wormhole.exe
-

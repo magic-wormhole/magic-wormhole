@@ -1,5 +1,4 @@
-from __future__ import print_function
-
+import builtins
 import io
 import os
 import re
@@ -8,18 +7,18 @@ import sys
 import zipfile
 from textwrap import dedent, fill
 
-import six
+from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
+from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue, CancelledError
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils
 from twisted.trial import unittest
 from zope.interface import implementer
 
-import mock
+from unittest import mock
 
 from .. import __version__
 from .._interfaces import ITorManager
@@ -146,13 +145,11 @@ class OfferData(unittest.TestCase):
         self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
+        self.assertIsInstance(d["directory"]["numbytes"], int)
 
-        self.assertEqual(fd_to_send.tell(), 0)
-        zdata = fd_to_send.read()
+        zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
-        fd_to_send.seek(0, 0)
-        with zipfile.ZipFile(fd_to_send, "r", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
             self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
             for name in zipnames:
@@ -388,6 +385,7 @@ class FakeTor:
         self.endpoints.append((host, port, tls))
         return endpoints.HostnameEndpoint(reactor, host, port)
 
+
 def strip_deprecations(stderr, NL):
     lines = [line
              for line in stderr.split(NL)
@@ -397,6 +395,7 @@ def strip_deprecations(stderr, NL):
                      )
              ]
     return NL.join(lines)
+
 
 class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
@@ -606,8 +605,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
-                        with mock.patch.object(
-                                cmd_receive.six.moves, 'input',
+                        with mock.patch.object(builtins, 'input',
                                 return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:
@@ -707,7 +705,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.assertEqual(receive_stderr, "Waiting for sender...\n")
         elif mode == "file":
             self.failUnlessEqual(receive_stdout, "")
-            self.failUnlessIn(u"Receiving file ({size:s}) into: {name}".format(
+            self.failUnlessIn(u"Receiving file ({size:s}) into: {name!r}".format(
                 size=naturalsize(len(message)), name=receive_filename),
                 receive_stderr)
             self.failUnlessIn(u"Received file written to ", receive_stderr)
@@ -717,12 +715,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 self.failUnlessEqual(f.read(), message)
         elif mode == "directory":
             self.failUnlessEqual(receive_stdout, "")
-            want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
+            want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                     .format(name=receive_dirname))
             self.failUnless(
                 re.search(want, receive_stderr), (want, receive_stderr))
             self.failUnlessIn(
-                u"Received files written to {name}"
+                u"Received files written to {name!r}"
                 .format(name=receive_dirname),
                 receive_stderr)
             fn = os.path.join(receive_dir, receive_dirname)
@@ -916,7 +914,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     .format(NL=NL, size=size), receive_stderr)
         elif mode == "directory":
             self.failIfIn(
-                "Received files written to {name}".format(name=receive_name),
+                "Received files written to {name!r}".format(name=receive_name),
                 receive_stderr)
             # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
             #        .format(name=receive_name))
@@ -1278,6 +1276,49 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(cfg.timing.mock_calls[-1],
                          mock.call.write("filename", cfg.stderr))
 
+    def test_debug_state_invalid_machine(self):
+        cfg = cli.Config()
+        with self.assertRaises(UsageError):
+            cfg.debug_state = "ZZZ"
+
+    @inlineCallbacks
+    def test_debug_state_send(self):
+        args = config("send")
+        args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
+        args.stdout = io.StringIO()
+        s = cmd_send.Sender(args, reactor)
+        d = s.go()
+        d.cancel()
+        try:
+            yield d
+        except CancelledError:
+            pass
+        # just check for at least one state-transition we expected to
+        # get logged due to the --debug-state option
+        self.assertIn(
+            "send.B[S0_empty].close",
+            args.stdout.getvalue(),
+        )
+
+    @inlineCallbacks
+    def test_debug_state_receive(self):
+        args = config("receive")
+        args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
+        args.stdout = io.StringIO()
+        s = cmd_receive.Receiver(args, reactor)
+        d = s.go()
+        d.cancel()
+        try:
+            yield d
+        except CancelledError:
+            pass
+        # just check for at least one state-transition we expected to
+        # get logged due to the --debug-state option
+        self.assertIn(
+            "recv.B[S0_empty].close",
+            args.stdout.getvalue(),
+        )
+
     @inlineCallbacks
     def test_wrong_password_error(self):
         cfg = config("send")
@@ -1376,3 +1417,25 @@ class Help(unittest.TestCase):
         result = CliRunner().invoke(cli.wormhole, ["--help"])
         self._check_top_level_help(result.output)
         self.assertEqual(result.exit_code, 0)
+
+    def test_inconsistent_receive_code_length(self):
+        """
+        specifying --code-length without --allocate is an error
+        """
+        result = CliRunner().invoke(
+            cli.wormhole,
+            ["receive", "--code-length", "3", "2-foo-bar"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Must use --allocate", result.stdout)
+
+    def test_inconsistent_receive_allocate(self):
+        """
+        specifying --allocate and a code is an error
+        """
+        result = CliRunner().invoke(
+            cli.wormhole,
+            ["receive", "--allocate", "2-foo-bar"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Cannot specify a code", result.stdout)

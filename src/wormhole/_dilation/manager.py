@@ -1,15 +1,8 @@
-from __future__ import print_function, unicode_literals
-import six
 import os
 from collections import deque
-try:
-    # py >= 3.3
-    from collections.abc import Sequence
-except ImportError:
-    # py 2 and py3 < 3.3
-    from collections import Sequence
+from collections.abc import Sequence
 from attr import attrs, attrib
-from attr.validators import provides, instance_of, optional
+from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred
@@ -17,7 +10,7 @@ from twisted.internet.interfaces import (IStreamClientEndpoint,
                                          IStreamServerEndpoint)
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
 from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,
@@ -32,6 +25,9 @@ from .outbound import Outbound
 
 
 # exported to Wormhole() for inclusion in versions message
+# note that these are strings, not numbers, to facilitate
+# experimentation or non-standard versions; the _order_ of versions in
+# "can-dilate" is important!
 DILATION_VERSIONS = ["1"]
 
 
@@ -54,15 +50,19 @@ class UnexpectedKCM(Exception):
 class UnknownMessageType(Exception):
     pass
 
+
 @attrs
 class EndpointRecord(Sequence):
     control = attrib(validator=provides(IStreamClientEndpoint))
     connect = attrib(validator=provides(IStreamClientEndpoint))
     listen = attrib(validator=provides(IStreamServerEndpoint))
+
     def __len__(self):
         return 3
+
     def __getitem__(self, n):
         return (self.control, self.connect, self.listen)[n]
+
 
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
@@ -74,7 +74,7 @@ def make_side():
 # * PLEASE includes a dilation-specific "side" (independent of the "side"
 #    used by mailbox messages)
 # * higher "side" is Leader, lower is Follower
-# * PLEASE includes can-dilate list of version integers, requires overlap
+# * PLEASE includes the selection of a version from the "can-dilate" list of versions, requires overlap
 #    "1" is current
 
 # * we start dilation after both w.dilate() and receiving VERSION, putting us
@@ -120,6 +120,7 @@ class Manager(object):
     _tor = None  # TODO
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
+    _dilation_version = None  # initialized in got_wormhole_versions
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -173,17 +174,17 @@ class Manager(object):
 
     def got_wormhole_versions(self, their_wormhole_versions):
         # this always happens before received_dilation_message
-        dilation_version = None
+        self._dilation_version = None
         their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
         my_versions = set(DILATION_VERSIONS)
         shared_versions = my_versions.intersection(their_dilation_versions)
         if "1" in shared_versions:
-            dilation_version = "1"
+            self._dilation_version = "1"
 
         # dilation_version is the best mutually-compatible version we have
         # with the peer, or None if we have nothing in common
 
-        if not dilation_version:  # "1" or None
+        if not self._dilation_version:  # "1" or None
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
@@ -218,7 +219,6 @@ class Manager(object):
     def when_stopped(self):
         return self._stopped.when_fired()
 
-
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
         self._next_dilation_phase += 1
@@ -249,15 +249,15 @@ class Manager(object):
         self._outbound.subchannel_unregisterProducer(sc)
 
     def send_open(self, scid):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Open, scid)
 
     def send_data(self, scid, data):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Data, scid, data)
 
     def send_close(self, scid):
-        assert isinstance(scid, six.integer_types)
+        assert isinstance(scid, int)
         self._queue_and_send(Close, scid)
 
     def _queue_and_send(self, record_type, *args):
@@ -433,7 +433,13 @@ class Manager(object):
 
     @m.output()
     def send_please(self):
-        self.send_dilation_phase(type="please", side=self._my_side)
+        msg = {
+            "type": "please",
+            "side": self._my_side,
+        }
+        if self._dilation_version is not None:
+            msg["use-version"] = self._dilation_version
+        self.send_dilation_phase(**msg)
 
     @m.output()
     def choose_role(self, message):

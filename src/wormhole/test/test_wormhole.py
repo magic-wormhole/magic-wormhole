@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 import io
 import re
 
@@ -8,7 +6,7 @@ from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 
 from .. import _rendezvous, wormhole
 from ..errors import (KeyFormatError, LonelyError, NoKeyError,
@@ -501,8 +499,11 @@ class Wormholes(ServerBase, unittest.TestCase):
         w2 = wormhole.create(APPID, self.relayurl, reactor)
         w2.set_code("123-NOT")
         yield self.assertFailure(w1.get_verifier(), WrongPasswordError)
-
         yield self.assertFailure(w1.get_welcome(), WrongPasswordError)  # late
+
+        # we have to ensure w2 receives a "bad" message from w1 before
+        # the w2.close() assertion below will actually fail
+        yield self.assertFailure(w2.get_verifier(), WrongPasswordError)
 
         yield self.assertFailure(w1.close(), WrongPasswordError)
         yield self.assertFailure(w2.close(), WrongPasswordError)

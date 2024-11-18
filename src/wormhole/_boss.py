@@ -1,10 +1,7 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 import re
 
-import six
 from attr import attrib, attrs
-from attr.validators import instance_of, optional, provides
+from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from twisted.python import log
 from zope.interface import implementer
@@ -26,7 +23,7 @@ from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
                      WrongPasswordError, _UnknownPhaseError)
-from .util import bytes_to_dict
+from .util import bytes_to_dict, provides
 
 
 @attrs
@@ -365,7 +362,7 @@ class Boss(object):
 
     @m.output()
     def W_received(self, phase, plaintext):
-        assert isinstance(phase, six.integer_types), type(phase)
+        assert isinstance(phase, int), type(phase)
         # we call Wormhole.received() in strict phase order, with no gaps
         self._rx_phases[phase] = plaintext
         while self._next_rx_phase in self._rx_phases:
@@ -374,7 +371,7 @@ class Boss(object):
 
     @m.output()
     def D_received_dilate(self, seqnum, plaintext):
-        assert isinstance(seqnum, six.integer_types), type(seqnum)
+        assert isinstance(seqnum, int), type(seqnum)
         # strict phase order, no gaps
         self._rx_dilate_seqnums[seqnum] = plaintext
         while self._next_rx_dilate_seqnum in self._rx_dilate_seqnums:

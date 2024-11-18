@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import os
 import time
 start = time.time()
@@ -8,7 +6,6 @@ from sys import stderr, stdout  # noqa: E402
 from textwrap import dedent, fill  # noqa: E402
 
 import click  # noqa: E402
-import six  # noqa: E402
 from twisted.internet.defer import inlineCallbacks, maybeDeferred  # noqa: E402
 from twisted.internet.task import react  # noqa: E402
 from twisted.python.failure import Failure  # noqa: E402
@@ -38,6 +35,30 @@ class Config(object):
         self.stdout = stdout
         self.stderr = stderr
         self.tor = False  # XXX?
+        self._debug_state = None
+
+    @property
+    def debug_state(self):
+        return self._debug_state
+
+    @debug_state.setter
+    def debug_state(self, debug_state):
+        if not debug_state:
+            return
+        valid_machines = [
+            'B', 'N', 'M', 'S', 'O', 'K', 'SK', 'R', 'RC', 'L', 'C', 'T'
+        ]
+        debug_state = debug_state.split(",")
+        invalid_machines = [
+            machine
+            for machine in debug_state
+            if machine not in valid_machines
+        ]
+        if invalid_machines:
+            raise click.UsageError(
+                "Cannot debug unknown machines: {}".format(" ".join(invalid_machines))
+            )
+        self._debug_state = debug_state
 
 
 def _compose(*decorators):
@@ -127,16 +148,16 @@ def _dispatch_command(reactor, cfg, command):
     except (WelcomeError, UnsendableFileError, KeyFormatError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
-        print(six.u(""), file=cfg.stderr)
-        print(six.text_type(e), file=cfg.stderr)
+        print("", file=cfg.stderr)
+        print(str(e), file=cfg.stderr)
         raise SystemExit(1)
     except TransferError as e:
-        print(u"TransferError: %s" % six.text_type(e), file=cfg.stderr)
+        print(u"TransferError: %s" % str(e), file=cfg.stderr)
         raise SystemExit(1)
     except ServerConnectionError as e:
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
         msg += "(relay URL was %s)\n" % e.url
-        msg += six.text_type(e)
+        msg += str(e)
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:
@@ -144,7 +165,7 @@ def _dispatch_command(reactor, cfg, command):
         # traceback.print_exc() just prints a TB to the "yield"
         # line above ...
         Failure().printTraceback(file=cfg.stderr)
-        print(u"ERROR:", six.text_type(e), file=cfg.stderr)
+        print(u"ERROR:", str(e), file=cfg.stderr)
         raise SystemExit(1)
 
     cfg.timing.add("exit")
@@ -163,7 +184,7 @@ CommonArgs = _compose(
     click.option(
         "-c",
         "--code-length",
-        default=2,
+        default=None,
         metavar="NUMWORDS",
         help="length of code (in bytes/words)",
     ),
@@ -236,10 +257,25 @@ def help(context, **kwargs):
     default=False,
     is_flag=True,
     help="Don't raise an error if a file can't be read.")
+@click.option(
+    "--debug-state",
+    is_flag=False,
+    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    default=None,
+    metavar="MACHINES",
+    help=(
+        "Debug state-machine transitions. "
+        "Possible machines to debug are accepted as a comma-separated list "
+        "and the default is all of them. Valid machines are "
+        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+    )
+)
 @click.argument("what", required=False, type=click.Path(path_type=type(u"")))
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_send"):
@@ -277,6 +313,27 @@ def go(f, cfg):
     help=("The file or directory to create, overriding the name suggested"
           " by the sender."),
 )
+@click.option(
+    "--allocate",
+    "-a",
+    is_flag=True,
+    help="Allocate a fresh code (do not prompt for one)",
+)
+# --debug-state might be better at the top-level but Click can't parse
+# an option like "--debug-state <optional-value>" if there's a subcommand name next
+@click.option(
+    "--debug-state",
+    is_flag=False,
+    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    default=None,
+    metavar="MACHINES",
+    help=(
+        "Debug state-machine transitions. "
+        "Possible machines to debug are accepted as a comma-separated list "
+        "and the default is all of them. Valid machines are "
+        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+    )
+)
 @click.argument(
     "code",
     nargs=-1,
@@ -289,6 +346,14 @@ def receive(cfg, code, **kwargs):
     """
     Receive a text message, file, or directory (from 'wormhole send')
     """
+    if code:
+        if kwargs["allocate"]:
+            raise click.UsageError("Cannot specify a code when using --allocate")
+    if kwargs["code_length"] and not kwargs["allocate"]:
+        raise click.UsageError("Must use --allocate with --code-length")
+
+    kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
     for name, value in kwargs.items():
         setattr(cfg, name, value)
     with cfg.timing.add("import", which="cmd_receive"):

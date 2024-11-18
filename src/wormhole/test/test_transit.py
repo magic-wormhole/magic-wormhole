@@ -1,10 +1,7 @@
-from __future__ import print_function, unicode_literals
-
 import gc
 import io
 from binascii import hexlify, unhexlify
 
-import six
 from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
 from twisted.internet import address, defer, endpoints, error, protocol, task
@@ -13,7 +10,7 @@ from twisted.python import log
 from twisted.test import proto_helpers
 from twisted.trial import unittest
 
-import mock
+from unittest import mock
 from wormhole_transit_relay import transit_server
 
 from .. import transit
@@ -141,15 +138,8 @@ class Misc(unittest.TestCase):
         self.assertIsInstance(portno, int)
 
 
-
-# ipaddrs.py currently uses native strings: bytes on py2, unicode on
-# py3
-if six.PY2:
-    LOOPADDR = b"127.0.0.1"
-    OTHERADDR = b"1.2.3.4"
-else:
-    LOOPADDR = "127.0.0.1"  # unicode_literals
-    OTHERADDR = "1.2.3.4"
+LOOPADDR = "127.0.0.1"
+OTHERADDR = "1.2.3.4"
 
 
 class Basic(unittest.TestCase):
@@ -500,6 +490,11 @@ class InboundConnectionFactory(unittest.TestCase):
         log.msg("=== note: the next RandomError is expected ===")
         # Make sure the Deferred has gone out of scope, so the UnhandledError
         # happens quickly. We must manually break the gc cycle.
+
+        # note: Twisted 24.10.0 stopped calling cleanFailure() which
+        # made this test break -- is there a better way to achieve
+        # this result?
+        p1._d.result.cleanFailure()
         del p1._d
         gc.collect()  # make PyPy happy
         errors = self.flushLoggedErrors(RandomError)
@@ -1536,11 +1531,16 @@ class RelayHandshake(unittest.TestCase):
         tc = transit_server.TransitConnection()
         tc.factory = mock.Mock()
         tc.factory.connection_got_token = mock.Mock()
+        tc.transport = mock.Mock()
+        tc.connectionMade()
+        tc._state.please_relay = mock.Mock()
+        tc._state.please_relay_for_side = mock.Mock()
         tc.dataReceived(old_handshake[:-1])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        self.assertEqual(tc._state.please_relay.mock_calls, [])
         tc.dataReceived(old_handshake[-1:])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls,
-                         [mock.call(hexlify(token), None, tc)])
+        self.assertEqual(tc._state.please_relay.mock_calls,
+                         [mock.call(hexlify(token))])
+        self.assertEqual(tc._state.please_relay_for_side.mock_calls, [])
 
     def test_new(self):
         c = transit.Common(None)
@@ -1550,13 +1550,15 @@ class RelayHandshake(unittest.TestCase):
 
         tc = transit_server.TransitConnection()
         tc.factory = mock.Mock()
-        tc.factory.connection_got_token = mock.Mock()
+        tc.transport = mock.Mock()
+        tc.connectionMade()
+        tc._state._real_register_token_for_side = m = mock.Mock()
         tc.dataReceived(new_handshake[:-1])
-        self.assertEqual(tc.factory.connection_got_token.mock_calls, [])
+        self.assertEqual(m.mock_calls, [])
         tc.dataReceived(new_handshake[-1:])
         self.assertEqual(
-            tc.factory.connection_got_token.mock_calls,
-            [mock.call(hexlify(token), c._side.encode("ascii"), tc)])
+            m.mock_calls,
+            [mock.call(hexlify(token), c._side.encode("ascii"))])
 
 
 class Full(ServerBase, unittest.TestCase):

@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
 

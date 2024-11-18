@@ -4,6 +4,9 @@
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/w1bdniovwm4egfyg/branch/master?svg=true)](https://ci.appveyor.com/project/warner/magic-wormhole)
 [![codecov.io](https://codecov.io/github/magic-wormhole/magic-wormhole/coverage.svg?branch=master)](https://codecov.io/github/magic-wormhole/magic-wormhole?branch=master)
 [![Docs](https://readthedocs.org/projects/magic-wormhole/badge/?version=latest)](https://magic-wormhole.readthedocs.io)
+[![Irc](https://img.shields.io/badge/irc.libera.chat-%23magic--wormhole-brightgreen)](https://web.libera.chat/)
+[![Matrix](https://img.shields.io/badge/matrix.org-%23magic--wormhole-brightgreen)](https://matrix.to/#/#magic-wormhole:matrix.org)
+
 
 Get things from one computer to another, safely.
 
@@ -34,10 +37,8 @@ and the
 
 Magic-Wormhole is released under the MIT license, see the `LICENSE` file for details.
 
-This library is compatible with Python 3.6 and higher (tested against 3.6,
-3.7, 3.8, and 3.9). It also still works with Python 2.7 and 3.5, although
-these are no longer supported by upstream libraries like Cryptography, so it
-may stop working at any time.
+This library is compatible with Python 3.8 and higher (tested against
+versions up to 3.12).
 
 ## Packaging, Installation
 

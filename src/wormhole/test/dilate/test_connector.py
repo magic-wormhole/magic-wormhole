@@ -1,6 +1,4 @@
-from __future__ import print_function, unicode_literals
-
-import mock
+from unittest import mock
 from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.task import Clock
@@ -22,12 +20,17 @@ from ..._dilation.connector import (Connector,
                                     )
 from .common import clear_mock_calls
 
+
 class Handshake(unittest.TestCase):
     def test_build(self):
         key = b"k"*32
         side = "12345678abcdabcd"
-        self.assertEqual(build_sided_relay_handshake(key, side),
-                         b"please relay 3f4147851dbd2589d25b654ee9fb35ed0d3e5f19c5c5403e8e6a195c70f0577a for side 12345678abcdabcd\n")
+        self.assertEqual(
+            build_sided_relay_handshake(key, side),
+            b"please relay 3f4147851dbd2589d25b654ee9fb35ed0d3e5f19c5c5403e8e6a195c70f0577a"
+            b" for side 12345678abcdabcd\n"
+        )
+
 
 class Outbound(unittest.TestCase):
     def test_no_relay(self):
@@ -58,6 +61,7 @@ class Outbound(unittest.TestCase):
         self.assertEqual(p.mock_calls, [mock.call.use_relay(relay_handshake)])
         self.assertIdentical(p.factory, f)
 
+
 class Inbound(unittest.TestCase):
     def test_build(self):
         c = mock.Mock()
@@ -70,6 +74,7 @@ class Inbound(unittest.TestCase):
         self.assertIdentical(p, p0)
         self.assertEqual(c.mock_calls, [mock.call.build_protocol(addr, "<-tcp:1.2.3.4:55")])
         self.assertIdentical(p.factory, f)
+
 
 def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
     class Holder:
@@ -91,6 +96,7 @@ def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
     c = Connector(h.dilation_key, h.relay, h.manager, h.reactor, h.eq,
                   not listen, h.tor, timing, h.side, h.role)
     return c, h
+
 
 class TestConnector(unittest.TestCase):
     def test_build(self):
@@ -327,28 +333,6 @@ class TestConnector(unittest.TestCase):
                          [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
                                     is_relay=True)])
 
-    def test_add_relay(self):
-        c, h = make_connector(listen=False, relay=None, role=roles.LEADER)
-        c._schedule_connection = mock.Mock()
-        c.start()
-        self.assertEqual(h.manager.mock_calls, [])
-        self.assertEqual(c._schedule_connection.mock_calls, [])
-        hint = RelayV1Hint([DirectTCPV1Hint("foo", 55, 0.0)])
-        c.add_relay([hint])
-        self.assertEqual(h.manager.mock_calls,
-                         [mock.call.send_hints([{"type": "relay-v1",
-                                                 "hints": [
-                                                     {"type": "direct-tcp-v1",
-                                                      "hostname": "foo",
-                                                      "port": 55,
-                                                      "priority": 0.0
-                                                      },
-                                                     ],
-                                                 }])])
-        self.assertEqual(c._schedule_connection.mock_calls,
-                         [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
-                                    is_relay=True)])
-
     def test_tor_no_manager(self):
         # tor hints should be ignored if we don't have a Tor manager to use them
         c, h = make_connector(listen=False, role=roles.LEADER)
@@ -379,6 +363,7 @@ class Race(unittest.TestCase):
     def test_one_leader(self):
         c, h = make_connector(listen=True, role=roles.LEADER)
         lp = mock.Mock()
+
         def start_listener(addresses):
             c._listeners.add(lp)
         c._start_listener = start_listener
@@ -400,6 +385,7 @@ class Race(unittest.TestCase):
     def test_one_follower(self):
         c, h = make_connector(listen=True, role=roles.FOLLOWER)
         lp = mock.Mock()
+
         def start_listener(addresses):
             c._listeners.add(lp)
         c._start_listener = start_listener
@@ -445,7 +431,6 @@ class Race(unittest.TestCase):
         c.add_candidate(p2)
         self.assertEqual(h.manager.mock_calls, [])
 
-
     # make sure an established connection is dropped when stop() is called
     def test_stop(self):
         c, h = make_connector(listen=False, role=roles.LEADER)
@@ -462,6 +447,7 @@ class Race(unittest.TestCase):
         self.assertEqual(h.manager.mock_calls, [mock.call.connector_connection_made(p1)])
 
         c.stop()
+
 
 class Describe(unittest.TestCase):
     def test_describe_inbound(self):
