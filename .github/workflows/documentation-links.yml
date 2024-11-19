@@ -1,0 +1,21 @@
+name: readthedocs/actions
+on:
+  pull_request_target:
+    types:
+      - opened
+    # Execute this action only on PRs that touch
+    # documentation files.
+    paths:
+      - "docs/**"
+
+permissions:
+  pull-requests: write
+
+jobs:
+  documentation-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: readthedocs/actions/preview@v1
+        with:
+          project-slug: "magic-wormhole"
+          message-template: "Please see the rendered documentation: {docs-pr-index-url}"
