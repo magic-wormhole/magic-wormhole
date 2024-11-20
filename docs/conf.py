@@ -31,6 +31,9 @@
 # ones.
 extensions = ['sphinxcontrib.seqdiag']
 
+seqdiag_antialias = True
+seqdiag_html_image_format = "SVG"
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 

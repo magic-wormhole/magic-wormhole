@@ -266,3 +266,5 @@ Diagram of Normal Interaction
 Two normal clients connect and successfully establish Mailbox-based communications.
 
 .. seqdiag:: server.seqdiag
+    :alt: a sequence-style diagram showing Alice and Bob succsesfully using the Mailbox
+    :scale: 120%
