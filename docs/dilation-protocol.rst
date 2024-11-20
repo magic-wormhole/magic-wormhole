@@ -584,7 +584,7 @@ endpoint, rather than causing the listening endpoint to accept a new
 connection. This avoids the need for application-level code to negotiate
 who should be the one to open it. The Leader/Follower distinction is
 private to the Wormhole internals: applications are not obligated to
-pick a side. Applications which need to negotitate their way into
+pick a side. Applications which need to negotiate their way into
 asymmetry should send a random number through the control channel and
 use it to assign themselves an application-level role.
 
