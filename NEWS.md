@@ -2,6 +2,8 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Add sequence diagram
+* Support Read the Docs pull-request builds
 * Drop support for Python 3.8 (#556)
 * (add release-notes here when making PRs)
 

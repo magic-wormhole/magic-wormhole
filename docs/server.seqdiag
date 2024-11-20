@@ -1,0 +1,29 @@
+seqdiag mailbox {
+    laptop -> Mailbox [label="BIND(appid side0)"]
+    laptop <- Mailbox [label="WELCOME(motd)"]
+
+
+    laptop -> Mailbox [label="ALLOCATE()"]
+    laptop <- Mailbox [label="ALLOCATED(nameplate=42)"]
+    laptop -> Mailbox [label="CLAIM(nameplate=42)"]
+    laptop <- Mailbox [label="CLAIMED(mailbox=<random>)"]
+
+    laptop -> Mailbox [label="OPEN(mailbox=<random>)"]
+    laptop -> Mailbox [label="ADD(phase=pake_v1 body=<hex>)"]
+    laptop <- Mailbox [label="MESSAGE(side=side0 phase=pake_v1 body=...)"]
+
+    ... Create Code: 42-random-words ...
+    ... Communicate code to other human ...
+
+    desktop -> Mailbox [label="BIND(appid side1)"]
+    desktop <- Mailbox [label="WELCOME(motd)"]
+
+    desktop -> Mailbox [label="CLAIM(nameplate=42)"]
+    desktop <- Mailbox [label="CLAIMED(mailbox=<random>)"]
+    desktop -> Mailbox [label="OPEN(mailbox=<random>)"]
+    desktop <- Mailbox [label="MESSAGE(side=side0 phase=pake_v1 body=...)", rightnote="laptop's pake_v1"]
+    desktop -> Mailbox [label="ADD(side=side1 phase=pake_v1 body=<hex>)"]
+    desktop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)"]
+
+    laptop <- Mailbox [label="MESSAGE(side=side1 phase=pake_v1 body=...)", leftnote="laptop gets desktop's pake_v1"]
+}
