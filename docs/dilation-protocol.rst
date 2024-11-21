@@ -1,7 +1,37 @@
+The Dilation Protocol
+=====================
+
+The Dilation protocol is a “bulk data” protocol between two peers
+(either direct p2p connection, or via a Transit relay). It is durable
+and reliable: connections are re-established, and data is definitely
+transmitted in-order to the other peer. There are subchannels: logically
+separate streams as the application protocol requires. Multiple ways to
+connect are supported, via “hints”. These exist for direct TCP, TCP via
+Tor, and TCP to a central Transit helper (see also “Canonical hint
+encodings” in the `Transit
+documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/transit.md>`__
+).
+
+These building-blocks allow “application” protocols to be simpler buy
+not having to deal with re-connection attempts and network problems.
+Dilation was conceived during development of a “next-generation”
+file-transfer protocol now called “`Dilated File
+Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
+
+This document assumes you are familiar with the core Mailbox protocol
+and the general promises of Magic Wormhole. For more information see
+`the Server Protocol <server-protocol.md>`__.
+
 Dilation Internals
 ==================
 
-Wormhole dilation involves several moving parts. Both sides exchange
+This document sometimes mentions programming internals related to Python
+and Twisted; these may be ignored by other implementers (see also `the
+protocols
+repositories <https://github.com/magic-wormhole/magic-wormhole-protocols>`__
+for more language-agnostic specifications).
+
+Wormhole Dilation involves several moving parts. Both sides exchange
 messages through the Mailbox server to coordinate the establishment of a
 more direct connection. This connection might flow in either direction,
 so they trade “connection hints” to point at potential listening ports.
@@ -28,29 +58,28 @@ both side’s lists is eligible for use.
 Leaders and Followers
 ---------------------
 
-Each side of a Wormhole has a randomly-generated dilation ``side``
-string (this is included in the ``please-dilate`` message, and is
-independent of the Wormhole’s mailbox “side”). When the wormhole is
-dilated, the side with the lexicographically-higher “side” value is
-named the “Leader”, and the other side is named the “Follower”. The
-general wormhole protocol treats both sides identically, but the
-distinction matters for the dilation protocol.
+Each side of a Wormhole has a randomly-generated Dilation ``side``
+string (this is included in the ``please`` message, and is independent
+of the Wormhole’s mailbox “side”). When the wormhole is Dilated, the
+side with the lexicographically-higher “side” value is named the
+“Leader”, and the other side is named the “Follower”. The general
+wormhole protocol treats both sides identically, but the distinction
+matters for the Dilation protocol. Both sides send a ``please`` as soon
+as Dilation is triggered. Each side discovers whether it is the Leader
+or the Follower when the peer’s “please” arrives. The Leader has
+exclusive control over whether a given connection is considered
+established or not: if there are multiple potential connections to use,
+the Leader decides which one to use, and the Leader gets to decide when
+the connection is no longer viable (and triggers the establishment of a
+new one).
 
-Both sides send a ``please-dilate`` as soon as dilation is triggered.
-Each side discovers whether it is the Leader or the Follower when the
-peer’s “please-dilate” arrives. The Leader has exclusive control over
-whether a given connection is considered established or not: if there
-are multiple potential connections to use, the Leader decides which one
-to use, and the Leader gets to decide when the connection is no longer
-viable (and triggers the establishment of a new one).
-
-The ``please-dilate`` includes a ``use-version`` key, computed as the
-“best” version of the intersection of the two sides’ abilities as
-reported in the ``versions`` message. Both sides will use whichever
-``use-version`` was specified by the Leader (they learn which side is
-the Leader at the same moment they learn the peer’s ``use-version``
-value). If the Follower cannot handle the ``use-version`` value,
-dilation fails (this shouldn’t happen, as the Leader knew what the
+The ``please`` includes a ``use-version`` key, computed as the “best”
+version of the intersection of the two sides’ abilities as reported in
+the ``versions`` message. Both sides will use whichever ``use-version``
+was specified by the Leader (they learn which side is the Leader at the
+same moment they learn the peer’s ``use-version`` value). If the
+Follower cannot handle the ``use-version`` value, Dilation fails (this
+should not happen with honest endpoints, as the Leader knew what the
 Follower was and was not capable of before sending that message).
 
 Connection Layers
@@ -64,7 +93,7 @@ L1 is the mailbox channel (queued store-and-forward messages that always
 go to the mailbox server, and then are forwarded to other clients
 subscribed to the same mailbox). Both clients remain connected to the
 mailbox server until the Wormhole is closed. They send DILATE-n messages
-to each other to manage the dilation process, including records like
+to each other to manage the Dilation process, including records like
 ``please``, ``connection-hints``, ``reconnect``, and ``reconnecting``.
 
 L2 is the set of competing connection attempts for a given generation of
@@ -119,43 +148,43 @@ Dilation is triggered by calling the ``w.dilate()`` API. This
 immediately returns a 3-tuple of standard Twisted-style endpoints that
 can be used to establish subchannels:
 ``(control_ep, client_ep, server_ep)``. The first two are client-like,
-while ``server_ep`` is server-like. For dilation to succeed, both sides
+while ``server_ep`` is server-like. For Dilation to succeed, both sides
 must call ``w.dilate()``, since the resulting endpoints are the only way
 to access the subchannels.
 
 The client-like endpoints are used to signal any errors that might
-prevent dilation. ``control_ep.connect(factory)`` and
+prevent Dilation. ``control_ep.connect(factory)`` and
 ``client_ep.connect(factory)`` return a Deferred that will errback (with
 ``OldPeerCannotDilateError``) if the other side’s ``versions`` message
-indicates that it does not support dilation. The overall dilated
-connection is durable (the dilation agent will try forever to connect,
+indicates that it does not support Dilation. The overall dilated
+connection is durable (the Dilation agent will try forever to connect,
 and will automatically reconnect when necessary), so
 ``OldPeerCannotDilateError`` is currently the only error that could be
 thrown.
 
 (TODO: we could use a connection-status API, to provide user feedback)
 
-If the other side *could* support dilation (i.e. the wormhole library is
+If the other side *could* support Dilation (i.e. the wormhole library is
 new enough), but the peer does not choose to call ``w.dilate()``, this
 Deferred will never fire, and the ``factory`` will never be asked to
 create a new ``Protocol`` instance.
 
-The L1 (mailbox) path is used to deliver dilation requests and
+The L1 (mailbox) path is used to deliver Dilation requests and
 connection hints. The current mailbox protocol uses named “phases” to
 distinguish messages (rather than behaving like a regular ordered
 channel of arbitrary frames or bytes), and all-number phase names are
 reserved for application data (sent via ``w.send_message()``). Therefore
-the dilation control messages use phases named ``DILATE-0``,
+the Dilation control messages use phases named ``DILATE-0``,
 ``DILATE-1``, etc. Each side maintains its own counter, so one side
 might be up to e.g. ``DILATE-5`` while the other has only gotten as far
 as ``DILATE-2``. This effectively creates a pair of unidirectional
-streams of ``DILATE-n`` messages, each containing one or more dilation
+streams of ``DILATE-n`` messages, each containing one or more Dilation
 record, of various types described below. Note that all phases beyond
 the initial VERSION and PAKE phases are encrypted by the shared session
 key.
 
 A future mailbox protocol might provide a simple ordered stream of typed
-messages, with application records and dilation records mixed together.
+messages, with application records and Dilation records mixed together.
 
 Each ``DILATE-n`` message is a JSON-encoded dictionary with a ``type``
 field that has a string value. The dictionary will have other keys that
@@ -286,28 +315,69 @@ TODO: think this through some more. What’s the example of a single
 endpoint reachable by multiple hints? Should each hint have its own
 priority, or just each endpoint?
 
+
 L2 protocol
 -----------
 
-Upon ``connectionMade()``, both sides send their handshake message. The
-Leader sends “Magic-Wormhole Dilation Handshake v1
-Leader:raw-latex:`\n`:raw-latex:`\n`”. The Follower sends
-“Magic-Wormhole Dilation Handshake v1
-Follower:raw-latex:`\n`:raw-latex:`\n`”. This should trigger an
-immediate error for most non-magic-wormhole listeners (e.g. HTTP servers
-that were contacted by accident). If the wrong handshake is received,
-the connection will be dropped. For debugging purposes, the node might
-want to keep looking at data beyond the first incorrect character and
-log a few hundred characters until the first newline.
+Upon successful connection (``connectionMade()`` in Twisted), both sides
+send their handshake message. The Leader sends the ASCII bytes
+``"Magic-Wormhole Dilation Handshake v1 Leader\n\n"``. The Follower
+sends the ASCII bytes
+``"Magic-Wormhole Dilation Handshake v1 Follower\n\n"``. This should
+trigger an immediate error for most non-magic-wormhole listeners
+(e.g. HTTP servers that were contacted by accident). If the wrong
+handshake is received, the connection must be dropped. For debugging
+purposes, the node might want to keep looking at data beyond the first
+incorrect character and log a few hundred characters until the first
+newline.
 
-Everything beyond that point is a Noise protocol message, which consists
-of a 4-byte big-endian length field, followed by the indicated number of
-bytes. This uses the ``NNpsk0`` pattern with the Leader as the first
-party (“-> psk, e” in the Noise spec), and the Follower as the second
-(“<- e, ee”). The pre-shared-key is the “dilation key”, which is
-statically derived from the master PAKE key using HKDF. Each L2
-connection uses the same dilation key, but different ephemeral keys, so
+Everything beyond the last byte of the handshake consists of Noise
+protocol messages.
+
+L2 Message Framing
+~~~~~~~~~~~~~~~~~~
+
+Noise itself has a 65535-byte (``2**16 - 1``) limit on encoded message
+sizes – however the *payload* is 16 bytes smaller that this limit. The
+L2 protocol can deliver any *encoded* message up to an unsigned 4-byte
+integer in length (4.0 GiB or ``2**32`` bytes). Due to overhead, the
+actual limit for the payload of each frame is 4293918703 bytes (65537
+Noise messages with 65519 bytes of payload each).
+
+The encoding works like this: there is a 4-byte big-endian length field,
+followed by some number of Noise packets. There is no leading length
+field on each Noise packet: implementations MUST respect the Noise
+limits. So if the length field indicates a message bigger than 65535,
+the reader pulls 65535 bytes out of the stream, decrypts that blob as a
+Noise message, subtracts 65535 from the total and continues. The last
+Noise message will obviously be less than or exactly 65535 bytes.
+
+The entire decoded blob is then “one L2 message” and is delivered
+upstream.
+
+On the encoding side, note that 16 bytes of each maximum 65535-byte
+Noise message is used for authentication data. This means that when
+encoding *payload*, implementations pull at most 65519 bytes of
+plaintext at once and encrypt it (yielding 65535 bytes of ciphertext).
+Implementations should avoid sending enormous messages like this, but it
+is possible.
+
+The Noise cryptography uses the ``NNpsk0`` pattern with the Leader as
+the first party (``"-> psk, e"`` in the Noise spec), and the Follower as
+the second (``"<- e, ee"``). The pre-shared-key is the “Dilation key”,
+which is statically derived from the master PAKE key using HKDF. Each L2
+connection uses the same Dilation key, but different ephemeral keys, so
 each gets a different session key.
+
+The exact Noise protocol in use is
+``"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"``.
+
+The HKDF used to derive the “Dilation key” is the RFC5869 HMAC
+construction, with: shared-key-material consisting of the PAKE key; a
+tag of the ASCII bytes ``"dilation-v1"``; no salt; and length equal to
+32 bytes. The hash algorithm is SHA256. (The exact HKDF derivation is in
+``wormhole/util.py``, wrapping an underlying ``cryptography`` library
+primitive).
 
 The Leader sends the first message, which is a psk-encrypted ephemeral
 key. The Follower sends the next message, its own psk-encrypted
@@ -317,7 +387,7 @@ Leader must not accept the Follower’s message until it has generated its
 own). Noise allows handshake messages to include a payload, but we do
 not use this feature.
 
-All subsequent messages as known as “Noise transport messages”, and use
+All subsequent messages are known as “Noise transport messages”, and use
 independent channels for each direction, so they no longer have ordering
 dependencies. Transport messages are encrypted by the shared key, in a
 form that evolves as more messages are sent.
@@ -327,7 +397,7 @@ as a “key confirmation message” (KCM).
 
 The Leader doesn’t send a transport message right away: it waits to see
 the Follower’s KCM, which indicates this connection is viable (i.e. the
-Follower used the same dilation key as the Leader, which means they both
+Follower used the same Dilation key as the Leader, which means they both
 used the same wormhole code).
 
 The Leader delivers the now-viable protocol object to the L3 manager,
@@ -344,25 +414,81 @@ as the new L3), a disconnection, or an invalid message (which causes the
 connection to be dropped). Other connections and/or listening sockets
 are stopped.
 
-Internally, the L2Protocol object manages the Noise session itself. It
-knows (via a constructor argument) whether it is on the Leader or
-Follower side, which affects both the role is plays in the Noise
+L2 Message Payload Encoding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Above, we talk about *frames*. Inside each frame is a plaintext payload
+(of maximum 4293918703 bytes as above). These plaintexts are
+binary-encoded messages of the L2 protocol layer, consisting of these
+types with corresponding 1-byte tags:
+
+-  KCM: ``0x00``
+-  PING: ``0x01``
+-  PONG: ``0x02``
+-  OPEN: ``0x03``
+-  DATA: ``0x04``
+-  CLOSE: ``0x05``
+-  ACK: ``0x06``
+
+Every message starts with its tag. Following the tag is a
+message-specific encoding. In all messages, a “subchannel-id” (if
+present) is a 4-byte big-endian unsigned int. A “sequence-number” (if
+present) is a 4-byte big-endian unsigned int.
+
+The messages are encoded like this (after the tag):
+
+-  KCM: no other data
+-  PING: arbitrary 4 byte “ping id”
+-  PONG: arbitrary 4 byte “ping id”
+-  OPEN: subchannel-id, sequence-number
+-  DATA: subchannel-id, sequence-number, data
+-  CLOSE: subchannel-id, sequence-number
+-  ACK: sequence-number
+
+For example, an OPEN would be encoded in 9 bytes of payload – so the
+resulting Noise message is 9 + 16 bytes, surrounded by a frame with
+leading 4-byte size for 29 bytes. A DATA message is thus 9 bytes plus
+the actual “data payload” (when wrapped in Noise, and following the
+limits in the framing section, this means the absolute biggest single
+application message possible is 4293918703 - 9 or 4293918694 bytes).
+
+Python Implementation Details
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For developers attempting to understand the Python reference
+implementation (in the ``wormhole._dilation`` package):
+
+Internally, the overall endeavour is managed by the ``Manager`` object.
+For each generation, a single ``Connection`` object is created; this
+object manages the race between potential hints-based peer connections.
+A ``DilatedConnctionProtocol`` instance manages the Noise session
+itself.
+
+It knows via its ``_role`` attribute whether it is on the Leader or
+Follower side, which affects both the role it plays in the Noise
 pattern, and the reaction to receiving the handshake message / ephemeral
-key (for which only the Follower sends an empty KCM message). After
-that, the L2Protocol notifies the L3 object in three situations:
+key (for which only the Follower sends an empty KCM message).
 
--  the Noise session produces a valid decrypted frame (for Leader, this
-   includes the Follower’s KCM, and thus indicates a viable candidate
-   for connection selection)
--  the Noise session reports a failed decryption
--  the TCP session is lost
+After that, the ``DilatedConnectionProtocol`` notifies the management
+objects in three situations:
 
-All notifications include a reference to the L2Protocol object
-(``self``). The L3 object uses this reference to either close the
+-  the Noise session produces a valid KCM message (``Connector``
+   notified with ``add_candidate()``).
+-  the Noise session reports a failed decryption (``Manager`` notified
+   via ``connector_connection_lost()``)
+-  the TCP session is lost (``Manager`` notified via
+   ``connector_connection_lost()``)
+
+During “normal operation” (after handshakes and KCMs), the ``Manager``
+is notified on every received and decrypted message (via
+``got_record``).
+
+The L3 management object uses this reference to either close the
 connection (for errors or when the selection process chooses someone
 else), to send the KCM message (after selection, only for the Leader),
 or to send other L4 messages. The L3 object will retain a reference to
-the winning L2 object.
+the winning L2 object. See also the state-machine diagrams.
+
 
 L3 protocol
 -----------
@@ -391,7 +517,7 @@ to receive the Leader’s KCM, at which point it is retained and all
 others are dropped.
 
 The L3 manager knows which “generation” of connection is being
-established. Each generation uses a different dilation key (?), and is
+established. Each generation uses a different Dilation key (?), and is
 triggered by a new set of L1 messages. Connections from one generation
 should not be confused with those of a different generation.
 
@@ -509,12 +635,12 @@ delivered to that object.
 
 Each time an L3 connection is established, the side will immediately
 send all L4 messages waiting in the outbound queue. A future protocol
-might reduce this duplication by including the highest received sequence
-number in the L1 PLEASE-DILATE message, which would effectively retire
-queued messages before initiating the L2 connection process. On any
-given L3 connection, all messages are sent in-order. The receipt of an
-ACK for seqnum ``N`` allows all messages with ``seqnum <= N`` to be
-retired.
+might reduce this duplication by including the highest received
+sequence number in the L1 PLEASE message, which would effectively
+retire queued messages before initiating the L2 connection process. On
+any given L3 connection, all messages are sent in-order. The receipt
+of an ACK for seqnum ``N`` allows all messages with ``seqnum <= N`` to
+be retired.
 
 The L4 layer is also responsible for managing flow control among the L3
 connection and the various L5 subchannels.
