@@ -315,28 +315,69 @@ TODO: think this through some more. What’s the example of a single
 endpoint reachable by multiple hints? Should each hint have its own
 priority, or just each endpoint?
 
+
 L2 protocol
 -----------
 
-Upon ``connectionMade()``, both sides send their handshake message. The
-Leader sends “Magic-Wormhole Dilation Handshake v1
-Leader:raw-latex:`\n`:raw-latex:`\n`”. The Follower sends
-“Magic-Wormhole Dilation Handshake v1
-Follower:raw-latex:`\n`:raw-latex:`\n`”. This should trigger an
-immediate error for most non-magic-wormhole listeners (e.g. HTTP servers
-that were contacted by accident). If the wrong handshake is received,
-the connection will be dropped. For debugging purposes, the node might
-want to keep looking at data beyond the first incorrect character and
-log a few hundred characters until the first newline.
+Upon successful connection (``connectionMade()`` in Twisted), both sides
+send their handshake message. The Leader sends the ASCII bytes
+``"Magic-Wormhole Dilation Handshake v1 Leader\n\n"``. The Follower
+sends the ASCII bytes
+``"Magic-Wormhole Dilation Handshake v1 Follower\n\n"``. This should
+trigger an immediate error for most non-magic-wormhole listeners
+(e.g. HTTP servers that were contacted by accident). If the wrong
+handshake is received, the connection must be dropped. For debugging
+purposes, the node might want to keep looking at data beyond the first
+incorrect character and log a few hundred characters until the first
+newline.
 
-Everything beyond that point is a Noise protocol message, which consists
-of a 4-byte big-endian length field, followed by the indicated number of
-bytes. This uses the ``NNpsk0`` pattern with the Leader as the first
-party (“-> psk, e” in the Noise spec), and the Follower as the second
-(“<- e, ee”). The pre-shared-key is the “Dilation key”, which is
-statically derived from the master PAKE key using HKDF. Each L2
+Everything beyond the last byte of the handshake consists of Noise
+protocol messages.
+
+L2 Message Framing
+~~~~~~~~~~~~~~~~~~
+
+Noise itself has a 65535-byte (``2**16 - 1``) limit on encoded message
+sizes – however the *payload* is 16 bytes smaller that this limit. The
+L2 protocol can deliver any *encoded* message up to an unsigned 4-byte
+integer in length (4.0 GiB or ``2**32`` bytes). Due to overhead, the
+actual limit for the payload of each frame is 4293918703 bytes (65537
+Noise messages with 65519 bytes of payload each).
+
+The encoding works like this: there is a 4-byte big-endian length field,
+followed by some number of Noise packets. There is no leading length
+field on each Noise packet: implementations MUST respect the Noise
+limits. So if the length field indicates a message bigger than 65535,
+the reader pulls 65535 bytes out of the stream, decrypts that blob as a
+Noise message, subtracts 65535 from the total and continues. The last
+Noise message will obviously be less than or exactly 65535 bytes.
+
+The entire decoded blob is then “one L2 message” and is delivered
+upstream.
+
+On the encoding side, note that 16 bytes of each maximum 65535-byte
+Noise message is used for authentication data. This means that when
+encoding *payload*, implementations pull at most 65519 bytes of
+plaintext at once and encrypt it (yielding 65535 bytes of ciphertext).
+Implementations should avoid sending enormous messages like this, but it
+is possible.
+
+The Noise cryptography uses the ``NNpsk0`` pattern with the Leader as
+the first party (``"-> psk, e"`` in the Noise spec), and the Follower as
+the second (``"<- e, ee"``). The pre-shared-key is the “Dilation key”,
+which is statically derived from the master PAKE key using HKDF. Each L2
 connection uses the same Dilation key, but different ephemeral keys, so
 each gets a different session key.
+
+The exact Noise protocol in use is
+``"Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s"``.
+
+The HKDF used to derive the “Dilation key” is the RFC5869 HMAC
+construction, with: shared-key-material consisting of the PAKE key; a
+tag of the ASCII bytes ``"dilation-v1"``; no salt; and length equal to
+32 bytes. The hash algorithm is SHA256. (The exact HKDF derivation is in
+``wormhole/util.py``, wrapping an underlying ``cryptography`` library
+primitive).
 
 The Leader sends the first message, which is a psk-encrypted ephemeral
 key. The Follower sends the next message, its own psk-encrypted
@@ -346,7 +387,7 @@ Leader must not accept the Follower’s message until it has generated its
 own). Noise allows handshake messages to include a payload, but we do
 not use this feature.
 
-All subsequent messages as known as “Noise transport messages”, and use
+All subsequent messages are known as “Noise transport messages”, and use
 independent channels for each direction, so they no longer have ordering
 dependencies. Transport messages are encrypted by the shared key, in a
 form that evolves as more messages are sent.
@@ -373,25 +414,81 @@ as the new L3), a disconnection, or an invalid message (which causes the
 connection to be dropped). Other connections and/or listening sockets
 are stopped.
 
-Internally, the L2Protocol object manages the Noise session itself. It
-knows (via a constructor argument) whether it is on the Leader or
-Follower side, which affects both the role is plays in the Noise
+L2 Message Payload Encoding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Above, we talk about *frames*. Inside each frame is a plaintext payload
+(of maximum 4293918703 bytes as above). These plaintexts are
+binary-encoded messages of the L2 protocol layer, consisting of these
+types with corresponding 1-byte tags:
+
+-  KCM: ``0x00``
+-  PING: ``0x01``
+-  PONG: ``0x02``
+-  OPEN: ``0x03``
+-  DATA: ``0x04``
+-  CLOSE: ``0x05``
+-  ACK: ``0x06``
+
+Every message starts with its tag. Following the tag is a
+message-specific encoding. In all messages, a “subchannel-id” (if
+present) is a 4-byte big-endian unsigned int. A “sequence-number” (if
+present) is a 4-byte big-endian unsigned int.
+
+The messages are encoded like this (after the tag):
+
+-  KCM: no other data
+-  PING: arbitrary 4 byte “ping id”
+-  PONG: arbitrary 4 byte “ping id”
+-  OPEN: subchannel-id, sequence-number
+-  DATA: subchannel-id, sequence-number, data
+-  CLOSE: subchannel-id, sequence-number
+-  ACK: sequence-number
+
+For example, an OPEN would be encoded in 9 bytes of payload – so the
+resulting Noise message is 9 + 16 bytes, surrounded by a frame with
+leading 4-byte size for 29 bytes. A DATA message is thus 9 bytes plus
+the actual “data payload” (when wrapped in Noise, and following the
+limits in the framing section, this means the absolute biggest single
+application message possible is 4293918703 - 9 or 4293918694 bytes).
+
+Python Implementation Details
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For developers attempting to understand the Python reference
+implementation (in the ``wormhole._dilation`` package):
+
+Internally, the overall endeavour is managed by the ``Manager`` object.
+For each generation, a single ``Connection`` object is created; this
+object manages the race between potential hints-based peer connections.
+A ``DilatedConnctionProtocol`` instance manages the Noise session
+itself.
+
+It knows via its ``_role`` attribute whether it is on the Leader or
+Follower side, which affects both the role it plays in the Noise
 pattern, and the reaction to receiving the handshake message / ephemeral
-key (for which only the Follower sends an empty KCM message). After
-that, the L2Protocol notifies the L3 object in three situations:
+key (for which only the Follower sends an empty KCM message).
 
--  the Noise session produces a valid decrypted frame (for Leader, this
-   includes the Follower’s KCM, and thus indicates a viable candidate
-   for connection selection)
--  the Noise session reports a failed decryption
--  the TCP session is lost
+After that, the ``DilatedConnectionProtocol`` notifies the management
+objects in three situations:
 
-All notifications include a reference to the L2Protocol object
-(``self``). The L3 object uses this reference to either close the
+-  the Noise session produces a valid KCM message (``Connector``
+   notified with ``add_candidate()``).
+-  the Noise session reports a failed decryption (``Manager`` notified
+   via ``connector_connection_lost()``)
+-  the TCP session is lost (``Manager`` notified via
+   ``connector_connection_lost()``)
+
+During “normal operation” (after handshakes and KCMs), the ``Manager``
+is notified on every received and decrypted message (via
+``got_record``).
+
+The L3 management object uses this reference to either close the
 connection (for errors or when the selection process chooses someone
 else), to send the KCM message (after selection, only for the Leader),
 or to send other L4 messages. The L3 object will retain a reference to
-the winning L2 object.
+the winning L2 object. See also the state-machine diagrams.
+
 
 L3 protocol
 -----------
