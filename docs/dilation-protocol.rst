@@ -31,7 +31,7 @@ protocols
 repositories <https://github.com/magic-wormhole/magic-wormhole-protocols>`__
 for more language-agnostic specifications).
 
-Wormhole dilation involves several moving parts. Both sides exchange
+Wormhole Dilation involves several moving parts. Both sides exchange
 messages through the Mailbox server to coordinate the establishment of a
 more direct connection. This connection might flow in either direction,
 so they trade “connection hints” to point at potential listening ports.
@@ -93,7 +93,7 @@ L1 is the mailbox channel (queued store-and-forward messages that always
 go to the mailbox server, and then are forwarded to other clients
 subscribed to the same mailbox). Both clients remain connected to the
 mailbox server until the Wormhole is closed. They send DILATE-n messages
-to each other to manage the dilation process, including records like
+to each other to manage the Dilation process, including records like
 ``please``, ``connection-hints``, ``reconnect``, and ``reconnecting``.
 
 L2 is the set of competing connection attempts for a given generation of
@@ -148,43 +148,43 @@ Dilation is triggered by calling the ``w.dilate()`` API. This
 immediately returns a 3-tuple of standard Twisted-style endpoints that
 can be used to establish subchannels:
 ``(control_ep, client_ep, server_ep)``. The first two are client-like,
-while ``server_ep`` is server-like. For dilation to succeed, both sides
+while ``server_ep`` is server-like. For Dilation to succeed, both sides
 must call ``w.dilate()``, since the resulting endpoints are the only way
 to access the subchannels.
 
 The client-like endpoints are used to signal any errors that might
-prevent dilation. ``control_ep.connect(factory)`` and
+prevent Dilation. ``control_ep.connect(factory)`` and
 ``client_ep.connect(factory)`` return a Deferred that will errback (with
 ``OldPeerCannotDilateError``) if the other side’s ``versions`` message
-indicates that it does not support dilation. The overall dilated
-connection is durable (the dilation agent will try forever to connect,
+indicates that it does not support Dilation. The overall dilated
+connection is durable (the Dilation agent will try forever to connect,
 and will automatically reconnect when necessary), so
 ``OldPeerCannotDilateError`` is currently the only error that could be
 thrown.
 
 (TODO: we could use a connection-status API, to provide user feedback)
 
-If the other side *could* support dilation (i.e. the wormhole library is
+If the other side *could* support Dilation (i.e. the wormhole library is
 new enough), but the peer does not choose to call ``w.dilate()``, this
 Deferred will never fire, and the ``factory`` will never be asked to
 create a new ``Protocol`` instance.
 
-The L1 (mailbox) path is used to deliver dilation requests and
+The L1 (mailbox) path is used to deliver Dilation requests and
 connection hints. The current mailbox protocol uses named “phases” to
 distinguish messages (rather than behaving like a regular ordered
 channel of arbitrary frames or bytes), and all-number phase names are
 reserved for application data (sent via ``w.send_message()``). Therefore
-the dilation control messages use phases named ``DILATE-0``,
+the Dilation control messages use phases named ``DILATE-0``,
 ``DILATE-1``, etc. Each side maintains its own counter, so one side
 might be up to e.g. ``DILATE-5`` while the other has only gotten as far
 as ``DILATE-2``. This effectively creates a pair of unidirectional
-streams of ``DILATE-n`` messages, each containing one or more dilation
+streams of ``DILATE-n`` messages, each containing one or more Dilation
 record, of various types described below. Note that all phases beyond
 the initial VERSION and PAKE phases are encrypted by the shared session
 key.
 
 A future mailbox protocol might provide a simple ordered stream of typed
-messages, with application records and dilation records mixed together.
+messages, with application records and Dilation records mixed together.
 
 Each ``DILATE-n`` message is a JSON-encoded dictionary with a ``type``
 field that has a string value. The dictionary will have other keys that
@@ -333,9 +333,9 @@ Everything beyond that point is a Noise protocol message, which consists
 of a 4-byte big-endian length field, followed by the indicated number of
 bytes. This uses the ``NNpsk0`` pattern with the Leader as the first
 party (“-> psk, e” in the Noise spec), and the Follower as the second
-(“<- e, ee”). The pre-shared-key is the “dilation key”, which is
+(“<- e, ee”). The pre-shared-key is the “Dilation key”, which is
 statically derived from the master PAKE key using HKDF. Each L2
-connection uses the same dilation key, but different ephemeral keys, so
+connection uses the same Dilation key, but different ephemeral keys, so
 each gets a different session key.
 
 The Leader sends the first message, which is a psk-encrypted ephemeral
@@ -356,7 +356,7 @@ as a “key confirmation message” (KCM).
 
 The Leader doesn’t send a transport message right away: it waits to see
 the Follower’s KCM, which indicates this connection is viable (i.e. the
-Follower used the same dilation key as the Leader, which means they both
+Follower used the same Dilation key as the Leader, which means they both
 used the same wormhole code).
 
 The Leader delivers the now-viable protocol object to the L3 manager,
@@ -420,7 +420,7 @@ to receive the Leader’s KCM, at which point it is retained and all
 others are dropped.
 
 The L3 manager knows which “generation” of connection is being
-established. Each generation uses a different dilation key (?), and is
+established. Each generation uses a different Dilation key (?), and is
 triggered by a new set of L1 messages. Connections from one generation
 should not be confused with those of a different generation.
 
