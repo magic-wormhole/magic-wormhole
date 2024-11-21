@@ -1,5 +1,35 @@
+The Dilation Protocol
+=====================
+
+The Dilation protocol is a “bulk data” protocol between two peers
+(either direct p2p connection, or via a Transit relay). It is durable
+and reliable: connections are re-established, and data is definitely
+transmitted in-order to the other peer. There are subchannels: logically
+separate streams as the application protocol requires. Multiple ways to
+connect are supported, via “hints”. These exist for direct TCP, TCP via
+Tor, and TCP to a central Transit helper (see also “Canonical hint
+encodings” in the `Transit
+documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/transit.md>`__
+).
+
+These building-blocks allow “application” protocols to be simpler buy
+not having to deal with re-connection attempts and network problems.
+Dilation was conceived during development of a “next-generation”
+file-transfer protocol now called “`Dilated File
+Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
+
+This document assumes you are familiar with the core Mailbox protocol
+and the general promises of Magic Wormhole. For more information see
+`the Server Protocol <server-protocol.md>`__.
+
 Dilation Internals
 ==================
+
+This document sometimes mentions programming internals related to Python
+and Twisted; these may be ignored by other implementers (see also `the
+protocols
+repositories <https://github.com/magic-wormhole/magic-wormhole-protocols>`__
+for more language-agnostic specifications).
 
 Wormhole dilation involves several moving parts. Both sides exchange
 messages through the Mailbox server to coordinate the establishment of a
