@@ -58,29 +58,28 @@ both side’s lists is eligible for use.
 Leaders and Followers
 ---------------------
 
-Each side of a Wormhole has a randomly-generated dilation ``side``
-string (this is included in the ``please-dilate`` message, and is
-independent of the Wormhole’s mailbox “side”). When the wormhole is
-dilated, the side with the lexicographically-higher “side” value is
-named the “Leader”, and the other side is named the “Follower”. The
-general wormhole protocol treats both sides identically, but the
-distinction matters for the dilation protocol.
+Each side of a Wormhole has a randomly-generated Dilation ``side``
+string (this is included in the ``please`` message, and is independent
+of the Wormhole’s mailbox “side”). When the wormhole is Dilated, the
+side with the lexicographically-higher “side” value is named the
+“Leader”, and the other side is named the “Follower”. The general
+wormhole protocol treats both sides identically, but the distinction
+matters for the Dilation protocol. Both sides send a ``please`` as soon
+as Dilation is triggered. Each side discovers whether it is the Leader
+or the Follower when the peer’s “please” arrives. The Leader has
+exclusive control over whether a given connection is considered
+established or not: if there are multiple potential connections to use,
+the Leader decides which one to use, and the Leader gets to decide when
+the connection is no longer viable (and triggers the establishment of a
+new one).
 
-Both sides send a ``please-dilate`` as soon as dilation is triggered.
-Each side discovers whether it is the Leader or the Follower when the
-peer’s “please-dilate” arrives. The Leader has exclusive control over
-whether a given connection is considered established or not: if there
-are multiple potential connections to use, the Leader decides which one
-to use, and the Leader gets to decide when the connection is no longer
-viable (and triggers the establishment of a new one).
-
-The ``please-dilate`` includes a ``use-version`` key, computed as the
-“best” version of the intersection of the two sides’ abilities as
-reported in the ``versions`` message. Both sides will use whichever
-``use-version`` was specified by the Leader (they learn which side is
-the Leader at the same moment they learn the peer’s ``use-version``
-value). If the Follower cannot handle the ``use-version`` value,
-dilation fails (this shouldn’t happen, as the Leader knew what the
+The ``please`` includes a ``use-version`` key, computed as the “best”
+version of the intersection of the two sides’ abilities as reported in
+the ``versions`` message. Both sides will use whichever ``use-version``
+was specified by the Leader (they learn which side is the Leader at the
+same moment they learn the peer’s ``use-version`` value). If the
+Follower cannot handle the ``use-version`` value, Dilation fails (this
+should not happen with honest endpoints, as the Leader knew what the
 Follower was and was not capable of before sending that message).
 
 Connection Layers
