@@ -635,12 +635,12 @@ delivered to that object.
 
 Each time an L3 connection is established, the side will immediately
 send all L4 messages waiting in the outbound queue. A future protocol
-might reduce this duplication by including the highest received sequence
-number in the L1 PLEASE-DILATE message, which would effectively retire
-queued messages before initiating the L2 connection process. On any
-given L3 connection, all messages are sent in-order. The receipt of an
-ACK for seqnum ``N`` allows all messages with ``seqnum <= N`` to be
-retired.
+might reduce this duplication by including the highest received
+sequence number in the L1 PLEASE message, which would effectively
+retire queued messages before initiating the L2 connection process. On
+any given L3 connection, all messages are sent in-order. The receipt
+of an ACK for seqnum ``N`` allows all messages with ``seqnum <= N`` to
+be retired.
 
 The L4 layer is also responsible for managing flow control among the L3
 connection and the various L5 subchannels.
