@@ -4,6 +4,7 @@ from wormhole.cli import public_relay
 from twisted.internet.defer import ensureDeferred
 from twisted.internet.task import react
 
+# To run this api locally try: relay_url = "ws://localhost:4000/v1"
 
 async def go():
     w = wormhole.create(appid, relay_url, reactor)
@@ -18,7 +19,7 @@ async def go():
 async def example_initiator(reactor):
     appid = "lothar.com/example"
     relay_url = public_relay.RENDEZVOUS_RELAY
-    relay_url = "ws://localhost:4000/v1"
+    
     w = wormhole.create(appid, relay_url, reactor)
     w.allocate_code()
 
