@@ -664,6 +664,8 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    # zero-arg callable that retrieves the current Mailbox status
+    _get_current_mailbox_status = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None

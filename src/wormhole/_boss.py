@@ -66,7 +66,7 @@ class Boss(object):
         self._C = Code(self._timing)
         self._T = Terminator()
         self._D = Dilator(self._reactor, self._eventual_queue,
-                          self._cooperator)
+                          self._cooperator, lambda: self._current_wormhole_status)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -92,10 +92,11 @@ class Boss(object):
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
-##        self._current_wormhole_status = WormholeStatus()
+        self._current_wormhole_status = WormholeStatus()
 
     def _wormhole_status(self, status):
         print("wormhole status", status)
+        self._current_wormhole_status = status
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)
 
