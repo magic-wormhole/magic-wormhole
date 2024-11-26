@@ -5,6 +5,8 @@ User-visible changes in "magic-wormhole":
 * Display a QR code by default for "wormhole send" (#555, @ferada + @meejah)
   This encodes "wormhole-transfer:M-word0-word1" per the spec:
   https://github.com/magic-wormhole/magic-wormhole-protocols/blob/main/uri-scheme.md
+* Add sequence diagram
+* Support Read the Docs pull-request builds
 * Drop support for Python 3.8 (#556)
 * (add release-notes here when making PRs)
 

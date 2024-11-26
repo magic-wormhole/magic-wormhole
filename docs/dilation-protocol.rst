@@ -37,25 +37,23 @@ more direct connection. This connection might flow in either direction,
 so they trade “connection hints” to point at potential listening ports.
 This process might succeed in making multiple connections at about the
 same time, so one side must select the best one to use, and cleanly shut
-down the others. To make the Dilated connection *durable*, this side
+down the others. To make the dilated connection *durable*, this side
 must also decide when the connection has been lost, and then coordinate
-the construction of a replacement connection. Within this connection, a
-series of queued-and-acked subchannel messages are used to
-open/use/close the application-visible subchannels.
+the construction of a replacement. Within this connection, a series of
+queued-and-acked subchannel messages are used to open/use/close the
+application-visible subchannels.
 
 Versions and can-dilate
 -----------------------
 
 The Wormhole protocol includes a ``versions`` message sent immediately
-after the shared PAKE key is established (do not confuse this with the
-*application level* versions message). This message also serves as a
+after the shared PAKE key is established. This also serves as a
 key-confirmation message, allowing each side to confirm that the other
 side knows the right key. The body of the ``versions`` message is a
 JSON-formatted string with keys that are available for learning the
 abilities of the peer. Dilation is signaled by a key named
-``can-dilate``, whose value is a list of integers. Any version present
-in both side’s lists is eligible for use. As of May, 2023 there is only
-version ``1``.
+``can-dilate``, whose value is a list of strings. Any version present in
+both side’s lists is eligible for use.
 
 Leaders and Followers
 ---------------------
@@ -102,12 +100,12 @@ L2 is the set of competing connection attempts for a given generation of
 connection. Each time the Leader decides to establish a new connection,
 a new generation number is used. Hopefully these are direct TCP
 connections between the two peers, but they may also include connections
-through the transit relay (possible via Tor). Each connection must go
-through an encrypted handshake process before it is considered viable.
-Viable connections are then submitted to a selection process (on the
-Leader side), which chooses exactly one to use, and drops the others. It
-may wait an extra few seconds in the hopes of getting a “better”
-connection (faster, cheaper, etc), but eventually it will select one.
+through the transit relay. Each connection must go through an encrypted
+handshake process before it is considered viable. Viable connections are
+then submitted to a selection process (on the Leader side), which
+chooses exactly one to use, and drops the others. It may wait an extra
+few seconds in the hopes of getting a “better” connection (faster,
+cheaper, etc), but eventually it will select one.
 
 L3 is the current selected connection. There is one L3 for each
 generation. At all times, the wormhole will have exactly zero or one L3
@@ -117,7 +115,7 @@ plaintext frames. L3 delivers decoded frames and
 connection-establishment events up to L4.
 
 L4 is the persistent higher-level channel. It is created as soon as the
-first L3 connection is selected, and lasts until the wormhole is closed
+first L3 connection is selected, and lasts until wormhole is closed
 entirely. L4 contains OPEN/DATA/CLOSE/ACK messages: OPEN/DATA/CLOSE have
 a sequence number (scoped to the L4 connection and the direction of
 travel), and the ACK messages reference those sequence numbers. When a
@@ -146,17 +144,30 @@ resumed or reestablished.
 Initiating Dilation
 -------------------
 
-Dilation is triggered by calling the ``w.dilate()`` API. This returns a
-Deferred that will fire once the first L3 connection is established. It
-fires with a 3-tuple of endpoints that can be used to establish
-subchannels, or an error if Dilation is not possible. If the other
-side’s ``versions`` message indicates that it does not support Dilation,
-the Deferred will errback with an ``OldPeerCannotDilateError``.
+Dilation is triggered by calling the ``w.dilate()`` API. This
+immediately returns a 3-tuple of standard Twisted-style endpoints that
+can be used to establish subchannels:
+``(control_ep, client_ep, server_ep)``. The first two are client-like,
+while ``server_ep`` is server-like. For Dilation to succeed, both sides
+must call ``w.dilate()``, since the resulting endpoints are the only way
+to access the subchannels.
 
-For Dilation to succeed, both sides must call ``w.dilate()``, since the
-resulting endpoints are the only way to access the subchannels. If the
-other side is capable of Dilation, but never calls ``w.dilate()``, the
-Deferred will never fire.
+The client-like endpoints are used to signal any errors that might
+prevent Dilation. ``control_ep.connect(factory)`` and
+``client_ep.connect(factory)`` return a Deferred that will errback (with
+``OldPeerCannotDilateError``) if the other side’s ``versions`` message
+indicates that it does not support Dilation. The overall dilated
+connection is durable (the Dilation agent will try forever to connect,
+and will automatically reconnect when necessary), so
+``OldPeerCannotDilateError`` is currently the only error that could be
+thrown.
+
+(TODO: we could use a connection-status API, to provide user feedback)
+
+If the other side *could* support Dilation (i.e. the wormhole library is
+new enough), but the peer does not choose to call ``w.dilate()``, this
+Deferred will never fire, and the ``factory`` will never be asked to
+create a new ``Protocol`` instance.
 
 The L1 (mailbox) path is used to deliver Dilation requests and
 connection hints. The current mailbox protocol uses named “phases” to
@@ -180,10 +191,9 @@ field that has a string value. The dictionary will have other keys that
 depend upon the type.
 
 ``w.dilate()`` triggers transmission of a ``please`` (i.e. “please
-Dilate”) record with a set of versions that can be accepted. Versions
+dilate”) record with a set of versions that can be accepted. Versions
 use strings, rather than integers, to support experimental protocols,
-however there is still a total ordering of preferability. That simply
-means that the *order* in the list is important; do not sort the list.
+however there is still a total ordering of preferability.
 
 ::
 
@@ -250,14 +260,14 @@ the derived key)
 
 Each side is in the “connecting” state (which encompasses both making
 connection attempts and having an established connection) starting with
-the receipt of a ``please`` message and a local ``w.dilate()`` call. The
-Leader remains in that state until it abandons the connection and sends
-a ``reconnect`` message, at which point it remains in the “flushing”
-state until the Follower’s ``reconnecting`` message is received. The
-Follower remains in “connecting” until it receives ``reconnect``, then
-it stays in “dropping” until it finishes halting all outstanding
-connections, after which it sends ``reconnecting`` and switches back to
-“connecting”.
+the receipt of a ``please-dilate`` message and a local ``w.dilate()``
+call. The Leader remains in that state until it abandons the connection
+and sends a ``reconnect`` message, at which point it remains in the
+“flushing” state until the Follower’s ``reconnecting`` message is
+received. The Follower remains in “connecting” until it receives
+``reconnect``, then it stays in “dropping” until it finishes halting all
+outstanding connections, after which it sends ``reconnecting`` and
+switches back to “connecting”.
 
 “Connection hints” are type/address/port records that tell the other
 side of likely targets for L2 connections. Both sides will try to
@@ -304,6 +314,7 @@ in using the other hints.
 TODO: think this through some more. What’s the example of a single
 endpoint reachable by multiple hints? Should each hint have its own
 priority, or just each endpoint?
+
 
 L2 protocol
 -----------
@@ -478,6 +489,7 @@ else), to send the KCM message (after selection, only for the Leader),
 or to send other L4 messages. The L3 object will retain a reference to
 the winning L2 object. See also the state-machine diagrams.
 
+
 L3 protocol
 -----------
 
@@ -485,12 +497,7 @@ The L3 layer is responsible for connection selection,
 monitoring/keepalives, and message (de)serialization. Framing is handled
 by L2, so the inbound L3 codepath receives single-message bytestrings,
 and delivers the same down to L2 for encryption, framing, and
-transmission. As per the above section, each such message may be up to
-2**32 bytes (4 GiB).
-
-Note that while this is the *limit* we strongly recommend applications
-limits themselves to smaller messages than this; receivers will need to
-buffer the entire message before delivery.
+transmission.
 
 Connection selection takes place exclusively on the Leader side, and
 includes the following:
@@ -511,14 +518,13 @@ others are dropped.
 
 The L3 manager knows which “generation” of connection is being
 established. Each generation uses a different Dilation key (?), and is
-triggered by a new set of L1 messages (XXX currently they do not).
-Connections from one generation should not be confused with those of a
-different generation.
+triggered by a new set of L1 messages. Connections from one generation
+should not be confused with those of a different generation.
 
 Each time a new L3 connection is established, the L4 protocol is
-notified. It will immediately send all the L4 messages waiting in its
-outbound queue. The L3 protocol simply wraps these in Noise frames and
-sends them to the other side.
+notified. It will will immediately send all the L4 messages waiting in
+its outbound queue. The L3 protocol simply wraps these in Noise frames
+and sends them to the other side.
 
 The L3 manager monitors the viability of the current connection, and
 declares it as lost when bidirectional traffic cannot be maintained. It
@@ -629,11 +635,12 @@ delivered to that object.
 
 Each time an L3 connection is established, the side will immediately
 send all L4 messages waiting in the outbound queue. A future protocol
-might reduce this duplication by including the highest received sequence
-number in the L1 PLEASE message, which would effectively retire queued
-messages before initiating the L2 connection process. On any given L3
-connection, all messages are sent in-order. The receipt of an ACK for
-seqnum ``N`` allows all messages with ``seqnum <= N`` to be retired.
+might reduce this duplication by including the highest received
+sequence number in the L1 PLEASE message, which would effectively
+retire queued messages before initiating the L2 connection process. On
+any given L3 connection, all messages are sent in-order. The receipt
+of an ACK for seqnum ``N`` allows all messages with ``seqnum <= N`` to
+be retired.
 
 The L4 layer is also responsible for managing flow control among the L3
 connection and the various L5 subchannels.
@@ -685,6 +692,9 @@ CLOSE response arrives, during which time DATA payloads are still
 delivered. After calling ``close()`` (or receiving CLOSE), any outbound
 ``.write()`` calls will trigger an error.
 
+(TODO: it would be nice to have half-close, especially for simple
+FTP-like file transfers)
+
 DATA payloads that arrive for a non-open subchannel are logged and
 discarded.
 
@@ -698,9 +708,11 @@ and is opened implicitly by both sides as soon as the first L3
 connection is selected. It is routed to a special client-on-both-sides
 endpoint, rather than causing the listening endpoint to accept a new
 connection. This avoids the need for application-level code to negotiate
-who should be the one to open it (the Leader/Follower distinction is
+who should be the one to open it. The Leader/Follower distinction is
 private to the Wormhole internals: applications are not obligated to
-pick a side).
+pick a side. Applications which need to negotiate their way into
+asymmetry should send a random number through the control channel and
+use it to assign themselves an application-level role.
 
 OPEN and CLOSE messages for the control channel are logged and
 discarded. The control-channel client endpoints can only be used once,
@@ -724,6 +736,8 @@ all subchannels even if only one of them gets full. This shouldn’t
 matter for many applications, but might be noticeable when combining
 very different kinds of traffic (e.g. a chat conversation sharing a
 wormhole with file-transfer might prefer the IM text to take priority).
+
+(TODO: it would be nice to have per-subchannel flow control)
 
 Each subchannel implements Twisted’s ``ITransport``, ``IProducer``, and
 ``IConsumer`` interfaces. The Endpoint API causes a new ``IProtocol``

@@ -258,3 +258,13 @@ application, which requires multiple wormhole messages to exchange
 address-book entries, and which must function even if the two apps are
 never both running at the same time) can use “Journal Mode” to ensure
 forward progress is made: see “journal.md” for details.
+
+
+Diagram of Normal Interaction
+-----------------------------
+
+Two normal clients connect and successfully establish Mailbox-based communications.
+
+.. seqdiag:: server.seqdiag
+    :alt: a sequence-style diagram showing Alice and Bob succsesfully using the Mailbox
+    :scale: 120%
