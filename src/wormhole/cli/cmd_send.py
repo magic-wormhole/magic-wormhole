@@ -6,6 +6,7 @@ import sys
 import stat
 
 from humanize import naturalsize
+from qrcode import QRCode
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
@@ -125,6 +126,12 @@ class Sender:
         if not args.zeromode:
             print(u"Wormhole code is: %s" % code, file=args.stderr)
             other_cmd += u" " + code
+
+        if not args.zeromode and args.qr:
+            qr = QRCode(border=1)
+            qr.add_data(u"wormhole-transfer:%s" % code)
+            qr.print_ascii(out=args.stderr)
+
         print(u"On the other computer, please run:", file=args.stderr)
         print(u"", file=args.stderr)
         print(other_cmd, file=args.stderr)

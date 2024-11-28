@@ -650,28 +650,42 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check sender
         if mode == "text" or mode == "slow-text":
-            expected = ("Sending text message ({bytes:d} Bytes){NL}"
-                        "Wormhole code is: {code}{NL}"
-                        "On the other computer, please run:{NL}{NL}"
-                        "wormhole receive {verify}{code}{NL}{NL}"
-                        "{KE}"
-                        "text message sent{NL}").format(
-                            bytes=len(message),
-                            verify="--verify " if verify else "",
-                            code=send_cfg.code,
-                            NL=NL,
-                            KE=key_established)
-            self.failUnlessEqual(send_stderr, expected)
+            snippets = [
+                "Sending text message ({bytes:d} Bytes){NL}",
+                "Wormhole code is: {code}{NL}",
+                (
+                    "On the other computer, please run:{NL}{NL}"
+                    "wormhole receive {verify}{code}{NL}{NL}"
+                ),
+                "{KE}",
+                "text message sent{NL}",
+            ]
+            for snippet in snippets:
+                self.failUnlessIn(
+                    snippet.format(
+                        bytes=len(message),
+                        verify="--verify " if verify else "",
+                        code=send_cfg.code,
+                        NL=NL,
+                        KE=key_established,
+                    ),
+                    send_stderr,
+                )
         elif mode == "file":
             self.failUnlessIn(u"Sending {size:s} file named '{name}'{NL}"
                               .format(
                                   size=naturalsize(len(message)),
                                   name=send_filename,
                                   NL=NL), send_stderr)
-            self.failUnlessIn(u"Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failUnlessIn(
                 u"File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -679,10 +693,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode == "directory":
             self.failUnlessIn(u"Sending directory", send_stderr)
             self.failUnlessIn(u"named 'testdir'", send_stderr)
-            self.failUnlessIn(u"Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failUnlessIn(
                 u"File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -878,10 +897,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                   size=naturalsize(size),
                                   name=send_filename,
                                   NL=NL), send_stderr)
-            self.failUnlessIn("Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failIfIn(
                 "File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -889,10 +913,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode == "directory":
             self.failUnlessIn("Sending directory", send_stderr)
             self.failUnlessIn("named 'testdir'", send_stderr)
-            self.failUnlessIn("Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failIfIn(
                 "File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
