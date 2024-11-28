@@ -78,6 +78,9 @@ class Allocator(object):
         self._C.allocated(nameplate, code)
 
     S0A_idle.upon(connected, enter=S0B_idle_connected, outputs=[])
+    # can be websocket-connected, but not past permissions/bind (so
+    # get a lost w/o a connected first)
+    S0A_idle.upon(lost, enter=S0A_idle, outputs=[])
     S0B_idle_connected.upon(lost, enter=S0A_idle, outputs=[])
 
     S0A_idle.upon(allocate, enter=S1A_allocating, outputs=[stash])
