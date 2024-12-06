@@ -6,7 +6,7 @@ from twisted.internet.task import react
 
 # Run api-example.py in 2 different processes:
 #   1 -- entering 0 arguments will initiate a wormhole send with a hidden msg
-#   2 -- enter the sender's code to inititiate a wormhole receive
+#   2 -- entering the sender's code will inititiate a wormhole receive
 
 # The api can be set up to use a different relay like a websocket
 # relay_url = "ws://localhost:4000/v1"
