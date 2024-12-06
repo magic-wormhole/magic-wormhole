@@ -2,6 +2,7 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Improve the example to act more like send/receive (#558, @OndrewBot)
 * Display a QR code by default for "wormhole send" (#555, @ferada + @meejah)
   This encodes "wormhole-transfer:M-word0-word1" per the spec:
   https://github.com/magic-wormhole/magic-wormhole-protocols/blob/main/uri-scheme.md
