@@ -1,6 +1,6 @@
 import json
 
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 
 from . import wormhole
 from .tor_manager import get_tor
@@ -72,7 +72,7 @@ def receive(reactor,
         raise Exception("Unknown offer type: {}".format(offer.keys()))
 
     yield wh.close()
-    returnValue(msg)
+    return msg
 
 
 @inlineCallbacks
@@ -128,6 +128,6 @@ def send(reactor,
     answer = data.get('answer', None)
     yield wh.close()
     if answer:
-        returnValue(None)
+        return None
     else:
         raise Exception("Unknown answer: {}".format(data))

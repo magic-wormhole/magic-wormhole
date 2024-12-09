@@ -106,7 +106,7 @@ class ServerBase:
         if not tp.working:
             yield self.sp.stopService()
             yield task.deferLater(reactor, 0.1, lambda: None)
-            defer.returnValue(None)
+            return None
         # disconnect all callers
         d = defer.maybeDeferred(self.sp.stopService)
         d.addBoth(lambda _: self._transit_server.stopFactory())

@@ -2,7 +2,7 @@ from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of
 from zope.interface import implementer
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
@@ -347,7 +347,7 @@ class ControlEndpoint(object):
         # this sets p.transport and calls p.connectionMade()
         p.makeConnection(self._subchannel_zero)
         self._subchannel_zero._deliver_queued_data()
-        returnValue(p)
+        return p
 
 
 @implementer(IStreamClientEndpoint)
@@ -381,7 +381,7 @@ class SubchannelConnectorEndpoint(object):
         p = protocolFactory.buildProtocol(peer_addr)
         sc._set_protocol(p)
         p.makeConnection(sc)  # set p.transport = sc and call connectionMade()
-        returnValue(p)
+        return p
 
 
 @implementer(IStreamServerEndpoint)
@@ -426,8 +426,7 @@ class SubchannelListenerEndpoint(object):
         while self._pending_opens:
             (t, peer_addr) = self._pending_opens.popleft()
             self._connect(t, peer_addr)
-        lp = SubchannelListeningPort(self._host_addr)
-        returnValue(lp)
+        return SubchannelListeningPort(self._host_addr)
 
 
 @implementer(IListeningPort)

@@ -8,7 +8,7 @@ from collections import deque
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, task)
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.protocols import policies
 from twisted.python import log
 from twisted.python.runtime import platformType
@@ -627,7 +627,7 @@ class Common:
                     u"port": rh.port
                 })
             hints.append(rhint)
-        returnValue(hints)
+        return hints
 
     def _get_direct_hints(self):
         if self._listener:
@@ -767,7 +767,7 @@ class Common:
             # connections, so those connections will know what to say when
             # they connect
             winner = yield self._connect()
-        returnValue(winner)
+        return winner
 
     def _connect(self):
         # It might be nice to wire this so that a failure in the direct hints
