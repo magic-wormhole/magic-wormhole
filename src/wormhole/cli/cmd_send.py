@@ -9,7 +9,7 @@ from humanize import naturalsize
 from qrcode import QRCode
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.defer import inlineCallbacks, Deferred
 from twisted.protocols import basic
 from twisted.python import log
 from wormhole import __version__, create
@@ -78,7 +78,7 @@ class Sender:
         @inlineCallbacks
         def _good(res):
             yield w.close()  # wait for ack
-            returnValue(res)
+            return res
 
         # if we raise an error, we should close and then return the original
         # error (the close might give us an error, but it isn't as important
@@ -89,7 +89,7 @@ class Sender:
                 yield w.close()  # might be an error too
             except Exception:
                 pass
-            returnValue(f)
+            return f
 
         d.addCallbacks(_good, _bad)
         yield d
@@ -237,7 +237,7 @@ class Sender:
                     raise TransferError("duplicate answer")
                 want_answer = True
                 yield self._handle_answer(them_d[u"answer"])
-                returnValue(None)
+                return None
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d, ))
 
@@ -400,7 +400,7 @@ class Sender:
         if self._fd_to_send is None:
             if them_answer["message_ack"] == "ok":
                 print(u"text message sent", file=self._args.stderr)
-                returnValue(None)  # terminates this function
+                return None
             raise TransferError("error sending text: %r" % (them_answer, ))
 
         if them_answer.get("file_ack") != "ok":

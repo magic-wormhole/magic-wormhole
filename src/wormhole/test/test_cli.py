@@ -11,7 +11,7 @@ from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue, CancelledError
+from twisted.internet.defer import gatherResults, inlineCallbacks, CancelledError
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils
@@ -258,12 +258,12 @@ class LocaleFinder:
     @inlineCallbacks
     def find_utf8_locale(self):
         if sys.platform == "win32":
-            returnValue("en_US.UTF-8")
+            return "en_US.UTF-8"
         if self._run_once:
-            returnValue(self._best_locale)
+            return self._best_locale
         self._best_locale = yield self._find_utf8_locale()
         self._run_once = True
-        returnValue(self._best_locale)
+        return self._best_locale
 
     @inlineCallbacks
     def _find_utf8_locale(self):
@@ -278,7 +278,7 @@ class LocaleFinder:
         if rc != 0:
             log.msg("error running 'locale -a', rc=%s" % (rc, ))
             log.msg("stderr: %s" % (err, ))
-            returnValue(None)
+            return None
         out = out.decode("utf-8")  # make sure we get a string
         utf8_locales = {}
         for locale in out.splitlines():
@@ -287,10 +287,10 @@ class LocaleFinder:
                 utf8_locales[locale.lower()] = locale
         for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
             if wanted.lower() in utf8_locales:
-                returnValue(utf8_locales[wanted.lower()])
+                return utf8_locales[wanted.lower()]
         if utf8_locales:
-            returnValue(list(utf8_locales.values())[0])
-        returnValue(None)
+            return list(utf8_locales.values())[0]
+        return None
 
 
 locale_finder = LocaleFinder()
@@ -346,7 +346,7 @@ class ScriptsBase:
             log.msg("err", err)
             log.msg("rc", rc)
             raise unittest.SkipTest("wormhole is not runnable in this tree")
-        returnValue(locale_env)
+        return locale_env
 
 
 class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
