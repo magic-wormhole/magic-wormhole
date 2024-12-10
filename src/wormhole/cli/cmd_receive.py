@@ -8,7 +8,7 @@ import zipfile
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.python import log
 from wormhole import __version__, create, input_with_completion
 
@@ -102,7 +102,7 @@ class Receiver:
         @inlineCallbacks
         def _good(res):
             yield w.close()  # wait for ack
-            returnValue(res)
+            return res
 
         # if we raise an error, we should close and then return the original
         # error (the close might give us an error, but it isn't as important
@@ -113,7 +113,7 @@ class Receiver:
                 yield w.close()  # might be an error too
             except Exception:
                 pass
-            returnValue(f)
+            return f
 
         d.addCallbacks(_good, _bad)
         yield d
@@ -186,7 +186,7 @@ class Receiver:
                 except RespondError as r:
                     self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
-                returnValue(None)
+                return None
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d, ))
 
@@ -201,7 +201,7 @@ class Receiver:
         them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
-        returnValue(them_d)
+        return them_d
 
     @inlineCallbacks
     def _handle_code(self, w):
@@ -274,7 +274,7 @@ class Receiver:
     def _parse_offer(self, them_d, w):
         if "message" in them_d:
             self._handle_text(them_d, w)
-            returnValue(None)
+            return None
         # transit will be created by this point, but not connected
         if "file" in them_d:
             f = self._handle_file(them_d)
@@ -404,7 +404,7 @@ class Receiver:
     def _establish_transit(self):
         record_pipe = yield self._transit_receiver.connect()
         self.args.timing.add("transit connected")
-        returnValue(record_pipe)
+        return record_pipe
 
     @inlineCallbacks
     def _transfer_data(self, record_pipe, f):
@@ -431,7 +431,7 @@ class Receiver:
             self._msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
             raise TransferError("Connection dropped before full file received")
         assert received == self.xfersize
-        returnValue(datahash)
+        return datahash
 
     def _write_file(self, f):
         tmp_name = f.name

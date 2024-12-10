@@ -2,7 +2,7 @@ import traceback
 from sys import stderr
 
 from attr import attrib, attrs
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import blockingCallFromThread, deferToThread
 
 from .errors import AlreadyInputNameplateError, KeyFormatError
@@ -213,4 +213,4 @@ def input_with_completion(prompt, input_helper, reactor):
     used_completion = yield deferToThread(_input_code_with_completion, prompt,
                                           input_helper, reactor)
     reactor.removeSystemEventTrigger(t)
-    returnValue(used_completion)
+    return used_completion
