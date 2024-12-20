@@ -540,7 +540,7 @@ class IOutbound(Interface):
     pass
 
 
-class IDilationStatus(Interface):
+class IDilationStatusReceiver(Interface):
     """
     XXX better name?
 
@@ -554,10 +554,10 @@ class IDilationStatus(Interface):
     (XXX for both Delegated and Deferred wormholes?)
     """
 
-    def dilation_status_update(self, new_status: "DilationStatus"):
+    def dilation_status_update(self, new_status: "DilationStatus") -> None:
         """
         The current Dilation status has changed.
 
-        The current status is passed as a frozen `DilationStatus`
+        The updated status is passed as a frozen `DilationStatus`
         instance.
         """
