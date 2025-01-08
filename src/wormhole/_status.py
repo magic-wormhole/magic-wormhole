@@ -116,7 +116,6 @@ class DilationStatus(object):
 
     # communication status with peer
     peer_connection: PeerConnection = NoPeer()
-    last_attempt: int = 0  # timestamp; better type?
 
     # there's the notion of "we have a shared mailbox", separate from
     # the above; worth revealing?

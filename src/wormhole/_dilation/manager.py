@@ -23,7 +23,7 @@ from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
-from .._status import DilationStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected, ConnectingPeer
+from .._status import DilationStatus, WormholeStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected, ConnectingPeer
 
 
 # exported to Wormhole() for inclusion in versions message
@@ -154,7 +154,7 @@ class Manager(object):
         self._debug_stall_connector = False
 
         self._next_dilation_phase = 0
-        self._latest_status = DilationStatus(phase=0)
+        self._latest_status = DilationStatus(mailbox=WormholeStatus(), phase=0)
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
@@ -213,6 +213,7 @@ class Manager(object):
 
     # from _boss.Boss
     def _wormhole_status(self, wormhole_status):
+        print("OHAI", wormhole_status)
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -391,7 +392,7 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=ConnectedPeer(),
+                peer_connection=ConnectedPeer(self._reactor.seconds()),
             )
         )
 
@@ -519,6 +520,9 @@ class Manager(object):
     @m.output()
     def start_connecting(self):
         print("start connecting")
+        self._start_connecting()
+
+    def _start_connecting(self):
         assert self._my_role is not None
         assert self._dilation_key is not None
         self._connector = Connector(self._dilation_key,
@@ -702,7 +706,7 @@ class Dilator(object):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
         self._status_updated_cb = status
-        if not self._manager:
+        if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
             my_dilation_side = make_side()

@@ -95,9 +95,10 @@ class Boss(object):
         self._current_wormhole_status = WormholeStatus()
 
     def _wormhole_status(self, status):
-        print("wormhole status", status)
+        print("wormhole status", getattr(self, "_D", None), status)
         self._current_wormhole_status = status
         if hasattr(self, "_D") and self._D._manager is not None:
+            print("CALL")
             self._D._manager._wormhole_status(status)
 
     # these methods are called from outside
