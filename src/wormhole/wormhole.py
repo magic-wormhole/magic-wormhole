@@ -125,7 +125,7 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self, reactor, eq, _enable_dilate=False):
+    def __init__(self, reactor, eq, _enable_dilate=False, _status=None):
         self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
@@ -136,6 +136,7 @@ class _DeferredWormhole(object):
         self._received_observer = SequenceObserver(eq)
         self._closed = False
         self._closed_observer = OneShotObserver(eq)
+        self._status = _status
 
         self._enable_dilate = _enable_dilate
 
@@ -281,7 +282,8 @@ def create(
         timing=None,
         stderr=sys.stderr,
         _eventual_queue=None,
-        _enable_dilate=False):
+        _enable_dilate=False,
+        status=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()

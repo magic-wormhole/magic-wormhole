@@ -131,7 +131,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
-    _status = attrib(default=None)  # IDilationStatus
+    _status = attrib(default=None)  # callable([DilationStatus])
 
     _dilation_key = None
     _tor = None  # TODO
@@ -209,7 +209,6 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
-        ##self._maybe_send_status(DilationStarted())
         self.start()
 
     # from _boss.Boss
@@ -222,7 +221,7 @@ class Manager(object):
         )
 
     def _maybe_send_status(self, status_msg):
-        print("status!", status_msg)
+        print("dilation status!", status_msg)
         self._latest_status = status_msg
         if self._status is not None:
             self._status(status_msg)
@@ -242,6 +241,7 @@ class Manager(object):
             self.rx_PLEASE(message)
         elif type == "connection-hints":
             self.rx_HINTS(message)
+            # XXX send a status message?
         elif type == "reconnect":
             self.rx_RECONNECT()
         elif type == "reconnecting":
@@ -255,12 +255,6 @@ class Manager(object):
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
-        self._maybe_send_status(
-            evolve(
-                self._latest_status,
-                phase=dilation_phase,
-            )
-        )
         self._next_dilation_phase += 1
         self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
 
@@ -518,28 +512,13 @@ class Manager(object):
 
     @m.output()
     def start_connecting_ignore_message(self, message):
-        self._maybe_send_status(
-            evolve(
-                self._latest_status,
-                peer_connection = ConnectingPeer(),
-            )
-        )
         print("start connecting, ignore message")
         del message  # ignored
         return self._start_connecting()
 
     @m.output()
     def start_connecting(self):
-        self._maybe_send_status(
-            evolve(
-                self._latest_status,
-                peer_connection = ConnectingPeer(),
-            )
-        )
         print("start connecting")
-        self._start_connecting()
-
-    def _start_connecting(self):
         assert self._my_role is not None
         assert self._dilation_key is not None
         self._connector = Connector(self._dilation_key,
@@ -578,7 +557,6 @@ class Manager(object):
     @m.output()
     def stop_connecting(self):
         print("stop connecting")
-        ###XXX self._maybe_send_status()
         self._connector.stop()
 
     @m.output()
@@ -593,40 +571,81 @@ class Manager(object):
         print("notify stopped")
         self._stopped.fire(None)
 
+    @m.output()
+    def send_status_connecting(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=ConnectingPeer(self._reactor.seconds()),
+            )
+        )
+
+    @m.output()
+    def send_status_reconnecting(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=ReconnectingPeer(self._reactor.seconds()),
+            )
+        )
+
+    @m.output()
+    def send_status_dilation_phase(self):
+        # send_dilation_phase has just run recently, incrementing
+        # this; "current status" is thus the prior value
+        dilation_phase = self._next_dilation_phase - 1
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                phase=dilation_phase,
+            )
+        )
+    @m.output()
+    def send_status_stopped(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=NoPeer(),
+            )
+        )
+
+
     # We are born WAITING after the local app calls w.dilate(). We enter
     # WANTING (and send a PLEASE) when we learn of a mutually-compatible
     # dilation_version.
-    WAITING.upon(start, enter=WANTING, outputs=[send_please])
+    WAITING.upon(start, enter=WANTING, outputs=[send_please, send_status_dilation_phase])
 
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
-                 outputs=[choose_role, start_connecting_ignore_message])
+                 outputs=[choose_role, start_connecting_ignore_message, send_status_connecting])
 
     CONNECTING.upon(connection_made, enter=CONNECTED, outputs=[])
 
     # Leader
     CONNECTED.upon(connection_lost_leader, enter=FLUSHING,
-                   outputs=[send_reconnect])
+                   outputs=[send_reconnect, send_status_dilation_phase, send_status_reconnecting])
     FLUSHING.upon(rx_RECONNECTING, enter=CONNECTING,
-                  outputs=[start_connecting])
+                  outputs=[start_connecting, send_status_reconnecting])
 
     # Follower
     # if we notice a lost connection, just wait for the Leader to notice too
     CONNECTED.upon(connection_lost_follower, enter=LONELY, outputs=[])
     LONELY.upon(rx_RECONNECT, enter=CONNECTING,
-                outputs=[send_reconnecting, start_connecting])
+                outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
     # but if they notice it first, abandon our (seemingly functional)
     # connection, then tell them that we're ready to try again
     CONNECTED.upon(rx_RECONNECT, enter=ABANDONING, outputs=[abandon_connection])
     ABANDONING.upon(connection_lost_follower, enter=CONNECTING,
-                    outputs=[send_reconnecting, start_connecting])
+                    outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
     # and if they notice a problem while we're still connecting, abandon our
     # incomplete attempt and try again. in this case we don't have to wait
     # for a connection to finish shutdown
     CONNECTING.upon(rx_RECONNECT, enter=CONNECTING,
                     outputs=[stop_connecting,
                              send_reconnecting,
-                             start_connecting])
+                             start_connecting,
+                             send_status_dilation_phase,
+                             send_status_reconnecting])
 
     # rx_HINTS never changes state, they're just accepted or ignored
     WANTING.upon(rx_HINTS, enter=WANTING, outputs=[])  # too early
@@ -639,13 +658,13 @@ class Manager(object):
 
     WAITING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
     WANTING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped])
+    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped, send_status_stopped])
     CONNECTED.upon(stop, enter=STOPPING, outputs=[abandon_connection])
     ABANDONING.upon(stop, enter=STOPPING, outputs=[])
-    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped])
-    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped])
+    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
 
 
 @attrs

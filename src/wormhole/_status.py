@@ -29,12 +29,33 @@ class NoPeer:
 
 @frozen
 class ConnectingPeer:
-    pass  # are more details relevant?
+    timestamp: int
+
+
+@frozen
+class ReconnectingPeer:
+    timestamp: int
 
 
 @frozen
 class ConnectedPeer:
-    pass  # are more details relevant?
+    timestamp: int
+
+
+@frozen
+class NoKey:
+    pass
+
+
+@frozen
+class AllegedSharedKey:
+    alleged_key: bytes
+
+
+@frozen
+class ConfirmedKey:
+    key: bytes
+
 
 
 # XXX union types need python 3.10 or later .. but they're nice
@@ -75,28 +96,32 @@ class WormholeStatus(object):
     # ---> just keep re-connecting?
 
 
+# probably this should "never" reveal secret/sensitive information? on
+# the grounds you'll probably show all this to a user somehow/somewhen
 @frozen
 class DilationStatus(object):
     """
     Represents the current status of a Dilated wormhole
 
     """
-    # This definitely implies the existence of a "WormholeStatus" too
-    # ... BUT do we actually want to 'embed' the wormhole status like
-    # this?
-
-    # current Dilation phase (ever increasing, aka "generation")
-    phase: int = -1;
+    # Trying to use Dilation definitely implies the existence of a
+    # "WormholeStatus" too ... BUT do we actually want to 'embed' the
+    # wormhole status like this?
 
     # are we connected to the Mailbox Server
     mailbox: WormholeStatus
 
-    # we believe we have communication with our peer
+    # current Dilation phase (ever increasing, aka "generation")
+    phase: int
+
+    # communication status with peer
     peer_connection: PeerConnection = NoPeer()
+    last_attempt: int = 0  # timestamp; better type?
 
-    # there's the notion of "we have a mailbox", separate from the
-    # above; worth revealing?
+    # there's the notion of "we have a shared mailbox", separate from
+    # the above; worth revealing?
 
+    # possible other things to reveal here:
     # "hints"? "active_hint"?
     # "are we re-connecting" can be inferred from "mailbox" + "phase"
 
@@ -126,3 +151,9 @@ class DilationStatus(object):
 #     dilation_status: DilationStatus
 #     def add_status_listener(self, listen):
 #         "call listen.update(self) every time either of our things change?"
+
+
+## maybe we want a like "status manager" to pass around internally?
+
+## that is, something that tracks "wormhole" vs "dilation" updates,
+## and calls the appropriate listeners etc

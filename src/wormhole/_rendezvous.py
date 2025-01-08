@@ -88,7 +88,7 @@ class RendezvousConnector(object):
 
         orig = ep.connect
         def connect_wrap(*args, **kw):
-            self._maybe_send_status(WormholeStatus(Connecting(self._url)))
+            self._maybe_send_status(WormholeStatus(Connecting(self._url, self._reactor.seconds())))
             return orig(*args, **kw)
         ep.connect = connect_wrap
 
