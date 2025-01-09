@@ -70,20 +70,6 @@ def make_side():
     return bytes_to_hexstr(os.urandom(8))
 
 
-# XXX move me somewhere sensible
-# XXX attempt at a "dilation status" API
-
-@frozen
-class DilationStarted:
-    timestamp: int
-
-
-@frozen
-class DilationReconnecting:
-    timestamp: int = 0
-
-
-
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
 #    w.dilate has been called,
