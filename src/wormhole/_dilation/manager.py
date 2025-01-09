@@ -23,7 +23,10 @@ from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
-from .._status import DilationStatus, WormholeStatus, NoPeer, ConnectedPeer, Disconnected, Connecting, Connected, ConnectingPeer
+from .._status import (DilationStatus, WormholeStatus,
+                       NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer,
+                       Disconnected, Connecting, Connected,
+                       )
 
 
 # exported to Wormhole() for inclusion in versions message
@@ -168,6 +171,9 @@ class Manager(object):
         self._inbound.set_listener_endpoint(listen_ep)
 
         self._endpoints = EndpointRecord(control_ep, connect_ep, listen_ep)
+        # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
+        # (the callback is provided when send_ping is called)
+        self._pings_outstanding = dict()
 
     def get_endpoints(self):
         return self._endpoints
@@ -352,10 +358,12 @@ class Manager(object):
             log.err(UnknownMessageType("{}".format(r)))
 
     # pings, pongs, and acks are not queued
-    def send_ping(self, ping_id):
+    def send_ping(self, ping_id, on_pong):  # ping_id is bytes? (yes, 4 bytes)
+        assert ping_id not in self._pings_outstanding, "Duplicate ping_id"
+        self._pings_outstanding[ping_id] = (on_pong, self._reactor.seconds())
         self._outbound.send_if_connected(Ping(ping_id))
 
-    def send_pong(self, ping_id):
+    def send_pong(self, ping_id):  # ping_id is bytes?
         self._outbound.send_if_connected(Pong(ping_id))
 
     def send_ack(self, resp_seqnum):
@@ -365,6 +373,14 @@ class Manager(object):
         self.send_pong(ping_id)
 
     def handle_pong(self, ping_id):
+        if ping_id not in self._pings_outstanding:
+            print("Weird: pong for ping that isn't outstanding")
+        else:
+            on_pong, start = self._pings_outstanding.pop(ping_id)
+            try:
+                on_pong(self._reactor.seconds() - start)
+            except Exception as e:
+                print(f"error in ping callback: {e}")
         # TODO: update is-alive timer
         pass
 
@@ -574,6 +590,7 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
+                # XXX TEST! (came up in manual)
                 peer_connection=ReconnectingPeer(self._reactor.seconds()),
             )
         )

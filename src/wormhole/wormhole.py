@@ -143,6 +143,9 @@ class _DeferredWormhole(object):
     def _set_boss(self, boss):
         self._boss = boss
 
+    # XXXX this is the right place for a "send_ping" or so, assuming that's useful
+    # roundtrip_ping() -> Deferred (callback() on Pong)
+
     # from above
     def get_code(self):
         # TODO: consider throwing error unless one of allocate/set/input_code
