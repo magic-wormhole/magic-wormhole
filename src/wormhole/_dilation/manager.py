@@ -199,7 +199,6 @@ class Manager(object):
 
     # from _boss.Boss
     def _wormhole_status(self, wormhole_status):
-        print("OHAI", wormhole_status)
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -208,7 +207,7 @@ class Manager(object):
         )
 
     def _maybe_send_status(self, status_msg):
-        print("dilation status!", status_msg)
+        print("dilation status", status_msg)
         self._latest_status = status_msg
         if self._status is not None:
             self._status(status_msg)
