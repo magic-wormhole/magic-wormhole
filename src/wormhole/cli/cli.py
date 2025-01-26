@@ -308,6 +308,7 @@ def go(f, cfg):
 @click.option(
     "--accept-file",
     is_flag=True,
+    envvar="WORMHOLE_ACCEPT_FILE",
     help="accept file transfer without asking for confirmation",
 )
 @click.option(
