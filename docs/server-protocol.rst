@@ -138,6 +138,12 @@ The Python client currently reacts to the following keys (and ignores all others
    (explaining the requirement) if it does not see this ticket arrive
    before the ``bind``.
 
+.. seqdiag::
+
+    seqdiag {
+        peer <- server [label = "type=welcome\nmotd=Hello World"];
+    }
+
 A ``ping`` will provoke a ``pong``: these are used by unit tests for synchronization purposes (to detect when a batch of messages have been fully processed by the server).
 NAT-binding refresh messages are handled by the WebSocket layer (by asking Autobahn to send a keepalive messages every 60 seconds), and do not use ``ping``.
 
