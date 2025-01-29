@@ -121,6 +121,7 @@ class Manager(object):
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
+    _initial_mailbox_status = attrib(default=None)  # WormholeStatus
 
     _dilation_key = None
     _tor = None  # TODO
@@ -143,7 +144,8 @@ class Manager(object):
         self._debug_stall_connector = False
 
         self._next_dilation_phase = 0
-        self._latest_status = DilationStatus(mailbox=WormholeStatus(), phase=0)
+        self._latest_status = DilationStatus(mailbox=self._initial_mailbox_status or WormholeStatus(), phase=0)
+        del self._initial_mailbox_status
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
@@ -393,7 +395,7 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=ConnectedPeer(self._reactor.seconds()),
+                peer_connection=ConnectedPeer(self._reactor.seconds(), conn._description),
             )
         )
 
@@ -704,10 +706,10 @@ class Dilator(object):
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None, no_listen=False, status=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
-        self._status_updated_cb = status
+        self._status_updated_cb = status_update
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
@@ -715,7 +717,8 @@ class Dilator(object):
             m = Manager(self._S, my_dilation_side,
                         transit_relay_location,
                         self._reactor, self._eventual_queue,
-                        self._cooperator, no_listen, status)
+                        self._cooperator, no_listen, status_update,
+                        initial_mailbox_status=wormhole_status)
             self._manager = m
             if self._pending_dilation_key is not None:
                 m.got_dilation_key(self._pending_dilation_key)

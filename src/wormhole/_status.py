@@ -40,6 +40,7 @@ class ReconnectingPeer:
 @frozen
 class ConnectedPeer:
     timestamp: int
+    hint_description: str
 
 
 @frozen
@@ -49,12 +50,12 @@ class NoKey:
 
 @frozen
 class AllegedSharedKey:
-    alleged_key: bytes
+    pass  # DO NOT reveal alleged key here; "status" messages are for users
 
 
 @frozen
 class ConfirmedKey:
-    key: bytes
+    pass  # DO NOT relveal real key here; "status" messages are for users
 
 
 

@@ -1,6 +1,6 @@
 import re
 
-from attr import attrib, attrs
+from attr import attrib, attrs, evolve
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from twisted.python import log
@@ -19,7 +19,7 @@ from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._send import Send
-from ._status import WormholeStatus
+from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
@@ -95,7 +95,12 @@ class Boss(object):
         self._current_wormhole_status = WormholeStatus()
 
     def _wormhole_status(self, status):
+        print("_wormhole_status", status)
+        # we have to track "the wormhole status" somewhere, because
+        # we'll be connected to the Mailbox (and maybe even the peer)
+        # before anyone asks for Dilation at all
         self._current_wormhole_status = status
+        # ...and so we might not even _have_ anything Dilation related yet
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)
 
@@ -210,8 +215,7 @@ class Boss(object):
         self._C.set_code(code)
 
     def dilate(self, transit_relay_location=None, no_listen=False, status=None):
-        # fires with endpoints
-        return self._D.dilate(transit_relay_location, no_listen=no_listen, status=status)
+        return self._D.dilate(transit_relay_location, no_listen=no_listen, wormhole_status=self._current_wormhole_status, status_update=status)  # returns endpoints
 
     @m.input()
     def send(self, plaintext):
@@ -321,6 +325,14 @@ class Boss(object):
         self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
+        # send status first, or .got_versions()? What if got_versions() raises?
+        print("CONFIRM")
+        self._wormhole_status(
+            evolve(
+                self._current_wormhole_status,
+                peer_key=ConfirmedKey(),
+            )
+        )
         self._W.got_versions(app_versions)
 
     @m.output()
@@ -363,6 +375,15 @@ class Boss(object):
     @m.output()
     def D_got_key(self, key):
         self._D.got_key(key)
+
+    @m.output()
+    def send_status_peer_key(self, key):
+        self._wormhole_status(
+            evolve(
+                self._current_wormhole_status,
+                peer_key=AllegedSharedKey(),
+            )
+        )
 
     @m.output()
     def W_got_verifier(self, verifier):
@@ -409,7 +430,7 @@ class Boss(object):
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
-    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key])
+    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 

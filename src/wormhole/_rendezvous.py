@@ -18,12 +18,10 @@ class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        print("onConnect", response)
         pass
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
-        print("onOpen", args)
         # self.wormhole_open = True
         self._RC.ws_open(self)
 
@@ -73,7 +71,7 @@ class RendezvousConnector(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
-    _status = attrib(default=None)  # or callable(WormholeStatus)
+    _status = attrib(default=None)  # Callable([WormholeStatus], []) or whatever .. well, Maybe of that
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False

@@ -136,7 +136,7 @@ class _DeferredWormhole(object):
         self._received_observer = SequenceObserver(eq)
         self._closed = False
         self._closed_observer = OneShotObserver(eq)
-        self._status = _status
+        self._status = _status  ##XXX is this a callable? or what?
 
         self._enable_dilate = _enable_dilate
 
@@ -248,6 +248,8 @@ class _DeferredWormhole(object):
         self._verifier_observer.fire_if_not_fired(verifier)
 
     def got_versions(self, versions):
+        ###XXX _could_ notify _status() via here .. but need "someone"
+        ###to hold "the current status" and that's _RC so far
         self._version_observer.fire_if_not_fired(versions)
 
     def received(self, plaintext):
