@@ -1,6 +1,18 @@
 Mailbox Server Protocol
 =======================
 
+Overview
+--------
+
+A method for two computers on the Internet to communicate securely.
+
+Two peer computers use the Mailbox Server (e.g. the one running at ``relay.magic-wormhole.io``) to negotiate a shared secret and a shared Mailbox.
+This Mailbox mirrors encrypted messages between two peers, allowing these two computers to communicate.
+These peer messages are encrypted with a shared secret the server doesn't know.
+
+This document describes the concrete protocol spoken between a peer and the Mailbox Server.
+
+
 Concepts
 --------
 
