@@ -100,7 +100,7 @@ Connection-Specific (Client-to-Server) Messages
 .. seqdiag::
 
     seqdiag {
-        peer -> server [label = "type=bind, appid=demo, side=b491c"]
+        peer -> server [label = "type=bind\nappid=demo\nside=b491c"];
     }
 
 
