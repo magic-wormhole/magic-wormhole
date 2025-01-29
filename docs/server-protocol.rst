@@ -37,7 +37,7 @@ Application IDs
 The server isolates each application from the others. Each client
 provides an “App Id” when it first connects (via the “BIND” message),
 and all subsequent commands are scoped to this application. This means
-that nameplates (described below) and mailboxes can be re-used between
+that nameplates (described below) and mailboxes can be reused between
 different apps. The AppID is a unicode string. Both sides of the
 wormhole must use the same AppID, of course, or they’ll never see each
 other. The server keeps track of which applications are in use for
@@ -64,7 +64,7 @@ second after the first connection loss, growing by 50% each time, capped
 at 1 minute.
 
 Messages are encoded as a dictionary.
-All encodings must include a ``"type"`` key which says what kind of message this is; all other keys depent on the message type.
+All encodings must include a ``"type"`` key which says what kind of message this is; all other keys depend on the message type.
 
 All messages are serialized as JSON and encoded to UTF-8; these resulting bytes are sent as a single “binary-mode” WebSocket payload.
 
