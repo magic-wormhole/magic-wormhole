@@ -47,8 +47,11 @@ Each application should use a unique AppID. Developers are encouraged to
 use “DNSNAME/APPNAME” to obtain a unique one: e.g. the ``bin/wormhole``
 file-transfer tool uses ``lothar.com/wormhole/text-or-file-xfer``.
 
-WebSocket Transport
--------------------
+Each "App Id" could be on an entirely different server and everything will work the same as if two separate "App Ids" are hosted on the same server.
+
+
+WebSocket Transport & Message Encoding
+--------------------------------------
 
 At the lowest level, each client establishes (and maintains) a WebSocket
 connection to the Mailbox Server. If the connection is lost (which could
@@ -60,50 +63,59 @@ exponentially-growing) delay. The Python implementation waits about 1
 second after the first connection loss, growing by 50% each time, capped
 at 1 minute.
 
-Each message to the server is a dictionary, with at least a ``type``
-key, and other keys that depend upon the particular message type.
-Messages from server to client follow the same format.
+Messages are encoded as a dictionary.
+All encodings must include a ``"type"`` key which says what kind of message this is; all other keys depent on the message type.
 
-``misc/dump-timing.py`` is a debug tool which renders timing data
-gathered from the server and both clients, to identify protocol
-slowdowns and guide optimization efforts. To support this, the
-client/server messages include additional keys. Client->Server messages
-include a random ``id`` key, which is copied into the ``ack`` that is
-immediately sent back to the client for all commands (logged for the
-timing tool but otherwise ignored). Some client->server messages
-(``list``, ``allocate``, ``claim``, ``release``, ``close``, ``ping``)
-provoke a direct response by the server: for these, ``id`` is copied
-into the response. This helps the tool correlate the command and
-response. All server->client messages have a ``server_tx`` timestamp
-(seconds since epoch, as a float), which records when the message left
-the server. Direct responses include a ``server_rx`` timestamp, to
-record when the client’s command was received. The tool combines these
-with local timestamps (recorded by the client and not shared with the
-server) to build a full picture of network delays and round-trip times.
+All messages are serialized as JSON and encoded to UTF-8; these resulting bytes are sent as a single “binary-mode” WebSocket payload.
 
-All messages are serialized as JSON, encoded to UTF-8, and the resulting
-bytes sent as a single “binary-mode” WebSocket payload.
 
-Servers can signal ``error`` for any message type it does not recognize.
-Clients and Servers must ignore unrecognized keys in
-otherwise-recognized messages. Clients must ignore unrecognized message
-types from the Server.
+.. hint::
+
+    Debugging is aided by the addition of information to most messages.
+    ``misc/dump-timing.py`` is a debug tool which renders timing data
+    gathered from the server and both clients, to identify protocol
+    slowdowns and guide optimization efforts. To support this, the
+    client/server messages include additional keys. Client->Server messages
+    include a random ``id`` key, which is copied into the ``ack`` that is
+    immediately sent back to the client for all commands (logged for the
+    timing tool but otherwise ignored). Some client->server messages
+    (``list``, ``allocate``, ``claim``, ``release``, ``close``, ``ping``)
+    provoke a direct response by the server: for these, ``id`` is copied
+    into the response. This helps the tool correlate the command and
+    response. All server->client messages have a ``server_tx`` timestamp
+    (seconds since epoch, as a float), which records when the message left
+    the server. Direct responses include a ``server_rx`` timestamp, to
+    record when the client’s command was received. The tool combines these
+    with local timestamps (recorded by the client and not shared with the
+    server) to build a full picture of network delays and round-trip times.
+
+The server can signal ``error`` for any message type it does not recognize.
+Clients and Servers must ignore unrecognized keys in otherwise-recognized messages.
+Clients must ignore unrecognized message types from the Server.
+
 
 Connection-Specific (Client-to-Server) Messages
 -----------------------------------------------
 
+.. seqdiag::
+
+    seqdiag {
+        peer -> server [label = "type=bind, appid=demo, side=b491c"]
+    }
+
+
 The first thing each client sends to the server, immediately after the
 WebSocket connection is established, is a ``bind`` message. This
 specifies the AppID and side (in keys ``appid`` and ``side``,
-respectively) that all subsequent messages will be scoped to. While
-technically each message could be independent (with its own ``appid``
-and ``side``), I thought it would be less confusing to use exactly one
-WebSocket per logical wormhole connection.
+respectively) that all subsequent messages will be scoped to.
 
-The first thing the server sends to each client is the ``welcome``
-message. This is intended to deliver important status information to the
-client that might influence its operation. The Python client currently
-reacts to the following keys (and ignores all others):
+.. note::
+
+    Technically each message could be independent (with its own ``appid`` and ``side``) but it is simpler and less confusing to force one WebSocket per logical wormhole connection.
+
+The first thing the server sends to each client is the ``welcome`` message.
+This is intended to deliver important status information to the client that might influence its operation.
+The Python client currently reacts to the following keys (and ignores all others):
 
 -  ``current_cli_version``: prompts the user to upgrade if the server’s
    advertised version is greater than the client’s version (as derived
@@ -117,16 +129,14 @@ reacts to the following keys (and ignores all others):
    (explaining the requirement) if it does not see this ticket arrive
    before the ``bind``.
 
-A ``ping`` will provoke a ``pong``: these are only used by unit tests
-for synchronization purposes (to detect when a batch of messages have
-been fully processed by the server). NAT-binding refresh messages are
-handled by the WebSocket layer (by asking Autobahn to send a keepalive
-messages every 60 seconds), and do not use ``ping``.
+A ``ping`` will provoke a ``pong``: these are used by unit tests for synchronization purposes (to detect when a batch of messages have been fully processed by the server).
+NAT-binding refresh messages are handled by the WebSocket layer (by asking Autobahn to send a keepalive messages every 60 seconds), and do not use ``ping``.
 
-If any client->server command is invalid (e.g. it lacks a necessary key,
+If any client->server command is invalid (e.g. it lacks a necessary key,
 or was sent in the wrong order), an ``error`` response will be sent,
 This response will include the error string in the ``error`` key, and a
 full copy of the original message dictionary in ``orig``.
+
 
 Nameplates
 ----------
