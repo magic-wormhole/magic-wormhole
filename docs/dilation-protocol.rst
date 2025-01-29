@@ -12,7 +12,7 @@ encodings” in the `Transit
 documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/transit.md>`__
 ).
 
-These building-blocks allow “application” protocols to be simpler buy
+These building-blocks allow “application” protocols to be simpler by
 not having to deal with re-connection attempts and network problems.
 Dilation was conceived during development of a “next-generation”
 file-transfer protocol now called “`Dilated File
