@@ -19,7 +19,7 @@ Concepts and Analogy
 Naming of this server centers around the concept of a North American post-office, which typically consisted of rows and rows of identical locked doors, behind which letters for a particular recipient would be placed.
 
 .. image:: _static/hilbert-post-office.jpeg
-    :width: 1239
+    :width: 1211
     :height: 184
     :alt: rows of identical locked boxes with different numbers on them
 
