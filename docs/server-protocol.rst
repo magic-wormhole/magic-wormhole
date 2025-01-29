@@ -13,19 +13,28 @@ These peer messages are encrypted with a shared secret the server doesn't know.
 This document describes the concrete protocol spoken between a peer and the Mailbox Server.
 
 
-Concepts
---------
+Concepts and Analogy
+--------------------
 
-The Mailbox Server provides queued delivery of binary messages from one
-client to a second, and vice versa. Each message contains a “phase” (a
-string) and a body (bytestring). These messages are queued in a
-“Mailbox” until the other side connects and retrieves them, but are
+Naming of this server centers around the concept of a North American post-office, which typically consisted of rows and rows of identical locked doors, behind which letters for a particular recipient would be placed.
+
+.. image:: _static/hilbert-post-office.jpeg
+    :width: 1239
+    :height: 184
+    :alt: rows of identical locked boxes with different numbers on them
+
+Our Mailboxes are identified by a large random string; we have an effectively infinite number of them.
+("`Hilbert's <https://en.wikipedia.org/wiki/Hilbert's_paradox_of_the_Grand_Hotel>`_ post office"?)
+Similar to the numbers on a physical post office's mailbox doors, “Nameplates” have short numeric identities.
+These short numbers map to a particular, random Mailbox.
+
+For example, in a wormhole code like “4-purple-sausages”, the “4” is the nameplate.
+
+The Mailbox Server provides, via each Mailbox, queued delivery of binary messages from one client to a second, and vice versa.
+Each message contains a “phase” (a string) and a body (bytestring).
+These messages are queued in a “Mailbox” until the other side connects and retrieves them, but are
 delivered immediately if both sides are connected to the server at the
 same time.
-
-Mailboxes are identified by a large random string. “Nameplates”, in
-contrast, have short numeric identities: in a wormhole code like
-“4-purple-sausages”, the “4” is the nameplate.
 
 Each client has a randomly-generated “side”, a short hex string, used to
 differentiate between echoes of a client’s own message, and real
@@ -141,8 +150,8 @@ full copy of the original message dictionary in ``orig``.
 Nameplates
 ----------
 
-Wormhole codes look like ``4-purple-sausages``, consisting of a number
-followed by some random words. This number is called a “Nameplate”.
+Wormhole codes look like ``4-purple-sausages``, consisting of a number followed by some random words.
+This number is called a “Nameplate” (``4`` in this example).
 
 On the Mailbox Server, the Nameplate contains a pointer to a Mailbox.
 Clients can “claim” a nameplate, and then later “release” it. Each claim
