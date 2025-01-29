@@ -35,6 +35,7 @@ Each message contains a “phase” (a string) and a body (bytestring).
 These messages are queued in a “Mailbox” until the other side connects and retrieves them, but are
 delivered immediately if both sides are connected to the server at the
 same time.
+Except for "pake" setup, all of these messages are encrypted so the server cannot read the contents.
 
 Each client has a randomly-generated “side”, a short hex string, used to
 differentiate between echoes of a client’s own message, and real
