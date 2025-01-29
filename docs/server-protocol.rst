@@ -44,7 +44,7 @@ messages from the other client.
 Application IDs
 ---------------
 
-The server isolates each application from the others. Each client
+The server isolates each application from any others. Each client
 provides an “App Id” when it first connects (via the “BIND” message),
 and all subsequent commands are scoped to this application. This means
 that nameplates (described below) and mailboxes can be reused between
