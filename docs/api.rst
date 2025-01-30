@@ -513,7 +513,7 @@ Closing
 
 When the application is done with the wormhole, it should call
 ``w.close()``, and wait for a ``closed`` event. This ensures that all
-server-side resources are released (allowing the nameplate to be re-used
+server-side resources are released (allowing the nameplate to be reused
 by some other client), and all network sockets are shut down.
 
 In Deferred mode, this just means waiting for the Deferred returned by
