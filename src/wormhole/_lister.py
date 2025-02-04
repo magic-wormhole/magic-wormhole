@@ -71,6 +71,11 @@ class Lister(object):
         self._I.got_nameplates(all_nameplates)
 
     S0A_idle_disconnected.upon(connected, enter=S0B_idle_connected, outputs=[])
+    # we are only "connected" after permissions and bind .. so we
+    # could have established a connection but not make it to
+    # "idle_connected" and then get a "lost"
+    S0A_idle_disconnected.upon(lost, enter=S0A_idle_disconnected, outputs=[])
+
     S0B_idle_connected.upon(lost, enter=S0A_idle_disconnected, outputs=[])
 
     S0A_idle_disconnected.upon(

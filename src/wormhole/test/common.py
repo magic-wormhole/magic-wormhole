@@ -52,7 +52,7 @@ class ServerBase:
         yield self._setup_relay(None)
 
     @defer.inlineCallbacks
-    def _setup_relay(self, error, advertise_version=None):
+    def _setup_relay(self, error, advertise_version=None, permissions="none"):
         self.sp = service.MultiService()
         self.sp.startService()
         # need to talk to twisted team about only using unicode in
@@ -63,7 +63,9 @@ class ServerBase:
             db,
             advertise_version=advertise_version,
             signal_error=error,
-            usage_db=self._usage_db)
+            usage_db=self._usage_db,
+            permissions=permissions,
+        )
         ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
         site = make_web_server(self._rendezvous, log_requests=False)
         # self._lp = yield ep.listen(site)

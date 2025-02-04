@@ -1,10 +1,13 @@
 import os
+import base64
+import hashlib
+from datetime import datetime
 from urllib.parse import urlparse
 from attr import attrs, attrib
 from attr.validators import instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
-from twisted.internet import defer, endpoints, task
+from twisted.internet import defer, endpoints, task, threads
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
@@ -58,6 +61,65 @@ class WSFactory(websocket.WebSocketClientFactory):
         proto._RC = self._RC
         # proto.wormhole_open = False
         return proto
+
+
+def mint_hashcash(bits, resource):
+    """
+    Create a new hashcase-format string with `bits` of hardness tied
+    to `resource` (an arbitrary string).
+
+    Hashcash strings look like:
+
+    `1:6:210623:arbitrary string::9WrCxB1SdCBOM3i5:000005`
+    """
+    counter = 0
+    timestamp = datetime.utcnow().strftime("%Y%m%d")
+    while True:
+        attempt = "1:{}:{}:{}::{}:{}".format(
+            bits,
+            timestamp,
+            resource,
+            base64.b64encode(os.urandom(12)),  # can we move this out of loop?
+            counter,
+        )
+        if valid_hashcash(attempt, bits):
+            return attempt
+        counter +=1
+
+
+def valid_hashcash(stamp, bits):
+    """
+    :returns: True if `stamp` is a valid hashcash string with `bits`
+    hardness.
+    """
+    h = hashlib.sha1()
+    h.update(stamp.encode("utf8"))
+    return leading_bits(h.digest(), bits)
+
+
+def leading_bits(data, required_bits):
+    """
+    :returns: True IFF the bytestring `data` has at least
+        `required_bits` leading bits that are 0.
+    """
+    bits = 0
+    for byte in data:
+        if bits >= required_bits:
+            return True
+        if required_bits - bits > 8:
+            if byte == 0:
+                bits += 8
+            else:
+                return False
+        else:
+            mask = 1 << 7
+            while mask:
+                if byte & mask:
+                    return False
+                bits += 1
+                mask = mask >> 1
+                if bits >= required_bits:
+                    return True
 
 
 @attrs
@@ -173,6 +235,23 @@ class RendezvousConnector(object):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
         self._ws = proto
+
+    # from _boss machine, if hashcash permission is requried
+    def _send_hashcash_then_bind(self, params):
+
+        bits = params["bits"]
+        resource = params["resource"]
+        # the mint function is synchronous and is designed to take a
+        # bit of time..
+        hashcash_d = threads.deferToThread(mint_hashcash, bits, resource)
+
+        def got_cash(hashcash):
+            self._tx("submit-permissions", method="hashcash", stamp=hashcash)
+            self._send_bind()
+        hashcash_d.addCallback(got_cash)
+
+    # from _boss machine, after it's done any permissions dancing
+    def _send_bind(self):
         try:
             self._tx(
                 "bind",
