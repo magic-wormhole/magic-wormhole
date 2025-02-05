@@ -223,13 +223,6 @@ class _DeferredWormhole(object):
         """
         return self._closed_observer.when_fired()
 
-    def when_closed(self):
-        """
-        :returns: A Deferred that fires when this connection is closed
-            (calling this does _not_ initiate a close from our side)
-        """
-        return self._closed_observer.when_fired()
-
     def close(self):
         # fails with WormholeError unless we established a connection
         # (state=="happy"). Fails with WrongPasswordError (a subclass of
