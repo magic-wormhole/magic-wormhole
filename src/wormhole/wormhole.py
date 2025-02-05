@@ -200,16 +200,17 @@ class _DeferredWormhole(object):
     # XXX note that only DeferredWormhole has this .. the
     # DelegatedWormhole thus has no way to dilate?
 
-    # XXX need some way to have "feedback" -- could give a delegate
-    # here? or have e.g. "listen_status()" or similar.
-    # want to know stuff like:
-    # - are we connected? (to the peer? to the mailbox?)
-    # - are we "connecting"
-    # - did we try to re-connect? (i.e. make a new generation)
-    def dilate(self, transit_relay_location=None, no_listen=False, status=None):
+    # XXX transit_relay_locations (plural) probably, and ability to
+    # pass a list? (there's a TODO about this is connector.py too)
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None):
+        """
+        :returns EndpointRecord: an EndpointRecord containing the three
+            Twisted endpoint objects required to interact with the
+            Dilation channel (as control, connect and listen members).
+        """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen, status)  # fires with (endpoints)
+        return self._boss.dilate(transit_relay_location, no_listen, on_status_update)
 
     def when_closed(self):
         """

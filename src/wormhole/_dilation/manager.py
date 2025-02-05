@@ -58,6 +58,25 @@ class UnknownMessageType(Exception):
 
 @attrs
 class EndpointRecord(Sequence):
+    """
+    Endpoints to interact with a particular Dilation session.
+
+    The `control` client-style endpoint will receive any message on
+    the logical "control" channel via its `dataReceived()` method. Any
+    such messages are specified by the applications using the Dilation
+    channel.
+
+    The `connect` client-style endpoint allow "this" peer of the
+    Dilation session to open a subchannel (which will contact the
+    other peer via its `listen` endpoint).
+
+    The `listen` server-style endpoint creates a new protocol whenever
+    a subchannel is opened by the "other" peer interacting with their
+    `connect` endpoint.
+
+    Any meaning attached to subchannels opening or closing is up to
+    the applications using the Dilation channel.
+    """
     control = attrib(validator=provides(IStreamClientEndpoint))
     connect = attrib(validator=provides(IStreamClientEndpoint))
     listen = attrib(validator=provides(IStreamServerEndpoint))
