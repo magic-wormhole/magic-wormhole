@@ -158,6 +158,8 @@ class Nameplate(object):
 
     @m.output()
     def T_nameplate_done(self):
+        # feedback API is the most right way to do this, but there's also a config object with stdout
+        print("mailbox communication established, nameplate deallocated",self._args.stdout)
         self._T.nameplate_done()
 
     @m.output()
