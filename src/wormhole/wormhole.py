@@ -125,7 +125,7 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self, reactor, eq, _enable_dilate=False, _status=None):
+    def __init__(self, reactor, eq, _enable_dilate=False, _on_status_update=None):
         self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
@@ -136,7 +136,10 @@ class _DeferredWormhole(object):
         self._received_observer = SequenceObserver(eq)
         self._closed = False
         self._closed_observer = OneShotObserver(eq)
-        self._status = _status  ##XXX is this a callable? or what?
+        # this will receive just "WormholeStatus" updates, where was
+        # the .dilate(..., on_status_update=) receives dilation
+        # updates (so effectively both)
+        self._on_status_update = _on_status_update  ##XXX is this a callable? or what?
 
         self._enable_dilate = _enable_dilate
 
@@ -289,7 +292,7 @@ def create(
         stderr=sys.stderr,
         _eventual_queue=None,
         _enable_dilate=False,
-        status=None):
+        on_status_update=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
