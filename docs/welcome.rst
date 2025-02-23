@@ -371,8 +371,8 @@ specify it instead via Python’s standard dotted import notation, e.g.:
    trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
 
 Developers can also just clone the source tree and run ``tox`` to run
-the unit tests on all supported (and installed) versions of python: 2.7,
-3.7 and 3.8.
+the unit tests on all supported (and installed) versions of
+python: 3.9, 3.10, 3.11, 3.12.
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -396,7 +396,7 @@ License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.7 and 3.8 .
+This library is compatible with Python 3.9, 3.10, 3.11, 3.12.
 
 .. raw:: html
 
