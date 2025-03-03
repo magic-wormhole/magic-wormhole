@@ -1456,7 +1456,7 @@ class Help(unittest.TestCase):
             ["receive", "--code-length", "3", "2-foo-bar"]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Must use --allocate", result.stdout)
+        self.assertIn("Must use --allocate", result.output)
 
     def test_inconsistent_receive_allocate(self):
         """
@@ -1467,4 +1467,4 @@ class Help(unittest.TestCase):
             ["receive", "--allocate", "2-foo-bar"]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Cannot specify a code", result.stdout)
+        self.assertIn("Cannot specify a code", result.output)
