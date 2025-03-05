@@ -47,7 +47,7 @@ class API(ServerBase, unittest.TestCase):
         w1 = create(
             "appid", self.relayurl,
             reactor,
-            versions={"fun": "quux"},
+            versions={"bar": "baz"},
             _eventual_queue=eq,
             _enable_dilate=True,
             on_status_update=wormhole_status1.append,
@@ -61,10 +61,13 @@ class API(ServerBase, unittest.TestCase):
         endpoints0 = yield w0.dilate(on_status_update=status0.append)
         endpoints1 = yield w1.dilate(on_status_update=status1.append)
 
-        # can we wait for something useful instead of time?
-        from twisted.internet.task import deferLater
-        yield deferLater(reactor, 0.5, lambda: None)
+        # we should see the _other side's_ app-versions
+        v0 = yield w1.get_versions()
+        v1 = yield w0.get_versions()
+        self.assertEqual(v0, {"fun": "quux"})
+        self.assertEqual(v1, {"bar": "baz"})
 
+        # we don't actually do anything, just disconnect
         yield w0.close()
         yield w1.close()
 
