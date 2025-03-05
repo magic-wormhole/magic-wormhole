@@ -42,11 +42,15 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _on_status_update = attrib(default=None)  # XXX FIXME proper type; callable(WormholeStatus)
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
+        # XXX can we just re-order so init_other_state is first, and
+        # put this status back in init_other_state
+        self._current_wormhole_status = WormholeStatus()
         self._build_workers()
         self._init_other_state()
 
@@ -92,7 +96,6 @@ class Boss(object):
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
-        self._current_wormhole_status = WormholeStatus()
 
     def _wormhole_status(self, status):
         print("_wormhole_status", status)
@@ -100,6 +103,8 @@ class Boss(object):
         # we'll be connected to the Mailbox (and maybe even the peer)
         # before anyone asks for Dilation at all
         self._current_wormhole_status = status
+        if self._on_status_update is not None:
+            self._on_status_update(self._current_wormhole_status)
         # ...and so we might not even _have_ anything Dilation related yet
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)

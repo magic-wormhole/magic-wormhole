@@ -145,6 +145,7 @@ class _DeferredWormhole(object):
 
     def _set_boss(self, boss):
         self._boss = boss
+        self._boss._on_status_update = self._on_status_update
 
     # XXXX this is the right place for a "send_ping" or so, assuming that's useful
     # roundtrip_ping() -> Deferred (callback() on Pong)
@@ -301,7 +302,7 @@ def create(
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate)
+        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate, _on_status_update=on_status_update)
     # this indicates Wormhole capabilities
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,

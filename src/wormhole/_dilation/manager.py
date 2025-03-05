@@ -164,7 +164,8 @@ class Manager(object):
 
         self._next_dilation_phase = 0
         self._latest_status = DilationStatus(mailbox=self._initial_mailbox_status or WormholeStatus(), phase=0)
-        del self._initial_mailbox_status
+        # if we "del" this, the attrs __repr__ is sad
+        self._initial_mailbox_status = None
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
