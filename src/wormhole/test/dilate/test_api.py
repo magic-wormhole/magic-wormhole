@@ -58,8 +58,9 @@ class API(ServerBase, unittest.TestCase):
         endpoints0 = yield w0.dilate(on_status_update=status0.append)
         endpoints1 = yield w1.dilate(on_status_update=status1.append)
 
+        # can we wait for something useful instead of time?
         from twisted.internet.task import deferLater
-        yield deferLater(reactor, 2.0, lambda: None)
+        yield deferLater(reactor, 0.5, lambda: None)
 
         yield w0.close()
         yield w1.close()
@@ -71,3 +72,27 @@ class API(ServerBase, unittest.TestCase):
         for st in wormhole_status0:
             print(st)
 
+        from attrs import evolve
+        from wormhole._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey
+
+        def nuke_timestamp(status):
+            if isinstance(status.mailbox_connection, Connecting):
+                return evolve(
+                    status,
+                    mailbox_connection=evolve(status.mailbox_connection, last_attempt=1),
+                )
+            return status
+
+        processed = [
+            nuke_timestamp(status)
+            for status in wormhole_status0
+        ]
+
+        print(processed)
+        self.assertEqual(processed, [
+            WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
+            WormholeStatus(Connected(self.relayurl), NoKey()),
+            WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
+            WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
+            WormholeStatus(Disconnected(), NoKey()),
+        ])
