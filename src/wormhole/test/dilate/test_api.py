@@ -68,13 +68,6 @@ class API(ServerBase, unittest.TestCase):
         yield w0.close()
         yield w1.close()
 
-        print("STATUS")
-        for st in status0:
-            print(st)
-        print("WORMHOLE STATUS")
-        for st in wormhole_status0:
-            print(st)
-
         def normalize_timestamp(status):
             if isinstance(status.mailbox_connection, Connecting):
                 return evolve(
