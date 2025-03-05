@@ -5,12 +5,15 @@ from twisted.trial import unittest
 from twisted.internet.task import Cooperator
 from twisted.internet.defer import Deferred, inlineCallbacks
 from zope.interface import implementer
+from attrs import evolve
+
 
 from ... import _interfaces
 from ...eventual import EventualQueue
 from ..._interfaces import ITerminator
 from ..._dilation import manager
 from ..._dilation._noise import NoiseConnection
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey
 
 from ..common import ServerBase
 
@@ -72,10 +75,7 @@ class API(ServerBase, unittest.TestCase):
         for st in wormhole_status0:
             print(st)
 
-        from attrs import evolve
-        from wormhole._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey
-
-        def nuke_timestamp(status):
+        def normalize_timestamp(status):
             if isinstance(status.mailbox_connection, Connecting):
                 return evolve(
                     status,
@@ -84,15 +84,17 @@ class API(ServerBase, unittest.TestCase):
             return status
 
         processed = [
-            nuke_timestamp(status)
+            normalize_timestamp(status)
             for status in wormhole_status0
         ]
 
-        print(processed)
-        self.assertEqual(processed, [
-            WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
-            WormholeStatus(Connected(self.relayurl), NoKey()),
-            WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
-            WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
-            WormholeStatus(Disconnected(), NoKey()),
-        ])
+        self.assertEqual(
+            processed,
+            [
+                WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
+                WormholeStatus(Connected(self.relayurl), NoKey()),
+                WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
+                WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
+                WormholeStatus(Disconnected(), NoKey()),
+            ]
+        )
