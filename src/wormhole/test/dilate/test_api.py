@@ -13,7 +13,7 @@ from ...eventual import EventualQueue
 from ..._interfaces import ITerminator
 from ..._dilation import manager
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer
 
 from ..common import ServerBase
 
@@ -71,6 +71,7 @@ class API(ServerBase, unittest.TestCase):
         yield w0.close()
         yield w1.close()
 
+        # check that the wormhole status messages are what we expect
         def normalize_timestamp(status):
             if isinstance(status.mailbox_connection, Connecting):
                 return evolve(
@@ -92,5 +93,19 @@ class API(ServerBase, unittest.TestCase):
                 WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
                 WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
                 WormholeStatus(Disconnected(), NoKey()),
+            ]
+        )
+
+        # check that the Dilation status messages are correct
+        for s in status0:
+            print(s)
+
+        self.assertEqual(
+            status0,
+            [
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
             ]
         )
