@@ -1,8 +1,7 @@
 import os
-import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib, frozen, evolve
+from attr import attrs, attrib, evolve
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -25,7 +24,6 @@ from .inbound import Inbound
 from .outbound import Outbound
 from .._status import (DilationStatus, WormholeStatus,
                        NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer,
-                       Disconnected, Connecting, Connected,
                        )
 
 
