@@ -34,7 +34,7 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop, ["1"])
+    dil = Dilator(h.reactor, h.eq, h.coop, ["ged"])
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)
@@ -61,7 +61,7 @@ class TestDilator(unittest.TestCase):
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, ["1"], False)])
+                                                   h.reactor, h.eq, h.coop, ["ged"], False)])
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])
@@ -168,7 +168,7 @@ class TestDilator(unittest.TestCase):
                         return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, ["1"], False)])
+                                                   h.reactor, h.eq, h.coop, ["ged"], False)])
 
 
 LEADER = "ff3456abcdef"
@@ -208,7 +208,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, ["1"])
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, ["ged"])
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -244,10 +244,10 @@ class TestManager(unittest.TestCase):
         self.assertTrue(hasattr(eps, "connect"))
         self.assertEqual(eps.listen, h.listen_ep)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
+        m.got_wormhole_versions({"can-dilate": ["ged"]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": LEADER, "use-version": "1"}))
+                           dict_to_bytes({"type": "please", "side": LEADER, "use-version": "ged"}))
             ])
         clear_mock_calls(h.send)
 
@@ -443,10 +443,10 @@ class TestManager(unittest.TestCase):
     def test_follower(self):
         m, h = make_manager(leader=False)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
+        m.got_wormhole_versions({"can-dilate": ["ged"]})
         self.assertEqual(h.send.mock_calls, [
             mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "1"}))
+                           dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "ged"}))
             ])
         clear_mock_calls(h.send)
         clear_mock_calls(h.inbound)

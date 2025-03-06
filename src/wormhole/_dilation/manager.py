@@ -28,7 +28,8 @@ from .outbound import Outbound
 # note that these are strings, not numbers, to facilitate
 # experimentation or non-standard versions; the _order_ of versions in
 # "can-dilate" is important!
-DILATION_VERSIONS = ["1"]
+# versions shall be named after wizards from the "Earthsea" series by le Guin
+DILATION_VERSIONS = ["ged"]
 
 
 class OldPeerCannotDilateError(Exception):
