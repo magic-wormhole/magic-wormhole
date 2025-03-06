@@ -530,7 +530,7 @@ The L3 manager monitors the viability of the current connection, and
 declares it as lost when bidirectional traffic cannot be maintained. It
 uses PING and PONG messages to detect this. These also serve to keep NAT
 entries alive, since many firewalls will stop forwarding packets if they
-don’t observe any traffic for e.g. 5 minutes.
+don’t observe any traffic for e.g. 5 minutes.
 
 Our goals are:
 
