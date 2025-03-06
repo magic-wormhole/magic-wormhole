@@ -241,6 +241,27 @@ class TrafficTimer(object):
     )
 
 
+def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
+    """
+    """
+    their_dilation_versions = set()
+    shared_versions = set(my_versions).intersection(their_dilation_versions)
+    best_version = None
+    # XXX refactor: bare function to pick names
+    if shared_versions:
+        # the "best" one is whichever version is higest up the
+        # list of acceptable versions
+        best = sorted([
+            (self._acceptable_versions.index(v), v)
+            for v in shared_versions
+        ])
+        best_version= best[0][1]
+
+    # dilation_version is the best mutually-compatible version we have
+    # with the peer, or None if we have nothing in common
+    return best_version
+
+
 @attrs(eq=False)
 @implementer(IDilationManager)
 class Manager(object):
@@ -250,6 +271,7 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
+    _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
@@ -354,15 +376,10 @@ class Manager(object):
 
     def got_wormhole_versions(self, their_wormhole_versions):
         # this always happens before received_dilation_message
-        self._dilation_version = None
-        their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
-        my_versions = set(DILATION_VERSIONS)
-        shared_versions = my_versions.intersection(their_dilation_versions)
-        if "1" in shared_versions:
-            self._dilation_version = "1"
-
-        # dilation_version is the best mutually-compatible version we have
-        # with the peer, or None if we have nothing in common
+        self._dilation_version = _find_shared_versions(
+            self._acceptable_versions,
+            their_wormhole_versions.get("can-dilate", [])
+        )
 
         if not self._dilation_version:  # "1" or None
             # TODO: be more specific about the error. dilation_version==None
@@ -892,6 +909,7 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    _acceptable_versions = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None
@@ -919,6 +937,7 @@ class Dilator(object):
                 self._reactor,
                 self._eventual_queue,
                 self._cooperator,
+                self._acceptable_versions,
                 ping_interval or 30.0,
                 no_listen,
                 status_update,
