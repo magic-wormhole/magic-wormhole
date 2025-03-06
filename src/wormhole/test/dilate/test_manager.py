@@ -34,7 +34,7 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop)
+    dil = Dilator(h.reactor, h.eq, h.coop, ["1"])
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)
@@ -61,7 +61,7 @@ class TestDilator(unittest.TestCase):
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)])
+                                                   h.reactor, h.eq, h.coop, ["1"], 30.0, False, None, initial_mailbox_status=None)])
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])
@@ -168,7 +168,7 @@ class TestDilator(unittest.TestCase):
                         return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)])
+                                                   h.reactor, h.eq, h.coop, ["1"], 30.0, False, None, initial_mailbox_status=None)])
 
 
 LEADER = "ff3456abcdef"
@@ -223,7 +223,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, 30.0)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, ["1"], 30.0)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
