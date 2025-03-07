@@ -155,7 +155,7 @@ Other Uses
 Some other interesting uses of Magic Wormhole that don't directly use the file-transfer protocol.
 If you know of others, please send them along!
 
-* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fow>`_ (foward-over-wormhole).
+* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fowl>`_ (foward-over-wormhole).
 
 * Invite / key-exchange: `Magic Folder <https://magic-folder.readthedocs.io/en/latest/invites.html>`_ implements a custom protocol to do "introduction" / key-exchange.
 
