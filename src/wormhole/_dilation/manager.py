@@ -561,13 +561,14 @@ class Manager(object):
         self._outbound.send_if_connected(Ack(resp_seqnum))
 
     def handle_ping(self, ping_id):
-        print("handling ping, sending pong", ping_id)
+        self._peer_saw_ping()
         self.send_pong(ping_id)
 
     def handle_pong(self, ping_id):
         if ping_id not in self._pings_outstanding:
             print("Weird: pong for ping that isn't outstanding")
         else:
+            self._peer_saw_ping()
             on_pong, start = self._pings_outstanding.pop(ping_id)
             if on_pong is not None:
                 on_pong(self._reactor.seconds() - start)
@@ -582,7 +583,24 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=ConnectedPeer(self._reactor.seconds(), conn._description),
+                peer_connection=ConnectedPeer(self._reactor.seconds(), self._reactor.seconds(), conn._description),
+            )
+        )
+
+    def _peer_saw_ping(self):
+        """
+        We have just seen Ping or Pong traffic from our peer.
+
+        Note that only the Leader sends Pings so one side will see
+        only Pongs and one will see only Pings.
+        """
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=evolve(
+                    self._latest_status.peer_connection,
+                    latest_ping=self._reactor.seconds(),
+                )
             )
         )
 
