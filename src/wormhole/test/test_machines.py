@@ -1293,6 +1293,7 @@ class Terminator(unittest.TestCase):
 
 class MockBoss(_boss.Boss):
     def __attrs_post_init__(self):
+        self._current_wormhole_status = WormholeStatus()
         # self._build_workers()
         self._init_other_state()
 
