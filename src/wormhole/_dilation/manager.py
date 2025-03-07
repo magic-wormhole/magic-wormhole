@@ -195,12 +195,10 @@ class TrafficTimer(object):
 
     @m.output()
     def signal_reconnect(self):
-        print("signal reconnect")
         self.on_reconnect()
 
     @m.output()
     def begin_timing(self):
-        print("begin timing")
         self.start_timer()
 
     no_connection.upon(
@@ -758,7 +756,6 @@ class Manager(object):
 
     @m.output()
     def send_status_connecting(self):
-        print("status: connecting")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -768,7 +765,6 @@ class Manager(object):
 
     @m.output()
     def send_status_reconnecting(self):
-        print("status: reconnecting")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
@@ -789,7 +785,6 @@ class Manager(object):
         )
     @m.output()
     def send_status_stopped(self):
-        print("status: stopped")
         self._maybe_send_status(
             evolve(
                 self._latest_status,
