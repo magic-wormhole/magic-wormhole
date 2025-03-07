@@ -16,6 +16,7 @@ from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
                            ITorManager)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
+from .._status import WormholeStatus
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, to_bytes)
 
@@ -31,7 +32,7 @@ class FakeWordList(object):
 
 
 class Dummy:
-    def __init__(self, name, events, iface, *meths):
+    def __init__(self, name, events, iface, *meths, **kw):
         self.name = name
         self.events = events
         if iface:
@@ -39,6 +40,8 @@ class Dummy:
         for meth in meths:
             self.mock(meth)
         self.retval = None
+        for k, v in kw.items():
+            setattr(self, k, v)
 
     def mock(self, meth):
         def log(*args):
@@ -1320,7 +1323,7 @@ class Boss(unittest.TestCase):
         b._RC = Dummy("rc", events, IRendezvousConnector, "start")
         b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                      "set_code")
-        b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key")
+        b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key", _manager=None)
         return b, events
 
     def test_basic(self):
