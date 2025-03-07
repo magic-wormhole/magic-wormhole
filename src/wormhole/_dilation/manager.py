@@ -317,25 +317,27 @@ class Manager(object):
         self._pings_outstanding = dict()
 
         # manage our notion of "we have seen traffic recently" or not
-        self._traffic = TrafficTimer(self._signal_reconnect, self._reset_timer)
-        self._traffic.set_trace(print)
+        # .. probably we should only actually do this if we're the
+        # Leader?
+        self._traffic = None
         self._timer = None
 
     def _signal_reconnect(self):
         print("DO RECONNECT!")
+        if self._connection:
+            self._connection.disconnect()
 
     def _reset_timer(self):
         print("reset timer", self._timer)
+        self.send_ping(os.urandom(4), lambda _: None)
         if self._timer is None:
-            def foo():
-                print("FOO", self._connection)
-                if self._connection:
-                    self._connection.disconnect()
+            def foo(*args):
+                print("FOO", args)
                 self._timer = None
                 self._traffic.interval_elapsed()
-            self._timer = self._reactor.callLater(5.0, foo)
+            self._timer = self._reactor.callLater(10.0, foo)
         else:
-            self._timer.delay(5.0)
+            self._timer.delay(10.0)
 
     def get_endpoints(self):
         return self._endpoints
@@ -467,7 +469,15 @@ class Manager(object):
     # our Connector calls these
 
     def connector_connection_made(self, c):
-        self._traffic.got_connection()
+        print("connection made; our role?", self._my_role)
+        if self._my_role == LEADER:
+            # if we have just RE-connected, then we'll already have a _traffic
+            if self._traffic is None:
+                self._traffic = TrafficTimer(self._signal_reconnect, self._reset_timer)
+                def foo(a, edge, b):
+                    print("TRAFFIC {} --[ {} ]--> {}".format(a, edge, b))
+                self._traffic.set_trace(foo)
+            self._traffic.got_connection()
         self.connection_made()  # state machine update
         self._connection = c
         self._inbound.use_connection(c)
@@ -487,6 +497,20 @@ class Manager(object):
         else:
             self.connection_lost_follower()
 
+        if self._traffic is not None:
+            self._traffic.lost_connection()
+        ### XXX notify here about "peer connection" being gone??
+        # (or ... why aren't we already trying to reconnect?)
+        try:
+            self._stop_using_connection()
+            if self._my_role is LEADER:
+                self.connection_lost_leader()  # state machine
+            else:
+                self.connection_lost_follower()
+        except Exception as e:
+            print("BAD STUFF", e)
+            raise
+
     def _stop_using_connection(self):
         # the connection is already lost by this point
         self._connection = None
@@ -496,7 +520,8 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
-        self._traffic.traffic_seen()
+        print("got record", r)
+        ## XXX here too, or just on Pongs? self._traffic.traffic_seen()
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -535,9 +560,11 @@ class Manager(object):
         self._outbound.send_if_connected(Ack(resp_seqnum))
 
     def handle_ping(self, ping_id):
+        print("handling ping, sending pong", ping_id)
         self.send_pong(ping_id)
 
     def handle_pong(self, ping_id):
+        print("handle pong", ping_id)
         if ping_id not in self._pings_outstanding:
             print("Weird: pong for ping that isn't outstanding")
         else:
