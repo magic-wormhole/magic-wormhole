@@ -233,7 +233,6 @@ class Manager(object):
         )
 
     def _maybe_send_status(self, status_msg):
-        print("dilation status", status_msg)
         self._latest_status = status_msg
         if self._status is not None:
             self._status(status_msg)
@@ -337,7 +336,6 @@ class Manager(object):
 
     def connector_connection_lost(self):
         # ultimately called after a DilatedConnectionProtocol disconnects
-        print("connector lost")
         self._stop_using_connection()
         if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine

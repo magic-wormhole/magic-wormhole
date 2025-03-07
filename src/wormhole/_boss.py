@@ -98,7 +98,6 @@ class Boss(object):
         self._result = "empty"
 
     def _wormhole_status(self, status):
-        print("_wormhole_status", status)
         # we have to track "the wormhole status" somewhere, because
         # we'll be connected to the Mailbox (and maybe even the peer)
         # before anyone asks for Dilation at all
@@ -337,7 +336,6 @@ class Boss(object):
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
         # send status first, or .got_versions()? What if got_versions() raises?
-        print("CONFIRM")
         self._wormhole_status(
             evolve(
                 self._current_wormhole_status,
