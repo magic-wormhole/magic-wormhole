@@ -81,7 +81,7 @@ class WormholeStatus(object):
     # are we connected to the Mailbox Server?
     mailbox_connection: ConnectionStatus = Disconnected()
 
-    # only Dilation (or "transit") know if we've actually achived a
+    # only Dilation (or "transit") know if we've actually achieved a
     # connection to our peer; this just tracks the PAKE negotiation,
     # basically
     peer_key: PeerSharedKey = NoKey()
