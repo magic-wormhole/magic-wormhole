@@ -260,6 +260,7 @@ class Manager(object):
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
     _initial_mailbox_status = attrib(default=None)  # WormholeStatus
+    _ping_interval = attrib(default=30.0)
 
     _dilation_key = None
     _tor = None  # TODO
@@ -323,21 +324,32 @@ class Manager(object):
         self._timer = None
 
     def _signal_reconnect(self):
-        print("DO RECONNECT!")
+        """
+        Called by the TrafficTimer machine if we should re-connect (due to
+        missed pings)
+        """
         if self._connection:
             self._connection.disconnect()
 
-    def _reset_timer(self):
-        print("reset timer", self._timer)
-        self.send_ping(os.urandom(4), lambda _: None)
+    def _send_ping_reset_timer(self):
+        """
+        Called by the TrafficTimer machine whenever we should start (or
+        extend) our timer and send a ping
+        """
+
+        def got_pong(_):
+            # ignoring "ping_id"
+            self._traffic.traffic_seen()
+
+        self.send_ping(os.urandom(4), got_pong)
         if self._timer is None:
-            def foo(*args):
-                print("FOO", args)
+            def timer_expired():
                 self._timer = None
                 self._traffic.interval_elapsed()
-            self._timer = self._reactor.callLater(10.0, foo)
+            self._timer = self._reactor.callLater(self._ping_interval, timer_expired)
         else:
-            self._timer.delay(10.0)
+            # we already have a timer runner, so extend it
+            self._timer.delay(self._ping_interval)
 
     def get_endpoints(self):
         return self._endpoints
@@ -469,15 +481,15 @@ class Manager(object):
     # our Connector calls these
 
     def connector_connection_made(self, c):
-        print("connection made; our role?", self._my_role)
+        # only the "Leader" will do pings, because it is the only side
+        # which can decide "our peer connection is dead"
         if self._my_role == LEADER:
-            # if we have just RE-connected, then we'll already have a _traffic
+            # if we have just RE-connected, then we'll already have a
+            # _traffic instance but the first time we connect we do not
             if self._traffic is None:
-                self._traffic = TrafficTimer(self._signal_reconnect, self._reset_timer)
-                def foo(a, edge, b):
-                    print("TRAFFIC {} --[ {} ]--> {}".format(a, edge, b))
-                self._traffic.set_trace(foo)
+                self._traffic = TrafficTimer(self._signal_reconnect, self._send_ping_reset_timer)
             self._traffic.got_connection()
+
         self.connection_made()  # state machine update
         self._connection = c
         self._inbound.use_connection(c)
@@ -491,25 +503,13 @@ class Manager(object):
 
     def connector_connection_lost(self):
         # ultimately called after a DilatedConnectionProtocol disconnects
+        if self._traffic is not None:
+            self._traffic.lost_connection()
         self._stop_using_connection()
         if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine
         else:
             self.connection_lost_follower()
-
-        if self._traffic is not None:
-            self._traffic.lost_connection()
-        ### XXX notify here about "peer connection" being gone??
-        # (or ... why aren't we already trying to reconnect?)
-        try:
-            self._stop_using_connection()
-            if self._my_role is LEADER:
-                self.connection_lost_leader()  # state machine
-            else:
-                self.connection_lost_follower()
-        except Exception as e:
-            print("BAD STUFF", e)
-            raise
 
     def _stop_using_connection(self):
         # the connection is already lost by this point
@@ -520,8 +520,11 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
-        print("got record", r)
-        ## XXX here too, or just on Pongs? self._traffic.traffic_seen()
+        ## XXX do we want to tell the TrafficTimer state-machine every
+        ## time we see _any_ traffic (i.e. here) or demand that the
+        ## Pong be delivered? if self._traffic is not None:
+        ## self._traffic.traffic_seen()
+
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -564,7 +567,6 @@ class Manager(object):
         self.send_pong(ping_id)
 
     def handle_pong(self, ping_id):
-        print("handle pong", ping_id)
         if ping_id not in self._pings_outstanding:
             print("Weird: pong for ping that isn't outstanding")
         else:
