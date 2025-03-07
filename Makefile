@@ -9,6 +9,9 @@
 default:
 	echo "see Makefile"
 
+lint:
+	tox -e flake8less
+
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
 	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'

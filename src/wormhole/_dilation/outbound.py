@@ -204,7 +204,6 @@ class Outbound(object):
     def send_if_connected(self, r):
         assert isinstance(r, (KCM, Ping, Pong, Ack)), r  # nothing with seqnum
         if self._connection:
-            print("SEND", r, self._connection)
             self._connection.send_record(r)
 
     # our subchannels call these to register a producer

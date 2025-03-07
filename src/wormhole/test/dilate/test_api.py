@@ -133,13 +133,19 @@ class API(ServerBase, unittest.TestCase):
             ]
         )
 
+        # we are "normalizing" all the timestamps to be "0" because we
+        # are using the real reactor and therefore it is difficult to
+        # predict what they'll be. Removing the "real reactor" is
+        # itself kind of a deep problem due to the "eventually()"
+        # usage (among some other reasons).
+
         def normalize_peer(st):
             typ = type(st.peer_connection)
             peer = st.peer_connection
             if typ == ConnectingPeer:
                 peer = evolve(peer, last_attempt=0)
             elif typ == ConnectedPeer:
-                peer = evolve(peer, connected_at=0, hint_description="hint")
+                peer = evolve(peer, connected_at=0, expires_at=0, hint_description="hint")
             return evolve(st, peer_connection=peer)
 
         normalized = [normalize_peer(st) for st in status0]

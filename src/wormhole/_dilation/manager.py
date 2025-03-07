@@ -1,8 +1,7 @@
 import os
-import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib, evolve, frozen
+from attr import attrs, attrib, evolve
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -91,20 +90,6 @@ def make_side():
     return bytes_to_hexstr(os.urandom(8))
 
 
-# XXX move me somewhere sensible
-# XXX attempt at a "dilation status" API
-
-@frozen
-class DilationStarted:
-    timestamp: int
-
-
-@frozen
-class DilationReconnecting:
-    timestamp: int = 0
-
-
-
 # new scheme:
 # * both sides send PLEASE as soon as they have an unverified key and
 #    w.dilate has been called,
@@ -144,7 +129,18 @@ class DilationReconnecting:
 
 @attrs(eq=False)
 class TrafficTimer(object):
-    on_reconnect = attrib()  # a callback when we expire our timer
+    """
+    Tracks when timers have expired versus when traffic (usually
+    Pongs) has been seen.
+
+    Will trigger a re-connect (if two timer-intervals expire before we
+    see traffic).
+
+    The actual timer (and its length) is controlled by the Manager, as
+    is the re-connection logic.
+    """
+
+    on_reconnect = attrib()  # a callback when a re-connection attempt is required
     start_timer = attrib()  # a callable that should start the interval timer
 
     m = MethodicalMachine()
@@ -159,25 +155,13 @@ class TrafficTimer(object):
     @m.state()
     def connected(self):
         """
-        We are conencted, and have recently seen traffic
+        We are connected, and have recently seen traffic
         """
 
     @m.state()
     def idle_traffic(self):
         """
-        We haven't seen and data for an interval
-        """
-
-    @m.input()
-    def got_connection(self):
-        """
-        A connection has been established
-        """
-
-    @m.input()
-    def lost_connection(self):
-        """
-        The connection has been lost
+        We haven't seen any data for an interval
         """
 
     @m.input()
@@ -191,6 +175,18 @@ class TrafficTimer(object):
     def traffic_seen(self):
         """
         We have seen some traffic
+        """
+
+    @m.input()
+    def got_connection(self):
+        """
+        A connection has been established
+        """
+
+    @m.input()
+    def lost_connection(self):
+        """
+        The connection has been lost
         """
 
     @m.output()
@@ -315,9 +311,9 @@ class Manager(object):
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
 
-        # manage our notion of "we have seen traffic recently" or not
-        # .. probably we should only actually do this if we're the
-        # Leader?
+        # Manage our notion of "we have seen traffic recently" or not
+        # Only the Leader does this (as only it can decide "we need a
+        # new generation")
         self._traffic = None
         self._timer = None
 
@@ -375,7 +371,6 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
-        ##self._maybe_send_status(DilationStarted())
         self.start()
 
     # from _boss.Boss
@@ -518,11 +513,6 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
-        ## XXX do we want to tell the TrafficTimer state-machine every
-        ## time we see _any_ traffic (i.e. here) or demand that the
-        ## Pong be delivered? if self._traffic is not None:
-        ## self._traffic.traffic_seen()
-
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -546,6 +536,11 @@ class Manager(object):
             self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
             log.err(UnknownMessageType("{}".format(r)))
+        # todo: it might be better to tell the TrafficTimer
+        # state-machine every time we see _any_ traffic (i.e. here)
+        # -- currently we're demanding that we see the "Pong"
+        # if self._traffic is not None:
+        #     self._traffic.traffic_seen()
 
     # pings, pongs, and acks are not queued
     def send_ping(self, ping_id, on_pong=None):
@@ -594,15 +589,16 @@ class Manager(object):
         Note that only the Leader sends Pings so one side will see
         only Pongs and one will see only Pings.
         """
-        self._maybe_send_status(
-            evolve(
-                self._latest_status,
-                peer_connection=evolve(
-                    self._latest_status.peer_connection,
-                    latest_ping=self._reactor.seconds(),
+        if isinstance(self._latest_status.peer_connection, ConnectedPeer):
+            self._maybe_send_status(
+                evolve(
+                    self._latest_status,
+                    peer_connection=evolve(
+                        self._latest_status.peer_connection,
+                        expires_at=self._reactor.seconds() + (self._ping_interval * 2),
+                    )
                 )
             )
-        )
 
     # subchannel maintenance
     def allocate_subchannel_id(self):
