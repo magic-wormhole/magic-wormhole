@@ -159,7 +159,7 @@ class TrafficTimer(object):
     @m.state()
     def connected(self):
         """
-        We are conencted, and have recently seen traffic
+        We are connected, and have recently seen traffic
         """
 
     @m.state()
