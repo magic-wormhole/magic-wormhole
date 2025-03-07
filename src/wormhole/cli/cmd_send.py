@@ -63,16 +63,12 @@ class Sender:
                 self._args.tor_control_port,
                 timing=self._timing)
 
-        def got_update(s):
-            print(f"STATUS: {s}")
-
         w = create(
             self._args.appid or APPID,
             self._args.relay_url,
             self._reactor,
             tor=self._tor,
             timing=self._timing,
-            on_status_update=got_update,
         )
         if self._args.debug_state:
             w.debug_set_trace("send", which=" ".join(self._args.debug_state), file=self._args.stdout)
