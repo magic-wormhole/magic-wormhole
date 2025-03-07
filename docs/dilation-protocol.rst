@@ -9,18 +9,18 @@ separate streams as the application protocol requires. Multiple ways to
 connect are supported, via “hints”. These exist for direct TCP, TCP via
 Tor, and TCP to a central Transit helper (see also “Canonical hint
 encodings” in the `Transit
-documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/transit.md>`__
+documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/blob/main/transit.md>`__
 ).
 
 These building-blocks allow “application” protocols to be simpler by
 not having to deal with re-connection attempts and network problems.
 Dilation was conceived during development of a “next-generation”
-file-transfer protocol now called “`Dilated File
+file-transfer protocol now called “ `Dilated File
 Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
 
 This document assumes you are familiar with the core Mailbox protocol
 and the general promises of Magic Wormhole. For more information see
-`the Server Protocol <server-protocol.md>`__.
+:doc:`the Server Protocol <server-protocol>`.
 
 Dilation Internals
 ==================
