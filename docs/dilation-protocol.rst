@@ -20,7 +20,7 @@ Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__
 
 This document assumes you are familiar with the core Mailbox protocol
 and the general promises of Magic Wormhole. For more information see
-`the Server Protocol <server-protocol.md>`__.
+:doc:`the Server Protocol <server-protocol>`.
 
 Dilation Internals
 ==================
