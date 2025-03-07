@@ -12,6 +12,7 @@ User-visible changes in "magic-wormhole":
 * Add broken-link checker (#588, https://github.com/Cycloctane)
 * Add a "status" feedback API for Dilation (#591, @meejah)
 * (add release-notes here when making PRs)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 
 ## Release 0.17.0 (23-Oct-2024)
 
