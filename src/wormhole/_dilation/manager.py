@@ -256,11 +256,11 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
+    _ping_interval = attrib(validator=instance_of(float))
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
     _initial_mailbox_status = attrib(default=None)  # WormholeStatus
-    _ping_interval = attrib(default=30.0)
 
     _dilation_key = None
     _tor = None  # TODO
@@ -885,18 +885,26 @@ class Dilator(object):
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
+               ping_interval=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
             my_dilation_side = make_side()
-            m = Manager(self._S, my_dilation_side,
-                        transit_relay_location,
-                        self._reactor, self._eventual_queue,
-                        self._cooperator, no_listen, status_update,
-                        initial_mailbox_status=wormhole_status)
+            m = Manager(
+                self._S,
+                my_dilation_side,
+                transit_relay_location,
+                self._reactor,
+                self._eventual_queue,
+                self._cooperator,
+                ping_interval or 30.0,
+                no_listen,
+                status_update,
+                initial_mailbox_status=wormhole_status,
+            )
             self._manager = m
             if self._pending_dilation_key is not None:
                 m.got_dilation_key(self._pending_dilation_key)
