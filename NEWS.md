@@ -10,6 +10,7 @@ User-visible changes in "magic-wormhole":
 * Support Read the Docs pull-request builds
 * Drop support for Python 3.8 (#556)
 * (add release-notes here when making PRs)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 
 ## Release 0.17.0 (23-Oct-2024)
 
