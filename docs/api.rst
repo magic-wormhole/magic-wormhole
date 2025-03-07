@@ -110,7 +110,7 @@ generally baked-in to the application source code or default config.
 This library includes the URL of a public mailbox server run by the
 author. Application developers can use this one, or they can run their
 own (see the
-`warner/magic-wormhole-mailbox-server <https://github.com/warner/magic-wormhole-mailbox-server>`__
+`magic-wormhole/magic-wormhole-mailbox-server <https://github.com/magic-wormhole/magic-wormhole-mailbox-server>`__
 repository) and configure their clients to use it instead. The URL of
 the public mailbox server is passed as a unicode string. Note that
 because the server actually speaks WebSockets, the URL starts with

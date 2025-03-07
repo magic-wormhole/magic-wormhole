@@ -185,3 +185,8 @@ texinfo_documents = [
      author, 'Magic-Wormhole', 'One line description of project.',
      'Miscellaneous'),
 ]
+
+# -- Options for linkcheck ------------------------------------------------
+
+# Skip checking validity of #anchors in links.
+linkcheck_anchors = False
