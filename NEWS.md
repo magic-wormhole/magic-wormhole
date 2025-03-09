@@ -9,6 +9,7 @@ User-visible changes in "magic-wormhole":
 * Add sequence diagram
 * Support Read the Docs pull-request builds
 * Drop support for Python 3.8 (#556)
+* Add broken-link checker (#588, https://github.com/Cycloctane)
 * (add release-notes here when making PRs)
 
 ## Release 0.17.0 (23-Oct-2024)
