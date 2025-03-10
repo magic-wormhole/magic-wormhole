@@ -96,12 +96,6 @@ class Boss(object):
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
-##        self._current_wormhole_status = WormholeStatus()
-
-    def _wormhole_status(self, status):
-        print("wormhole status", status)
-        if hasattr(self, "_D") and self._D._manager is not None:
-            self._D._manager._wormhole_status(status)
 
     def _wormhole_status(self, status):
         # we have to track "the wormhole status" somewhere, because
