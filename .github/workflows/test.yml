@@ -15,6 +15,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: "0"
+        ref: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     - name: Set up Python
       uses: actions/setup-python@v2
@@ -23,15 +26,17 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip tox codecov
+        python -m pip install --upgrade pip tox codecov cuvner
 
     - name: Test
       run: |
         python --version
         tox -e coverage
 
-    - name: Upload Coverage
-      run: codecov
+    - name: PR Coverage Graph
+      shell: bash
+      run: git diff origin/master..HEAD | cuv diff -
+      continue-on-error: true
 
   flake8:
     runs-on: ubuntu-latest
