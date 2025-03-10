@@ -16,6 +16,37 @@ from ..common import ServerBase
 class API(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
+    def test_on_status_error(self):
+        """
+        Our user code raises an exception during status processing
+        """
+        eq = EventualQueue(reactor)
+
+        class FakeError(Exception):
+            pass
+
+        def on_status(_):
+            raise FakeError()
+        with self.assertRaises(FakeError):
+            w = create(
+                "appid", self.relayurl,
+                reactor,
+                versions={"fun": "quux"},
+                _eventual_queue=eq,
+                _enable_dilate=True,
+                on_status_update=on_status,
+            )
+            yield w.allocate_code()
+            code = yield w.get_code()
+            print(code)
+            try:
+                yield w.close()
+            except LonelyError:
+                pass
+
+
+
+    @inlineCallbacks
     def test_dilation_status(self):
         if not NoiseConnection:
             raise unittest.SkipTest("noiseprotocol unavailable")
