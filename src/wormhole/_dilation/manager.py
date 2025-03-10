@@ -585,7 +585,11 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=ConnectedPeer(self._reactor.seconds(), self._reactor.seconds(), conn._description),
+                peer_connection=ConnectedPeer(
+                    self._reactor.seconds(),
+                    self._reactor.seconds() + (self._ping_interval * 2),
+                    conn._description,
+                ),
             )
         )
 
@@ -601,7 +605,7 @@ class Manager(object):
                 self._latest_status,
                 peer_connection=evolve(
                     self._latest_status.peer_connection,
-                    latest_ping=self._reactor.seconds(),
+                    expires_at=self._reactor.seconds() + (self._ping_interval * 2),
                 )
             )
         )
