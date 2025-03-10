@@ -88,8 +88,6 @@ class _DelegatedWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
-    # FFFFFUUUUk sakes, DelegatedWormhole doesn't support dilation??
-
     def close(self):
         self._boss.close()
 
@@ -136,19 +134,16 @@ class _DeferredWormhole(object):
         self._received_observer = SequenceObserver(eq)
         self._closed = False
         self._closed_observer = OneShotObserver(eq)
-        # this will receive just "WormholeStatus" updates, where was
-        # the .dilate(..., on_status_update=) receives dilation
-        # updates (so effectively both)
-        self._on_status_update = _on_status_update  ##XXX is this a callable? or what?
+        # this will receive "WormholeStatus" updates, whereas the
+        # .dilate(..., on_status_update=) receives dilation updates
+        # (so effectively both)
+        self._on_status_update = _on_status_update  # Callable[[WormholeStatus], None]
 
         self._enable_dilate = _enable_dilate
 
     def _set_boss(self, boss):
         self._boss = boss
         self._boss._on_status_update = self._on_status_update
-
-    # XXXX this is the right place for a "send_ping" or so, assuming that's useful
-    # roundtrip_ping() -> Deferred (callback() on Pong)
 
     # from above
     def get_code(self):
@@ -201,10 +196,10 @@ class _DeferredWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
-    # XXX note that only DeferredWormhole has this .. the
+    # todo: note that only DeferredWormhole has this .. the
     # DelegatedWormhole thus has no way to dilate?
 
-    # XXX transit_relay_locations (plural) probably, and ability to
+    # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
     def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None):
         """
@@ -246,8 +241,6 @@ class _DeferredWormhole(object):
         self._verifier_observer.fire_if_not_fired(verifier)
 
     def got_versions(self, versions):
-        ###XXX _could_ notify _status() via here .. but need "someone"
-        ###to hold "the current status" and that's _RC so far
         self._version_observer.fire_if_not_fired(versions)
 
     def received(self, plaintext):
