@@ -36,7 +36,6 @@ class WSClient(websocket.WebSocketClientProtocol):
             raise
 
     def onClose(self, wasClean, code, reason):
-        print("onClose", code, reason)
         self._RC.ws_close(wasClean, code, reason)
         # if self.wormhole_open:
         #     self.wormhole._ws_closed(wasClean, code, reason)

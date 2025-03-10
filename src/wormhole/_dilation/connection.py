@@ -610,7 +610,6 @@ class DilatedConnectionProtocol(Protocol, object):
     # IProtocol methods
 
     def connectionMade(self):
-        ##print("connectionMade", self._description)
         try:
             framer = _Framer(self.transport,
                              self._outbound_prologue, self._inbound_prologue)
