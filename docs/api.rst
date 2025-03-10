@@ -586,6 +586,11 @@ initiates the dilation process, and eventually yields a set of
 Endpoints. Once dilated these endpoints can be used to establish
 multiple (encrypted) “subchannel” connections to the other side.
 
+You may pass an ``on_status_update`` callable to ``dilate()``, which
+is a function that will be called with ``wormhole.DilationStatus``
+instances whenever the status of the Dilation connection (or the
+associated mailbox connection) changes.
+
 Each subchannel behaves like a regular Twisted ``ITransport``, so they
 can be glued to the Protocol instance of your choice. They also
 implement the IConsumer/IProducer interfaces.
