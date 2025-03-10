@@ -562,6 +562,7 @@ class DilatedConnectionProtocol(Protocol, object):
     @m.output()
     def set_manager(self, manager):
         self._manager = manager
+        self._manager.have_peer(self)
         self.when_disconnected().addCallback(lambda c:
                                              manager.connector_connection_lost())
 
