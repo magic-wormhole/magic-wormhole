@@ -602,15 +602,16 @@ class Manager(object):
         Note that only the Leader sends Pings so one side will see
         only Pongs and one will see only Pings.
         """
-        self._maybe_send_status(
-            evolve(
-                self._latest_status,
-                peer_connection=evolve(
-                    self._latest_status.peer_connection,
-                    expires_at=self._reactor.seconds() + (self._ping_interval * 2),
+        if isinstance(self._latest_status.peer_connection, ConnectedPeer):
+            self._maybe_send_status(
+                evolve(
+                    self._latest_status,
+                    peer_connection=evolve(
+                        self._latest_status.peer_connection,
+                        expires_at=self._reactor.seconds() + (self._ping_interval * 2),
+                    )
                 )
             )
-        )
 
     # subchannel maintenance
     def allocate_subchannel_id(self):

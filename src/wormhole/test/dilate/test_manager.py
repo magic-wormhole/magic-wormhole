@@ -62,7 +62,7 @@ class TestDilator(unittest.TestCase):
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, False, None, initial_mailbox_status=None)])
+                                                   h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)])
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])
@@ -169,7 +169,7 @@ class TestDilator(unittest.TestCase):
                         return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, False, None, initial_mailbox_status=None)])
+                                                   h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)])
 
 
 LEADER = "ff3456abcdef"
@@ -185,6 +185,10 @@ class ReactorOnlyTime:
 
     def seconds(self):
         return 42
+
+    def callLater(self, interval, callable):
+        # should return a DelayedCall
+        return mock.Mock()
 
 
 def make_manager(leader=True):
@@ -220,7 +224,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, 30.0)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -306,7 +310,7 @@ class TestManager(unittest.TestCase):
         m.connector_connection_made(c1)
 
         self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c1)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c1)])
+        self.assertEqual(h.outbound.mock_calls[1:], [mock.call.use_connection(c1)])
         clear_mock_calls(h.inbound, h.outbound)
 
         # the Leader making a new outbound channel should get scid=1
@@ -449,7 +453,7 @@ class TestManager(unittest.TestCase):
         m.connector_connection_made(c3)
 
         self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c3)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c3)])
+        self.assertEqual(h.outbound.mock_calls[1:], [mock.call.use_connection(c3)])
         clear_mock_calls(h.inbound, h.outbound)
 
     def test_follower(self):

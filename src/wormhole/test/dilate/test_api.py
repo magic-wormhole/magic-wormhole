@@ -139,21 +139,24 @@ class API(ServerBase, unittest.TestCase):
             if typ == ConnectingPeer:
                 peer = evolve(peer, timestamp=0)
             elif typ == ConnectedPeer:
-                peer = evolve(peer, timestamp=0, hint_description="hint")
+                peer = evolve(peer, connected_at=0, expires_at=0, hint_description="hint")
             return evolve(st, peer_connection=peer)
 
         normalized = [normalize_peer(st) for st in status0]
 
+        for n in normalized: print(n)
         # check that the Dilation status messages are correct
         self.assertEqual(
             normalized,
             [
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectingPeer(0)),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 1, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 1, ConnectingPeer(0)),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 1, ConnectedPeer(0, 0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 1, ConnectedPeer(0, 0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 1, NoPeer()),
             ]
         )
