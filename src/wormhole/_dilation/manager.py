@@ -130,7 +130,18 @@ def make_side():
 
 @attrs(eq=False)
 class TrafficTimer(object):
-    on_reconnect = attrib()  # a callback when we expire our timer
+    """
+    Tracks when timers have expired versus when traffic (usually
+    Pongs) has been seen.
+
+    Will trigger a re-connect (if two timer-intervals expire before we
+    see traffic).
+
+    The actual timer (and its length) is controlled by the Manager, as
+    is the re-connection logic.
+    """
+
+    on_reconnect = attrib()  # a callback when a re-connection attempt is required
     start_timer = attrib()  # a callable that should start the interval timer
 
     m = MethodicalMachine()
@@ -151,19 +162,7 @@ class TrafficTimer(object):
     @m.state()
     def idle_traffic(self):
         """
-        We haven't seen and data for an interval
-        """
-
-    @m.input()
-    def got_connection(self):
-        """
-        A connection has been established
-        """
-
-    @m.input()
-    def lost_connection(self):
-        """
-        The connection has been lost
+        We haven't seen any data for an interval
         """
 
     @m.input()
@@ -177,6 +176,18 @@ class TrafficTimer(object):
     def traffic_seen(self):
         """
         We have seen some traffic
+        """
+
+    @m.input()
+    def got_connection(self):
+        """
+        A connection has been established
+        """
+
+    @m.input()
+    def lost_connection(self):
+        """
+        The connection has been lost
         """
 
     @m.output()
