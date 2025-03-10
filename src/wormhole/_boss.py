@@ -103,7 +103,10 @@ class Boss(object):
         # before anyone asks for Dilation at all
         self._current_wormhole_status = status
         if self._on_status_update is not None:
-            self._on_status_update(self._current_wormhole_status)
+            try:
+                self._on_status_update(self._current_wormhole_status)
+            except Exception as e:
+                print(f"on_status_update: {e}")
         # ...and so we might not even _have_ anything Dilation related yet
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)
