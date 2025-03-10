@@ -42,7 +42,7 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
-    _on_status_update = attrib(default=None)  # XXX FIXME proper type; callable(WormholeStatus)
+    _on_status_update = attrib(default=None)  # type should be Callable[[WormholeStatus], None]
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
