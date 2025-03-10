@@ -11,6 +11,7 @@ User-visible changes in "magic-wormhole":
 * Drop support for Python 3.8 (#556)
 * Add broken-link checker (#588, https://github.com/Cycloctane)
 * (add release-notes here when making PRs)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 
 ## Release 0.17.0 (23-Oct-2024)
 

@@ -1,7 +1,8 @@
 import os
+import time
 from collections import deque
 from collections.abc import Sequence
-from attr import attrs, attrib
+from attr import attrs, attrib, evolve, frozen
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
@@ -22,6 +23,9 @@ from .roles import LEADER, FOLLOWER
 from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
+from .._status import (DilationStatus, WormholeStatus,
+                       NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer,
+                       )
 
 
 # exported to Wormhole() for inclusion in versions message
@@ -53,6 +57,25 @@ class UnknownMessageType(Exception):
 
 @attrs
 class EndpointRecord(Sequence):
+    """
+    Endpoints to interact with a particular Dilation session.
+
+    The `control` client-style endpoint will receive any message on
+    the logical "control" channel via its `dataReceived()` method. Any
+    such messages are specified by the applications using the Dilation
+    channel.
+
+    The `connect` client-style endpoint allow "this" peer of the
+    Dilation session to open a subchannel (which will contact the
+    other peer via its `listen` endpoint).
+
+    The `listen` server-style endpoint creates a new protocol whenever
+    a subchannel is opened by the "other" peer interacting with their
+    `connect` endpoint.
+
+    Any meaning attached to subchannels opening or closing is up to
+    the applications using the Dilation channel.
+    """
     control = attrib(validator=provides(IStreamClientEndpoint))
     connect = attrib(validator=provides(IStreamClientEndpoint))
     listen = attrib(validator=provides(IStreamServerEndpoint))
@@ -66,6 +89,20 @@ class EndpointRecord(Sequence):
 
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
+
+
+# XXX move me somewhere sensible
+# XXX attempt at a "dilation status" API
+
+@frozen
+class DilationStarted:
+    timestamp: int
+
+
+@frozen
+class DilationReconnecting:
+    timestamp: int = 0
+
 
 
 # new scheme:
@@ -104,6 +141,110 @@ def make_side():
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
 
+
+@attrs(eq=False)
+class TrafficTimer(object):
+    on_reconnect = attrib()  # a callback when we expire our timer
+    start_timer = attrib()  # a callable that should start the interval timer
+
+    m = MethodicalMachine()
+    set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
+
+    @m.state(initial=True)
+    def no_connection(self):
+        """
+        We aren't even connected yet
+        """
+
+    @m.state()
+    def connected(self):
+        """
+        We are connected, and have recently seen traffic
+        """
+
+    @m.state()
+    def idle_traffic(self):
+        """
+        We haven't seen and data for an interval
+        """
+
+    @m.input()
+    def got_connection(self):
+        """
+        A connection has been established
+        """
+
+    @m.input()
+    def lost_connection(self):
+        """
+        The connection has been lost
+        """
+
+    @m.input()
+    def interval_elapsed(self):
+        """
+        One interval is an arbitrary amount of time; when two have
+        elapsed, we emit a 'reconnect' signal
+        """
+
+    @m.input()
+    def traffic_seen(self):
+        """
+        We have seen some traffic
+        """
+
+    @m.output()
+    def signal_reconnect(self):
+        self.on_reconnect()
+
+    @m.output()
+    def begin_timing(self):
+        self.start_timer()
+
+    no_connection.upon(
+        got_connection,
+        enter=connected,
+        outputs=[begin_timing]
+    )
+    no_connection.upon(
+        interval_elapsed,
+        enter=no_connection,
+        outputs=[begin_timing]
+    )
+    connected.upon(
+        lost_connection,
+        enter=no_connection,
+        outputs=[]
+    )
+
+    connected.upon(
+        interval_elapsed,
+        enter=idle_traffic,
+        outputs=[begin_timing]
+    )
+    connected.upon(
+        traffic_seen,
+        enter=connected,
+        outputs=[begin_timing]
+    )
+
+    idle_traffic.upon(
+        interval_elapsed,
+        enter=connected,
+        outputs=[signal_reconnect]
+    )
+    idle_traffic.upon(
+        traffic_seen,
+        enter=connected,
+        outputs=[]
+    )
+    idle_traffic.upon(
+        lost_connection,
+        enter=no_connection,
+        outputs=[]
+    )
+
+
 @attrs(eq=False)
 @implementer(IDilationManager)
 class Manager(object):
@@ -113,8 +254,11 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
+    _ping_interval = attrib(validator=instance_of(float))
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
+    _status = attrib(default=None)  # callable([DilationStatus])
+    _initial_mailbox_status = attrib(default=None)  # WormholeStatus
 
     _dilation_key = None
     _tor = None  # TODO
@@ -137,6 +281,9 @@ class Manager(object):
         self._debug_stall_connector = False
 
         self._next_dilation_phase = 0
+        self._latest_status = DilationStatus(mailbox=self._initial_mailbox_status or WormholeStatus(), phase=0)
+        # if we "del" this, the attrs __repr__ is sad
+        self._initial_mailbox_status = None
 
         # I kept getting confused about which methods were for inbound data
         # (and thus flow-control methods go "out") and which were for
@@ -164,6 +311,43 @@ class Manager(object):
         self._inbound.set_listener_endpoint(listen_ep)
 
         self._endpoints = EndpointRecord(control_ep, connect_ep, listen_ep)
+        # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
+        # (the callback is provided when send_ping is called)
+        self._pings_outstanding = dict()
+
+        # manage our notion of "we have seen traffic recently" or not
+        # .. probably we should only actually do this if we're the
+        # Leader?
+        self._traffic = None
+        self._timer = None
+
+    def _signal_reconnect(self):
+        """
+        Called by the TrafficTimer machine if we should re-connect (due to
+        missed pings)
+        """
+        if self._connection:
+            self._connection.disconnect()
+
+    def _send_ping_reset_timer(self):
+        """
+        Called by the TrafficTimer machine whenever we should start (or
+        extend) our timer and send a ping
+        """
+
+        def got_pong(_):
+            # ignoring "ping_id"
+            self._traffic.traffic_seen()
+
+        self.send_ping(os.urandom(4), got_pong)
+        if self._timer is None:
+            def timer_expired():
+                self._timer = None
+                self._traffic.interval_elapsed()
+            self._timer = self._reactor.callLater(self._ping_interval, timer_expired)
+        else:
+            # we already have a timer runner, so extend it
+            self._timer.delay(self._ping_interval)
 
     def get_endpoints(self):
         return self._endpoints
@@ -191,7 +375,22 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
+        ##self._maybe_send_status(DilationStarted())
         self.start()
+
+    # from _boss.Boss
+    def _wormhole_status(self, wormhole_status):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                mailbox=wormhole_status,
+            )
+        )
+
+    def _maybe_send_status(self, status_msg):
+        self._latest_status = status_msg
+        if self._status is not None:
+            self._status(status_msg)
 
     def fail(self, f):
         self._endpoints.control._main_channel_failed(f)
@@ -208,6 +407,7 @@ class Manager(object):
             self.rx_PLEASE(message)
         elif type == "connection-hints":
             self.rx_HINTS(message)
+            # XXX send a status message?
         elif type == "reconnect":
             self.rx_RECONNECT()
         elif type == "reconnecting":
@@ -221,6 +421,12 @@ class Manager(object):
 
     def send_dilation_phase(self, **fields):
         dilation_phase = self._next_dilation_phase
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                phase=dilation_phase,
+            )
+        )
         self._next_dilation_phase += 1
         self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
 
@@ -278,6 +484,15 @@ class Manager(object):
     # our Connector calls these
 
     def connector_connection_made(self, c):
+        # only the "Leader" will do pings, because it is the only side
+        # which can decide "our peer connection is dead"
+        if self._my_role == LEADER:
+            # if we have just RE-connected, then we'll already have a
+            # _traffic instance but the first time we connect we do not
+            if self._traffic is None:
+                self._traffic = TrafficTimer(self._signal_reconnect, self._send_ping_reset_timer)
+            self._traffic.got_connection()
+
         self.connection_made()  # state machine update
         self._connection = c
         self._inbound.use_connection(c)
@@ -290,6 +505,9 @@ class Manager(object):
         pass
 
     def connector_connection_lost(self):
+        # ultimately called after a DilatedConnectionProtocol disconnects
+        if self._traffic is not None:
+            self._traffic.lost_connection()
         self._stop_using_connection()
         if self._my_role is LEADER:
             self.connection_lost_leader()  # state machine
@@ -305,6 +523,11 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
+        ## XXX do we want to tell the TrafficTimer state-machine every
+        ## time we see _any_ traffic (i.e. here) or demand that the
+        ## Pong be delivered? if self._traffic is not None:
+        ## self._traffic.traffic_seen()
+
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -330,21 +553,61 @@ class Manager(object):
             log.err(UnknownMessageType("{}".format(r)))
 
     # pings, pongs, and acks are not queued
-    def send_ping(self, ping_id):
+    def send_ping(self, ping_id, on_pong):  # ping_id is bytes? (yes, 4 bytes)
+        assert ping_id not in self._pings_outstanding, "Duplicate ping_id"
+        self._pings_outstanding[ping_id] = (on_pong, self._reactor.seconds())
         self._outbound.send_if_connected(Ping(ping_id))
 
-    def send_pong(self, ping_id):
+    def send_pong(self, ping_id):  # ping_id is bytes?
         self._outbound.send_if_connected(Pong(ping_id))
 
     def send_ack(self, resp_seqnum):
         self._outbound.send_if_connected(Ack(resp_seqnum))
 
     def handle_ping(self, ping_id):
+        self._peer_saw_ping()
         self.send_pong(ping_id)
 
     def handle_pong(self, ping_id):
-        # TODO: update is-alive timer
-        pass
+        if ping_id not in self._pings_outstanding:
+            print("Weird: pong for ping that isn't outstanding")
+        else:
+            self._peer_saw_ping()
+            on_pong, start = self._pings_outstanding.pop(ping_id)
+            try:
+                on_pong(self._reactor.seconds() - start)
+            except Exception as e:
+                print(f"error in ping callback: {e}")
+
+    # status
+
+    def have_peer(self, conn):
+        """
+        Signal that we have selected a peer connection to use
+        """
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=ConnectedPeer(self._reactor.seconds(), self._reactor.seconds(), conn._description),
+            )
+        )
+
+    def _peer_saw_ping(self):
+        """
+        We have just seen Ping or Pong traffic from our peer.
+
+        Note that only the Leader sends Pings so one side will see
+        only Pongs and one will see only Pings.
+        """
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=evolve(
+                    self._latest_status.peer_connection,
+                    latest_ping=self._reactor.seconds(),
+                )
+            )
+        )
 
     # subchannel maintenance
     def allocate_subchannel_id(self):
@@ -514,40 +777,82 @@ class Manager(object):
     def notify_stopped(self):
         self._stopped.fire(None)
 
+    @m.output()
+    def send_status_connecting(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=ConnectingPeer(self._reactor.seconds()),
+            )
+        )
+
+    @m.output()
+    def send_status_reconnecting(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                # XXX TEST! (came up in manual)
+                peer_connection=ReconnectingPeer(self._reactor.seconds()),
+            )
+        )
+
+    @m.output()
+    def send_status_dilation_phase(self):
+        # send_dilation_phase has just run recently, incrementing
+        # this; "current status" is thus the prior value
+        dilation_phase = self._next_dilation_phase - 1
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                phase=dilation_phase,
+            )
+        )
+    @m.output()
+    def send_status_stopped(self):
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                peer_connection=NoPeer(),
+            )
+        )
+
+
     # We are born WAITING after the local app calls w.dilate(). We enter
     # WANTING (and send a PLEASE) when we learn of a mutually-compatible
     # dilation_version.
-    WAITING.upon(start, enter=WANTING, outputs=[send_please])
+    WAITING.upon(start, enter=WANTING, outputs=[send_please, send_status_dilation_phase])
 
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
-                 outputs=[choose_role, start_connecting_ignore_message])
+                 outputs=[choose_role, start_connecting_ignore_message, send_status_connecting])
 
     CONNECTING.upon(connection_made, enter=CONNECTED, outputs=[])
 
     # Leader
     CONNECTED.upon(connection_lost_leader, enter=FLUSHING,
-                   outputs=[send_reconnect])
+                   outputs=[send_reconnect, send_status_dilation_phase, send_status_reconnecting])
     FLUSHING.upon(rx_RECONNECTING, enter=CONNECTING,
-                  outputs=[start_connecting])
+                  outputs=[start_connecting, send_status_reconnecting])
 
     # Follower
     # if we notice a lost connection, just wait for the Leader to notice too
     CONNECTED.upon(connection_lost_follower, enter=LONELY, outputs=[])
     LONELY.upon(rx_RECONNECT, enter=CONNECTING,
-                outputs=[send_reconnecting, start_connecting])
+                outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
     # but if they notice it first, abandon our (seemingly functional)
     # connection, then tell them that we're ready to try again
     CONNECTED.upon(rx_RECONNECT, enter=ABANDONING, outputs=[abandon_connection])
     ABANDONING.upon(connection_lost_follower, enter=CONNECTING,
-                    outputs=[send_reconnecting, start_connecting])
+                    outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
     # and if they notice a problem while we're still connecting, abandon our
     # incomplete attempt and try again. in this case we don't have to wait
     # for a connection to finish shutdown
     CONNECTING.upon(rx_RECONNECT, enter=CONNECTING,
                     outputs=[stop_connecting,
                              send_reconnecting,
-                             start_connecting])
+                             start_connecting,
+                             send_status_dilation_phase,
+                             send_status_reconnecting])
 
     # rx_HINTS never changes state, they're just accepted or ignored
     WANTING.upon(rx_HINTS, enter=WANTING, outputs=[])  # too early
@@ -560,13 +865,13 @@ class Manager(object):
 
     WAITING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
     WANTING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped])
+    CONNECTING.upon(stop, enter=STOPPED, outputs=[stop_connecting, notify_stopped, send_status_stopped])
     CONNECTED.upon(stop, enter=STOPPING, outputs=[abandon_connection])
     ABANDONING.upon(stop, enter=STOPPING, outputs=[])
-    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped])
-    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped])
-    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped])
+    FLUSHING.upon(stop, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    LONELY.upon(stop, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    STOPPING.upon(connection_lost_leader, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
+    STOPPING.upon(connection_lost_follower, enter=STOPPED, outputs=[notify_stopped, send_status_stopped])
 
 
 @attrs
@@ -585,27 +890,42 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    # zero-arg callable that retrieves the current Mailbox status
+    _get_current_mailbox_status = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None
         self._pending_dilation_key = None
         self._pending_wormhole_versions = None
         self._pending_inbound_dilate_messages = deque()
+        self._status_updated_cb = None
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None, no_listen=False):
-        if not self._manager:
+    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
+               ping_interval=None):
+        # XXX this is just fed through directly from the public API;
+        # effectively, this _is_ a public API
+        self._status_updated_cb = status_update
+        if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
             my_dilation_side = make_side()
-            m = Manager(self._S, my_dilation_side,
-                        transit_relay_location,
-                        self._reactor, self._eventual_queue,
-                        self._cooperator, no_listen)
+            m = Manager(
+                self._S,
+                my_dilation_side,
+                transit_relay_location,
+                self._reactor,
+                self._eventual_queue,
+                self._cooperator,
+                ping_interval or 30.0,
+                no_listen,
+                status_update,
+                initial_mailbox_status=wormhole_status,
+            )
             self._manager = m
             if self._pending_dilation_key is not None:
                 m.got_dilation_key(self._pending_dilation_key)

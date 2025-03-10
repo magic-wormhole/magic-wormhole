@@ -191,13 +191,21 @@ class Mailbox(object):
     def T_mailbox_done(self):
         self._T.mailbox_done()
 
-    S0A.upon(connected, enter=S0B, outputs=[])
+    @m.output()
+    def status_connected(self):
+        print("status: connected")
+
+    @m.output()
+    def status_disconnected(self):
+        print("status: disconnected")
+
+    S0A.upon(connected, enter=S0B, outputs=[status_connected])
     S0A.upon(got_mailbox, enter=S1A, outputs=[record_mailbox])
     S0A.upon(add_message, enter=S0A, outputs=[queue])
-    S0A.upon(close, enter=S4A, outputs=[ignore_mood_and_T_mailbox_done])
-    S0B.upon(lost, enter=S0A, outputs=[])
+    S0A.upon(close, enter=S4A, outputs=[ignore_mood_and_T_mailbox_done, status_disconnected])
+    S0B.upon(lost, enter=S0A, outputs=[status_disconnected])
     S0B.upon(add_message, enter=S0B, outputs=[queue])
-    S0B.upon(close, enter=S4B, outputs=[ignore_mood_and_T_mailbox_done])
+    S0B.upon(close, enter=S4B, outputs=[ignore_mood_and_T_mailbox_done, status_disconnected])
     S0B.upon(
         got_mailbox,
         enter=S2B,

@@ -206,6 +206,7 @@ class Connector(object):
         self.stop_pending_connectors()
         self.stop_pending_connections()
 
+        print("winner", c, type(c))
         c.select(self._manager)  # subsequent frames go directly to the manager
         # c.select also wires up when_disconnected() to fire
         # manager.connector_connection_lost(). TODO: rename this, since the
