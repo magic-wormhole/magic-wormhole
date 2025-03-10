@@ -380,7 +380,8 @@ class Manager(object):
             log.err(UnknownMessageType("{}".format(r)))
 
     # pings, pongs, and acks are not queued
-    def send_ping(self, ping_id, on_pong):  # ping_id is bytes? (yes, 4 bytes)
+    def send_ping(self, ping_id, on_pong=None):
+        # ping_id is 4 bytes
         assert ping_id not in self._pings_outstanding, "Duplicate ping_id"
         self._pings_outstanding[ping_id] = (on_pong, self._reactor.seconds())
         self._outbound.send_if_connected(Ping(ping_id))
@@ -399,12 +400,12 @@ class Manager(object):
             print("Weird: pong for ping that isn't outstanding")
         else:
             on_pong, start = self._pings_outstanding.pop(ping_id)
-            try:
-                on_pong(self._reactor.seconds() - start)
-            except Exception as e:
-                print(f"error in ping callback: {e}")
+            if on_pong is not None:
+                try:
+                    on_pong(self._reactor.seconds() - start)
+                except Exception as e:
+                    print(f"error in ping callback: {e}")
         # TODO: update is-alive timer
-        pass
 
     # status
 
