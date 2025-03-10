@@ -506,6 +506,9 @@ class Manager(object):
 
     def _stop_using_connection(self):
         # the connection is already lost by this point
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
         self._connection = None
         self._inbound.stop_using_connection()
         self._outbound.stop_using_connection()  # does c.unregisterProducer
@@ -766,6 +769,9 @@ class Manager(object):
     def abandon_connection(self):
         # we think we're still connected, but the Leader disagrees. Or we've
         # been told to shut down.
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
         self._connection.disconnect()  # let connection_lost do cleanup
 
     @m.output()
