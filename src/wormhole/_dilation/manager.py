@@ -709,7 +709,6 @@ class Dilator(object):
         self._pending_dilation_key = None
         self._pending_wormhole_versions = None
         self._pending_inbound_dilate_messages = deque()
-        self._status_updated_cb = None
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
@@ -719,7 +718,6 @@ class Dilator(object):
     def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
-        self._status_updated_cb = status_update
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
