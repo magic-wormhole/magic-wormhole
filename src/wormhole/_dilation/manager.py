@@ -1,5 +1,4 @@
 import os
-import time
 from collections import deque
 from collections.abc import Sequence
 from attr import attrs, attrib, evolve
