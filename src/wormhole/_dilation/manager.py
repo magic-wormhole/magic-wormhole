@@ -372,7 +372,6 @@ class Manager(object):
             # they're so new that they no longer accommodate our old version
             self.fail(failure.Failure(OldPeerCannotDilateError()))
 
-        ##self._maybe_send_status(DilationStarted())
         self.start()
 
     # from _boss.Boss
