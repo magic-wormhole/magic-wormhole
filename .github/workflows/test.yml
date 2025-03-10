@@ -32,7 +32,7 @@ jobs:
 
     - name: PR Coverage Graph
       shell: bash
-      run: git diff ${GITHUB_BASE_REF}.. | cuv diff -
+      run: git diff origin/${GITHUB_BASE_REF}.. | cuv diff -
       continue-on-error: true
 
   flake8:
