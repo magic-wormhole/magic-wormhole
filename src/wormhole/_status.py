@@ -40,7 +40,7 @@ class ReconnectingPeer:
 @frozen
 class ConnectedPeer:
     connected_at: int  # when we first connected (seconds since epoch)
-    latest_ping: int  # last Ping/Pong traffic seen (seconds since epoch)
+    expires_at: int  # earliest we will consider re-connecting (seconds since epoch)
     hint_description: str  # what sort of connection is this?
 
 
