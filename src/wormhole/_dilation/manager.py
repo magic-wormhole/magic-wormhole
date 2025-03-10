@@ -235,7 +235,10 @@ class Manager(object):
     def _maybe_send_status(self, status_msg):
         self._latest_status = status_msg
         if self._status is not None:
-            self._status(status_msg)
+            try:
+                self._status(status_msg)
+            except Exception as e:
+                print(f"trying to send _status(): {e}")
 
     def fail(self, f):
         self._endpoints.control._main_channel_failed(f)
