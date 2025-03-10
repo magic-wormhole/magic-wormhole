@@ -4,6 +4,8 @@ from twisted.internet.defer import inlineCallbacks
 from attrs import evolve
 
 
+from ...wormhole import create
+from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
 from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer
@@ -26,7 +28,6 @@ class API(ServerBase, unittest.TestCase):
         wormhole_status0 = []
         wormhole_status1 = []
 
-        from wormhole.wormhole import create
         w0 = create(
             "appid", self.relayurl,
             reactor,
@@ -89,9 +90,6 @@ class API(ServerBase, unittest.TestCase):
         )
 
         # check that the Dilation status messages are correct
-        for s in status0:
-            print(s)
-
         self.assertEqual(
             status0,
             [
