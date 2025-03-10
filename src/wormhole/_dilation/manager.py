@@ -520,11 +520,6 @@ class Manager(object):
     # from our active Connection
 
     def got_record(self, r):
-        ## XXX do we want to tell the TrafficTimer state-machine every
-        ## time we see _any_ traffic (i.e. here) or demand that the
-        ## Pong be delivered? if self._traffic is not None:
-        ## self._traffic.traffic_seen()
-
         # records with sequence numbers: always ack, ignore old ones
         if isinstance(r, (Open, Data, Close)):
             self.send_ack(r.seqnum)  # always ack, even for old ones
@@ -548,6 +543,11 @@ class Manager(object):
             self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
             log.err(UnknownMessageType("{}".format(r)))
+        # todo: it might be better to tell the TrafficTimer
+        # state-machine every time we see _any_ traffic (i.e. here)
+        # -- currently we're demanding that we see the "Pong"
+        # if self._traffic is not None:
+        #     self._traffic.traffic_seen()
 
     # pings, pongs, and acks are not queued
     def send_ping(self, ping_id, on_pong=None):
