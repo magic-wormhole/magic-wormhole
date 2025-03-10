@@ -143,8 +143,6 @@ class API(ServerBase, unittest.TestCase):
             return evolve(st, peer_connection=peer)
 
         normalized = [normalize_peer(st) for st in status0]
-        for p in normalized:
-            print(p)
 
         # check that the Dilation status messages are correct
         self.assertEqual(
