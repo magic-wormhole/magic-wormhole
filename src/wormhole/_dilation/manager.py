@@ -255,7 +255,8 @@ class Manager(object):
             self.rx_PLEASE(message)
         elif type == "connection-hints":
             self.rx_HINTS(message)
-            # XXX send a status message?
+            # todo: could be useful to put "hints" in status, and send
+            # a status update when getting new hints?
         elif type == "reconnect":
             self.rx_RECONNECT()
         elif type == "reconnecting":
