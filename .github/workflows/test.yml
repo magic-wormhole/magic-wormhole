@@ -23,15 +23,17 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip tox codecov
+        python -m pip install --upgrade pip tox codecov cuvner
 
     - name: Test
       run: |
         python --version
         tox -e coverage
 
-    - name: Upload Coverage
-      run: codecov
+    - name: PR Coverage Graph
+      shell: bash
+      run: git diff master.. | cuv diff -
+      continue-on-error: true
 
   flake8:
     runs-on: ubuntu-latest
