@@ -335,7 +335,6 @@ class Boss(object):
         self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
-        # send status first, or .got_versions()? What if got_versions() raises?
         self._wormhole_status(
             evolve(
                 self._current_wormhole_status,
