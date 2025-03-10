@@ -312,9 +312,9 @@ class Manager(object):
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
 
-        # manage our notion of "we have seen traffic recently" or not
-        # .. probably we should only actually do this if we're the
-        # Leader?
+        # Manage our notion of "we have seen traffic recently" or not
+        # Only the Leader does this (as only it can decide "we need a
+        # new generation")
         self._traffic = None
         self._timer = None
 
