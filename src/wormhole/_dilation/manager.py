@@ -401,10 +401,7 @@ class Manager(object):
         else:
             on_pong, start = self._pings_outstanding.pop(ping_id)
             if on_pong is not None:
-                try:
-                    on_pong(self._reactor.seconds() - start)
-                except Exception as e:
-                    print(f"error in ping callback: {e}")
+                on_pong(self._reactor.seconds() - start)
         # TODO: update is-alive timer
 
     # status

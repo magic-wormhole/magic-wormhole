@@ -589,6 +589,21 @@ class TestManager(unittest.TestCase):
                          [mock.call.send_if_connected(Pong(3))])
         clear_mock_calls(h.outbound)
 
+        # sort of low-level; what does this look like to API user?
+        class FakeError(Exception):
+            pass
+
+        def cause_error(_):
+            raise FakeError()
+        m.send_ping(4, cause_error)
+        self.assertEqual(h.outbound.mock_calls,
+                         [mock.call.send_if_connected(Pong(4))])
+        clear_mock_calls(h.outbound)
+        with self.assertRaises(FakeError):
+            m.got_record(Pong(4))
+
+
+
     def test_subchannel(self):
         m, h = make_manager(leader=True)
         clear_mock_calls(h.inbound)
