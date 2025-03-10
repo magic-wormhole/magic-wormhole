@@ -151,6 +151,10 @@ several optional arguments:
    that will be made available to the peer via the ``got_version``
    event. This data is delivered before any data messages, and can be
    used to indicate peer capabilities.
+- ``on_status_update``: this single-argument callable will receive
+   instances of ``wormhole.WormholeStatus`` as the status of our
+   wormhole changes; useful to show your users
+
 
 Code Management
 ---------------
