@@ -64,10 +64,10 @@ release-test:
 	rm -rf testmf_venv
 
 release-upload:
-	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_wormhole-`git describe --abbrev=0`.tar.gz dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
+	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-wormhole-`git describe --abbrev=0`.tar.gz dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	mv dist/*-`git describe --abbrev=0`.tar.gz.asc signatures/
 	mv dist/*-`git describe --abbrev=0`-py3-none-any.whl.asc signatures/
-	git add signatures/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
+	git add signatures/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	git add signatures/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	git commit -m "signatures for release"
 	git push origin-push `git describe --abbrev=0`
