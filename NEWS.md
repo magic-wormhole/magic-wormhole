@@ -15,7 +15,7 @@ User-visible changes in "magic-wormhole":
 * Support Read the Docs pull-request builds
 * Drop support for Python 3.8 (#556)
 * Add broken-link checker (#588, https://github.com/Cycloctane)
-* Pre-emptively fix Click 8.2 (#584, @cjwatson)
+* Preemptively fix Click 8.2 (#584, @cjwatson)
 * Basic support for PEP518 (#579, @SnoopJ)
 * Add WORMHOLE_ACCEPT_FILE (#570, @haatveit)
 
