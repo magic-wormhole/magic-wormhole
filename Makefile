@@ -52,14 +52,14 @@ release:
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
-	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
+	gpg --verify dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	python -m venv testmf_venv
 	testmf_venv/bin/pip install --upgrade pip
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
 	testmf_venv/bin/pip uninstall -y magic_wormhole
-	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz
+	testmf_venv/bin/pip install dist/magic-wormhole-`git describe --abbrev=0`.tar.gz
 	testmf_venv/bin/wormhole --version
 	rm -rf testmf_venv
 
