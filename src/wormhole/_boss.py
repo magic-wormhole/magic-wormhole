@@ -335,12 +335,6 @@ class Boss(object):
         self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                peer_key=ConfirmedKey(),
-            )
-        )
         self._W.got_versions(app_versions)
 
     @m.output()
@@ -390,6 +384,15 @@ class Boss(object):
             evolve(
                 self._current_wormhole_status,
                 peer_key=AllegedSharedKey(),
+            )
+        )
+
+    @m.output()
+    def send_status_confirmed_key(self, plaintext):
+        self._wormhole_status(
+            evolve(
+                self._current_wormhole_status,
+                peer_key=ConfirmedKey(),
             )
         )
 
@@ -445,7 +448,7 @@ class Boss(object):
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
-    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
+    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, send_status_confirmed_key])
     S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
