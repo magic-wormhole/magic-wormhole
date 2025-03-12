@@ -83,6 +83,10 @@ class RendezvousConnector(object):
         ep = self._make_endpoint(self._url)
         self._maybe_send_status(WormholeStatus())
 
+        # ideally, Twisted's ClientService would have an API to tell
+        # us when it tries to do a connection, but it doesn't. So
+        # instead, we wrap the endpoint's "connect()" method so we
+        # know a connection attempt has been made
         orig = ep.connect
         def connect_wrap(*args, **kw):
             self._maybe_send_status(WormholeStatus(Connecting(self._url, self._reactor.seconds())))
