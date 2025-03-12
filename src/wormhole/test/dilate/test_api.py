@@ -137,9 +137,9 @@ class API(ServerBase, unittest.TestCase):
             typ = type(st.peer_connection)
             peer = st.peer_connection
             if typ == ConnectingPeer:
-                peer = evolve(peer, timestamp=0)
+                peer = evolve(peer, last_attempt=0)
             elif typ == ConnectedPeer:
-                peer = evolve(peer, timestamp=0, hint_description="hint")
+                peer = evolve(peer, connected_at=0, hint_description="hint")
             return evolve(st, peer_connection=peer)
 
         normalized = [normalize_peer(st) for st in status0]

@@ -9,7 +9,7 @@ class Disconnected:
 @frozen
 class Connecting:
     url: str
-    last_attempt: int  # most-recent second we last tried connecting
+    last_attempt: int  # unix-timestamp when we last tried connecting
 
 
 @frozen
@@ -29,17 +29,17 @@ class NoPeer:
 
 @frozen
 class ConnectingPeer:
-    timestamp: int
+    last_attempt: int  # unix-timestamp
 
 
 @frozen
 class ReconnectingPeer:
-    timestamp: int
+    last_attempt: int  # unix-timestamp
 
 
 @frozen
 class ConnectedPeer:
-    timestamp: int
+    connected_at: int  # unix-timestamp
     hint_description: str
 
 
@@ -55,7 +55,7 @@ class AllegedSharedKey:
 
 @frozen
 class ConfirmedKey:
-    pass  # DO NOT relveal real key here; "status" messages are for users
+    pass  # DO NOT reveal real key here; "status" messages are for users
 
 
 # General mailbox statuses
@@ -66,14 +66,9 @@ PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey
 PeerConnection = NoPeer | ConnectingPeer | ConnectedPeer
 
 
-# Q: is there "NeverConnected" versus "Disconnected(last_timestamp)"? ...or is "Disconnected" fine?
-# (if we're "Disconnected" but also have a PeerSharedKey one could
-# deduce that we did connect at some point? but ...)
-
-
-# NOTE: probably none of the status stuff should ever reveal
-# secret/sensitive information -- on the grounds this will probably be
-# shown to a all this to a user somehow/somewhen
+# NOTE: probably none of the status stuff should ever reveal secret or
+# sensitive information -- on the grounds all this will probably be
+# shown to a user at some point
 
 
 @frozen

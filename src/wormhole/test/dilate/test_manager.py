@@ -180,7 +180,7 @@ class ReactorOnlyTime:
     """
     Provide a reactor-like mock that at least has seconds()
     """
-    # not ideal, buy prior to this the "reactor" below was literally
+    # not ideal, but prior to this the "reactor" below was literally
     # just "object()"
 
     def seconds(self):
