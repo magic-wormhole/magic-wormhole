@@ -104,8 +104,8 @@ class DilationStatus(object):
     # status of our connection to the Mailbox Server
     mailbox: WormholeStatus
 
-    # current Dilation phase (ever increasing, aka "generation")
-    phase: int
+    # current Dilation generation (ever increasing number)
+    generation: int
 
     # communication status with peer
     peer_connection: PeerConnection = NoPeer()

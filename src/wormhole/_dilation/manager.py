@@ -160,8 +160,8 @@ class Manager(object):
         self._stopped = OneShotObserver(self._eventual_queue)
         self._debug_stall_connector = False
 
-        self._next_dilation_phase = 0
-        self._latest_status = DilationStatus(mailbox=self._initial_mailbox_status or WormholeStatus(), phase=0)
+        self._next_dilation_generation = 0
+        self._latest_status = DilationStatus(mailbox=self._initial_mailbox_status or WormholeStatus(), generation=0)
         # do not "del" this, the attrs __repr__ gets sad
         self._initial_mailbox_status = None
 
@@ -265,13 +265,13 @@ class Manager(object):
     def when_stopped(self):
         return self._stopped.when_fired()
 
-    def send_dilation_phase(self, **fields):
-        dilation_phase = self._next_dilation_phase
-        self._next_dilation_phase += 1
-        self._S.send("dilate-%d" % dilation_phase, dict_to_bytes(fields))
+    def send_dilation_generation(self, **fields):
+        dilation_generation = self._next_dilation_generation
+        self._next_dilation_generation += 1
+        self._S.send("dilate-%d" % dilation_generation, dict_to_bytes(fields))
 
     def send_hints(self, hints):  # from Connector
-        self.send_dilation_phase(type="connection-hints", hints=hints)
+        self.send_dilation_generation(type="connection-hints", hints=hints)
 
     # forward inbound-ish things to _Inbound
 
@@ -507,7 +507,7 @@ class Manager(object):
         }
         if self._dilation_version is not None:
             msg["use-version"] = self._dilation_version
-        self.send_dilation_phase(**msg)
+        self.send_dilation_generation(**msg)
 
     @m.output()
     def choose_role(self, message):
@@ -555,11 +555,11 @@ class Manager(object):
 
     @m.output()
     def send_reconnect(self):
-        self.send_dilation_phase(type="reconnect")  # TODO: generation number?
+        self.send_dilation_generation(type="reconnect")  # TODO: generation number?
 
     @m.output()
     def send_reconnecting(self):
-        self.send_dilation_phase(type="reconnecting")  # TODO: generation?
+        self.send_dilation_generation(type="reconnecting")  # TODO: generation?
 
     @m.output()
     def use_hints(self, hint_message):
@@ -596,20 +596,19 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                # XXX TEST! (came up in manual)
                 peer_connection=ReconnectingPeer(self._reactor.seconds()),
             )
         )
 
     @m.output()
-    def send_status_dilation_phase(self):
-        # send_dilation_phase has just run recently, incrementing
+    def send_status_dilation_generation(self):
+        # send_dilation_generation has just run recently, incrementing
         # this; "current status" is thus the prior value
-        dilation_phase = self._next_dilation_phase - 1
+        dilation_generation = self._next_dilation_generation - 1
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                phase=dilation_phase,
+                generation=dilation_generation,
             )
         )
     @m.output()
@@ -625,7 +624,7 @@ class Manager(object):
     # We are born WAITING after the local app calls w.dilate(). We enter
     # WANTING (and send a PLEASE) when we learn of a mutually-compatible
     # dilation_version.
-    WAITING.upon(start, enter=WANTING, outputs=[send_please, send_status_dilation_phase])
+    WAITING.upon(start, enter=WANTING, outputs=[send_please, send_status_dilation_generation])
 
     # we start CONNECTING when we get rx_PLEASE
     WANTING.upon(rx_PLEASE, enter=CONNECTING,
@@ -635,7 +634,7 @@ class Manager(object):
 
     # Leader
     CONNECTED.upon(connection_lost_leader, enter=FLUSHING,
-                   outputs=[send_reconnect, send_status_dilation_phase, send_status_reconnecting])
+                   outputs=[send_reconnect, send_status_dilation_generation, send_status_reconnecting])
     FLUSHING.upon(rx_RECONNECTING, enter=CONNECTING,
                   outputs=[start_connecting, send_status_reconnecting])
 
@@ -643,12 +642,12 @@ class Manager(object):
     # if we notice a lost connection, just wait for the Leader to notice too
     CONNECTED.upon(connection_lost_follower, enter=LONELY, outputs=[])
     LONELY.upon(rx_RECONNECT, enter=CONNECTING,
-                outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
+                outputs=[send_reconnecting, start_connecting, send_status_dilation_generation, send_status_reconnecting])
     # but if they notice it first, abandon our (seemingly functional)
     # connection, then tell them that we're ready to try again
     CONNECTED.upon(rx_RECONNECT, enter=ABANDONING, outputs=[abandon_connection])
     ABANDONING.upon(connection_lost_follower, enter=CONNECTING,
-                    outputs=[send_reconnecting, start_connecting, send_status_dilation_phase, send_status_reconnecting])
+                    outputs=[send_reconnecting, start_connecting, send_status_dilation_generation, send_status_reconnecting])
     # and if they notice a problem while we're still connecting, abandon our
     # incomplete attempt and try again. in this case we don't have to wait
     # for a connection to finish shutdown
@@ -656,7 +655,7 @@ class Manager(object):
                     outputs=[stop_connecting,
                              send_reconnecting,
                              start_connecting,
-                             send_status_dilation_phase,
+                             send_status_dilation_generation,
                              send_status_reconnecting])
 
     # rx_HINTS never changes state, they're just accepted or ignored
