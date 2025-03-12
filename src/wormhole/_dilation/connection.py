@@ -562,9 +562,13 @@ class DilatedConnectionProtocol(Protocol, object):
     @m.output()
     def set_manager(self, manager):
         self._manager = manager
-        self._manager.have_peer(self)
         self.when_disconnected().addCallback(lambda c:
                                              manager.connector_connection_lost())
+
+    @m.output()
+    def send_status_have_peer(self, manager):
+        assert self._manager is not None, "_manager must be set by now"
+        self._manager.have_peer(self)
 
     @m.output()
     def can_send_records(self, manager):
@@ -583,7 +587,7 @@ class DilatedConnectionProtocol(Protocol, object):
     unselected.upon(got_kcm, outputs=[add_candidate], enter=selecting)
     selecting.upon(got_record, outputs=[queue_inbound_record], enter=selecting)
     selecting.upon(select,
-                   outputs=[set_manager, can_send_records, process_inbound_queue],
+                   outputs=[set_manager, send_status_have_peer, can_send_records, process_inbound_queue],
                    enter=selected)
     selected.upon(got_record, outputs=[deliver_record], enter=selected)
 
