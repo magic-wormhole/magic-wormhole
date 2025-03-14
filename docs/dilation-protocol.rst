@@ -124,7 +124,7 @@ both pick ``"ged"`` as the version to use.
 
 In this illustration, Brand is the leader because their "side" value is higher (that is, ``ff36f931f560e7f5`` is bigger than ``214fdf39e7ad016f``).
 They both chose the version ``"ged"`` in this case, but if there was disagreement, the Leader's decision wins.
-It is a protocol error if the Folllow cannot speak the chosen version (and they should immediately close the Mailbox and disconnect).
+It is a protocol error if the Follower cannot speak the chosen version (and they should immediately close the Mailbox and disconnect).
 
 
 Connection Layers

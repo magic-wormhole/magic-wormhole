@@ -128,6 +128,27 @@ def make_side():
 #   in "want", leader waits forever in "wanted"
 
 
+def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
+    """
+    """
+    their_dilation_versions = set(their_versions)
+    shared_versions = set(my_versions).intersection(their_dilation_versions)
+    best_version = None
+    # XXX refactor: bare function to pick names
+    if shared_versions:
+        # the "best" one is whichever version is highest up the
+        # list of acceptable versions
+        best = sorted([
+            (my_versions.index(v), v)
+            for v in shared_versions
+        ])
+        best_version= best[0][1]
+
+    # dilation_version is the best mutually-compatible version we have
+    # with the peer, or None if we have nothing in common
+    return best_version
+
+
 @attrs(eq=False)
 class TrafficTimer(object):
     """
@@ -240,27 +261,6 @@ class TrafficTimer(object):
         enter=no_connection,
         outputs=[]
     )
-
-
-def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
-    """
-    """
-    their_dilation_versions = set(their_versions)
-    shared_versions = set(my_versions).intersection(their_dilation_versions)
-    best_version = None
-    # XXX refactor: bare function to pick names
-    if shared_versions:
-        # the "best" one is whichever version is higest up the
-        # list of acceptable versions
-        best = sorted([
-            (my_versions.index(v), v)
-            for v in shared_versions
-        ])
-        best_version= best[0][1]
-
-    # dilation_version is the best mutually-compatible version we have
-    # with the peer, or None if we have nothing in common
-    return best_version
 
 
 @attrs(eq=False)
