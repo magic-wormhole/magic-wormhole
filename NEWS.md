@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * Add a "status" feedback API for Dilation (#591, @meejah)
+* Drop support for Python 3.9, upgrade github-actions (#596)
 * (add release-notes here when making PRs)
 
 
