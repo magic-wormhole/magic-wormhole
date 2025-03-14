@@ -135,7 +135,7 @@ def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
     best_version = None
     # XXX refactor: bare function to pick names
     if shared_versions:
-        # the "best" one is whichever version is higest up the
+        # the "best" one is whichever version is highest up the
         # list of acceptable versions
         best = sorted([
             (my_versions.index(v), v)
