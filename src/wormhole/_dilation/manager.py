@@ -130,11 +130,14 @@ def make_side():
 
 def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
     """
+    Decide on a best version given a ranked list of our and their
+    versions (consisting of arbitrary strings). We prefer a higher
+    version from 'our' list over the other list.
     """
     their_dilation_versions = set(their_versions)
     shared_versions = set(my_versions).intersection(their_dilation_versions)
     best_version = None
-    # XXX refactor: bare function to pick names
+
     if shared_versions:
         # the "best" one is whichever version is highest up the
         # list of acceptable versions
@@ -142,7 +145,7 @@ def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
             (my_versions.index(v), v)
             for v in shared_versions
         ])
-        best_version= best[0][1]
+        best_version = best[0][1]
 
     # dilation_version is the best mutually-compatible version we have
     # with the peer, or None if we have nothing in common
