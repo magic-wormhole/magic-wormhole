@@ -144,7 +144,7 @@ find it on your ``$PATH``.
 
 You probably *don’t* want to use ``sudo`` when you run ``pip``. This
 tends to create
-`conflicts <https://github.com/warner/magic-wormhole/issues/336>`__ with
+`conflicts <https://github.com/magic-wormhole/magic-wormhole/issues/336>`__ with
 the system python libraries.
 
 On OS X, you may need to pre-install ``pip``, and run
@@ -247,7 +247,7 @@ desire more reliability can easily run their own relay and configure
 their clients to use it instead. Code for the Mailbox Server is in a
 separate package named ``magic-wormhole-mailbox-server`` and has
 documentation
-`here <https://github.com/warner/magic-wormhole-mailbox-server/blob/master/docs/welcome.md>`__.
+`here <https://github.com/magic-wormhole/magic-wormhole-mailbox-server/blob/master/docs/welcome.md>`__.
 Both clients must use the same mailbox server. The default can be
 overridden with the ``--relay-url`` option.
 
@@ -261,7 +261,7 @@ using the transit relay. As before, the host/port of a public server is
 baked into the library, and should be sufficient to handle moderate
 traffic. Code for the Transit Relay is provided a separate package named
 ``magic-wormhole-transit-relay`` with instructions
-`here <https://github.com/warner/magic-wormhole-transit-relay/blob/master/docs/running.md>`__.
+`here <https://github.com/magic-wormhole/magic-wormhole-transit-relay/blob/master/docs/running.md>`__.
 The clients exchange transit relay information during connection
 negotiation, so they can be configured to use different ones without
 problems. Use the ``--transit-helper`` option to override the default.
@@ -293,7 +293,7 @@ If you desire shell tab-completion on sub-commands, we include generated
 files `from
 Click <https://click.palletsprojects.com/en/8.1.x/shell-completion/>`__
 for Bash, Zsh and Fish shells in
-`wormhole_completion.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_completion.bash>`__
+`wormhole_completion.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_complete.bash>`__
 (or ``.zsh``, ``.fish``). Put this file in your favourite location and
 add a line like ``source ~/wormhole_completion.bash`` to ``~/.bashrc``
 (or similar for ``zsh`` and ``fish`` shells).
@@ -318,7 +318,7 @@ Development
 -----------
 
 -  Bugs and patches at the `GitHub project
-   page <https://github.com/warner/magic-wormhole>`__.
+   page <https://github.com/magic-wormhole/magic-wormhole>`__.
 -  Chat via `IRC <irc://irc.libera.chat/#magic-wormhole>`__:
    #magic-wormhole on irc.libera.chat
 -  Chat via `Matrix <https://matrix.to/#/#magic-wormhole:matrix.org>`__:
