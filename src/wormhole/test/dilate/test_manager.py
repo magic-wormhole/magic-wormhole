@@ -14,6 +14,7 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnknownMessageType)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from ..._dilation.subchannel import _SubchannelAddress
+from ..._status import WormholeStatus
 from .common import clear_mock_calls
 
 
@@ -34,7 +35,7 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop)
+    dil = Dilator(h.reactor, h.eq, h.coop, lambda: WormholeStatus())
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)
@@ -61,7 +62,7 @@ class TestDilator(unittest.TestCase):
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, False)])
+                                                   h.reactor, h.eq, h.coop, False, None, initial_mailbox_status=None)])
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])
@@ -168,11 +169,22 @@ class TestDilator(unittest.TestCase):
                         return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, False)])
+                                                   h.reactor, h.eq, h.coop, False, None, initial_mailbox_status=None)])
 
 
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
+
+
+class ReactorOnlyTime:
+    """
+    Provide a reactor-like mock that at least has seconds()
+    """
+    # not ideal, but prior to this the "reactor" below was literally
+    # just "object()"
+
+    def seconds(self):
+        return 42
 
 
 def make_manager(leader=True):
@@ -185,7 +197,7 @@ def make_manager(leader=True):
         side = FOLLOWER
     h.key = b"\x00" * 32
     h.relay = None
-    h.reactor = object()
+    h.reactor = ReactorOnlyTime()
     h.clock = Clock()
     h.eq = EventualQueue(h.clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
@@ -572,10 +584,25 @@ class TestManager(unittest.TestCase):
         self.assertEqual(len(e), 1)
         self.assertEqual(str(e[0].value), "not recognized")
 
-        m.send_ping(3)
+        m.send_ping(3, lambda _: None)
         self.assertEqual(h.outbound.mock_calls,
                          [mock.call.send_if_connected(Pong(3))])
         clear_mock_calls(h.outbound)
+
+        # sort of low-level; what does this look like to API user?
+        class FakeError(Exception):
+            pass
+
+        def cause_error(_):
+            raise FakeError()
+        m.send_ping(4, cause_error)
+        self.assertEqual(h.outbound.mock_calls,
+                         [mock.call.send_if_connected(Pong(4))])
+        clear_mock_calls(h.outbound)
+        with self.assertRaises(FakeError):
+            m.got_record(Pong(4))
+
+
 
     def test_subchannel(self):
         m, h = make_manager(leader=True)

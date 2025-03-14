@@ -151,6 +151,10 @@ several optional arguments:
    that will be made available to the peer via the ``got_version``
    event. This data is delivered before any data messages, and can be
    used to indicate peer capabilities.
+- ``on_status_update``: this single-argument callable will receive
+   instances of ``wormhole.WormholeStatus`` as the status of our
+   wormhole changes; useful to show your users
+
 
 Code Management
 ---------------
@@ -581,6 +585,11 @@ server-imposed number/size/rate limits apply. Calling ``w.dilate()``
 initiates the dilation process, and eventually yields a set of
 Endpoints. Once dilated these endpoints can be used to establish
 multiple (encrypted) “subchannel” connections to the other side.
+
+You may pass an ``on_status_update`` callable to ``dilate()``, which
+is a function that will be called with ``wormhole.DilationStatus``
+instances whenever the status of the Dilation connection (or the
+associated mailbox connection) changes.
 
 Each subchannel behaves like a regular Twisted ``ITransport``, so they
 can be glued to the Protocol instance of your choice. They also
