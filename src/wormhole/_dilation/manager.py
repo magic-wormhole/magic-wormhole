@@ -381,7 +381,7 @@ class Manager(object):
             their_wormhole_versions.get("can-dilate", [])
         )
 
-        if not self._dilation_version:  # "1" or None
+        if not self._dilation_version:  # "ged" or None
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
