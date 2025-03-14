@@ -2,6 +2,7 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Drop support for Python 3.9, upgrade github-actions (#596)
 * (add release-notes here when making PRs)
 
 

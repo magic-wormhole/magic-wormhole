@@ -11,36 +11,45 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+      with:
+        # without fetch-depth, we do not get "origin/master" or "master"
+        # branch -- seems like there should be a less "heavyweight"
+        # approach to fix this; we want this so the "git diff
+        #  origin/master..HEAD" below works for coverage display
+        fetch-depth: "0"
+        ref: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip tox codecov
+        python -m pip install --upgrade pip tox codecov cuvner
 
     - name: Test
       run: |
         python --version
         tox -e coverage
 
-    - name: Upload Coverage
-      run: codecov
+    - name: PR Coverage Graph
+      shell: bash
+      run: git diff origin/master..HEAD | cuv diff -
+      continue-on-error: true
 
   flake8:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
 
     - name: Install dependencies
       run: |
@@ -55,10 +64,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
 
     - name: Install dependencies
       run: |
