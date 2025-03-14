@@ -16,6 +16,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
+        # without fetch-depth, we do not get "origin/master" or "master"
+        # branch -- seems like there should be a less "heavyweight"
+        # approach to fix this; we want this so the "git diff
+        #  origin/master..HEAD" below works for coverage display
         fetch-depth: "0"
         ref: "${{ github.event.pull_request.head.sha || github.sha }}"
 
