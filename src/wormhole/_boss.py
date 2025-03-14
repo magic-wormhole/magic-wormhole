@@ -218,13 +218,14 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
         # returns EndpointRecord; see wormhole.dilate() docs
         return self._D.dilate(
             transit_relay_location,
             no_listen=no_listen,
             wormhole_status=self._current_wormhole_status,
             status_update=on_status_update,
+            ping_interval=ping_interval,
         )
 
     @m.input()

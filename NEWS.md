@@ -4,6 +4,7 @@ User-visible changes in "magic-wormhole":
 
 * Add a "status" feedback API for Dilation (#591, @meejah)
 * Drop support for Python 3.9, upgrade github-actions (#596)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 * (add release-notes here when making PRs)
 
 

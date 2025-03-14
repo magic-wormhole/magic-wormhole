@@ -133,16 +133,24 @@ class API(ServerBase, unittest.TestCase):
             ]
         )
 
+        # we are "normalizing" all the timestamps to be "0" because we
+        # are using the real reactor and therefore it is difficult to
+        # predict what they'll be. Removing the "real reactor" is
+        # itself kind of a deep problem due to the "eventually()"
+        # usage (among some other reasons).
+
         def normalize_peer(st):
             typ = type(st.peer_connection)
             peer = st.peer_connection
             if typ == ConnectingPeer:
                 peer = evolve(peer, last_attempt=0)
             elif typ == ConnectedPeer:
-                peer = evolve(peer, connected_at=0, hint_description="hint")
+                peer = evolve(peer, connected_at=0, expires_at=0, hint_description="hint")
             return evolve(st, peer_connection=peer)
 
         normalized = [normalize_peer(st) for st in status0]
+
+        # for n in normalized: print(n)
 
         # check that the Dilation status messages are correct
         self.assertEqual(
@@ -152,8 +160,8 @@ class API(ServerBase, unittest.TestCase):
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectingPeer(0)),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
                 DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
             ]
         )
