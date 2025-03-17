@@ -11,7 +11,7 @@ from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
                    dict_to_bytes, provides)
 
-from ._status import WormholeStatus, Disconnected, Connecting, Connected
+from ._status import Disconnected, Connecting, Connected
 
 
 class WSClient(websocket.WebSocketClientProtocol):
@@ -70,7 +70,7 @@ class RendezvousConnector(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
-    _status = attrib(default=None)  # Callable([WormholeStatus], []) or whatever .. well, Maybe of that
+    _evolve_status = attrib()  # callable taking kwargs to change aspects of the status
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -81,7 +81,6 @@ class RendezvousConnector(object):
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         ep = self._make_endpoint(self._url)
-        self._maybe_send_status(WormholeStatus())
 
         # ideally, Twisted's ClientService would have an API to tell
         # us when it tries to do a connection, but it doesn't. So
@@ -89,7 +88,7 @@ class RendezvousConnector(object):
         # know a connection attempt has been made
         orig = ep.connect
         def connect_wrap(*args, **kw):
-            self._maybe_send_status(WormholeStatus(Connecting(self._url, self._reactor.seconds())))
+            self._evolve_status(mailbox_connection=Connecting(self._url, self._reactor.seconds()))
             return orig(*args, **kw)
         ep.connect = connect_wrap
 
@@ -103,11 +102,6 @@ class RendezvousConnector(object):
         # TODO: use EventualQueue
         d.addErrback(self._initial_connection_failed)
         self._debug_record_inbound_f = None
-
-    def _maybe_send_status(self, status_msg):
-        if self._status is not None:
-            # it's a 1-arg callable
-            self._status(status_msg)
 
     def set_trace(self, f):
         self._trace = f
@@ -190,7 +184,7 @@ class RendezvousConnector(object):
     def ws_open(self, proto):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
-        self._maybe_send_status(WormholeStatus(Connected(self._url)))
+        self._evolve_status(mailbox_connection=Connected(self._url))
         self._ws = proto
         try:
             self._tx(
@@ -235,7 +229,7 @@ class RendezvousConnector(object):
             raise
 
     def ws_close(self, wasClean, code, reason):
-        self._maybe_send_status(WormholeStatus(Disconnected()))
+        self._evolve_status(mailbox_connection=Disconnected())
         self._debug("R.lost")
         was_open = bool(self._ws)
         self._ws = None

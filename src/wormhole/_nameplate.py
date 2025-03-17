@@ -6,6 +6,7 @@ from zope.interface import implementer
 from . import _interfaces
 from ._wordlist import PGPWordList
 from .errors import KeyFormatError
+from ._status import AllocatedCode, ConsumedCode
 
 
 def validate_nameplate(nameplate):
@@ -20,9 +21,9 @@ class Nameplate(object):
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
 
-    def __init__(self, wormhole_status):  # Callable[[WormholeStatus], None]
+    def __init__(self, evolve_wormhole_status):
         self._nameplate = None
-        self._wormhole_status = wormhole_status
+        self._evolve_wormhole_status = evolve_wormhole_status
 
     def wire(self, mailbox, input, rendezvous_connector, terminator):
         self._M = _interfaces.IMailbox(mailbox)
@@ -162,20 +163,14 @@ class Nameplate(object):
 
     @m.output()
     def send_status_code_allocated(self):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                code=AllocatedCode(),
-            )
+        self._evolve_wormhole_status(
+            code=AllocatedCode(),
         )
 
     @m.output()
     def send_status_code_consumed(self):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                code=ConsumedCode(),
-            )
+        self._evolve_wormhole_status(
+            code=ConsumedCode(),
         )
 
     S0A.upon(_set_nameplate, enter=S1A, outputs=[record_nameplate])
