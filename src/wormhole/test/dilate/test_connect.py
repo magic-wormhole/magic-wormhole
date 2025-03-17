@@ -57,16 +57,13 @@ class Connect(unittest.TestCase):
         t_left = FakeTerminator()
         t_right = FakeTerminator()
 
-        def get_current_wormhole_status():
-            return "fake wormhole status"
-
-        d_left = manager.Dilator(reactor, eq, cooperator, ["ged"], get_current_wormhole_status)
+        d_left = manager.Dilator(reactor, eq, cooperator, ["ged"])
         d_left.wire(send_left, t_left)
         d_left.got_key(key)
         d_left.got_wormhole_versions({"can-dilate": ["ged"]})
         send_left.dilator = d_left
 
-        d_right = manager.Dilator(reactor, eq, cooperator, ["ged"], get_current_wormhole_status)
+        d_right = manager.Dilator(reactor, eq, cooperator, ["ged"])
         d_right.wire(send_right, t_right)
         d_right.got_key(key)
         d_right.got_wormhole_versions({"can-dilate": ["ged"]})

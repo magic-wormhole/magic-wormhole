@@ -35,7 +35,7 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop, DILATION_VERSIONS, lambda: WormholeStatus())
+    dil = Dilator(h.reactor, h.eq, h.coop, DILATION_VERSIONS)
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)

@@ -104,7 +104,7 @@ class Sender:
 
     def _on_status(self, status):
         if not isinstance(self._status.code, ConsumedCode) and isinstance(status.code, ConsumedCode):
-            print("Node: code has been consumed and can no longer be used.")
+            print("Note: code has been consumed and can no longer be used.", file=self._args.stdout)
         self._status = status
 
     @inlineCallbacks
