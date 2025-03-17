@@ -55,7 +55,7 @@ class Boss(object):
         self._init_other_state()
 
     def _build_workers(self):
-        self._N = Nameplate(self._wormhole_status)
+        self._N = Nameplate(self._evolve_wormhole_status)
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
@@ -63,14 +63,14 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
-                                       self._timing, self._client_version, self._wormhole_status)
+                                       self._timing, self._client_version, self._evolve_wormhole_status)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
         self._D = Dilator(self._reactor, self._eventual_queue,
-                          self._cooperator, lambda: self._current_wormhole_status)
+                          self._cooperator)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -97,10 +97,11 @@ class Boss(object):
 
         self._result = "empty"
 
-    def _wormhole_status(self, status):
+    def _evolve_wormhole_status(self, **kwargs):
         # we have to track "the wormhole status" somewhere, because
         # we'll be connected to the Mailbox (and maybe even the peer)
         # before anyone asks for Dilation at all
+        status = evolve(self._current_wormhole_status, **kwargs)
         self._current_wormhole_status = status
         if self._on_status_update is not None:
             self._on_status_update(self._current_wormhole_status)
@@ -381,20 +382,14 @@ class Boss(object):
 
     @m.output()
     def send_status_peer_key(self, key):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                peer_key=AllegedSharedKey(),
-            )
+        self._evolve_wormhole_status(
+            peer_key=AllegedSharedKey(),
         )
 
     @m.output()
     def send_status_confirmed_key(self, plaintext):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                peer_key=ConfirmedKey(),
-            )
+        self._evolve_wormhole_status(
+            peer_key=ConfirmedKey(),
         )
 
     @m.output()
