@@ -55,10 +55,11 @@ abilities of the peer. Dilation is signaled by a key named
 ``can-dilate``, whose value is a list of strings. Any version present in
 both side’s lists is eligible for use.
 
-Versions shall be named after wizard or mage characters from the
-`Earthsea
+Official versions shall be named after wizard or mage characters from
+the `Earthsea
 <https://en.wikipedia.org/wiki/List_of_characters_in_Earthsea>`_
-series by Ursula le Guin. The current list of valid versions is:
+series by Ursula le Guin. The current list of valid, supported
+versions is:
 
 - ``"ged"``: the first version
 
@@ -96,17 +97,17 @@ new one).
 
 The ``please`` includes a ``use-version`` key, computed as the “best”
 version of the intersection of the two sides’ abilities as reported in
-the ``versions`` message. Both sides will use whichever ``use-version``
-was specified by the Leader (they learn which side is the Leader at the
-same moment they learn the peer’s ``use-version`` value). If the
-Follower cannot handle the ``use-version`` value, Dilation fails (this
-should not happen with honest endpoints, as the Leader knew what the
-Follower was and was not capable of before sending that message).
+the ``versions`` message. Both sides will use whichever
+``use-version`` was specified by the Leader (they learn which side is
+the Leader at the same moment they learn the peer’s ``use-version``
+value). If the Follower cannot handle the ``use-version`` value,
+Dilation fails (this should not happen with honest endpoints, as the
+Leader knew what the Follower was and was not capable of before
+sending that message).
 
 In the example below, ``Brand`` has an experimental version available
-in first place, but ``Ayo`` does not understand that version so they
+in highest position, but ``Ayo`` does not understand that version so they
 both pick ``"ged"`` as the version to use.
-
 
 .. seqdiag::
 
