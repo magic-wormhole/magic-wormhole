@@ -100,7 +100,7 @@ class AllocatedCode:
 class ConsumedCode:
     """
     The code was used by the other side, and is now no longer
-    usable. The nameplate has been un-claimed (and may be reused by a
+    usable. The nameplate has been un-claimed (and may be re-used by a
     different code any time).
     """
 
