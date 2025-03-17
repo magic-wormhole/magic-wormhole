@@ -9,7 +9,7 @@ from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode
 
 from ..common import ServerBase
 
@@ -125,11 +125,15 @@ class API(ServerBase, unittest.TestCase):
         self.assertEqual(
             processed,
             [
-                WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
-                WormholeStatus(Connected(self.relayurl), NoKey()),
-                WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
-                WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
-                WormholeStatus(Disconnected(), NoKey()),
+                WormholeStatus(Disconnected(), NoKey(), NoCode()),
+                WormholeStatus(Connecting(self.relayurl, 1), NoKey(), NoCode()),
+                WormholeStatus(Connected(self.relayurl), NoKey(), NoCode()),
+                WormholeStatus(Connected(self.relayurl), NoKey(), AllocatedCode()),
+                # XXX order of this
+                WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()),
+                # XXX ...and this fluctuates
+                WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()),
+                WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()),
             ]
         )
 
@@ -150,18 +154,19 @@ class API(ServerBase, unittest.TestCase):
 
         normalized = [normalize_peer(st) for st in status0]
 
-        # for n in normalized: print(n)
+        for n in normalized: print(n)
 
         # check that the Dilation status messages are correct
         self.assertEqual(
             normalized,
             [
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectingPeer(0)),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, NoPeer()),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, ConnectingPeer(0)),
+                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
+                DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, NoPeer()),
             ]
         )

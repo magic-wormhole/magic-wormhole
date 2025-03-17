@@ -646,7 +646,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode == "slow-text":
             key_established = "Key established, waiting for confirmation...\n"
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
 
         # check sender
         if mode == "text" or mode == "slow-text":
@@ -887,7 +887,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None  # show full output for assertion failures
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
         self.assertEqual(receive_stdout, "")
 
         # check sender
@@ -1017,7 +1017,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
         self.maxDiff = None  # show full output for assertion failures
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
 
         # check sender
         expected = ("Sending text message ({bytes:d} Bytes){NL}"
