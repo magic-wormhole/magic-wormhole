@@ -154,12 +154,13 @@ class API(ServerBase, unittest.TestCase):
 
         normalized = [normalize_peer(st) for st in status0]
 
-        for n in normalized: print(n)
+        # for n in normalized: print(n)
 
         # check that the Dilation status messages are correct
         self.assertEqual(
             normalized,
             [
+                DilationStatus(WormholeStatus(Connected(self.relayurl), NoKey(), AllocatedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
