@@ -1,6 +1,3 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
-
 def handle_welcome(welcome, relay_url, my_version, stderr):
     if "motd" in welcome:
         motd_lines = welcome["motd"].splitlines()

@@ -1,8 +1,7 @@
-from __future__ import print_function, unicode_literals
 from collections import defaultdict
 from binascii import hexlify
 from attr import attrs, attrib
-from attr.validators import instance_of, provides, optional
+from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.task import deferLater
@@ -16,7 +15,7 @@ from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
 from ..timing import DebugTiming
 from ..observer import EmptyableSet
-from ..util import HKDF, to_unicode
+from ..util import HKDF, to_unicode, provides
 from .connection import DilatedConnectionProtocol, KCM
 from .roles import LEADER
 

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import os
 import time
 start = time.time()
@@ -8,7 +6,6 @@ from sys import stderr, stdout  # noqa: E402
 from textwrap import dedent, fill  # noqa: E402
 
 import click  # noqa: E402
-import six  # noqa: E402
 from twisted.internet.defer import inlineCallbacks, maybeDeferred  # noqa: E402
 from twisted.internet.task import react  # noqa: E402
 from twisted.python.failure import Failure  # noqa: E402
@@ -154,16 +151,16 @@ def _dispatch_command(reactor, cfg, command):
     except (WelcomeError, UnsendableFileError, KeyFormatError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
-        print(six.u(""), file=cfg.stderr)
-        print(six.text_type(e), file=cfg.stderr)
+        print("", file=cfg.stderr)
+        print(str(e), file=cfg.stderr)
         raise SystemExit(1)
     except TransferError as e:
-        print(u"TransferError: %s" % six.text_type(e), file=cfg.stderr)
+        print(u"TransferError: %s" % str(e), file=cfg.stderr)
         raise SystemExit(1)
     except ServerConnectionError as e:
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
         msg += "(relay URL was %s)\n" % e.url
-        msg += six.text_type(e)
+        msg += str(e)
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:
@@ -171,7 +168,7 @@ def _dispatch_command(reactor, cfg, command):
         # traceback.print_exc() just prints a TB to the "yield"
         # line above ...
         Failure().printTraceback(file=cfg.stderr)
-        print(u"ERROR:", six.text_type(e), file=cfg.stderr)
+        print(u"ERROR:", str(e), file=cfg.stderr)
         raise SystemExit(1)
 
     cfg.timing.add("exit")
@@ -276,6 +273,10 @@ def help(context, **kwargs):
         "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
     )
 )
+@click.option(
+    "--qr/--no-qr",
+    default=True,
+    help="Generate and show ASCII-based QR code.")
 @click.argument("what", required=False, type=click.Path(path_type=type(u"")), nargs=-1)
 @click.pass_obj
 def send(cfg, **kwargs):
@@ -318,6 +319,7 @@ def go(f, cfg):
 @click.option(
     "--accept-file",
     is_flag=True,
+    envvar="WORMHOLE_ACCEPT_FILE",
     help="accept file transfer without asking for confirmation",
 )
 @click.option(

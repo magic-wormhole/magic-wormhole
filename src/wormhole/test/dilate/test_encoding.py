@@ -1,4 +1,3 @@
-from __future__ import print_function, unicode_literals
 from twisted.trial import unittest
 from ..._dilation.encode import to_be4, from_be4
 

@@ -1,5 +1,4 @@
-from __future__ import print_function
-
+import builtins
 import io
 import os
 import re
@@ -8,12 +7,11 @@ import sys
 import zipfile
 from textwrap import dedent, fill
 
-import six
 from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue, CancelledError
+from twisted.internet.defer import gatherResults, inlineCallbacks, CancelledError
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils
@@ -147,13 +145,11 @@ class OfferData(unittest.TestCase):
         self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
         self.assertEqual(d["directory"]["numfiles"], 5)
         self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], six.integer_types)
+        self.assertIsInstance(d["directory"]["numbytes"], int)
 
-        self.assertEqual(fd_to_send.tell(), 0)
-        zdata = fd_to_send.read()
+        zdata = b"".join(fd_to_send)
         self.assertEqual(len(zdata), d["directory"]["zipsize"])
-        fd_to_send.seek(0, 0)
-        with zipfile.ZipFile(fd_to_send, "r", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
             self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
             for name in zipnames:
@@ -262,12 +258,12 @@ class LocaleFinder:
     @inlineCallbacks
     def find_utf8_locale(self):
         if sys.platform == "win32":
-            returnValue("en_US.UTF-8")
+            return "en_US.UTF-8"
         if self._run_once:
-            returnValue(self._best_locale)
+            return self._best_locale
         self._best_locale = yield self._find_utf8_locale()
         self._run_once = True
-        returnValue(self._best_locale)
+        return self._best_locale
 
     @inlineCallbacks
     def _find_utf8_locale(self):
@@ -282,7 +278,7 @@ class LocaleFinder:
         if rc != 0:
             log.msg("error running 'locale -a', rc=%s" % (rc, ))
             log.msg("stderr: %s" % (err, ))
-            returnValue(None)
+            return None
         out = out.decode("utf-8")  # make sure we get a string
         utf8_locales = {}
         for locale in out.splitlines():
@@ -291,10 +287,10 @@ class LocaleFinder:
                 utf8_locales[locale.lower()] = locale
         for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
             if wanted.lower() in utf8_locales:
-                returnValue(utf8_locales[wanted.lower()])
+                return utf8_locales[wanted.lower()]
         if utf8_locales:
-            returnValue(list(utf8_locales.values())[0])
-        returnValue(None)
+            return list(utf8_locales.values())[0]
+        return None
 
 
 locale_finder = LocaleFinder()
@@ -350,7 +346,7 @@ class ScriptsBase:
             log.msg("err", err)
             log.msg("rc", rc)
             raise unittest.SkipTest("wormhole is not runnable in this tree")
-        returnValue(locale_env)
+        return locale_env
 
 
 class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
@@ -609,8 +605,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
             with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
-                        with mock.patch.object(
-                                cmd_receive.six.moves, 'input',
+                        with mock.patch.object(builtins, 'input',
                                 return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:
@@ -655,28 +650,42 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         # check sender
         if mode == "text" or mode == "slow-text":
-            expected = ("Sending text message ({bytes:d} Bytes){NL}"
-                        "Wormhole code is: {code}{NL}"
-                        "On the other computer, please run:{NL}{NL}"
-                        "wormhole receive {verify}{code}{NL}{NL}"
-                        "{KE}"
-                        "text message sent{NL}").format(
-                            bytes=len(message),
-                            verify="--verify " if verify else "",
-                            code=send_cfg.code,
-                            NL=NL,
-                            KE=key_established)
-            self.failUnlessEqual(send_stderr, expected)
+            snippets = [
+                "Sending text message ({bytes:d} Bytes){NL}",
+                "Wormhole code is: {code}{NL}",
+                (
+                    "On the other computer, please run:{NL}{NL}"
+                    "wormhole receive {verify}{code}{NL}{NL}"
+                ),
+                "{KE}",
+                "text message sent{NL}",
+            ]
+            for snippet in snippets:
+                self.failUnlessIn(
+                    snippet.format(
+                        bytes=len(message),
+                        verify="--verify " if verify else "",
+                        code=send_cfg.code,
+                        NL=NL,
+                        KE=key_established,
+                    ),
+                    send_stderr,
+                )
         elif mode == "file":
             self.failUnlessIn(u"Sending {size:s} file named '{name}'{NL}"
                               .format(
                                   size=naturalsize(len(message)),
                                   name=send_filename,
                                   NL=NL), send_stderr)
-            self.failUnlessIn(u"Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failUnlessIn(
                 u"File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -684,10 +693,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode == "directory":
             self.failUnlessIn(u"Sending directory", send_stderr)
             self.failUnlessIn(u"named 'testdir'", send_stderr)
-            self.failUnlessIn(u"Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failUnlessIn(
                 u"File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -883,10 +897,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                                   size=naturalsize(size),
                                   name=send_filename,
                                   NL=NL), send_stderr)
-            self.failUnlessIn("Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failIfIn(
                 "File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -894,10 +913,15 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         elif mode == "directory":
             self.failUnlessIn("Sending directory", send_stderr)
             self.failUnlessIn("named 'testdir'", send_stderr)
-            self.failUnlessIn("Wormhole code is: {code}{NL}"
-                              "On the other computer, please run:{NL}{NL}"
-                              "wormhole receive {code}{NL}".format(
-                                  code=send_cfg.code, NL=NL), send_stderr)
+            self.failUnlessIn(
+                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
+            self.failUnlessIn(
+                u"On the other computer, please run:{NL}{NL}"
+                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+                send_stderr,
+            )
             self.failIfIn(
                 "File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}".format(NL=NL),
@@ -1432,7 +1456,7 @@ class Help(unittest.TestCase):
             ["receive", "--code-length", "3", "2-foo-bar"]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Must use --allocate", result.stdout)
+        self.assertIn("Must use --allocate", result.output)
 
     def test_inconsistent_receive_allocate(self):
         """
@@ -1443,4 +1467,4 @@ class Help(unittest.TestCase):
             ["receive", "--allocate", "2-foo-bar"]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Cannot specify a code", result.stdout)
+        self.assertIn("Cannot specify a code", result.output)

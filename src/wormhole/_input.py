@@ -1,19 +1,16 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 # We use 'threading' defensively here, to detect if we're being called from a
 # non-main thread. _rlcompleter.py is the only internal Wormhole code that
 # deliberately creates a new thread.
 import threading
 
 from attr import attrib, attrs
-from attr.validators import provides
 from automat import MethodicalMachine
 from twisted.internet import defer
 from zope.interface import implementer
 
 from . import _interfaces, errors
 from ._nameplate import validate_nameplate
-
+from .util import provides
 
 def first(outputs):
     return list(outputs)[0]

@@ -1,4 +1,3 @@
-from __future__ import print_function
 import time, json
 
 # Run this as 'watch python misc/dump-stats.py' against a 'wormhole-server

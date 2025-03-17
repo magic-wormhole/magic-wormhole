@@ -1,14 +1,15 @@
 # no unicode_literals until twisted update
 from click.testing import CliRunner
 from twisted.application import internet, service
-from twisted.internet import defer, endpoints, reactor, task
+from twisted.internet import defer, endpoints, reactor, task, protocol
 from twisted.python import log
 
 from unittest import mock
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_mailbox_server.server import make_server
 from wormhole_mailbox_server.web import make_web_server
-from wormhole_transit_relay.transit_server import Transit
+from wormhole_transit_relay.transit_server import Transit, TransitConnection
+from wormhole_transit_relay.usage import create_usage_tracker
 
 from ..cli import cli
 from ..transit import allocate_tcp_port
@@ -77,9 +78,15 @@ class ServerBase:
         self.transitport = allocate_tcp_port()
         ep = endpoints.serverFromString(
             reactor, "tcp:%d:interface=127.0.0.1" % self.transitport)
-        self._transit_server = f = Transit(
-            blur_usage=None, log_file=None, usage_db=None)
-        internet.StreamServerEndpointService(ep, f).setServiceParent(self.sp)
+
+        usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
+        self._transit_server = protocol.ServerFactory()
+        self._transit_server.protocol = TransitConnection
+        self._transit_server.log_requests = False
+        self._transit_server.transit = Transit(usage, reactor.seconds)
+
+
+        internet.StreamServerEndpointService(ep, self._transit_server).setServiceParent(self.sp)
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
 
     @defer.inlineCallbacks
@@ -99,9 +106,10 @@ class ServerBase:
         if not tp.working:
             yield self.sp.stopService()
             yield task.deferLater(reactor, 0.1, lambda: None)
-            defer.returnValue(None)
+            return None
         # disconnect all callers
         d = defer.maybeDeferred(self.sp.stopService)
+        d.addBoth(lambda _: self._transit_server.stopFactory())
         # wait a second, then check to see if it worked
         yield task.deferLater(reactor, 1.0, lambda: None)
         if len(tp.working):

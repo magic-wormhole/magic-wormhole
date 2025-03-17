@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import hashlib
 import os
 import shutil
@@ -7,11 +5,10 @@ import sys
 import tempfile
 import zipfile
 
-import six
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.defer import inlineCallbacks, Deferred
 from twisted.internet.stdio import StandardIO
 from twisted.python import log
 from twisted.python.filepath import FilePath
@@ -117,7 +114,7 @@ class Receiver:
         @inlineCallbacks
         def _good(res):
             yield w.close()  # wait for ack
-            returnValue(res)
+            return res
 
         # if we raise an error, we should close and then return the original
         # error (the close might give us an error, but it isn't as important
@@ -128,7 +125,7 @@ class Receiver:
                 yield w.close()  # might be an error too
             except Exception:
                 pass
-            returnValue(f)
+            return f
 
         d.addCallbacks(_good, _bad)
         yield d
@@ -208,7 +205,7 @@ class Receiver:
                 except RespondError as r:
                     self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
-                returnValue(None)
+                return None
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d, ))
 
@@ -223,7 +220,7 @@ class Receiver:
         them_d = bytes_to_dict(them_bytes)
         if "error" in them_d:
             raise TransferError(them_d["error"])
-        returnValue(them_d)
+        return them_d
 
     @inlineCallbacks
     def _handle_code(self, w):
@@ -296,7 +293,7 @@ class Receiver:
     def _parse_offer(self, them_d, w):
         if "message" in them_d:
             self._handle_text(them_d, w)
-            returnValue(None)
+            return None
         # transit will be created by this point, but not connected
         if "file" in them_d:
             f = self._handle_file(them_d)
@@ -348,7 +345,7 @@ class Receiver:
     def _handle_directory(self, them_d):
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
-        if zipmode != "zipfile/deflated":
+        if not zipmode.startswith("zipfile"):
             self._msg(u"Error: unknown directory-transfer mode '%s'" %
                       (zipmode, ))
             raise RespondError("unknown mode")
@@ -409,7 +406,7 @@ class Receiver:
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
             while True and not self.args.accept_file:
-                ok = six.moves.input("ok? (Y/n): ")
+                ok = input("ok? (Y/n): ")
                 if ok.lower().startswith("y") or len(ok) == 0:
                     if os.path.exists(self.abs_destname):
                         self._remove_existing(self.abs_destname)
@@ -426,7 +423,7 @@ class Receiver:
     def _establish_transit(self):
         record_pipe = yield self._transit_receiver.connect()
         self.args.timing.add("transit connected")
-        returnValue(record_pipe)
+        return record_pipe
 
     @inlineCallbacks
     def _transfer_data(self, record_pipe, f):
@@ -453,7 +450,7 @@ class Receiver:
             self._msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
             raise TransferError("Connection dropped before full file received")
         assert received == self.xfersize
-        returnValue(datahash)
+        return datahash
 
     def _write_file(self, f):
         tmp_name = f.name
@@ -484,7 +481,7 @@ class Receiver:
 
         self._msg(u"Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
-            with zipfile.ZipFile(f, "r", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 

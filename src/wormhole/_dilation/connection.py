@@ -1,8 +1,6 @@
-from __future__ import print_function, unicode_literals
 from collections import namedtuple
-import six
 from attr import attrs, attrib
-from attr.validators import instance_of, provides
+from attr.validators import instance_of
 from automat import MethodicalMachine
 from zope.interface import Interface, implementer
 from twisted.python import log
@@ -10,6 +8,7 @@ from twisted.internet.protocol import Protocol
 from twisted.internet.interfaces import ITransport
 from .._interfaces import IDilationConnector
 from ..observer import OneShotObserver
+from ..util import provides
 from .encode import to_be4, from_be4
 from .roles import LEADER, FOLLOWER
 from ._noise import NoiseInvalidMessage, NoiseHandshakeError, NOISE_MAX_PAYLOAD, NOISE_MAX_CIPHERTEXT
@@ -306,19 +305,19 @@ def encode_record(r):
     if isinstance(r, Pong):
         return b"\x02" + r.ping_id
     if isinstance(r, Open):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x03" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Data):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x04" + to_be4(r.scid) + to_be4(r.seqnum) + r.data
     if isinstance(r, Close):
-        assert isinstance(r.scid, six.integer_types)
-        assert isinstance(r.seqnum, six.integer_types)
+        assert isinstance(r.scid, int)
+        assert isinstance(r.seqnum, int)
         return b"\x05" + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Ack):
-        assert isinstance(r.resp_seqnum, six.integer_types)
+        assert isinstance(r.resp_seqnum, int)
         return b"\x06" + to_be4(r.resp_seqnum)
     raise TypeError(r)
 
@@ -567,6 +566,11 @@ class DilatedConnectionProtocol(Protocol, object):
                                              manager.connector_connection_lost())
 
     @m.output()
+    def send_status_have_peer(self, manager):
+        assert self._manager is not None, "_manager must be set by now"
+        self._manager.have_peer(self)
+
+    @m.output()
     def can_send_records(self, manager):
         self._can_send_records = True
 
@@ -583,7 +587,7 @@ class DilatedConnectionProtocol(Protocol, object):
     unselected.upon(got_kcm, outputs=[add_candidate], enter=selecting)
     selecting.upon(got_record, outputs=[queue_inbound_record], enter=selecting)
     selecting.upon(select,
-                   outputs=[set_manager, can_send_records, process_inbound_queue],
+                   outputs=[set_manager, send_status_have_peer, can_send_records, process_inbound_queue],
                    enter=selected)
     selected.upon(got_record, outputs=[deliver_record], enter=selected)
 

@@ -1,10 +1,8 @@
-from __future__ import print_function, unicode_literals
-
 import io
 import re
 
 from twisted.internet import reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, returnValue
+from twisted.internet.defer import gatherResults, inlineCallbacks
 from twisted.internet.error import ConnectionRefusedError
 from twisted.trial import unittest
 
@@ -677,7 +675,7 @@ class InitialFailure(unittest.TestCase):
         f = self.failureResultOf(d, ServerConnectionError)
         inner = f.value.reason
         self.assertIsInstance(inner, innerType)
-        returnValue(inner)
+        return inner
 
     @inlineCallbacks
     def test_bad_dns(self):
@@ -701,7 +699,7 @@ class InitialFailure(unittest.TestCase):
         e = yield self.assertFailure(d, ServerConnectionError)
         inner = e.reason
         self.assertIsInstance(inner, innerType)
-        returnValue(inner)
+        return inner
 
     @inlineCallbacks
     def test_no_connection(self):

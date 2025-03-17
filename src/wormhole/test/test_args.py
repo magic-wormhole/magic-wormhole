@@ -191,6 +191,11 @@ class Receive(unittest.TestCase):
             cfg = config("--transit-helper", transit_url_2, "receive")
         self.assertEqual(cfg.transit_helper, transit_url_2)
 
+    def test_accept_file_env_var(self):
+        with mock.patch.dict(os.environ, WORMHOLE_ACCEPT_FILE="true"):
+            cfg = config("receive")
+        self.assertEqual(cfg.accept_file, True)
+
 
 class Config(unittest.TestCase):
     def test_send(self):

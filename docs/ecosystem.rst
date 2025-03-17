@@ -53,7 +53,7 @@ The separate features represented in the below table are:
 
 * *Core*: the basic client-visible features of the core mailbox protocol to `open`, `allocate`, `claim` and `close` a mailbox (as well as `add` messages to it)
 * *Reconnect*: client state and behavior to re-connect to an in-progress or existing mailbox (e.g. in case of network failure, etc)
-* *File Transfer v1* ("File v1"): the exsting file-transfer protocol (allowing single Files or Directories or text-messages to be transferred in one direction)
+* *File Transfer v1* ("File v1"): the existing file-transfer protocol (allowing single Files or Directories or text-messages to be transferred in one direction)
 * *Permissions*: an extension to allow the server to request additional work or information from clients before allowing access.
 * *Dilation*: the core Dilation protocol
 * *Dilated File Transfer* ("Dilated Transfer"): a more fully-featured file-transfer protocol on top of *Dilation*.
@@ -108,8 +108,8 @@ Support is described as:
       - No
 
 Notes:
-- the Rust implementation v1 file-transfer doesn't support text-messages, or directory transfer (although it will produce a tarball and send it, that is not automatically unpacked on the other side)
-- there are two parts to the Haskell implementation: a library, and `a Haskell file-transfer CLI client <https://github.com/LeastAuthority/wormhole-client>`_
+* the Rust implementation v1 file-transfer doesn't support text-messages, or directory transfer (although it will produce a tarball and send it, that is not automatically unpacked on the other side)
+* there are two parts to the Haskell implementation: a library, and `a Haskell file-transfer CLI client <https://github.com/LeastAuthority/wormhole-client>`_
 
 
 End User / Client Applications
@@ -118,17 +118,26 @@ End User / Client Applications
 Based on the above libraries, there are several end-user applications targeting different platforms.
 Unless otherwise noted, these "inherit" any limitations of their langauge's library implementation from the above table.
 
-* `magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_ the Python reference implementation and CLI
-* `haskell library <https://github.com/LeastAuthority/haskell-magic-wormhole>`_ and `haskell client <https://github.com/LeastAuthority/wormhole-client>`_ a Haskell library and CLI for file-transfer
-* `rust <https://github.com/magic-wormhole/magic-wormhole.rs/>`_ a Rust CLI for file-transfer
-* `warp <https://github.com/magic-wormhole/magic-wormhole.rs/>`_ a GNOME GUI written in Rust
-* `Winden <https://winden.app/>`_ a Web client and deployment (using the Go implemtation via WASM)
-* `Destiny (fdroid) <https://f-droid.org/packages/com.leastauthority.destiny/>`_ a Android (and iOS) app using Flutter (with the Go implementation for wormhole). Also on proprietary app stores.
+Library and CLI
+~~~~~~~~~~~~~~~
+
+* `magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_ the Python reference implementation and CLI (the command-line program is called ``wormhole`` in most distributions)
+* `wormhole-william <https://github.com/psanford/wormhole-william>`_ is a Go library and CLI for file-transfer
+* `magic-wormhole.rs <https://github.com/magic-wormhole/magic-wormhole.rs/>`_ provides a library and CLI for file-transfer
+* `haskell-magic-wormhole <https://github.com/LeastAuthority/haskell-magic-wormhole>`_ and `wormhole-client <https://github.com/LeastAuthority/wormhole-client>`_ are a library and CLI for file-transfer in Haskell
+* `dart bindings <https://github.com/LeastAuthority/dart_wormhole_william>`_ allowing Wormhole William to be used in Flutter.
+
+
+GUIs for Desktop, Mobile, Web
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* `Warp <https://apps.gnome.org/Warp/>`_ is a GNOME GUI written in Rust
+* `Winden <https://winden.app/>`_ is a Web client and deployment (using the Go implementation via WASM)
+* `Destiny <https://f-droid.org/packages/com.leastauthority.destiny/>`_ is an Android (and iOS) app using Flutter (with the Go implementation for wormhole). Also on proprietary app stores.
 * `Wormhole <https://gitlab.com/lukas-heiligenbrunner/wormhole>`_ for Android. Based on the Rust implementation.
 * `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy
 * `Wormhole William Mobile <https://github.com/psanford/wormhole-william-mobile>`_ for Android and iOS.
 * `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
-* `dart bindings <https://github.com/LeastAuthority/dart_wormhole_william>`_ allowing Wormhole William to be used in Flutter.
 
 
 Integrations
@@ -146,7 +155,7 @@ Other Uses
 Some other interesting uses of Magic Wormhole that don't directly use the file-transfer protocol.
 If you know of others, please send them along!
 
-* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fow>`_ (foward-over-wormhole).
+* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fowl>`_ (foward-over-wormhole).
 
 * Invite / key-exchange: `Magic Folder <https://magic-folder.readthedocs.io/en/latest/invites.html>`_ implements a custom protocol to do "introduction" / key-exchange.
 

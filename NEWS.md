@@ -2,8 +2,53 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* add release-notes here when making PRs
+* Add a "status" feedback API for Dilation (#591, @meejah)
+* Drop support for Python 3.9, upgrade github-actions (#596)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
+* (add release-notes here when making PRs)
+
+
+## Release 0.18.0 (11-Mar-2025)
+
+* Improve the example to act more like send/receive (#558, @OndrewBot)
+* Display a QR code by default for "wormhole send" (#555, @ferada + @meejah)
+  This encodes "wormhole-transfer:M-word0-word1" per the spec:
+  https://github.com/magic-wormhole/magic-wormhole-protocols/blob/main/uri-scheme.md
+* Add sequence diagram
+* Support Read the Docs pull-request builds
+* Drop support for Python 3.8 (#556)
+* Add broken-link checker (#588, https://github.com/Cycloctane)
+* Preemptively fix Click 8.2 (#584, @cjwatson)
+* Basic support for PEP518 (#579, @SnoopJ)
+* Add WORMHOLE_ACCEPT_FILE (#570, @haatveit)
+
+
+## Release 0.17.0 (23-Oct-2024)
+
+* Bump magic-wormhole-transit-relay to 0.3.1 for testing, and fix (#543)
+* Fix test regression under Twisted 24.10.0 (#553)
+
+## Release 0.16.0 (3-Oct-2024)
+
+* Updated to python-spake2 version 0.9
+* Removed more Python2-isms
+
+
+## Release 0.15.0 (7-Aug-2024)
+
+* Incorporate attrs' zope-interface support (#492, #527, from https://github.com/meejah)
+* Add "codespell" to correct spelling (#526, from https://github.com/yarikoptic)
+* Fix bash completions (#525, from https://github.com/RobertoD91)
+* run tests properly when Noise is not installed (#522, from https://github.com/anarcat)
+
+
+## Release 0.14.0 (28-Mar-2024)
+
 * Add completion files for bash, zsh and fish (#498)
+* Python 3.12 added to CI, versioneer updated (#505)
+* Support streaming compression of directories (#503, from https://github.com/pR0Ps/)
+* Remove obsolete compatibility code (thanks https://github.com/a-detiste/)
+* Add "ecosystem" document
 
 
 ## Release 0.13.0 (10-Aug-2023)
@@ -616,7 +661,7 @@ import wormhole must be updated.
 ## Release 0.3.0 (24-Jun-2015)
 
 Add preliminary Twisted support, only for symmetric endpoints (no
-initator/receiver distinction). Lacks code-entry tab-completion. May still
+initiator/receiver distinction). Lacks code-entry tab-completion. May still
 leave timers lingering. Add test suite (only for Twisted, so far).
 
 Use a sqlite database for Relay server state, to survive reboots with less

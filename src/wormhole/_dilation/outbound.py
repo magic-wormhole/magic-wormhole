@@ -1,12 +1,11 @@
-from __future__ import print_function, unicode_literals
 from collections import deque
 from attr import attrs, attrib
-from attr.validators import provides
 from zope.interface import implementer
 from twisted.internet.interfaces import IPushProducer, IPullProducer
 from twisted.python import log
 from twisted.python.reflect import safe_str
 from .._interfaces import IDilationManager, IOutbound
+from ..util import provides
 from .connection import KCM, Ping, Pong, Ack
 
 

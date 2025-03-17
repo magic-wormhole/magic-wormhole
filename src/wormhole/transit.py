@@ -1,6 +1,3 @@
-# no unicode_literals, revisit after twisted patch
-from __future__ import absolute_import, print_function
-
 import os
 import socket
 import sys
@@ -8,11 +5,10 @@ import time
 from binascii import hexlify, unhexlify
 from collections import deque
 
-import six
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, task)
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.protocols import policies
 from twisted.python import log
 from twisted.python.runtime import platformType
@@ -595,7 +591,7 @@ class Common:
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
         direct_hints = [
-            DirectTCPV1Hint(six.u(addr), portnum, 0.0) for addr in addresses
+            DirectTCPV1Hint(str(addr), portnum, 0.0) for addr in addresses
         ]
         ep = endpoints.serverFromString(self._reactor, "tcp:%d" % portnum)
         return direct_hints, ep
@@ -631,7 +627,7 @@ class Common:
                     u"port": rh.port
                 })
             hints.append(rhint)
-        returnValue(hints)
+        return hints
 
     def _get_direct_hints(self):
         if self._listener:
@@ -771,7 +767,7 @@ class Common:
             # connections, so those connections will know what to say when
             # they connect
             winner = yield self._connect()
-        returnValue(winner)
+        return winner
 
     def _connect(self):
         # It might be nice to wire this so that a failure in the direct hints

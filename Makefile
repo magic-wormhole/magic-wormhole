@@ -9,6 +9,9 @@
 default:
 	echo "see Makefile"
 
+lint:
+	tox -e flake8less
+
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
 	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'
@@ -17,10 +20,12 @@ completions:
 release-clean:
 	@echo "Cleanup stale release: " `python newest-version.py`
 	-rm NEWS.md.asc
-	rm dist/magic-wormhole-`python newest-version.py`.tar.gz*
+	rm dist/magic[_-]wormhole-`python newest-version.py`.tar.gz*
 	rm dist/magic_wormhole-`python newest-version.py`-py3-none-any.whl*
 	git tag -d `python newest-version.py`
 
+# create a branch, like: git checkout -b prepare-release-0.16.0
+# then run these, so CI can run on the release
 release:
 	@echo "Is checkout clean?"
 	git diff-files --quiet
@@ -33,10 +38,10 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Is GPG Agent running, and has key?"
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --sign NEWS.md
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign NEWS.md
 
 	@echo "Bump version and create tag"
-	python3 update-version.py
+	python3 update-version.py --patch 1
 #	python3 update-version.py --patch  # for bugfix release
 
 	@echo "Build and sign wheel"
@@ -52,7 +57,7 @@ release:
 release-test:
 	gpg --verify dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
-	virtualenv testmf_venv
+	python -m venv testmf_venv
 	testmf_venv/bin/pip install --upgrade pip
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
@@ -68,6 +73,7 @@ release-upload:
 	git add signatures/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
 	git add signatures/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	git commit -m "signatures for release"
+	git push origin-push `git describe --abbrev=0`
 
 
 dilation.png: dilation.seqdiag

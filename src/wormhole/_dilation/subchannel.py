@@ -1,9 +1,8 @@
-import six
 from collections import deque
 from attr import attrs, attrib
-from attr.validators import instance_of, provides
+from attr.validators import instance_of
 from zope.interface import implementer
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
@@ -13,6 +12,7 @@ from twisted.internet.error import ConnectionDone
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 from ..observer import OneShotObserver
+from ..util import provides
 
 # each subchannel frame (the data passed into transport.write(data)) gets a
 # 9-byte header prefix (type, subchannel id, and sequence number), then gets
@@ -74,7 +74,7 @@ class _WormholeAddress(object):
 @implementer(IAddress)
 @attrs
 class _SubchannelAddress(object):
-    _scid = attrib(validator=instance_of(six.integer_types))
+    _scid = attrib(validator=instance_of(int))
 
 
 @attrs(eq=False)
@@ -83,7 +83,7 @@ class _SubchannelAddress(object):
 @implementer(IConsumer)
 @implementer(ISubChannel)
 class SubChannel(object):
-    _scid = attrib(validator=instance_of(six.integer_types))
+    _scid = attrib(validator=instance_of(int))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _peer_addr = attrib(validator=instance_of(_SubchannelAddress))
@@ -352,7 +352,7 @@ class ControlEndpoint(object):
         # this sets p.transport and calls p.connectionMade()
         p.makeConnection(self._subchannel_zero)
         self._subchannel_zero._deliver_queued_data()
-        returnValue(p)
+        return p
 
 
 @implementer(IStreamClientEndpoint)
@@ -386,7 +386,7 @@ class SubchannelConnectorEndpoint(object):
         p = protocolFactory.buildProtocol(peer_addr)
         sc._set_protocol(p)
         p.makeConnection(sc)  # set p.transport = sc and call connectionMade()
-        returnValue(p)
+        return p
 
 
 @implementer(IStreamServerEndpoint)
@@ -431,8 +431,7 @@ class SubchannelListenerEndpoint(object):
         while self._pending_opens:
             (t, peer_addr) = self._pending_opens.popleft()
             self._connect(t, peer_addr)
-        lp = SubchannelListeningPort(self._host_addr)
-        returnValue(lp)
+        return SubchannelListeningPort(self._host_addr)
 
 
 @implementer(IListeningPort)

@@ -1,10 +1,7 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 import re
 
-import six
-from attr import attrib, attrs
-from attr.validators import instance_of, optional, provides
+from attr import attrib, attrs, evolve
+from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from twisted.python import log
 from zope.interface import implementer
@@ -22,11 +19,12 @@ from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._send import Send
+from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
                      WrongPasswordError, _UnknownPhaseError)
-from .util import bytes_to_dict
+from .util import bytes_to_dict, provides
 
 
 @attrs
@@ -44,11 +42,15 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _on_status_update = attrib(default=None)  # type should be Callable[[WormholeStatus], None]
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
+        # XXX can we just re-order so init_other_state is first, and
+        # put this status back in init_other_state
+        self._current_wormhole_status = WormholeStatus()
         self._build_workers()
         self._init_other_state()
 
@@ -61,14 +63,14 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
-                                       self._timing, self._client_version)
+                                       self._timing, self._client_version, self._wormhole_status)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
         self._D = Dilator(self._reactor, self._eventual_queue,
-                          self._cooperator)
+                          self._cooperator, lambda: self._current_wormhole_status)
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -94,6 +96,17 @@ class Boss(object):
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
+
+    def _wormhole_status(self, status):
+        # we have to track "the wormhole status" somewhere, because
+        # we'll be connected to the Mailbox (and maybe even the peer)
+        # before anyone asks for Dilation at all
+        self._current_wormhole_status = status
+        if self._on_status_update is not None:
+            self._on_status_update(self._current_wormhole_status)
+        # ...and so we might not even _have_ anything Dilation related yet
+        if hasattr(self, "_D") and self._D._manager is not None:
+            self._D._manager._wormhole_status(status)
 
     # these methods are called from outside
     def start(self):
@@ -208,9 +221,15 @@ class Boss(object):
     # XXX we always have a Dilator (self._D) and so if that grew a
     # "async def can_dilate" then we could decide things based on
     # "supports dilation, or not"
-    def dilate(self, transit_relay_location=None, no_listen=False):
-        # fires with endpoints
-        return self._D.dilate(transit_relay_location, no_listen=no_listen)
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+        # returns EndpointRecord; see wormhole.dilate() docs
+        return self._D.dilate(
+            transit_relay_location,
+            no_listen=no_listen,
+            wormhole_status=self._current_wormhole_status,
+            status_update=on_status_update,
+            ping_interval=ping_interval,
+        )
 
     @m.input()
     def send(self, plaintext):
@@ -364,12 +383,30 @@ class Boss(object):
         self._D.got_key(key)
 
     @m.output()
+    def send_status_peer_key(self, key):
+        self._wormhole_status(
+            evolve(
+                self._current_wormhole_status,
+                peer_key=AllegedSharedKey(),
+            )
+        )
+
+    @m.output()
+    def send_status_confirmed_key(self, plaintext):
+        self._wormhole_status(
+            evolve(
+                self._current_wormhole_status,
+                peer_key=ConfirmedKey(),
+            )
+        )
+
+    @m.output()
     def W_got_verifier(self, verifier):
         self._W.got_verifier(verifier)
 
     @m.output()
     def W_received(self, phase, plaintext):
-        assert isinstance(phase, six.integer_types), type(phase)
+        assert isinstance(phase, int), type(phase)
         # we call Wormhole.received() in strict phase order, with no gaps
         self._rx_phases[phase] = plaintext
         while self._next_rx_phase in self._rx_phases:
@@ -378,7 +415,7 @@ class Boss(object):
 
     @m.output()
     def D_received_dilate(self, seqnum, plaintext):
-        assert isinstance(seqnum, six.integer_types), type(seqnum)
+        assert isinstance(seqnum, int), type(seqnum)
         # strict phase order, no gaps
         self._rx_dilate_seqnums[seqnum] = plaintext
         while self._next_rx_dilate_seqnum in self._rx_dilate_seqnums:
@@ -408,14 +445,14 @@ class Boss(object):
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
-    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key])
+    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
-    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version])
+    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, send_status_confirmed_key])
     S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])

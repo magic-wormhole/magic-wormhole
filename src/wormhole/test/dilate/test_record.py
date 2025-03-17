@@ -1,9 +1,8 @@
-from __future__ import print_function, unicode_literals
 from unittest import mock
 from zope.interface import alsoProvides
 from twisted.trial import unittest
 from twisted.internet.interfaces import ITransport
-from ..._dilation._noise import NoiseInvalidMessage
+from ..._dilation._noise import NoiseInvalidMessage, NoiseConnection
 from ..._dilation.connection import (IFramer, Frame, Prologue,
                                      _Record, Handshake, KCM,
                                      Disconnect, Ping, _Framer, Data)
@@ -282,6 +281,8 @@ class Record(unittest.TestCase):
         Noise only allows 64KiB message, but the API allows up to 4GiB
         frames
         """
+        if not NoiseConnection:
+            raise unittest.SkipTest("noiseprotocol unavailable")
         # XXX could really benefit from some Hypothesis style
         # exploration of more cases .. but we don't already depend on
         # that library, so a future improvement
