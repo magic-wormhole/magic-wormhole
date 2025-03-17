@@ -59,9 +59,33 @@ class ConfirmedKey:
     pass  # DO NOT reveal real key here; "status" messages are for users
 
 
+@frozen
+class NoCode:
+    """
+    Not allocated yet
+    """
+
+
+@frozen
+class AllocatedCode:
+    """
+    A valid code is available
+    """
+
+
+@frozen
+class ConsumedCode:
+    """
+    The code was used by the other side, and is now no longer
+    usable. The nameplate has been un-claimed (and may be re-used by a
+    different code any time).
+    """
+
+
 # General mailbox statuses
 ConnectionStatus = Disconnected | Connecting | Connected | Failed
 PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey
+CodeStatus = NoCode | AllocatedCode | ConsumedCode
 
 # Dilation only
 PeerConnection = NoPeer | ConnectingPeer | ConnectedPeer
@@ -85,6 +109,12 @@ class WormholeStatus(object):
     # connection to our peer; this just tracks the PAKE negotiation,
     # basically
     peer_key: PeerSharedKey = NoKey()
+
+    # we don't reveal the actual code here, on the theory the UI
+    # should already know it and/or be displaying it somehow. This
+    # communicates the *status* of that code, e.g. whether it is stale
+    # or not.
+    code: CodeStatus = NoCode()
 
 
 @frozen

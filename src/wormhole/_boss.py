@@ -55,7 +55,7 @@ class Boss(object):
         self._init_other_state()
 
     def _build_workers(self):
-        self._N = Nameplate()
+        self._N = Nameplate(self._wormhole_status)
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
