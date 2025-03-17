@@ -15,6 +15,7 @@ from twisted.python import log
 from wormhole import __version__, create
 
 from ..errors import TransferError, UnsendableFileError
+from .._status import WormholeStatus, ConsumedCode
 from ..transit import TransitSender
 from ..util import bytes_to_dict, bytes_to_hexstr, dict_to_bytes
 from .welcome import handle_welcome
@@ -46,6 +47,7 @@ class Sender:
         self._timing = args.timing
         self._fd_to_send = None
         self._transit_sender = None
+        self._status = WormholeStatus()
 
     @inlineCallbacks
     def go(self):
@@ -69,6 +71,7 @@ class Sender:
             self._reactor,
             tor=self._tor,
             timing=self._timing,
+            on_status_update=self._on_status,
         )
         if self._args.debug_state:
             w.debug_set_trace("send", which=" ".join(self._args.debug_state), file=self._args.stdout)
@@ -98,6 +101,11 @@ class Sender:
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
         w.send_message(data_bytes)
+
+    def _on_status(self, status):
+        if not isinstance(self._status.code, ConsumedCode) and isinstance(status.code, ConsumedCode):
+            print("Node: code has been consumed and can no longer be used.")
+        self._status = status
 
     @inlineCallbacks
     def _go(self, w):
