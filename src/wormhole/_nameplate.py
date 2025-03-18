@@ -180,7 +180,7 @@ class Nameplate(object):
     S0B.upon(lost, enter=S0A, outputs=[])
     S0B.upon(close, enter=S5A, outputs=[T_nameplate_done, send_status_code_consumed])
 
-    S1A.upon(connected, enter=S2B, outputs=[RC_tx_claim, send_status_code_allocated])
+    S1A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
     S1A.upon(close, enter=S5A, outputs=[T_nameplate_done, send_status_code_consumed])
 
     S2A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
