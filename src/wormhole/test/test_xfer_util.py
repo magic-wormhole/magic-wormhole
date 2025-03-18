@@ -1,13 +1,10 @@
 from twisted.internet import defer, reactor
-from twisted.internet.defer import inlineCallbacks
-from twisted.trial import unittest
 
 from .. import xfer_util
-from .common import ServerBase
 
 import pytest_twisted
 import hypothesis.strategies as st
-from hypothesis import given, assume, settings
+from hypothesis import given, settings
 
 APPID = u"appid"
 
