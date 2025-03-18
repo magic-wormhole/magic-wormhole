@@ -14,7 +14,6 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from ..._dilation.subchannel import _SubchannelAddress
-from ..._status import WormholeStatus
 from .common import clear_mock_calls
 
 
