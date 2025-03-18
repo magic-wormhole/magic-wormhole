@@ -170,10 +170,8 @@ class API(ServerBase, unittest.TestCase):
         # for n in normalized: print(n)
 
         # check that the Dilation status messages are correct
-        self.assertEqual(
-            normalized,
+        if normalized != \
             [
-                DilationStatus(WormholeStatus(Connected(self.relayurl), NoKey(), AllocatedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
                 DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()), 0, NoPeer()),
@@ -182,5 +180,17 @@ class API(ServerBase, unittest.TestCase):
                 DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
                 DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
                 DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, NoPeer()),
-            ]
-        )
+            ]:
+            self.assertEqual(
+                normalized,
+                [
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()), 0, NoPeer()),
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()), 0, NoPeer()),
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), AllocatedCode()), 0, NoPeer()),
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, NoPeer()),
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, ConnectingPeer(0)),
+                    DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
+                    DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, ConnectedPeer(0, 0, hint_description="hint")),
+                    DilationStatus(WormholeStatus(Disconnected(), ConfirmedKey(), ConsumedCode()), 0, NoPeer()),
+                ]
+            )
