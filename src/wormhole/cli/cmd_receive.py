@@ -10,9 +10,8 @@ from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, Deferred
 from twisted.internet.stdio import StandardIO
-from twisted.python import log
 from twisted.python.filepath import FilePath
-from wormhole import __version__, create, input_with_completion
+from wormhole import create, input_with_completion
 
 from ..errors import TransferError
 from ..eventual import EventualQueue
@@ -20,7 +19,6 @@ from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
 from ..dilatedfile import Message
-from .welcome import handle_welcome
 
 APPID = u"lothar.com/wormhole/text-or-file-xfer"
 
@@ -145,7 +143,7 @@ class Receiver:
         if self.args.stdin:
             from .cmd_send import LocalLineReader  # XXX FIXME
             line_reader = LocalLineReader(EventualQueue(reactor))
-            stdin = StandardIO(line_reader)
+            stdin = StandardIO(line_reader)  # noqa
             next_message = line_reader.next_line
         else:
             next_message = None

@@ -139,7 +139,7 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
         reactor.callLater(0, receiver.accept_offer, offer, the_file)
     recv_factory.accept_or_reject_p = accept_always
 
-    port = await endpoints.listen.listen(recv_factory)
+    await endpoints.listen.listen(recv_factory)  # returns "port"
 
     class Control(Protocol):
         def __init__(self, *args, **kw):

@@ -5,7 +5,6 @@ import sys
 
 import stat
 
-import click
 from humanize import naturalsize
 from qrcode import QRCode
 from tqdm import tqdm
@@ -143,7 +142,7 @@ class Sender:
         if self._args.what is None:
             # XXX FIXME if we have --text specified, probably want to send _just_ that and then exit?
             line_reader = LocalLineReader(EventualQueue(reactor))
-            stdin = StandardIO(line_reader)
+            stdin = StandardIO(line_reader)  # noqa
             # want to handle "Stdio was open, but closed" to mean
             # "close control channel"? unless we have outstanding
             # offers?
