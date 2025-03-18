@@ -1,10 +1,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import struct
-from typing import Union, Callable
 
-from attr import define, field
-from automat import MethodicalMachine
 from zope.interface import implementer
 
 from twisted.internet.defer import Deferred, maybeDeferred, DeferredList
@@ -13,8 +10,6 @@ from twisted.python.filepath import FilePath
 
 import msgpack
 
-from . import _interfaces
-from ._key import derive_phase_key, encrypt_data
 from .observer import OneShotObserver
 from .eventual import EventualQueue
 from wormhole.dilatedfile import (

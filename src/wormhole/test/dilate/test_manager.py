@@ -61,8 +61,15 @@ class TestDilator(unittest.TestCase):
             eps2 = dil.dilate()
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
-        self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)])
+        self.assertEqual(
+            mm.mock_calls,
+            [
+                mock.call(
+                    h.send, side, None, h.reactor, h.eq, h.coop, 30.0, False, None,
+                    initial_mailbox_status=None,
+                )
+            ]
+        )
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])

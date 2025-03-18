@@ -85,7 +85,6 @@ class ServerBase:
         self._transit_server.log_requests = False
         self._transit_server.transit = Transit(usage, reactor.seconds)
 
-
         internet.StreamServerEndpointService(ep, self._transit_server).setServiceParent(self.sp)
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
 

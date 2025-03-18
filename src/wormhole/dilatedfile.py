@@ -3,9 +3,8 @@
 # Transfer
 
 from hashlib import blake2b
-from attr import define, field
+from attr import define
 from automat import MethodicalMachine
-from twisted.internet.defer import Deferred  # danger..are we sans-io?
 
 
 @define
@@ -196,12 +195,6 @@ class DilatedFileSender:
     def acknowledge_received(self, acknowledge):
         """
         The other peer's FileAcknowledge message is received
-        """
-
-    @m.input()
-    def subchannel_closed(self):
-        """
-        The subchannel has been closed
         """
 
     @m.output()
