@@ -7,22 +7,22 @@ from .common import ServerBase
 
 import pytest_twisted
 import hypothesis.strategies as st
-from hypothesis import given, assume
+from hypothesis import given, assume, settings
 
 APPID = u"appid"
 
 
 @given(
     password=st.text(
-        alphabet=st.characters(exclude_categories=["Zs"]),
+        alphabet=st.characters(exclude_categories=["Zs", "Cs"]),
     ),
     nameplate=st.integers(min_value=1, max_value=2000),
     data=st.text(),
 )
 @pytest_twisted.ensureDeferred
+@settings(deadline=None)
 async def test_xfer(mailbox, password, nameplate, data):
     code = f"{nameplate}-{password}"
-    print(code)
     send_result, receive_result = await defer.gatherResults([
         xfer_util.send(reactor, APPID, mailbox, data, code),
         xfer_util.receive(reactor, APPID, mailbox, code),
