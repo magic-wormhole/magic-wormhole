@@ -166,7 +166,7 @@ class Receiver:
         )
         return
 
-"""
+    """
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
         try:
             # We wait here until we've seen their VERSION message (which they
@@ -208,7 +208,7 @@ class Receiver:
                 return None
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d, ))
-"""
+    """
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)

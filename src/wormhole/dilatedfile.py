@@ -231,7 +231,7 @@ class DilatedFileSender:
     @m.output()
     def _check_acknowledge(self, acknowledge):
         if acknowledge.bytes != self._bytes:
-            raise Exception(f"expected {self._bytes} bytes but got {acknowledge_msg.bytes}")
+            raise Exception(f"expected {self._bytes} bytes but got {acknowledge.bytes}")
         if acknowledge.hash != self._hasher.digest():
             raise Exception("hash mismatch")
 
