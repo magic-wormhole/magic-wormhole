@@ -6,18 +6,27 @@ from .. import xfer_util
 from .common import ServerBase
 
 import pytest_twisted
+import hypothesis.strategies as st
+from hypothesis import given, assume
 
 APPID = u"appid"
 
 
+@given(
+    password=st.text(
+        alphabet=st.characters(exclude_categories=["Zs"]),
+    ),
+    nameplate=st.integers(min_value=1, max_value=2000),
+    data=st.text(),
+)
 @pytest_twisted.ensureDeferred
-async def test_xfer(mailbox):
-    code = u"1-code"
-    data = u"data"
-    d1 = xfer_util.send(reactor, APPID, mailbox, data, code)
-    d2 = xfer_util.receive(reactor, APPID, mailbox, code)
-    send_result = await d1
-    receive_result = await d2
+async def test_xfer(mailbox, password, nameplate, data):
+    code = f"{nameplate}-{password}"
+    print(code)
+    send_result, receive_result = await defer.gatherResults([
+        xfer_util.send(reactor, APPID, mailbox, data, code),
+        xfer_util.receive(reactor, APPID, mailbox, code),
+    ])
     assert send_result is None
     assert receive_result == data
 
