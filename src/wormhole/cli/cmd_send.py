@@ -142,7 +142,7 @@ class Sender:
         if self._args.what is None:
             # XXX FIXME if we have --text specified, probably want to send _just_ that and then exit?
             line_reader = LocalLineReader(EventualQueue(reactor))
-            stdin = StandardIO(line_reader)  # noqa
+            _ = StandardIO(line_reader)
             # want to handle "Stdio was open, but closed" to mean
             # "close control channel"? unless we have outstanding
             # offers?

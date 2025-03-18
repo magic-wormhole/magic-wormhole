@@ -143,7 +143,7 @@ class Receiver:
         if self.args.stdin:
             from .cmd_send import LocalLineReader  # XXX FIXME
             line_reader = LocalLineReader(EventualQueue(reactor))
-            stdin = StandardIO(line_reader)  # noqa
+            _ = StandardIO(line_reader)  # noqa
             next_message = line_reader.next_line
         else:
             next_message = None
