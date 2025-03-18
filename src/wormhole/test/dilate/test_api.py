@@ -122,20 +122,33 @@ class API(ServerBase, unittest.TestCase):
             for status in wormhole_status0
         ]
 
-        self.assertEqual(
-            processed,
-            [
+        # for n in processed: print(n)
+
+        # order of some stuff depends on "something"
+        # is it "who is leader?"
+        if (
+            processed != [
                 WormholeStatus(Disconnected(), NoKey(), NoCode()),
                 WormholeStatus(Connecting(self.relayurl, 1), NoKey(), NoCode()),
                 WormholeStatus(Connected(self.relayurl), NoKey(), NoCode()),
                 WormholeStatus(Connected(self.relayurl), NoKey(), AllocatedCode()),
-                # XXX order of this
                 WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()),
-                # XXX ...and this fluctuates
                 WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), ConsumedCode()),
                 WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()),
             ]
-        )
+        ):
+            self.assertEqual(
+                processed,
+                [
+                    WormholeStatus(Disconnected(), NoKey(), NoCode()),
+                    WormholeStatus(Connecting(self.relayurl, 1), NoKey(), NoCode()),
+                    WormholeStatus(Connected(self.relayurl), NoKey(), NoCode()),
+                    WormholeStatus(Connected(self.relayurl), NoKey(), AllocatedCode()),
+                    WormholeStatus(Connected(self.relayurl), AllegedSharedKey(), AllocatedCode()),
+                    WormholeStatus(Connected(self.relayurl), ConfirmedKey(), AllocatedCode()),
+                    WormholeStatus(Connected(self.relayurl), ConfirmedKey(), ConsumedCode()),
+                ]
+            )
 
         # we are "normalizing" all the timestamps to be "0" because we
         # are using the real reactor and therefore it is difficult to
