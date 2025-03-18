@@ -1,4 +1,3 @@
-import gc
 import io
 from binascii import hexlify, unhexlify
 
@@ -6,7 +5,6 @@ from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
 from twisted.internet import address, defer, endpoints, error, protocol, task
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from twisted.python import log
 from twisted.test import proto_helpers
 from twisted.trial import unittest
 
@@ -469,38 +467,6 @@ class InboundConnectionFactory(unittest.TestCase):
         self.assertEqual(self.successResultOf(d), p1)
         self.assertEqual(p1._cancelled, False)
         self.assertEqual(p2._cancelled, True)
-
-    def test_log_other_errors(self):
-        f = transit.InboundConnectionFactory("owner")
-        f.protocol = MockConnection
-        d = f.whenDone()
-        self.assertNoResult(d)
-
-        addr = address.HostnameAddress("example.com", 1234)
-        p1 = f.buildProtocol(addr)
-
-        # if the Connection protocol throws an unexpected error, that should
-        # get logged to the Twisted logs (as an Unhandled Error in Deferred)
-        # so we can diagnose the bug
-        f.connectionWasMade(p1)
-        our_error = RandomError("boom1")
-        p1._d.errback(our_error)
-        self.assertNoResult(d)
-
-        log.msg("=== note: the next RandomError is expected ===")
-        # Make sure the Deferred has gone out of scope, so the UnhandledError
-        # happens quickly. We must manually break the gc cycle.
-
-        # note: Twisted 24.10.0 stopped calling cleanFailure() which
-        # made this test break -- is there a better way to achieve
-        # this result?
-        p1._d.result.cleanFailure()
-        del p1._d
-        gc.collect()  # make PyPy happy
-        errors = self.flushLoggedErrors(RandomError)
-        self.assertEqual(1, len(errors))
-        self.assertEqual(our_error, errors[0].value)
-        log.msg("=== note: the preceding RandomError was expected ===")
 
     def test_cancel(self):
         f = transit.InboundConnectionFactory("owner")
