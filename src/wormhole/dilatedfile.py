@@ -631,7 +631,7 @@ class DilatedFileTransfer(object):
     @m.output()
     def _close_dilation(self):
         """
-        Shut down the dilated conection.
+        Shut down the dilated connection.
         """
 
     @m.output()

@@ -127,7 +127,7 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
         transfer = versions["transfer"]  # XXX transfer-v2
     except KeyError:
         # XXX fall back to "classic" file-trasfer
-        raise RuntimeError("Peer doesn't support Dilated tranfer")
+        raise RuntimeError("Peer doesn't support Dilated transfer")
 
     boss = DilatedFileTransfer()
     boss.got_peer_versions(transfer)
@@ -218,7 +218,7 @@ from twisted.internet.interfaces import IPullProducer
 @implementer(IPullProducer)
 class FileDataSource:
     """
-    A source of data which is a file, implmented using IPullProducer
+    A source of data which is a file, implemented using IPullProducer
     """
 
     def __init__(self, fp, chunk_size=2**11):
