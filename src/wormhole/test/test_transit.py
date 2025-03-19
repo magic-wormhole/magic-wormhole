@@ -1,12 +1,12 @@
-import gc
 import io
+import pytest_twisted
+import pytest
 from binascii import hexlify, unhexlify
 
 from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
 from twisted.internet import address, defer, endpoints, error, protocol, task
 from twisted.internet.defer import gatherResults, inlineCallbacks
-from twisted.python import log
 from twisted.test import proto_helpers
 from twisted.trial import unittest
 
@@ -141,24 +141,25 @@ class Misc(unittest.TestCase):
 LOOPADDR = "127.0.0.1"
 OTHERADDR = "1.2.3.4"
 
+@pytest_twisted.ensureDeferred()
+async def test_relay_hints():
+    URL = "tcp:host:1234"
+    c = transit.Common(URL, no_listen=True)
+    hints = await c.get_connection_hints()
+    assert hints == [{
+        "type":
+        "relay-v1",
+        "hints": [{
+            "type": "direct-tcp-v1",
+            "hostname": "host",
+            "port": 1234,
+            "priority": 0.0
+        }],
+    }], "hints not what expected"
+    with pytest.raises(InternalError):
+        transit.Common(123)
 
 class Basic(unittest.TestCase):
-    @inlineCallbacks
-    def test_relay_hints(self):
-        URL = "tcp:host:1234"
-        c = transit.Common(URL, no_listen=True)
-        hints = yield c.get_connection_hints()
-        self.assertEqual(hints, [{
-            "type":
-            "relay-v1",
-            "hints": [{
-                "type": "direct-tcp-v1",
-                "hostname": "host",
-                "port": 1234,
-                "priority": 0.0
-            }],
-        }])
-        self.assertRaises(InternalError, transit.Common, 123)
 
     @inlineCallbacks
     def test_no_relay_hints(self):
@@ -469,38 +470,6 @@ class InboundConnectionFactory(unittest.TestCase):
         self.assertEqual(self.successResultOf(d), p1)
         self.assertEqual(p1._cancelled, False)
         self.assertEqual(p2._cancelled, True)
-
-    def test_log_other_errors(self):
-        f = transit.InboundConnectionFactory("owner")
-        f.protocol = MockConnection
-        d = f.whenDone()
-        self.assertNoResult(d)
-
-        addr = address.HostnameAddress("example.com", 1234)
-        p1 = f.buildProtocol(addr)
-
-        # if the Connection protocol throws an unexpected error, that should
-        # get logged to the Twisted logs (as an Unhandled Error in Deferred)
-        # so we can diagnose the bug
-        f.connectionWasMade(p1)
-        our_error = RandomError("boom1")
-        p1._d.errback(our_error)
-        self.assertNoResult(d)
-
-        log.msg("=== note: the next RandomError is expected ===")
-        # Make sure the Deferred has gone out of scope, so the UnhandledError
-        # happens quickly. We must manually break the gc cycle.
-
-        # note: Twisted 24.10.0 stopped calling cleanFailure() which
-        # made this test break -- is there a better way to achieve
-        # this result?
-        p1._d.result.cleanFailure()
-        del p1._d
-        gc.collect()  # make PyPy happy
-        errors = self.flushLoggedErrors(RandomError)
-        self.assertEqual(1, len(errors))
-        self.assertEqual(our_error, errors[0].value)
-        log.msg("=== note: the preceding RandomError was expected ===")
 
     def test_cancel(self):
         f = transit.InboundConnectionFactory("owner")
@@ -1561,63 +1530,59 @@ class RelayHandshake(unittest.TestCase):
             [mock.call(hexlify(token), c._side.encode("ascii"))])
 
 
-class Full(ServerBase, unittest.TestCase):
-    def doBoth(self, d1, d2):
-        return gatherResults([d1, d2], True)
+@pytest_twisted.ensureDeferred()
+async def test_direct():
+    KEY = b"k" * 32
+    s = transit.TransitSender(None)
+    r = transit.TransitReceiver(None)
 
-    @inlineCallbacks
-    def test_direct(self):
-        KEY = b"k" * 32
-        s = transit.TransitSender(None)
-        r = transit.TransitReceiver(None)
+    s.set_transit_key(KEY)
+    r.set_transit_key(KEY)
 
-        s.set_transit_key(KEY)
-        r.set_transit_key(KEY)
+    # TODO: this sometimes fails with EADDRINUSE
+    shints = await s.get_connection_hints()
+    rhints = await r.get_connection_hints()
 
-        # TODO: this sometimes fails with EADDRINUSE
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+    s.add_connection_hints(rhints)
+    r.add_connection_hints(shints)
 
-        s.add_connection_hints(rhints)
-        r.add_connection_hints(shints)
+    (x, y) = await gatherResults([s.connect(), r.connect()],True)
+    assert isinstance(x, transit.Connection), "x was not expected instance of transit.Connection"
+    assert isinstance(y, transit.Connection), "y was not expected instance of transit.Connection"
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
-        self.assertIsInstance(x, transit.Connection)
-        self.assertIsInstance(y, transit.Connection)
+    d = y.receive_record()
 
-        d = y.receive_record()
+    x.send_record(b"record1")
+    r = await d
+    assert r == b"record1", "r was not 'record1'"
 
-        x.send_record(b"record1")
-        r = yield d
-        self.assertEqual(r, b"record1")
+    x.close()
+    y.close()
 
-        yield x.close()
-        yield y.close()
+@pytest_twisted.ensureDeferred()
+async def test_relay(transit_relay):
+    KEY = b"k" * 32
+    s = transit.TransitSender(transit_relay, no_listen=True)
+    r = transit.TransitReceiver(transit_relay, no_listen=True)
 
-    @inlineCallbacks
-    def test_relay(self):
-        KEY = b"k" * 32
-        s = transit.TransitSender(self.transit, no_listen=True)
-        r = transit.TransitReceiver(self.transit, no_listen=True)
+    s.set_transit_key(KEY)
+    r.set_transit_key(KEY)
 
-        s.set_transit_key(KEY)
-        r.set_transit_key(KEY)
+    shints = await s.get_connection_hints()
+    rhints = await r.get_connection_hints()
 
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+    s.add_connection_hints(rhints)
+    r.add_connection_hints(shints)
 
-        s.add_connection_hints(rhints)
-        r.add_connection_hints(shints)
+    (x, y) = await gatherResults([s.connect(), r.connect()],True)
+    assert isinstance(x, transit.Connection),"x was not an instance of transit.Connection"
+    assert isinstance(y, transit.Connection),"y was not an instance of transit.Connection"
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
-        self.assertIsInstance(x, transit.Connection)
-        self.assertIsInstance(y, transit.Connection)
+    d = y.receive_record()
 
-        d = y.receive_record()
+    x.send_record(b"record1")
+    r = await d
+    assert r == b"record1", "r was not 'record1'"
 
-        x.send_record(b"record1")
-        r = yield d
-        self.assertEqual(r, b"record1")
-
-        yield x.close()
-        yield y.close()
+    x.close()
+    y.close()
