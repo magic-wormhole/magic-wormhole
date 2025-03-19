@@ -1,7 +1,20 @@
 from hypothesis.stateful import rule, precondition, RuleBasedStateMachine, run_state_machine_as_test
 from hypothesis.strategies import integers, lists
 from hypothesis import given
+import pytest
 import pytest_twisted
+
+from wormhole.errors import LonelyError
+from twisted.internet.testing import MemoryReactorClock
+from twisted.internet.interfaces import IHostnameResolver
+from wormhole.eventual import EventualQueue
+from wormhole import create
+
+
+
+from twisted.internet import defer
+defer.setDebugging(True)
+
 
 client_to_mailbox = [
     {"type": "claim", },
@@ -26,13 +39,18 @@ mailbox_to_client = [
 ]
 
 class WormholeMachine(RuleBasedStateMachine):
-    def __init__(self,wormholeplz):
-        self.wormhole = wormholeplz
+    def __init__(self,wormhole, reactor):
         RuleBasedStateMachine.__init__(self)
+        self._reactor = reactor
+        self._pending_wormhole = wormhole
+        self.wormhole = None
+        self._transcript = []
 
     @rule() # how to connect to welcome?
+    @precondition(lambda self: self.wormhole is None)
     def new_wormhole(self):
-        print("no, really! it happened!")
+        self._transcript.append("new")
+        self.wormhole = self._pending_wormhole
         assert self.wormhole._boss is not None
 
     @rule()
@@ -41,13 +59,74 @@ class WormholeMachine(RuleBasedStateMachine):
         # we haven't recv'd a welcome yet
         d = self.wormhole.get_welcome() # we extract a deferred that will be called when we get a welcome message
         assert not d.called # on a deferred there's a "called"
-        print("XXX", d)
         self.wormhole._boss.rx_welcome({"type": "welcome", "motd": "hello, world"})
-        print("YYY", d)
+
+        self._reactor.advance(1)
         assert d.called # now we have a welcome message!
+        self._transcript.append("welcome")
+        self.wormhole._boss.rx_welcome({"type": "welcome", "motd": "hello, world"})
 
 
-def test_foo(wormhole):
+
+
+from twisted.internet.address import IPv4Address
+from twisted.internet._resolver import HostResolution  # "internal" class, but it's simple
+from twisted.internet.interfaces import ISSLTransport, IReactorPluggableNameResolver
+from zope.interface import directlyProvides, implementer
+
+
+@implementer(IHostnameResolver)
+class _StaticTestResolver(object):
+    def resolveHostName(self, receiver, hostName, portNumber=0):
+        """
+        Implement IHostnameResolver which always returns 127.0.0.1:31337
+        """
+        resolution = HostResolution(hostName)
+        receiver.resolutionBegan(resolution)
+        receiver.addressResolved(
+            IPv4Address('TCP', '127.0.0.1', 31337 if portNumber == 0 else portNumber)
+        )
+        receiver.resolutionComplete()
+
+
+@implementer(IReactorPluggableNameResolver)
+class _TestNameResolver(object):
+    """
+    A test version of IReactorPluggableNameResolver
+    """
+
+    _resolver = None
+
+    @property
+    def nameResolver(self):
+        if self._resolver is None:
+            self._resolver = _StaticTestResolver()
+        return self._resolver
+
+    def installNameResolver(self, resolver):
+        old = self._resolver
+        self._resolver = resolver
+        return old
+
+
+class MemoryReactorClockResolver(MemoryReactorClock, _TestNameResolver):
+    """
+    Combine MemoryReactor, Clock and an IReactorPluggableNameResolver
+    together.
+    """
+    pass
+
+
+def test_foo(mailbox):
+
+    reactor = MemoryReactorClockResolver()
+    eq = EventualQueue(reactor)
+    w = create("foo", "ws://fake:1234/v1", reactor, _eventual_queue=eq)
+
+    machines = []
+
     def create_machine():
-        return WormholeMachine(wormhole)
+        m = WormholeMachine(w, reactor)
+        machines.append(m)
+        return m
     run_state_machine_as_test(create_machine)
