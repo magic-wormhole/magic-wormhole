@@ -39,17 +39,15 @@ mailbox_to_client = [
 ]
 
 class WormholeMachine(RuleBasedStateMachine):
-    def __init__(self,wormhole, reactor):
+    def __init__(self, wormhole, reactor):
         RuleBasedStateMachine.__init__(self)
         self._reactor = reactor
         self._pending_wormhole = wormhole
         self.wormhole = None
-        self._transcript = []
 
     @rule() # how to connect to welcome?
     @precondition(lambda self: self.wormhole is None)
     def new_wormhole(self):
-        self._transcript.append("new")
         self.wormhole = self._pending_wormhole
         assert self.wormhole._boss is not None
 
@@ -63,8 +61,6 @@ class WormholeMachine(RuleBasedStateMachine):
 
         self._reactor.advance(1)
         assert d.called # now we have a welcome message!
-        self._transcript.append("welcome")
-        self.wormhole._boss.rx_welcome({"type": "welcome", "motd": "hello, world"})
 
 
 
@@ -121,7 +117,7 @@ def test_foo(mailbox):
 
     reactor = MemoryReactorClockResolver()
     eq = EventualQueue(reactor)
-    w = create("foo", "ws://fake:1234/v1", reactor, _eventual_queue=eq)
+    w = create("foo", "ws://whatever:1/v1", reactor, _eventual_queue=eq)
 
     machines = []
 
