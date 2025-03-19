@@ -12,7 +12,13 @@ import pytest_twisted
 @pytest.fixture(scope="session")
 def reactor():
     from twisted.internet import reactor
+    ## future: reactor = MemoryReactorClockResolver()
     yield reactor
+
+
+@pytest.fixture(scope="session")
+def eventual_queue(reactor):
+    yield EventualQueue(reactor)
 
 
 @pytest.fixture(scope="session")

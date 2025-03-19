@@ -60,6 +60,7 @@ class WormholeMachine(RuleBasedStateMachine):
         self.wormhole._boss.rx_welcome({"type": "welcome", "motd": "hello, world"})
 
         self._reactor.advance(1)
+        ## await ...
         assert d.called # now we have a welcome message!
 
 
