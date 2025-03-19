@@ -1,4 +1,6 @@
 import io
+import pytest_twisted
+import pytest
 from binascii import hexlify, unhexlify
 
 from nacl.exceptions import CryptoError
@@ -139,24 +141,25 @@ class Misc(unittest.TestCase):
 LOOPADDR = "127.0.0.1"
 OTHERADDR = "1.2.3.4"
 
+@pytest_twisted.ensureDeferred()
+async def test_relay_hints():
+    URL = "tcp:host:1234"
+    c = transit.Common(URL, no_listen=True)
+    hints = await c.get_connection_hints()
+    assert hints == [{
+        "type":
+        "relay-v1",
+        "hints": [{
+            "type": "direct-tcp-v1",
+            "hostname": "host",
+            "port": 1234,
+            "priority": 0.0
+        }],
+    }], "hints not what expected"
+    with pytest.raises(InternalError):
+        transit.Common(123)
 
 class Basic(unittest.TestCase):
-    @inlineCallbacks
-    def test_relay_hints(self):
-        URL = "tcp:host:1234"
-        c = transit.Common(URL, no_listen=True)
-        hints = yield c.get_connection_hints()
-        self.assertEqual(hints, [{
-            "type":
-            "relay-v1",
-            "hints": [{
-                "type": "direct-tcp-v1",
-                "hostname": "host",
-                "port": 1234,
-                "priority": 0.0
-            }],
-        }])
-        self.assertRaises(InternalError, transit.Common, 123)
 
     @inlineCallbacks
     def test_no_relay_hints(self):
@@ -1527,63 +1530,59 @@ class RelayHandshake(unittest.TestCase):
             [mock.call(hexlify(token), c._side.encode("ascii"))])
 
 
-class Full(ServerBase, unittest.TestCase):
-    def doBoth(self, d1, d2):
-        return gatherResults([d1, d2], True)
+@pytest_twisted.ensureDeferred()
+async def test_direct():
+    KEY = b"k" * 32
+    s = transit.TransitSender(None)
+    r = transit.TransitReceiver(None)
 
-    @inlineCallbacks
-    def test_direct(self):
-        KEY = b"k" * 32
-        s = transit.TransitSender(None)
-        r = transit.TransitReceiver(None)
+    s.set_transit_key(KEY)
+    r.set_transit_key(KEY)
 
-        s.set_transit_key(KEY)
-        r.set_transit_key(KEY)
+    # TODO: this sometimes fails with EADDRINUSE
+    shints = await s.get_connection_hints()
+    rhints = await r.get_connection_hints()
 
-        # TODO: this sometimes fails with EADDRINUSE
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+    s.add_connection_hints(rhints)
+    r.add_connection_hints(shints)
 
-        s.add_connection_hints(rhints)
-        r.add_connection_hints(shints)
+    (x, y) = await gatherResults([s.connect(), r.connect()],True)
+    assert isinstance(x, transit.Connection), "x was not expected instance of transit.Connection"
+    assert isinstance(y, transit.Connection), "y was not expected instance of transit.Connection"
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
-        self.assertIsInstance(x, transit.Connection)
-        self.assertIsInstance(y, transit.Connection)
+    d = y.receive_record()
 
-        d = y.receive_record()
+    x.send_record(b"record1")
+    r = await d
+    assert r == b"record1", "r was not 'record1'"
 
-        x.send_record(b"record1")
-        r = yield d
-        self.assertEqual(r, b"record1")
+    x.close()
+    y.close()
 
-        yield x.close()
-        yield y.close()
+@pytest_twisted.ensureDeferred()
+async def test_relay(transit_relay):
+    KEY = b"k" * 32
+    s = transit.TransitSender(transit_relay, no_listen=True)
+    r = transit.TransitReceiver(transit_relay, no_listen=True)
 
-    @inlineCallbacks
-    def test_relay(self):
-        KEY = b"k" * 32
-        s = transit.TransitSender(self.transit, no_listen=True)
-        r = transit.TransitReceiver(self.transit, no_listen=True)
+    s.set_transit_key(KEY)
+    r.set_transit_key(KEY)
 
-        s.set_transit_key(KEY)
-        r.set_transit_key(KEY)
+    shints = await s.get_connection_hints()
+    rhints = await r.get_connection_hints()
 
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+    s.add_connection_hints(rhints)
+    r.add_connection_hints(shints)
 
-        s.add_connection_hints(rhints)
-        r.add_connection_hints(shints)
+    (x, y) = await gatherResults([s.connect(), r.connect()],True)
+    assert isinstance(x, transit.Connection),"x was not an instance of transit.Connection"
+    assert isinstance(y, transit.Connection),"y was not an instance of transit.Connection"
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
-        self.assertIsInstance(x, transit.Connection)
-        self.assertIsInstance(y, transit.Connection)
+    d = y.receive_record()
 
-        d = y.receive_record()
+    x.send_record(b"record1")
+    r = await d
+    assert r == b"record1", "r was not 'record1'"
 
-        x.send_record(b"record1")
-        r = yield d
-        self.assertEqual(r, b"record1")
-
-        yield x.close()
-        yield y.close()
+    x.close()
+    y.close()

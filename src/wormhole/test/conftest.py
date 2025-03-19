@@ -1,9 +1,12 @@
-from twisted.internet import endpoints
-
+from ..transit import allocate_tcp_port
+from twisted.application import internet, service
+from twisted.internet import defer, endpoints, reactor, task, protocol
+from wormhole import create
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_mailbox_server.server import make_server
 from wormhole_mailbox_server.web import make_web_server
-from wormhole import create
+from wormhole_transit_relay.transit_server import Transit, TransitConnection
+from wormhole_transit_relay.usage import create_usage_tracker
 
 import pytest
 import pytest_twisted
@@ -35,7 +38,7 @@ def mailbox(reactor):
     pytest_twisted.blockon(port.stopListening())
 
 @pytest.fixture(scope="session")
-def transit_relay(mailbox):
+def transit_relay(mailbox,reactor):
     transitport = allocate_tcp_port()
     ep = endpoints.serverFromString(
         reactor, "tcp:%d:interface=127.0.0.1" % transitport)
@@ -47,9 +50,9 @@ def transit_relay(mailbox):
     transit_server.transit = Transit(usage, reactor.seconds)
 
     srv = internet.StreamServerEndpointService(ep, transit_server) #.setServiceParent(self.sp)
-    srv.start()
-    yield u"tcp:127.0.0.1:%d" % self.transitport # return the actual thing
-    srv.stop() # clean up our trash
+    srv.startService()
+    yield u"tcp:127.0.0.1:%d" % transitport # return the actual thing
+    srv.stopService() # clean up our trash
 
 @pytest.fixture()
 def wormhole(mailbox,reactor):
