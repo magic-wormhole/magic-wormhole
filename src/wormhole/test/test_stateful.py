@@ -1,4 +1,4 @@
-from hypothesis.stateful import rule, precondition, RuleBasedStateMachine
+from hypothesis.stateful import rule, precondition, RuleBasedStateMachine, run_state_machine_as_test
 from hypothesis.strategies import integers, lists
 from hypothesis import given
 import pytest_twisted
@@ -28,11 +28,12 @@ mailbox_to_client = [
 class WormholeMachine(RuleBasedStateMachine):
     def __init__(self,wormholeplz):
         self.wormhole = wormholeplz
+        RuleBasedStateMachine.__init__(self)
 
     @rule() # how to connect to welcome?
     def new_wormhole(self):
         print("no, really! it happened!")
-        assert self.wormhole._B is not None
+        assert self.wormhole._boss is not None
 
     @rule()
     @precondition(lambda self: self.wormhole) # can't run this transition/check until we have a wormhole
@@ -40,10 +41,13 @@ class WormholeMachine(RuleBasedStateMachine):
         # we haven't recv'd a welcome yet
         d = self.wormhole.get_welcome() # we extract a deferred that will be called when we get a welcome message
         assert not d.called # on a deferred there's a "called"
-        self.wormhole.tx_welcome() # ok, do it!
+        print("XXX", d)
+        self.wormhole._boss.rx_welcome({"type": "welcome", "motd": "hello, world"})
+        print("YYY", d)
         assert d.called # now we have a welcome message!
 
 
 def test_foo(wormhole):
-    t = WormholeMachine(wormhole).TestCase()
-    t.run()
+    def create_machine():
+        return WormholeMachine(wormhole)
+    run_state_machine_as_test(create_machine)
