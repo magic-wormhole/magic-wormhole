@@ -7,6 +7,8 @@ from twisted.trial import unittest
 
 from unittest import mock
 
+from pytest_twisted import ensureDeferred
+
 from .._rlcompleter import (CodeInputter, _input_code_with_completion,
                             input_with_completion, warn_readline)
 from ..errors import AlreadyInputNameplateError, KeyFormatError
@@ -15,14 +17,14 @@ APPID = "appid"
 
 
 class Input(unittest.TestCase):
-    @inlineCallbacks
-    def test_wrapper(self):
+    @ensureDeferred
+    async def test_wrapper(self):
         helper = object()
         trueish = object()
         with mock.patch(
                 "wormhole._rlcompleter._input_code_with_completion",
                 return_value=trueish) as m:
-            used_completion = yield input_with_completion(
+            used_completion = await input_with_completion(
                 "prompt:", helper, reactor)
         self.assertIs(used_completion, trueish)
         self.assertEqual(m.mock_calls, [mock.call("prompt:", helper, reactor)])
@@ -226,8 +228,8 @@ class Completion(unittest.TestCase):
                          [mock.call("completer exception: oops")])
         self.assertEqual(str(e.exception), "oops")
 
-    @inlineCallbacks
-    def test_build_completions(self):
+    @ensureDeferred
+    async def test_build_completions(self):
         rn = mock.Mock()
         # InputHelper.get_nameplate_completions returns just the suffixes
         gnc = mock.Mock()  # get_nameplate_completions
@@ -249,7 +251,7 @@ class Completion(unittest.TestCase):
 
         # 43 TAB -> nothing (and refresh_nameplates)
         gnc.configure_mock(return_value=[])
-        matches = yield deferToThread(cabc, "43")
+        matches = await deferToThread(cabc, "43")
         self.assertEqual(matches, [])
         self.assertEqual(rn.mock_calls, [mock.call()])
         self.assertEqual(gnc.mock_calls, [mock.call("43")])
@@ -259,7 +261,7 @@ class Completion(unittest.TestCase):
 
         # 1 TAB -> 1-, 12- (and refresh_nameplates)
         gnc.configure_mock(return_value=["1-", "12-"])
-        matches = yield deferToThread(cabc, "1")
+        matches = await deferToThread(cabc, "1")
         self.assertEqual(matches, ["1-", "12-"])
         self.assertEqual(rn.mock_calls, [mock.call()])
         self.assertEqual(gnc.mock_calls, [mock.call("1")])
@@ -270,7 +272,7 @@ class Completion(unittest.TestCase):
         # 12 TAB -> 12- (and refresh_nameplates)
         # I wouldn't mind if it didn't refresh the nameplates here, but meh
         gnc.configure_mock(return_value=["12-"])
-        matches = yield deferToThread(cabc, "12")
+        matches = await deferToThread(cabc, "12")
         self.assertEqual(matches, ["12-"])
         self.assertEqual(rn.mock_calls, [mock.call()])
         self.assertEqual(gnc.mock_calls, [mock.call("12")])
@@ -281,7 +283,7 @@ class Completion(unittest.TestCase):
         # 12- TAB -> 12- {all words} (claim, no refresh)
         gnc.configure_mock(return_value=["12-"])
         gwc.configure_mock(return_value=["and-", "ark-", "aaah!zombies!!-"])
-        matches = yield deferToThread(cabc, "12-")
+        matches = await deferToThread(cabc, "12-")
         self.assertEqual(matches, ["12-aaah!zombies!!-", "12-and-", "12-ark-"])
         self.assertEqual(rn.mock_calls, [])
         self.assertEqual(gnc.mock_calls, [])
@@ -296,7 +298,7 @@ class Completion(unittest.TestCase):
         # 12-a TAB -> 12-and- 12-ark- 12-aaah!zombies!!-
         gnc.configure_mock(side_effect=ValueError)
         gwc.configure_mock(return_value=["and-", "ark-", "aaah!zombies!!-"])
-        matches = yield deferToThread(cabc, "12-a")
+        matches = await deferToThread(cabc, "12-a")
         # matches are always sorted
         self.assertEqual(matches, ["12-aaah!zombies!!-", "12-and-", "12-ark-"])
         self.assertEqual(rn.mock_calls, [])
@@ -309,7 +311,7 @@ class Completion(unittest.TestCase):
         gnc.configure_mock(side_effect=ValueError)
         # wordlist knows the code length, so doesn't add hyphens to these
         gwc.configure_mock(return_value=["and-bat", "and-bet", "and-but"])
-        matches = yield deferToThread(cabc, "12-and-b")
+        matches = await deferToThread(cabc, "12-and-b")
         self.assertEqual(matches, ["12-and-bat", "12-and-bet", "12-and-but"])
         self.assertEqual(rn.mock_calls, [])
         self.assertEqual(gnc.mock_calls, [])
@@ -317,7 +319,7 @@ class Completion(unittest.TestCase):
         self.assertEqual(gwc.mock_calls, [mock.call("and-b")])
         gwc.reset_mock()
 
-        yield deferToThread(c.finish, "12-and-bat")
+        await deferToThread(c.finish, "12-and-bat")
         self.assertEqual(cw.mock_calls, [mock.call("and-bat")])
 
     def test_incomplete_code(self):
@@ -328,14 +330,14 @@ class Completion(unittest.TestCase):
             c.finish("1")
         self.assertEqual(str(e.exception), "incomplete wormhole code")
 
-    @inlineCallbacks
-    def test_rollback_nameplate_during_completion(self):
+    @ensureDeferred
+    async def test_rollback_nameplate_during_completion(self):
         helper = mock.Mock()
         gwc = helper.get_word_completions = mock.Mock()
         gwc.configure_mock(return_value=["code", "court"])
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
-        matches = yield deferToThread(cabc, "1-co")  # this commits us to 1-
+        matches = await deferToThread(cabc, "1-co")  # this commits us to 1-
         self.assertEqual(helper.mock_calls, [
             mock.call.choose_nameplate("1"),
             mock.call.when_wordlist_is_available(),
@@ -344,19 +346,19 @@ class Completion(unittest.TestCase):
         self.assertEqual(matches, ["1-code", "1-court"])
         helper.reset_mock()
         with self.assertRaises(AlreadyInputNameplateError) as e:
-            yield deferToThread(cabc, "2-co")
+            await deferToThread(cabc, "2-co")
         self.assertEqual(
             str(e.exception), "nameplate (1-) already entered, cannot go back")
         self.assertEqual(helper.mock_calls, [])
 
-    @inlineCallbacks
-    def test_rollback_nameplate_during_finish(self):
+    @ensureDeferred
+    async def test_rollback_nameplate_during_finish(self):
         helper = mock.Mock()
         gwc = helper.get_word_completions = mock.Mock()
         gwc.configure_mock(return_value=["code", "court"])
         c = CodeInputter(helper, reactor)
         cabc = c._commit_and_build_completions
-        matches = yield deferToThread(cabc, "1-co")  # this commits us to 1-
+        matches = await deferToThread(cabc, "1-co")  # this commits us to 1-
         self.assertEqual(helper.mock_calls, [
             mock.call.choose_nameplate("1"),
             mock.call.when_wordlist_is_available(),
@@ -365,7 +367,7 @@ class Completion(unittest.TestCase):
         self.assertEqual(matches, ["1-code", "1-court"])
         helper.reset_mock()
         with self.assertRaises(AlreadyInputNameplateError) as e:
-            yield deferToThread(c.finish, "2-code")
+            await deferToThread(c.finish, "2-code")
         self.assertEqual(
             str(e.exception), "nameplate (1-) already entered, cannot go back")
         self.assertEqual(helper.mock_calls, [])

@@ -5,6 +5,8 @@ from twisted.trial import unittest
 
 from unittest import mock
 
+from pytest_twisted import ensureDeferred
+
 from ..eventual import EventualQueue
 
 
@@ -46,8 +48,8 @@ class Eventual(unittest.TestCase, object):
 
         self.flushLoggedErrors(IntentionalError)
 
-    @inlineCallbacks
-    def test_flush(self):
+    @ensureDeferred
+    async def test_flush(self):
         eq = EventualQueue(reactor)
         d1 = eq.fire_eventually()
         d2 = Deferred()
@@ -56,7 +58,7 @@ class Eventual(unittest.TestCase, object):
             eq.eventually(d2.callback, None)
 
         d1.addCallback(_more)
-        yield eq.flush()
+        await eq.flush()
         # d1 will fire, which will queue d2 to fire, and the flush() ought to
         # wait for d2 too
         self.successResultOf(d2)

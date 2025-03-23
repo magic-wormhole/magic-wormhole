@@ -20,6 +20,8 @@ from zope.interface import implementer
 
 from unittest import mock
 
+from pytest_twisted import ensureDeferred
+
 from .. import __version__
 from .._interfaces import ITorManager
 from ..cli import cli, cmd_receive, cmd_send, welcome
@@ -255,18 +257,18 @@ class LocaleFinder:
     def __init__(self):
         self._run_once = False
 
-    @inlineCallbacks
-    def find_utf8_locale(self):
+    @ensureDeferred
+    async def find_utf8_locale(self):
         if sys.platform == "win32":
             return "en_US.UTF-8"
         if self._run_once:
             return self._best_locale
-        self._best_locale = yield self._find_utf8_locale()
+        self._best_locale = await self._find_utf8_locale()
         self._run_once = True
         return self._best_locale
 
-    @inlineCallbacks
-    def _find_utf8_locale(self):
+    @ensureDeferred
+    async def _find_utf8_locale(self):
         # Click really wants to be running under a unicode-capable locale,
         # especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
         # most linux boxes have C.UTF-8 but not en-US.UTF-8 . For tests,
@@ -274,7 +276,7 @@ class LocaleFinder:
         # mess, as really the user must take responsibility for setting their
         # locale properly. I'm thinking of abandoning Click and going back to
         # twisted.python.usage to avoid this problem in the future.
-        (out, err, rc) = yield getProcessOutputAndValue("locale", ["-a"])
+        (out, err, rc) = await getProcessOutputAndValue("locale", ["-a"])
         if rc != 0:
             log.msg("error running 'locale -a', rc=%s" % (rc, ))
             log.msg("stderr: %s" % (err, ))
@@ -314,8 +316,8 @@ class ScriptsBase:
                 (wormhole, sys.executable))
         return wormhole
 
-    @inlineCallbacks
-    def is_runnable(self):
+    @ensureDeferred
+    async def is_runnable(self):
         # One property of Versioneer is that many changes to the source tree
         # (making a commit, dirtying a previously-clean tree) will change the
         # version string. Entrypoint scripts frequently insist upon importing
@@ -332,12 +334,12 @@ class ScriptsBase:
         # convince Click to not complain about a forced-ascii locale. My
         # apologies to folks who want to run tests on a machine that doesn't
         # have the C.UTF-8 locale installed.
-        locale = yield locale_finder.find_utf8_locale()
+        locale = await locale_finder.find_utf8_locale()
         if not locale:
             raise unittest.SkipTest("unable to find UTF-8 locale")
         locale_env = dict(LC_ALL=locale, LANG=locale)
         wormhole = self.find_executable()
-        res = yield getProcessOutputAndValue(
+        res = await getProcessOutputAndValue(
             wormhole, ["--version"], env=locale_env)
         out, err, rc = res
         if rc != 0:
@@ -353,8 +355,8 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
-    @inlineCallbacks
-    def test_version(self):
+    @ensureDeferred
+    async def test_version(self):
         # "wormhole" must be on the path, so e.g. "pip install -e ." in a
         # virtualenv. This guards against an environment where the tests
         # below might run the wrong executable.
@@ -362,7 +364,7 @@ class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
         wormhole = self.find_executable()
         # we must pass on the environment so that "something" doesn't
         # get sad about UTF8 vs. ascii encodings
-        out, err, rc = yield getProcessOutputAndValue(
+        out, err, rc = await getProcessOutputAndValue(
             wormhole, ["--version"], env=os.environ)
         err = err.decode("utf-8")
         if "DistributionNotFound" in err:
@@ -401,13 +403,13 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
-    @inlineCallbacks
-    def setUp(self):
-        self._env = yield self.is_runnable()
-        yield ServerBase.setUp(self)
+    @ensureDeferred
+    async def setUp(self):
+        self._env = await self.is_runnable()
+        await ServerBase.setUp(self)
 
-    @inlineCallbacks
-    def _do_test(self,
+    @ensureDeferred
+    async def _do_test(self,
                  as_subprocess=False,
                  mode="text",
                  addslash=False,
@@ -551,7 +553,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 env=env,
             )
 
-            (send_res, receive_res) = yield gatherResults([send_d, receive_d],
+            (send_res, receive_res) = await gatherResults([send_d, receive_d],
                                                           True)
             send_stdout = send_res[0].decode("utf-8")
             send_stderr = send_res[1].decode("utf-8")
@@ -597,7 +599,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     # gets far enough to start the timer, which happens after
                     # the code is set
                     if mode == "slow-sender-text":
-                        yield rxw[0].get_unverified_key()
+                        await rxw[0].get_unverified_key()
 
             # The sender might fail, leaving the receiver hanging, or vice
             # versa. Make sure we don't wait on one side exclusively
@@ -607,14 +609,14 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                     if mock_accept or verify:
                         with mock.patch.object(builtins, 'input',
                                 return_value='yes') as i:
-                            yield gatherResults([send_d, receive_d], True)
+                            await gatherResults([send_d, receive_d], True)
                         if verify:
                             s = i.mock_calls[0][1][0]
                             mo = re.search(r'^Verifier (\w+)\. ok\?', s)
                             self.assertTrue(mo, s)
                             sender_verifier = mo.group(1)
                     else:
-                        yield gatherResults([send_d, receive_d], True)
+                        await gatherResults([send_d, receive_d], True)
 
             if fake_tor:
                 expected_endpoints = [("127.0.0.1", self.rdv_ws_port, False)]
@@ -803,8 +805,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def test_slow_sender_text(self):
         return self._do_test(mode="slow-sender-text")
 
-    @inlineCallbacks
-    def _do_test_fail(self, mode, failmode):
+    @ensureDeferred
+    async def _do_test_fail(self, mode, failmode):
         assert mode in ("file", "directory")
         assert failmode in ("noclobber", "toobig")
         send_cfg = config("send")
@@ -870,10 +872,10 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         with mock.patch(
                 "wormhole.cli.cmd_receive.estimate_free_space",
                 return_value=free_space):
-            f = yield self.assertFailure(send_d, TransferError)
+            f = await self.assertFailure(send_d, TransferError)
             self.assertEqual(
                 str(f), "remote error, transfer abandoned: transfer rejected")
-            f = yield self.assertFailure(receive_d, TransferError)
+            f = await self.assertFailure(receive_d, TransferError)
             self.assertEqual(str(f), "transfer rejected")
 
         send_stdout = send_cfg.stdout.getvalue()
@@ -981,8 +983,8 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
 
 class ZeroMode(ServerBase, unittest.TestCase):
-    @inlineCallbacks
-    def test_text(self):
+    @ensureDeferred
+    async def test_text(self):
         send_cfg = config("send")
         recv_cfg = config("receive")
         message = "textponies"
@@ -1004,7 +1006,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(send_cfg)
         receive_d = cmd_receive.receive(recv_cfg)
 
-        yield gatherResults([send_d, receive_d], True)
+        await gatherResults([send_d, receive_d], True)
 
         send_stdout = send_cfg.stdout.getvalue()
         send_stderr = send_cfg.stderr.getvalue()
@@ -1035,9 +1037,9 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
 
 class NotWelcome(ServerBase, unittest.TestCase):
-    @inlineCallbacks
-    def setUp(self):
-        yield self._setup_relay(error="please upgrade XYZ")
+    @ensureDeferred
+    async def setUp(self):
+        await self._setup_relay(error="please upgrade XYZ")
         self.cfg = cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
@@ -1046,32 +1048,32 @@ class NotWelcome(ServerBase, unittest.TestCase):
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
-    @inlineCallbacks
-    def test_sender(self):
+    @ensureDeferred
+    async def test_sender(self):
         self.cfg.text = "hi"
         self.cfg.code = u"1-abc"
 
         send_d = cmd_send.send(self.cfg)
-        f = yield self.assertFailure(send_d, WelcomeError)
+        f = await self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
 
-    @inlineCallbacks
-    def test_receiver(self):
+    @ensureDeferred
+    async def test_receiver(self):
         self.cfg.code = u"1-abc"
 
         receive_d = cmd_receive.receive(self.cfg)
-        f = yield self.assertFailure(receive_d, WelcomeError)
+        f = await self.assertFailure(receive_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
 
 
 class NoServer(ServerBase, unittest.TestCase):
-    @inlineCallbacks
-    def setUp(self):
-        yield self._setup_relay(None)
-        yield self._relay_server.disownServiceParent()
+    @ensureDeferred
+    async def setUp(self):
+        await self._setup_relay(None)
+        await self._relay_server.disownServiceParent()
 
-    @inlineCallbacks
-    def test_sender(self):
+    @ensureDeferred
+    async def test_sender(self):
         cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
@@ -1084,11 +1086,11 @@ class NoServer(ServerBase, unittest.TestCase):
         cfg.code = u"1-abc"
 
         send_d = cmd_send.send(cfg)
-        e = yield self.assertFailure(send_d, ServerConnectionError)
+        e = await self.assertFailure(send_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
-    @inlineCallbacks
-    def test_sender_allocation(self):
+    @ensureDeferred
+    async def test_sender_allocation(self):
         cfg = config("send")
         cfg.hide_progress = True
         cfg.listen = False
@@ -1100,11 +1102,11 @@ class NoServer(ServerBase, unittest.TestCase):
         cfg.text = "hi"
 
         send_d = cmd_send.send(cfg)
-        e = yield self.assertFailure(send_d, ServerConnectionError)
+        e = await self.assertFailure(send_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
-    @inlineCallbacks
-    def test_receiver(self):
+    @ensureDeferred
+    async def test_receiver(self):
         cfg = config("receive")
         cfg.hide_progress = True
         cfg.listen = False
@@ -1116,7 +1118,7 @@ class NoServer(ServerBase, unittest.TestCase):
         cfg.code = u"1-abc"
 
         receive_d = cmd_receive.receive(cfg)
-        e = yield self.assertFailure(receive_d, ServerConnectionError)
+        e = await self.assertFailure(receive_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
 
@@ -1131,9 +1133,9 @@ class Cleanup(ServerBase, unittest.TestCase):
         cfg.stderr = io.StringIO()
         return cfg
 
-    @inlineCallbacks
+    @ensureDeferred
     @mock.patch('sys.stdout')
-    def test_text(self, stdout):
+    async def test_text(self, stdout):
         # the rendezvous channel should be deleted after success
         cfg = self.make_config()
         cfg.text = "hello"
@@ -1142,14 +1144,14 @@ class Cleanup(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(cfg)
         receive_d = cmd_receive.receive(cfg)
 
-        yield send_d
-        yield receive_d
+        await send_d
+        await receive_d
 
         cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
         self.assertEqual(len(cids), 0)
 
-    @inlineCallbacks
-    def test_text_wrong_password(self):
+    @ensureDeferred
+    async def test_text_wrong_password(self):
         # if the password was wrong, the rendezvous channel should still be
         # deleted
         send_cfg = self.make_config()
@@ -1162,8 +1164,8 @@ class Cleanup(ServerBase, unittest.TestCase):
         receive_d = cmd_receive.receive(rx_cfg)
 
         # both sides should be capable of detecting the mismatch
-        yield self.assertFailure(send_d, WrongPasswordError)
-        yield self.assertFailure(receive_d, WrongPasswordError)
+        await self.assertFailure(send_d, WrongPasswordError)
+        await self.assertFailure(receive_d, WrongPasswordError)
 
         cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
         self.assertEqual(len(cids), 0)
@@ -1213,9 +1215,9 @@ class ExtractFile(unittest.TestCase):
 
 
 class AppID(ServerBase, unittest.TestCase):
-    @inlineCallbacks
-    def setUp(self):
-        yield super(AppID, self).setUp()
+    @ensureDeferred
+    async def setUp(self):
+        await super(AppID, self).setUp()
         self.cfg = cfg = config("send")
         # common options for all tests in this suite
         cfg.hide_progress = True
@@ -1224,8 +1226,8 @@ class AppID(ServerBase, unittest.TestCase):
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
-    @inlineCallbacks
-    def test_override(self):
+    @ensureDeferred
+    async def test_override(self):
         # make sure we use the overridden appid, not the default
         self.cfg.text = "hello"
         self.cfg.appid = u"appid2"
@@ -1234,8 +1236,8 @@ class AppID(ServerBase, unittest.TestCase):
         send_d = cmd_send.send(self.cfg)
         receive_d = cmd_receive.receive(self.cfg)
 
-        yield send_d
-        yield receive_d
+        await send_d
+        await receive_d
 
         used = self._usage_db.execute("SELECT DISTINCT `app_id`"
                                       " FROM `nameplates`").fetchall()
@@ -1277,8 +1279,8 @@ class Welcome(unittest.TestCase):
 
 
 class Dispatch(unittest.TestCase):
-    @inlineCallbacks
-    def test_success(self):
+    @ensureDeferred
+    async def test_success(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
         called = []
@@ -1286,12 +1288,12 @@ class Dispatch(unittest.TestCase):
         def fake():
             called.append(1)
 
-        yield cli._dispatch_command(reactor, cfg, fake)
+        await cli._dispatch_command(reactor, cfg, fake)
         self.assertEqual(called, [1])
         self.assertEqual(cfg.stderr.getvalue(), "")
 
-    @inlineCallbacks
-    def test_timing(self):
+    @ensureDeferred
+    async def test_timing(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
         cfg.timing = mock.Mock()
@@ -1300,7 +1302,7 @@ class Dispatch(unittest.TestCase):
         def fake():
             pass
 
-        yield cli._dispatch_command(reactor, cfg, fake)
+        await cli._dispatch_command(reactor, cfg, fake)
         self.assertEqual(cfg.stderr.getvalue(), "")
         self.assertEqual(cfg.timing.mock_calls[-1],
                          mock.call.write("filename", cfg.stderr))
@@ -1310,8 +1312,8 @@ class Dispatch(unittest.TestCase):
         with self.assertRaises(UsageError):
             cfg.debug_state = "ZZZ"
 
-    @inlineCallbacks
-    def test_debug_state_send(self):
+    @ensureDeferred
+    async def test_debug_state_send(self):
         args = config("send")
         args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
         args.stdout = io.StringIO()
@@ -1319,7 +1321,7 @@ class Dispatch(unittest.TestCase):
         d = s.go()
         d.cancel()
         try:
-            yield d
+            await d
         except CancelledError:
             pass
         # just check for at least one state-transition we expected to
@@ -1329,8 +1331,8 @@ class Dispatch(unittest.TestCase):
             args.stdout.getvalue(),
         )
 
-    @inlineCallbacks
-    def test_debug_state_receive(self):
+    @ensureDeferred
+    async def test_debug_state_receive(self):
         args = config("receive")
         args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
         args.stdout = io.StringIO()
@@ -1338,7 +1340,7 @@ class Dispatch(unittest.TestCase):
         d = s.go()
         d.cancel()
         try:
-            yield d
+            await d
         except CancelledError:
             pass
         # just check for at least one state-transition we expected to
@@ -1348,55 +1350,55 @@ class Dispatch(unittest.TestCase):
             args.stdout.getvalue(),
         )
 
-    @inlineCallbacks
-    def test_wrong_password_error(self):
+    @ensureDeferred
+    async def test_wrong_password_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
 
         def fake():
             raise WrongPasswordError("abcd")
 
-        yield self.assertFailure(
+        await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = fill("ERROR: " + dedent(WrongPasswordError.__doc__)) + "\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @inlineCallbacks
-    def test_welcome_error(self):
+    @ensureDeferred
+    async def test_welcome_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
 
         def fake():
             raise WelcomeError("abcd")
 
-        yield self.assertFailure(
+        await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = (
             fill("ERROR: " + dedent(WelcomeError.__doc__)) + "\n\nabcd\n")
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @inlineCallbacks
-    def test_transfer_error(self):
+    @ensureDeferred
+    async def test_transfer_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
 
         def fake():
             raise TransferError("abcd")
 
-        yield self.assertFailure(
+        await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "TransferError: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @inlineCallbacks
-    def test_server_connection_error(self):
+    @ensureDeferred
+    async def test_server_connection_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
 
         def fake():
             raise ServerConnectionError("URL", ValueError("abcd"))
 
-        yield self.assertFailure(
+        await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = fill(
             "ERROR: " + dedent(ServerConnectionError.__doc__)) + "\n"
@@ -1404,8 +1406,8 @@ class Dispatch(unittest.TestCase):
         expected += "abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @inlineCallbacks
-    def test_other_error(self):
+    @ensureDeferred
+    async def test_other_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
 
@@ -1422,7 +1424,7 @@ class Dispatch(unittest.TestCase):
 
         f.printTraceback = mock_print
         with mock.patch("wormhole.cli.cli.Failure", return_value=f):
-            yield self.assertFailure(
+            await self.assertFailure(
                 cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "<TRACEBACK>\nERROR: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)

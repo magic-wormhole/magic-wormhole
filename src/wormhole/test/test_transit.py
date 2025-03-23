@@ -10,6 +10,7 @@ from twisted.trial import unittest
 
 from unittest import mock
 from wormhole_transit_relay import transit_server
+from pytest_twisted import ensureDeferred
 
 from .. import transit
 from .._hints import DirectTCPV1Hint
@@ -141,11 +142,11 @@ OTHERADDR = "1.2.3.4"
 
 
 class Basic(unittest.TestCase):
-    @inlineCallbacks
-    def test_relay_hints(self):
+    @ensureDeferred
+    async def test_relay_hints(self):
         URL = "tcp:host:1234"
         c = transit.Common(URL, no_listen=True)
-        hints = yield c.get_connection_hints()
+        hints = await c.get_connection_hints()
         self.assertEqual(hints, [{
             "type":
             "relay-v1",
@@ -158,10 +159,10 @@ class Basic(unittest.TestCase):
         }])
         self.assertRaises(InternalError, transit.Common, 123)
 
-    @inlineCallbacks
-    def test_no_relay_hints(self):
+    @ensureDeferred
+    async def test_no_relay_hints(self):
         c = transit.Common(None, no_listen=True)
-        hints = yield c.get_connection_hints()
+        hints = await c.get_connection_hints()
         self.assertEqual(hints, [])
 
     def test_ignore_bad_hints(self):
@@ -1271,12 +1272,12 @@ class Transit(unittest.TestCase):
         self._descriptions.append(description)
         return d
 
-    @inlineCallbacks
-    def test_success_direct(self):
+    @ensureDeferred
+    async def test_success_direct(self):
         reactor = mock.Mock()
         s = transit.TransitSender("", reactor=reactor)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()  # start the listener
+        hints = await s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([
             DIRECT_HINT_JSON, UNRECOGNIZED_DIRECT_HINT_JSON,
@@ -1293,12 +1294,12 @@ class Transit(unittest.TestCase):
         self.assertEqual(self.successResultOf(d), "winner")
         self.assertEqual(self._descriptions, ["->tcp:direct:1234"])
 
-    @inlineCallbacks
-    def test_success_direct_tor(self):
+    @ensureDeferred
+    async def test_success_direct_tor(self):
         clock = task.Clock()
         s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()  # start the listener
+        hints = await s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([DIRECT_HINT_JSON])
 
@@ -1312,12 +1313,12 @@ class Transit(unittest.TestCase):
         self.assertEqual(self.successResultOf(d), "winner")
         self.assertEqual(self._descriptions, ["tor->tcp:direct:1234"])
 
-    @inlineCallbacks
-    def test_success_direct_tor_relay(self):
+    @ensureDeferred
+    async def test_success_direct_tor_relay(self):
         clock = task.Clock()
         s = transit.TransitSender("", tor=mock.Mock(), reactor=clock)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()  # start the listener
+        hints = await s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([RELAY_HINT_JSON])
 
@@ -1341,12 +1342,12 @@ class Transit(unittest.TestCase):
             return hint.hostname
         return None
 
-    @inlineCallbacks
-    def test_wait_for_relay(self):
+    @ensureDeferred
+    async def test_wait_for_relay(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()
+        hints = await s.get_connection_hints()
         del hints
         s.add_connection_hints(
             [DIRECT_HINT_JSON, UNRECOGNIZED_HINT_JSON, RELAY_HINT_JSON])
@@ -1366,12 +1367,12 @@ class Transit(unittest.TestCase):
             self._waiters[0].callback("winner")
             self.assertEqual(self.successResultOf(d), "winner")
 
-    @inlineCallbacks
-    def test_priorities(self):
+    @ensureDeferred
+    async def test_priorities(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()
+        hints = await s.get_connection_hints()
         del hints
         s.add_connection_hints([
             {
@@ -1441,12 +1442,12 @@ class Transit(unittest.TestCase):
             self._waiters[0].callback("winner")
             self.assertEqual(self.successResultOf(d), "winner")
 
-    @inlineCallbacks
-    def test_no_direct_hints(self):
+    @ensureDeferred
+    async def test_no_direct_hints(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()  # start the listener
+        hints = await s.get_connection_hints()  # start the listener
         del hints
         # include hints that can't be turned into an endpoint at runtime
         s.add_connection_hints([
@@ -1469,12 +1470,12 @@ class Transit(unittest.TestCase):
             self._waiters[0].callback("winner")
             self.assertEqual(self.successResultOf(d), "winner")
 
-    @inlineCallbacks
-    def test_no_contenders(self):
+    @ensureDeferred
+    async def test_no_contenders(self):
         clock = task.Clock()
         s = transit.TransitSender("", reactor=clock, no_listen=True)
         s.set_transit_key(b"key")
-        hints = yield s.get_connection_hints()  # start the listener
+        hints = await s.get_connection_hints()  # start the listener
         del hints
         s.add_connection_hints([])  # no hints at all
         s._start_connector = self._start_connector
@@ -1531,8 +1532,8 @@ class Full(ServerBase, unittest.TestCase):
     def doBoth(self, d1, d2):
         return gatherResults([d1, d2], True)
 
-    @inlineCallbacks
-    def test_direct(self):
+    @ensureDeferred
+    async def test_direct(self):
         KEY = b"k" * 32
         s = transit.TransitSender(None)
         r = transit.TransitReceiver(None)
@@ -1541,27 +1542,27 @@ class Full(ServerBase, unittest.TestCase):
         r.set_transit_key(KEY)
 
         # TODO: this sometimes fails with EADDRINUSE
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+        shints = await s.get_connection_hints()
+        rhints = await r.get_connection_hints()
 
         s.add_connection_hints(rhints)
         r.add_connection_hints(shints)
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
+        (x, y) = await self.doBoth(s.connect(), r.connect())
         self.assertIsInstance(x, transit.Connection)
         self.assertIsInstance(y, transit.Connection)
 
         d = y.receive_record()
 
         x.send_record(b"record1")
-        r = yield d
+        r = await d
         self.assertEqual(r, b"record1")
 
-        yield x.close()
-        yield y.close()
+        x.close()
+        y.close()
 
-    @inlineCallbacks
-    def test_relay(self):
+    @ensureDeferred
+    async def test_relay(self):
         KEY = b"k" * 32
         s = transit.TransitSender(self.transit, no_listen=True)
         r = transit.TransitReceiver(self.transit, no_listen=True)
@@ -1569,21 +1570,21 @@ class Full(ServerBase, unittest.TestCase):
         s.set_transit_key(KEY)
         r.set_transit_key(KEY)
 
-        shints = yield s.get_connection_hints()
-        rhints = yield r.get_connection_hints()
+        shints = await s.get_connection_hints()
+        rhints = await r.get_connection_hints()
 
         s.add_connection_hints(rhints)
         r.add_connection_hints(shints)
 
-        (x, y) = yield self.doBoth(s.connect(), r.connect())
+        (x, y) = await self.doBoth(s.connect(), r.connect())
         self.assertIsInstance(x, transit.Connection)
         self.assertIsInstance(y, transit.Connection)
 
         d = y.receive_record()
 
         x.send_record(b"record1")
-        r = yield d
+        r = await d
         self.assertEqual(r, b"record1")
 
-        yield x.close()
-        yield y.close()
+        x.close()
+        y.close()

@@ -37,22 +37,20 @@ class MyInternetService(service.Service, object):
 
         d.addCallbacks(good, bad)
 
-    @defer.inlineCallbacks
-    def stopService(self):
+    async def stopService(self):
         if self._lp:
-            yield self._lp.stopListening()
+            await self._lp.stopListening()
 
     def getPort(self):  # only call once!
         return self._port_d
 
 
 class ServerBase:
-    @defer.inlineCallbacks
-    def setUp(self):
-        yield self._setup_relay(None)
 
-    @defer.inlineCallbacks
-    def _setup_relay(self, error, advertise_version=None):
+    async def setUp(self):
+        await self._setup_relay(None)
+
+    async def _setup_relay(self, error, advertise_version=None):
         self.sp = service.MultiService()
         self.sp.startService()
         # need to talk to twisted team about only using unicode in
@@ -66,10 +64,10 @@ class ServerBase:
             usage_db=self._usage_db)
         ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
         site = make_web_server(self._rendezvous, log_requests=False)
-        # self._lp = yield ep.listen(site)
+        # self._lp = await ep.listen(site)
         s = MyInternetService(ep, site)
         s.setServiceParent(self.sp)
-        self.rdv_ws_port = yield s.getPort()
+        self.rdv_ws_port = await s.getPort()
         self._relay_server = s
         # self._rendezvous = s._rendezvous
         self.relayurl = u"ws://127.0.0.1:%d/v1" % self.rdv_ws_port
@@ -89,8 +87,7 @@ class ServerBase:
         internet.StreamServerEndpointService(ep, self._transit_server).setServiceParent(self.sp)
         self.transit = u"tcp:127.0.0.1:%d" % self.transitport
 
-    @defer.inlineCallbacks
-    def tearDown(self):
+    async def tearDown(self):
         # Unit tests that spawn a (blocking) client in a thread might still
         # have threads running at this point, if one is stuck waiting for a
         # message from a companion which has exited with an error. Our
@@ -104,14 +101,14 @@ class ServerBase:
 
         tp = reactor.getThreadPool()
         if not tp.working:
-            yield self.sp.stopService()
-            yield task.deferLater(reactor, 0.1, lambda: None)
+            await self.sp.stopService()
+            await task.deferLater(reactor, 0.1, lambda: None)
             return None
         # disconnect all callers
         d = defer.maybeDeferred(self.sp.stopService)
         d.addBoth(lambda _: self._transit_server.stopFactory())
         # wait a second, then check to see if it worked
-        yield task.deferLater(reactor, 1.0, lambda: None)
+        await task.deferLater(reactor, 1.0, lambda: None)
         if len(tp.working):
             log.msg("wormhole.test.common.ServerBase.tearDown:"
                     " I was unable to convince all threads to exit.")
@@ -122,7 +119,7 @@ class ServerBase:
         else:
             log.msg("wormhole.test.common.ServerBase.tearDown:"
                     " I convinced all threads to exit.")
-        yield d
+        await d
 
 
 def config(*argv):
@@ -138,10 +135,9 @@ def config(*argv):
     return cfg
 
 
-@defer.inlineCallbacks
-def poll_until(predicate):
+async def poll_until(predicate):
     # return a Deferred that won't fire until the predicate is True
     while not predicate():
         d = defer.Deferred()
         reactor.callLater(0.001, d.callback, None)
-        yield d
+        await d
