@@ -77,8 +77,8 @@ class Connect(unittest.TestCase):
             eps_left_d = d_left.dilate(no_listen=True)
             eps_right_d = d_right.dilate()
 
-        eps_left = yield eps_left_d
-        eps_right = yield eps_right_d
+        eps_left = await eps_left_d
+        eps_right = await eps_right_d
 
         # print("left connected", eps_left)
         # print("right connected", eps_right)
@@ -92,5 +92,5 @@ class Connect(unittest.TestCase):
         d_left.stop()
         d_right.stop()
 
-        yield t_left.d
-        yield t_right.d
+        await t_left.d
+        await t_right.d

@@ -4,6 +4,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 from attrs import evolve
 
+from pytest_twisted import ensureDeferred
 
 from ...wormhole import create
 from ...errors import LonelyError
@@ -16,8 +17,8 @@ from ..common import ServerBase
 
 class API(ServerBase, unittest.TestCase):
 
-    @inlineCallbacks
-    def test_on_status_error(self):
+    @ensureDeferred()
+    async def test_on_status_error(self):
         """
         Our user code raises an exception during status processing
         """
@@ -37,16 +38,16 @@ class API(ServerBase, unittest.TestCase):
                 _enable_dilate=True,
                 on_status_update=on_status,
             )
-            yield w.allocate_code()
-            code = yield w.get_code()
+            await w.allocate_code()
+            code = await w.get_code()
             print(code)
             try:
-                yield w.close()
+                await w.close()
             except LonelyError:
                 pass
 
-    @inlineCallbacks
-    def test_dilation_status(self):
+    @ensureDeferred()
+    async def test_dilation_status(self):
         if not NoiseConnection:
             raise unittest.SkipTest("noiseprotocol unavailable")
 
@@ -76,24 +77,24 @@ class API(ServerBase, unittest.TestCase):
             on_status_update=wormhole_status1.append,
         )
 
-        yield w0.allocate_code()
-        code = yield w0.get_code()
+        w0.allocate_code()
+        code = await w0.get_code()
 
-        yield w1.set_code(code)
+        w1.set_code(code)
 
-        yield w0.dilate(on_status_update=status0.append)
-        yield w1.dilate(on_status_update=status1.append)
+        w0.dilate(on_status_update=status0.append)
+        w1.dilate(on_status_update=status1.append)
 
         # we should see the _other side's_ app-versions
-        v0 = yield w1.get_versions()
-        v1 = yield w0.get_versions()
+        v0 = await w1.get_versions()
+        v1 = await w0.get_versions()
         self.assertEqual(v0, {"fun": "quux"})
         self.assertEqual(v1, {"bar": "baz"})
 
-        @inlineCallbacks
-        def wait_for_peer():
+        @ensureDeferred()
+        async def wait_for_peer():
             while True:
-                yield deferLater(reactor, 0.001, lambda: None)
+                await deferLater(reactor, 0.001, lambda: None)
                 peers = [
                     st
                     for st in status0
@@ -101,12 +102,12 @@ class API(ServerBase, unittest.TestCase):
                 ]
                 if peers:
                     return
-        yield wait_for_peer()
+        await wait_for_peer()
 
         # we don't actually do anything, just disconnect after we have
         # our peer
-        yield w0.close()
-        yield w1.close()
+        await w0.close()
+        await w1.close()
 
         # check that the wormhole status messages are what we expect
         def normalize_timestamp(status):
