@@ -137,7 +137,7 @@ class Connection(unittest.TestCase):
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [])
             # there's a call to .have_peer(...) but we don't really care?
-            self.assertEqual(len(m.mock_calls), 1)##[])
+            self.assertEqual(len(m.mock_calls), 1)
 
             c.send_record(KCM())
             self.assertEqual(n.mock_calls, [
@@ -145,7 +145,7 @@ class Connection(unittest.TestCase):
             ])
             self.assertEqual(connector.mock_calls, [])
             self.assertEqual(t.mock_calls, [mock.call.write(exp_kcm)])
-            self.assertEqual(len(m.mock_calls), 1)  ##[]) .have_peer() call
+            self.assertEqual(len(m.mock_calls), 1)  # .have_peer() call
         else:
             # follower: we already sent the KCM, do nothing
             self.assertEqual(n.mock_calls, [])

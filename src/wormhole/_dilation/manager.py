@@ -906,6 +906,9 @@ class Dilator(object):
     # this is the primary entry point, called when w.dilate() is invoked
     def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
                ping_interval=None):
+        """
+        :param transit_relay_location: anything _hints.parse_hint_argv accepts
+        """
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
         if self._manager is None:

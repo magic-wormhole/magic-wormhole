@@ -170,6 +170,11 @@ class SubChannel(object):
     def send_close(self):
         self._manager.send_close(self._scid)
 
+    # @m.output()
+    # def signal_connectionMade(self):
+    #     assert self._protocol
+    #     self._protocol.connectionMade()
+
     @m.output()
     def signal_dataReceived(self, data):
         assert self._protocol

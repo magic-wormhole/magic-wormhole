@@ -10,13 +10,16 @@ from qrcode import QRCode
 from tqdm import tqdm
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, Deferred
+from twisted.internet.stdio import StandardIO
 from twisted.protocols import basic
 from twisted.python import log
 from wormhole import __version__, create
 
 from ..errors import TransferError, UnsendableFileError
+from ..eventual import EventualQueue
 from ..transit import TransitSender
 from ..util import bytes_to_dict, bytes_to_hexstr, dict_to_bytes
+from ..observer import SequenceObserver
 from .welcome import handle_welcome
 
 from iterableio import open_iterable
@@ -36,6 +39,24 @@ def send(args, reactor=reactor):
     * any other error: something unexpected happened
     """
     return Sender(args, reactor).go()
+
+
+class LocalLineReader(basic.LineReceiver):
+    """
+    Wait for incoming lines (from stdin)
+    """
+    delimiter = b"\n"
+
+    def __init__(self, eventual_q):
+        super(LocalLineReader, self).__init__()
+        self._next_messages = SequenceObserver(eventual_q)
+
+    def lineReceived(self, line):
+        text = line.decode("utf8")
+        self._next_messages.fire(text)
+
+    def next_line(self):
+        return self._next_messages.when_next_event()
 
 
 class Sender:
@@ -69,6 +90,13 @@ class Sender:
             self._reactor,
             tor=self._tor,
             timing=self._timing,
+            _enable_dilate=True,
+            versions={
+                "transfer": {
+                    "mode": "send",
+                    "features": {},
+                }
+            },
         )
         if self._args.debug_state:
             w.debug_set_trace("send", which=" ".join(self._args.debug_state), file=self._args.stdout)
@@ -104,6 +132,37 @@ class Sender:
         welcome = yield w.get_welcome()
         handle_welcome(welcome, self._args.relay_url, __version__,
                        self._args.stderr)
+
+        def on_error(f):
+            print("ERR: {}".format(f))
+
+        from wormhole.transfer_v2 import deferred_transfer
+        from pathlib import Path
+
+        if self._args.what is None:
+            # XXX FIXME if we have --text specified, probably want to send _just_ that and then exit?
+            line_reader = LocalLineReader(EventualQueue(reactor))
+            _ = StandardIO(line_reader)
+            # want to handle "Stdio was open, but closed" to mean
+            # "close control channel"? unless we have outstanding
+            # offers?
+            next_message = line_reader.next_line
+        else:
+            next_message = None
+
+        yield Deferred.fromCoroutine(
+            deferred_transfer(
+                self._reactor, w, on_error,
+                code=self._args.code,
+                transit=self._args.transit_helper,
+                offers=[
+                    Path(what)
+                    for what in (self._args.what or [])
+                ],
+                next_message=next_message,
+            )
+        )
+        return
 
         # TODO: run the blocking zip-the-directory IO in a thread, let the
         # wormhole exchange happen in parallel

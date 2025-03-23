@@ -275,8 +275,10 @@ determine their external IP addresses, listen on a TCP port, and
 advertise ``(tcp, external-IP, port)`` as a connection hint. The Transit
 Relay is also used as a (lower-priority) hint. These are sent in
 ``connection-hint`` records, which can be sent any time after both
-sending and receiving a ``please`` record. Each side will initiate
-connections upon receipt of the hints.
+sending and receiving a ``please`` record.
+(XXX actually only in "CONNECTING" state)
+Each
+side will initiate connections upon receipt of the hints.
 
 ::
 
@@ -330,6 +332,8 @@ handshake is received, the connection must be dropped. For debugging
 purposes, the node might want to keep looking at data beyond the first
 incorrect character and log a few hundred characters until the first
 newline.
+
+(XXX does the "dilation key" change each generation?)
 
 Everything beyond the last byte of the handshake consists of Noise
 protocol messages.

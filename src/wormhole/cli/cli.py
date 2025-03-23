@@ -141,6 +141,9 @@ def _dispatch_command(reactor, cfg, command):
 
     try:
         yield maybeDeferred(command)
+    except click.UsageError as e:
+        print(e)
+        raise SystemExit(e.exit_code)
     except (WrongPasswordError, NoTorError) as e:
         msg = fill("ERROR: " + dedent(e.__doc__))
         print(msg, file=cfg.stderr)
@@ -274,11 +277,14 @@ def help(context, **kwargs):
     "--qr/--no-qr",
     default=True,
     help="Generate and show ASCII-based QR code.")
-@click.argument("what", required=False, type=click.Path(path_type=type(u"")))
+@click.argument("what", required=False, type=click.Path(path_type=type(u"")), nargs=-1)
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""
     kwargs["code_length"] = 2 if kwargs["code_length"] is None else int(kwargs["code_length"])
+
+    if not kwargs["what"]:
+        kwargs["what"] = None
 
     for name, value in kwargs.items():
         setattr(cfg, name, value)
@@ -304,6 +310,11 @@ def go(f, cfg):
     "-t",
     is_flag=True,
     help="refuse file transfers, only accept text transfers",
+)
+@click.option(
+    "--stdin",
+    is_flag=True,
+    help="Read text-messages to send from stdin",
 )
 @click.option(
     "--accept-file",
