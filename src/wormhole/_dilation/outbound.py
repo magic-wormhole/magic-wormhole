@@ -192,6 +192,7 @@ class Outbound(object):
         # we always queue it, to resend on a subsequent connection if
         # necessary
         self._outbound_queue.append(r)
+        print(len(self._outbound_queue))
 
         if self._connection:
             if self._queued_unsent:
