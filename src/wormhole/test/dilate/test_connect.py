@@ -3,8 +3,10 @@ from unittest import mock
 from twisted.internet import reactor
 from twisted.trial import unittest
 from twisted.internet.task import Cooperator
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred
 from zope.interface import implementer
+
+from pytest_twisted import ensureDeferred
 
 from ... import _interfaces
 from ...eventual import EventualQueue
@@ -41,8 +43,8 @@ class FakeTerminator(object):
 
 
 class Connect(unittest.TestCase):
-    @inlineCallbacks
-    def test1(self):
+    @ensureDeferred
+    async def test1(self):
         if not NoiseConnection:
             raise unittest.SkipTest("noiseprotocol unavailable")
         # print()
@@ -74,11 +76,8 @@ class Connect(unittest.TestCase):
 
         with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
                         return_value=["127.0.0.1"]):
-            eps_left_d = d_left.dilate(no_listen=True)
-            eps_right_d = d_right.dilate()
-
-        eps_left = await eps_left_d
-        eps_right = await eps_right_d
+            eps_left = d_left.dilate(no_listen=True)
+            eps_right = d_right.dilate()
 
         # print("left connected", eps_left)
         # print("right connected", eps_right)
