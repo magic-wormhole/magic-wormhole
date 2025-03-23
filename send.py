@@ -12,6 +12,8 @@ from attr import frozen
 from wormhole import create
 from wormhole.transfer_v2 import deferred_transfer
 from wormhole.cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
+from wormhole.observer import OneShotObserver
+from wormhole.eventual import EventualQueue
 from twisted.internet import task
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Factory, Protocol
@@ -62,13 +64,17 @@ if False:
 
 class FileProducer:
 
-    def __init__(self, open_filelike, bytes_to_read, msg_size=2**14):
+    def __init__(self, reactor, open_filelike, bytes_to_read, msg_size=2**16 - 10):
         self._file = open_filelike
         self._bytes_to_read = bytes_to_read
         self._bytes_read = 0
         self._cooperate = task.cooperate
         self._msgsize = msg_size
         assert msg_size <= 65526, "data cannot be larger than 65526 bytes"
+        self._done = OneShotObserver(EventualQueue(reactor))
+
+    def when_done(self):
+        return self._done.when_fired()
 
     def stopProducing(self):
         """
@@ -80,6 +86,7 @@ class FileProducer:
             self._task.stop()
         except task.TaskFinished:
             pass
+        self._done.fire(None)
 
     def startProducing(self, consumer):
         """
@@ -89,6 +96,7 @@ class FileProducer:
         If the returned `Deferred` (which fires after all bytes have
         been written is cancelled then stop reading and writing bytes.
         """
+        consumer.registerProducer(self, True)
         self._task = self._cooperate(self._writeloop(consumer))
         d = self._task.whenDone()
 
@@ -100,6 +108,7 @@ class FileProducer:
             else:
                 return reason
             # we do not fire the Deferred if stopProducing is called.
+            print("weirdo") x
             return Deferred()
 
         d.addCallbacks(lambda ignored: None, maybeStopped)
@@ -134,6 +143,7 @@ class FileProducer:
         Temporarily suspend copying bytes from the input file to the consumer
         by pausing the L{CooperativeTask} which drives that activity.
         """
+        ##print("pause producing")
         self._task.pause()
 
     def resumeProducing(self):
@@ -142,6 +152,7 @@ class FileProducer:
         bytes to the consumer by resuming the L{CooperativeTask} which drives
         the write activity.
         """
+        ##print("resume producing")
         self._task.resume()
 
 
@@ -203,20 +214,28 @@ async def main(reactor):
 
     snapshots = []
 
+    factory.offer = FileOffer("foo", 42*1000*1000)
+    factory.data_producer = FileProducer(
+        reactor,
+        open("/dev/urandom", "rb"),
+        factory.offer.bytes,
+        2**14, ##2**16 - 10,
+    )
+
     def snapshot():
-        print("snapshot", reactor.seconds())
+        r = factory.data_producer._bytes_read
+        pct = int((float(r) / float(factory.offer.bytes)) * 100.0)
+        print(f"{int(reactor.seconds())}s: {r} {pct}")
+        ##print("snapshot", reactor.seconds())
         snapshots.append(tracemalloc.take_snapshot())
-        if len(snapshots) > 2:
+        if False and len(snapshots) > 2:
             diff = snapshots[-1].compare_to(snapshots[-2], "lineno")
             for stat in diff[:10]:
                 print(stat)
 
-    task.LoopingCall(snapshot).start(2)
+    task.LoopingCall(snapshot).start(5)
 
-    factory.offer = FileOffer("foo", 42*1000*1000*1000)
-    factory.data_producer = FileProducer(open("/dev/urandom", "rb"), factory.offer.bytes)
-
+    # XXX this doesn't exit properly yet (stopProducing never called?)
     proto = await dilated.connect.connect(factory)
-    print(proto)
-
-    await Deferred()
+    await factory.data_producer.when_done()
+    await w.close()
