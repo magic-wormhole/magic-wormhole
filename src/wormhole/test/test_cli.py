@@ -321,7 +321,7 @@ def wormhole_executable():
 
 
 @pytest.fixture(scope="module")
-def is_runnable(self):
+def scripts_env(wormhole_executable):
     # One property of Versioneer is that many changes to the source tree
     # (making a commit, dirtying a previously-clean tree) will change the
     # version string. Entrypoint scripts frequently insist upon importing
@@ -338,16 +338,16 @@ def is_runnable(self):
     # convince Click to not complain about a forced-ascii locale. My
     # apologies to folks who want to run tests on a machine that doesn't
     # have the C.UTF-8 locale installed.
+    from twisted.internet.defer import ensureDeferred
     locale = pytest_twisted.blockon(
-        locale_finder.find_utf8_locale()
+        ensureDeferred(locale_finder.find_utf8_locale())
     )
     if not locale:
         raise unittest.SkipTest("unable to find UTF-8 locale")
     locale_env = dict(LC_ALL=locale, LANG=locale)
-    wormhole = self.find_executable()
     res = pytest_twisted.blockon(
         getProcessOutputAndValue(
-            wormhole,
+            wormhole_executable,
             ["--version"],
             env=locale_env,
         )
@@ -379,7 +379,7 @@ async def test_version(wormhole_executable):
     if "DistributionNotFound" in err:
         log.msg("stderr was %s" % err)
         last = err.strip().split("\n")[-1]
-        self.fail("wormhole not runnable: %s" % last)
+        assert False, "wormhole not runnable: %s" % last
     ver = out.decode("utf-8") or err
     assert ver.strip() == "magic-wormhole {}".format(__version__)
     assert rc == 0
@@ -407,484 +407,238 @@ def strip_deprecations(stderr, NL):
     return NL.join(lines)
 
 
-class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
-    # we need Twisted to run the server, but we run the sender and receiver
-    # with deferToThread()
+# note: this is a straight re-factor from the UnitTest test, but it
+# might be better to re-factor further? Can we take "setup" code and
+# "teardown" code and provide helpers for those, to get rid of "mode="
+# and put the actually-different test code in the tests?
 
-    @pytest_twisted.ensureDeferred
-    async def setUp(self):
-        self._env = await self.is_runnable()
-        await ServerBase.setUp(self)
 
-    @pytest_twisted.ensureDeferred
-    async def _do_test(self,
-                 as_subprocess=False,
-                 mode="text",
-                 addslash=False,
-                 override_filename=False,
-                 fake_tor=False,
-                 overwrite=False,
-                 mock_accept=False,
-                 verify=False):
-        assert mode in ("text", "file", "empty-file", "directory", "slow-text",
-                        "slow-sender-text")
-        if fake_tor:
-            assert not as_subprocess
-        send_cfg = config("send")
-        recv_cfg = config("receive")
-        message = "blah blah blah ponies"
+@pytest_twisted.ensureDeferred
+async def _do_test(
+        wormhole_executable,
+        scripts_env,
+        relayurl,
+        tmpdir_factory,
+        as_subprocess=False,
+        mode="text",
+        addslash=False,
+        override_filename=False,
+        fake_tor=False,
+        overwrite=False,
+        mock_accept=False,
+        verify=False):
+    assert mode in ("text", "file", "empty-file", "directory", "slow-text",
+                    "slow-sender-text")
+    if fake_tor:
+        assert not as_subprocess
+    send_cfg = config("send")
+    recv_cfg = config("receive")
+    message = "blah blah blah ponies"
 
-        for cfg in [send_cfg, recv_cfg]:
-            cfg.hide_progress = True
-            cfg.relay_url = self.relayurl
-            cfg.transit_helper = ""
-            cfg.listen = True
-            cfg.code = u"1-abc"
-            cfg.stdout = io.StringIO()
-            cfg.stderr = io.StringIO()
-            cfg.verify = verify
+    for cfg in [send_cfg, recv_cfg]:
+        cfg.hide_progress = True
+        cfg.relay_url = relayurl
+        cfg.transit_helper = ""
+        cfg.listen = True
+        cfg.code = u"1-abc"
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
+        cfg.verify = verify
 
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        receive_dir = self.mktemp()
-        os.mkdir(receive_dir)
+    send_dir = tmpdir_factory.mktemp("sender")
+    receive_dir = tmpdir_factory.mktemp("receiver")
 
-        if mode in ("text", "slow-text", "slow-sender-text"):
-            send_cfg.text = message
+    if mode in ("text", "slow-text", "slow-sender-text"):
+        send_cfg.text = message
 
-        elif mode in ("file", "empty-file"):
-            if mode == "empty-file":
-                message = ""
-            send_filename = u"testfil\u00EB"  # e-with-diaeresis
-            with open(os.path.join(send_dir, send_filename), "w") as f:
-                f.write(message)
-            send_cfg.what = send_filename
-            receive_filename = send_filename
+    elif mode in ("file", "empty-file"):
+        if mode == "empty-file":
+            message = ""
+        send_filename = u"testfil\u00EB"  # e-with-diaeresis
+        with open(os.path.join(send_dir, send_filename), "w") as f:
+            f.write(message)
+        send_cfg.what = send_filename
+        receive_filename = send_filename
 
-            recv_cfg.accept_file = False if mock_accept else True
-            if override_filename:
-                recv_cfg.output_file = receive_filename = u"outfile"
-            if overwrite:
-                recv_cfg.output_file = receive_filename
-                existing_file = os.path.join(receive_dir, receive_filename)
-                with open(existing_file, 'w') as f:
-                    f.write('pls overwrite me')
+        recv_cfg.accept_file = False if mock_accept else True
+        if override_filename:
+            recv_cfg.output_file = receive_filename = u"outfile"
+        if overwrite:
+            recv_cfg.output_file = receive_filename
+            existing_file = os.path.join(receive_dir, receive_filename)
+            with open(existing_file, 'w') as f:
+                f.write('pls overwrite me')
 
-        elif mode == "directory":
-            # $send_dir/
-            # $send_dir/middle/
-            # $send_dir/middle/$dirname/
-            # $send_dir/middle/$dirname/[12345]
-            # cd $send_dir && wormhole send middle/$dirname
-            # cd $receive_dir && wormhole receive
-            # expect: $receive_dir/$dirname/[12345]
+    elif mode == "directory":
+        # $send_dir/
+        # $send_dir/middle/
+        # $send_dir/middle/$dirname/
+        # $send_dir/middle/$dirname/[12345]
+        # cd $send_dir && wormhole send middle/$dirname
+        # cd $receive_dir && wormhole receive
+        # expect: $receive_dir/$dirname/[12345]
 
-            send_dirname = u"testdir"
+        send_dirname = u"testdir"
 
-            def message(i):
-                return "test message %d\n" % i
+        def message(i):
+            return "test message %d\n" % i
 
-            os.mkdir(os.path.join(send_dir, u"middle"))
-            source_dir = os.path.join(send_dir, u"middle", send_dirname)
-            os.mkdir(source_dir)
-            modes = {}
-            for i in range(5):
-                path = os.path.join(source_dir, str(i))
-                with open(path, "w") as f:
-                    f.write(message(i))
-                if i == 3:
-                    os.chmod(path, 0o755)
-                modes[i] = stat.S_IMODE(os.stat(path).st_mode)
-            send_dirname_arg = os.path.join(u"middle", send_dirname)
-            if addslash:
-                send_dirname_arg += os.sep
-            send_cfg.what = send_dirname_arg
-            receive_dirname = send_dirname
+        os.mkdir(os.path.join(send_dir, u"middle"))
+        source_dir = os.path.join(send_dir, u"middle", send_dirname)
+        os.mkdir(source_dir)
+        modes = {}
+        for i in range(5):
+            path = os.path.join(source_dir, str(i))
+            with open(path, "w") as f:
+                f.write(message(i))
+            if i == 3:
+                os.chmod(path, 0o755)
+            modes[i] = stat.S_IMODE(os.stat(path).st_mode)
+        send_dirname_arg = os.path.join(u"middle", send_dirname)
+        if addslash:
+            send_dirname_arg += os.sep
+        send_cfg.what = send_dirname_arg
+        receive_dirname = send_dirname
 
-            recv_cfg.accept_file = False if mock_accept else True
-            if override_filename:
-                recv_cfg.output_file = receive_dirname = u"outdir"
-            if overwrite:
-                recv_cfg.output_file = receive_dirname
-                os.mkdir(os.path.join(receive_dir, receive_dirname))
+        recv_cfg.accept_file = False if mock_accept else True
+        if override_filename:
+            recv_cfg.output_file = receive_dirname = u"outdir"
+        if overwrite:
+            recv_cfg.output_file = receive_dirname
+            os.mkdir(os.path.join(receive_dir, receive_dirname))
 
-        if as_subprocess:
-            wormhole_bin = self.find_executable()
-            if send_cfg.text:
-                content_args = ['--text', send_cfg.text]
-            elif send_cfg.what:
-                content_args = [send_cfg.what]
+    if as_subprocess:
+        if send_cfg.text:
+            content_args = ['--text', send_cfg.text]
+        elif send_cfg.what:
+            content_args = [send_cfg.what]
 
-            # raise the rx KEY_TIMER to some large number here, to avoid
-            # spurious test failures on hosts that are slow enough to trigger
-            # the "Waiting for sender..." pacifier message. We can do in
-            # not-as_subprocess, because we can directly patch the value before
-            # running the receiver. But we can't patch across the subprocess
-            # boundary, so we use an environment variable.
-            env = self._env.copy()
-            env["_MAGIC_WORMHOLE_TEST_KEY_TIMER"] = "999999"
-            env["_MAGIC_WORMHOLE_TEST_VERIFY_TIMER"] = "999999"
-            send_args = [
-                '--relay-url',
-                self.relayurl,
-                '--transit-helper',
-                '',
-                'send',
-                '--hide-progress',
-                '--code',
-                send_cfg.code,
-            ] + content_args
+        # raise the rx KEY_TIMER to some large number here, to avoid
+        # spurious test failures on hosts that are slow enough to trigger
+        # the "Waiting for sender..." pacifier message. We can do in
+        # not-as_subprocess, because we can directly patch the value before
+        # running the receiver. But we can't patch across the subprocess
+        # boundary, so we use an environment variable.
+        env = scripts_env.copy()
+        env["_MAGIC_WORMHOLE_TEST_KEY_TIMER"] = "999999"
+        env["_MAGIC_WORMHOLE_TEST_VERIFY_TIMER"] = "999999"
+        send_args = [
+            '--relay-url',
+            relayurl,
+            '--transit-helper',
+            '',
+            'send',
+            '--hide-progress',
+            '--code',
+            send_cfg.code,
+        ] + content_args
 
-            send_d = getProcessOutputAndValue(
-                wormhole_bin,
-                send_args,
-                path=send_dir,
-                env=env,
-            )
-            recv_args = [
-                '--relay-url',
-                self.relayurl,
-                '--transit-helper',
-                '',
-                'receive',
-                '--hide-progress',
-                '--accept-file',
-                recv_cfg.code,
-            ]
-            if override_filename:
-                recv_args.extend(['-o', receive_filename])
+        send_d = getProcessOutputAndValue(
+            wormhole_executable,
+            send_args,
+            path=send_dir,
+            env=env,
+        )
+        recv_args = [
+            '--relay-url',
+            relayurl,
+            '--transit-helper',
+            '',
+            'receive',
+            '--hide-progress',
+            '--accept-file',
+            recv_cfg.code,
+        ]
+        if override_filename:
+            recv_args.extend(['-o', receive_filename])
 
-            receive_d = getProcessOutputAndValue(
-                wormhole_bin,
-                recv_args,
-                path=receive_dir,
-                env=env,
-            )
+        receive_d = getProcessOutputAndValue(
+            wormhole_executable,
+            recv_args,
+            path=receive_dir,
+            env=env,
+        )
 
-            (send_res, receive_res) = await gatherResults([send_d, receive_d],
-                                                          True)
-            send_stdout = send_res[0].decode("utf-8")
-            send_stderr = send_res[1].decode("utf-8")
-            send_rc = send_res[2]
-            receive_stdout = receive_res[0].decode("utf-8")
-            receive_stderr = receive_res[1].decode("utf-8")
-            receive_rc = receive_res[2]
-            NL = os.linesep
-            send_stderr = strip_deprecations(send_stderr, NL)
-            receive_stderr = strip_deprecations(receive_stderr, NL)
-            self.assertEqual((send_rc, receive_rc), (0, 0),
-                             (send_res, receive_res))
-        else:
-            send_cfg.cwd = send_dir
-            recv_cfg.cwd = receive_dir
+        (send_res, receive_res) = await gatherResults([send_d, receive_d],
+                                                      True)
+        send_stdout = send_res[0].decode("utf-8")
+        send_stderr = send_res[1].decode("utf-8")
+        send_rc = send_res[2]
+        receive_stdout = receive_res[0].decode("utf-8")
+        receive_stderr = receive_res[1].decode("utf-8")
+        receive_rc = receive_res[2]
+        NL = os.linesep
+        send_stderr = strip_deprecations(send_stderr, NL)
+        receive_stderr = strip_deprecations(receive_stderr, NL)
+        assert send_rc == 0, f"send failed: {send_res}"
+        assert receive_rc == 0, f"receive failed: {receive_res}"
 
-            if fake_tor:
-                send_cfg.tor = True
-                send_cfg.transit_helper = self.transit
-                tx_tm = FakeTor()
-                with mock.patch(
-                        "wormhole.tor_manager.get_tor",
-                        return_value=tx_tm,
-                ) as mtx_tm:
-                    send_d = cmd_send.send(send_cfg)
-
-                recv_cfg.tor = True
-                recv_cfg.transit_helper = self.transit
-                rx_tm = FakeTor()
-                with mock.patch(
-                        "wormhole.tor_manager.get_tor",
-                        return_value=rx_tm,
-                ) as mrx_tm:
-                    receive_d = cmd_receive.receive(recv_cfg)
-            else:
-                KEY_TIMER = 0 if mode == "slow-sender-text" else 99999
-                rxw = []
-                with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
-                    send_d = cmd_send.send(send_cfg)
-                    receive_d = cmd_receive.receive(
-                        recv_cfg, _debug_stash_wormhole=rxw)
-                    # we need to keep KEY_TIMER patched until the receiver
-                    # gets far enough to start the timer, which happens after
-                    # the code is set
-                    if mode == "slow-sender-text":
-                        await rxw[0].get_unverified_key()
-
-            # The sender might fail, leaving the receiver hanging, or vice
-            # versa. Make sure we don't wait on one side exclusively
-            VERIFY_TIMER = 0 if mode == "slow-text" else 99999
-            with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
-                with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
-                    if mock_accept or verify:
-                        with mock.patch.object(builtins, 'input',
-                                return_value='yes') as i:
-                            await gatherResults([send_d, receive_d], True)
-                        if verify:
-                            s = i.mock_calls[0][1][0]
-                            mo = re.search(r'^Verifier (\w+)\. ok\?', s)
-                            self.assertTrue(mo, s)
-                            sender_verifier = mo.group(1)
-                    else:
-                        await gatherResults([send_d, receive_d], True)
-
-            if fake_tor:
-                expected_endpoints = [("127.0.0.1", self.rdv_ws_port, False)]
-                if mode in ("file", "directory"):
-                    expected_endpoints.append(("127.0.0.1", self.transitport, False))
-                tx_timing = mtx_tm.call_args[1]["timing"]
-                self.assertEqual(tx_tm.endpoints, expected_endpoints)
-                self.assertEqual(
-                    mtx_tm.mock_calls,
-                    [mock.call(reactor, False, None, timing=tx_timing)])
-                rx_timing = mrx_tm.call_args[1]["timing"]
-                self.assertEqual(rx_tm.endpoints, expected_endpoints)
-                self.assertEqual(
-                    mrx_tm.mock_calls,
-                    [mock.call(reactor, False, None, timing=rx_timing)])
-
-            send_stdout = send_cfg.stdout.getvalue()
-            send_stderr = send_cfg.stderr.getvalue()
-            receive_stdout = recv_cfg.stdout.getvalue()
-            receive_stderr = recv_cfg.stderr.getvalue()
-
-            # all output here comes from a StringIO, which uses \n for
-            # newlines, even if we're on windows
-            NL = "\n"
-
-        self.maxDiff = None  # show full output for assertion failures
-
-        key_established = ""
-        if mode == "slow-text":
-            key_established = "Key established, waiting for confirmation...\n"
-
-        self.assertEqual(send_stdout, "")
-
-        # check sender
-        if mode == "text" or mode == "slow-text":
-            snippets = [
-                "Sending text message ({bytes:d} Bytes){NL}",
-                "Wormhole code is: {code}{NL}",
-                (
-                    "On the other computer, please run:{NL}{NL}"
-                    "wormhole receive {verify}{code}{NL}{NL}"
-                ),
-                "{KE}",
-                "text message sent{NL}",
-            ]
-            for snippet in snippets:
-                self.failUnlessIn(
-                    snippet.format(
-                        bytes=len(message),
-                        verify="--verify " if verify else "",
-                        code=send_cfg.code,
-                        NL=NL,
-                        KE=key_established,
-                    ),
-                    send_stderr,
-                )
-        elif mode == "file":
-            self.failUnlessIn(u"Sending {size:s} file named '{name}'{NL}"
-                              .format(
-                                  size=naturalsize(len(message)),
-                                  name=send_filename,
-                                  NL=NL), send_stderr)
-            self.failUnlessIn(
-                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failUnlessIn(
-                u"On the other computer, please run:{NL}{NL}"
-                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failUnlessIn(
-                u"File sent.. waiting for confirmation{NL}"
-                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
-                send_stderr)
-        elif mode == "directory":
-            self.failUnlessIn(u"Sending directory", send_stderr)
-            self.failUnlessIn(u"named 'testdir'", send_stderr)
-            self.failUnlessIn(
-                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failUnlessIn(
-                u"On the other computer, please run:{NL}{NL}"
-                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failUnlessIn(
-                u"File sent.. waiting for confirmation{NL}"
-                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
-                send_stderr)
-
-        # check receiver
-        if mode in ("text", "slow-text", "slow-sender-text"):
-            self.assertEqual(receive_stdout, message + NL)
-            if mode == "text":
-                if verify:
-                    mo = re.search(r'^Verifier (\w+)\.\s*$', receive_stderr)
-                    self.assertTrue(mo, receive_stderr)
-                    receiver_verifier = mo.group(1)
-                    self.assertEqual(sender_verifier, receiver_verifier)
-                else:
-                    self.assertEqual(receive_stderr, "")
-            elif mode == "slow-text":
-                self.assertEqual(receive_stderr, key_established)
-            elif mode == "slow-sender-text":
-                self.assertEqual(receive_stderr, "Waiting for sender...\n")
-        elif mode == "file":
-            self.failUnlessEqual(receive_stdout, "")
-            self.failUnlessIn(u"Receiving file ({size:s}) into: {name!r}".format(
-                size=naturalsize(len(message)), name=receive_filename),
-                receive_stderr)
-            self.failUnlessIn(u"Received file written to ", receive_stderr)
-            fn = os.path.join(receive_dir, receive_filename)
-            self.failUnless(os.path.exists(fn))
-            with open(fn, "r") as f:
-                self.failUnlessEqual(f.read(), message)
-        elif mode == "directory":
-            self.failUnlessEqual(receive_stdout, "")
-            want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
-                    .format(name=receive_dirname))
-            self.failUnless(
-                re.search(want, receive_stderr), (want, receive_stderr))
-            self.failUnlessIn(
-                u"Received files written to {name!r}"
-                .format(name=receive_dirname),
-                receive_stderr)
-            fn = os.path.join(receive_dir, receive_dirname)
-            self.failUnless(os.path.exists(fn), fn)
-            for i in range(5):
-                fn = os.path.join(receive_dir, receive_dirname, str(i))
-                with open(fn, "r") as f:
-                    self.failUnlessEqual(f.read(), message(i))
-                self.failUnlessEqual(modes[i], stat.S_IMODE(
-                    os.stat(fn).st_mode))
-
-    def test_text(self):
-        return self._do_test()
-
-    def test_text_subprocess(self):
-        return self._do_test(as_subprocess=True)
-
-    def test_text_tor(self):
-        return self._do_test(fake_tor=True)
-
-    def test_text_verify(self):
-        return self._do_test(verify=True)
-
-    def test_file(self):
-        return self._do_test(mode="file")
-
-    def test_file_override(self):
-        return self._do_test(mode="file", override_filename=True)
-
-    def test_file_overwrite(self):
-        return self._do_test(mode="file", overwrite=True)
-
-    def test_file_overwrite_mock_accept(self):
-        return self._do_test(mode="file", overwrite=True, mock_accept=True)
-
-    def test_file_tor(self):
-        return self._do_test(mode="file", fake_tor=True)
-
-    def test_empty_file(self):
-        return self._do_test(mode="empty-file")
-
-    def test_directory(self):
-        return self._do_test(mode="directory")
-
-    def test_directory_addslash(self):
-        return self._do_test(mode="directory", addslash=True)
-
-    def test_directory_override(self):
-        return self._do_test(mode="directory", override_filename=True)
-
-    def test_directory_overwrite(self):
-        return self._do_test(mode="directory", overwrite=True)
-
-    def test_directory_overwrite_mock_accept(self):
-        return self._do_test(
-            mode="directory", overwrite=True, mock_accept=True)
-
-    def test_slow_text(self):
-        return self._do_test(mode="slow-text")
-
-    def test_slow_sender_text(self):
-        return self._do_test(mode="slow-sender-text")
-
-    @pytest_twisted.ensureDeferred
-    async def _do_test_fail(self, mode, failmode):
-        assert mode in ("file", "directory")
-        assert failmode in ("noclobber", "toobig")
-        send_cfg = config("send")
-        recv_cfg = config("receive")
-
-        for cfg in [send_cfg, recv_cfg]:
-            cfg.hide_progress = True
-            cfg.relay_url = self.relayurl
-            cfg.transit_helper = ""
-            cfg.listen = False
-            cfg.code = u"1-abc"
-            cfg.stdout = io.StringIO()
-            cfg.stderr = io.StringIO()
-
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        receive_dir = self.mktemp()
-        os.mkdir(receive_dir)
-        recv_cfg.accept_file = True  # don't ask for permission
-
-        if mode == "file":
-            message = "test message\n"
-            send_cfg.what = receive_name = send_filename = "testfile"
-            fn = os.path.join(send_dir, send_filename)
-            with open(fn, "w") as f:
-                f.write(message)
-            size = os.stat(fn).st_size
-
-        elif mode == "directory":
-            # $send_dir/
-            # $send_dir/$dirname/
-            # $send_dir/$dirname/[12345]
-            # cd $send_dir && wormhole send $dirname
-            # cd $receive_dir && wormhole receive
-            # expect: $receive_dir/$dirname/[12345]
-
-            size = 0
-            send_cfg.what = receive_name = send_dirname = "testdir"
-            os.mkdir(os.path.join(send_dir, send_dirname))
-            for i in range(5):
-                path = os.path.join(send_dir, send_dirname, str(i))
-                with open(path, "w") as f:
-                    f.write("test message %d\n" % i)
-                size += os.stat(path).st_size
-
-        if failmode == "noclobber":
-            PRESERVE = "don't clobber me\n"
-            clobberable = os.path.join(receive_dir, receive_name)
-            with open(clobberable, "w") as f:
-                f.write(PRESERVE)
-
+    else:
         send_cfg.cwd = send_dir
-        send_d = cmd_send.send(send_cfg)
-
         recv_cfg.cwd = receive_dir
-        receive_d = cmd_receive.receive(recv_cfg)
 
-        # both sides will fail
-        if failmode == "noclobber":
-            free_space = 10000000
+        if fake_tor:
+            send_cfg.tor = True
+            send_cfg.transit_helper = self.transit
+            tx_tm = FakeTor()
+            with mock.patch(
+                    "wormhole.tor_manager.get_tor",
+                    return_value=tx_tm,
+            ) as mtx_tm:
+                send_d = cmd_send.send(send_cfg)
+
+            recv_cfg.tor = True
+            recv_cfg.transit_helper = self.transit
+            rx_tm = FakeTor()
+            with mock.patch(
+                    "wormhole.tor_manager.get_tor",
+                    return_value=rx_tm,
+            ) as mrx_tm:
+                receive_d = cmd_receive.receive(recv_cfg)
         else:
-            free_space = 0
-        with mock.patch(
-                "wormhole.cli.cmd_receive.estimate_free_space",
-                return_value=free_space):
-            f = await self.assertFailure(send_d, TransferError)
+            KEY_TIMER = 0 if mode == "slow-sender-text" else 99999
+            rxw = []
+            with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
+                send_d = cmd_send.send(send_cfg)
+                receive_d = cmd_receive.receive(
+                    recv_cfg, _debug_stash_wormhole=rxw)
+                # we need to keep KEY_TIMER patched until the receiver
+                # gets far enough to start the timer, which happens after
+                # the code is set
+                if mode == "slow-sender-text":
+                    await rxw[0].get_unverified_key()
+
+        # The sender might fail, leaving the receiver hanging, or vice
+        # versa. Make sure we don't wait on one side exclusively
+        VERIFY_TIMER = 0 if mode == "slow-text" else 99999
+        with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
+            with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
+                if mock_accept or verify:
+                    with mock.patch.object(builtins, 'input',
+                            return_value='yes') as i:
+                        await gatherResults([send_d, receive_d], True)
+                    if verify:
+                        s = i.mock_calls[0][1][0]
+                        mo = re.search(r'^Verifier (\w+)\. ok\?', s)
+                        self.assertTrue(mo, s)
+                        sender_verifier = mo.group(1)
+                else:
+                    await gatherResults([send_d, receive_d], True)
+
+        if fake_tor:
+            expected_endpoints = [("127.0.0.1", self.rdv_ws_port, False)]
+            if mode in ("file", "directory"):
+                expected_endpoints.append(("127.0.0.1", self.transitport, False))
+            tx_timing = mtx_tm.call_args[1]["timing"]
+            self.assertEqual(tx_tm.endpoints, expected_endpoints)
             self.assertEqual(
-                str(f), "remote error, transfer abandoned: transfer rejected")
-            f = await self.assertFailure(receive_d, TransferError)
-            self.assertEqual(str(f), "transfer rejected")
+                mtx_tm.mock_calls,
+                [mock.call(reactor, False, None, timing=tx_timing)])
+            rx_timing = mrx_tm.call_args[1]["timing"]
+            self.assertEqual(rx_tm.endpoints, expected_endpoints)
+            self.assertEqual(
+                mrx_tm.mock_calls,
+                [mock.call(reactor, False, None, timing=rx_timing)])
 
         send_stdout = send_cfg.stdout.getvalue()
         send_stderr = send_cfg.stderr.getvalue()
@@ -895,100 +649,347 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         # newlines, even if we're on windows
         NL = "\n"
 
-        self.maxDiff = None  # show full output for assertion failures
+    key_established = ""
+    if mode == "slow-text":
+        key_established = "Key established, waiting for confirmation...\n"
 
-        self.assertEqual(send_stdout, "")
-        self.assertEqual(receive_stdout, "")
+    assert send_stdout == ""
 
-        # check sender
-        if mode == "file":
-            self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
-                              .format(
-                                  size=naturalsize(size),
-                                  name=send_filename,
-                                  NL=NL), send_stderr)
-            self.failUnlessIn(
-                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
+    # check sender
+    if mode == "text" or mode == "slow-text":
+        snippets = [
+            "Sending text message ({bytes:d} Bytes){NL}",
+            "Wormhole code is: {code}{NL}",
+            (
+                "On the other computer, please run:{NL}{NL}"
+                "wormhole receive {verify}{code}{NL}{NL}"
+            ),
+            "{KE}",
+            "text message sent{NL}",
+        ]
+        for snippet in snippets:
+            expected = snippet.format(
+                bytes=len(message),
+                verify="--verify " if verify else "",
+                code=send_cfg.code,
+                NL=NL,
+                KE=key_established,
             )
-            self.failUnlessIn(
-                u"On the other computer, please run:{NL}{NL}"
-                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failIfIn(
-                "File sent.. waiting for confirmation{NL}"
-                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
-                send_stderr)
-        elif mode == "directory":
-            self.failUnlessIn("Sending directory", send_stderr)
-            self.failUnlessIn("named 'testdir'", send_stderr)
-            self.failUnlessIn(
-                u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failUnlessIn(
-                u"On the other computer, please run:{NL}{NL}"
-                "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
-                send_stderr,
-            )
-            self.failIfIn(
-                "File sent.. waiting for confirmation{NL}"
-                "Confirmation received. Transfer complete.{NL}".format(NL=NL),
-                send_stderr)
+            assert expected in send_stderr
+    elif mode == "file":
+        expected = u"Sending {size:s} file named '{name}'{NL}".format(
+            size=naturalsize(len(message)),
+            name=send_filename,
+            NL=NL)
+        assert expected in send_stderr
+        assert u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        expected = (u"On the other computer, please run:{NL}{NL}"
+                    "wormhole receive {code}{NL}{NL}").format(code=send_cfg.code, NL=NL)
+        assert expected in send_stderr
+        assert (u"File sent.. waiting for confirmation{NL}"
+                "Confirmation received. Transfer complete.{NL}").format(NL=NL) in send_stderr
 
-        # check receiver
-        if mode == "file":
-            self.failIfIn("Received file written to ", receive_stderr)
-            if failmode == "noclobber":
-                self.failUnlessIn(
-                    "Error: "
-                    "refusing to overwrite existing 'testfile'{NL}"
-                    .format(NL=NL),
-                    receive_stderr)
+    elif mode == "directory":
+        self.failUnlessIn(u"Sending directory", send_stderr)
+        self.failUnlessIn(u"named 'testdir'", send_stderr)
+        self.failUnlessIn(
+            u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failUnlessIn(
+            u"On the other computer, please run:{NL}{NL}"
+            "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failUnlessIn(
+            u"File sent.. waiting for confirmation{NL}"
+            "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+            send_stderr)
+
+    # check receiver
+    if mode in ("text", "slow-text", "slow-sender-text"):
+        assert receive_stdout == message + NL
+        if mode == "text":
+            if verify:
+                mo = re.search(r'^Verifier (\w+)\.\s*$', receive_stderr)
+                assert mo, receive_stderr
+                receiver_verifier = mo.group(1)
+                assert sender_verifier == receiver_verifier
             else:
-                self.failUnlessIn(
-                    "Error: "
-                    "insufficient free space (0B) for file ({size:d}B){NL}"
-                    .format(NL=NL, size=size), receive_stderr)
-        elif mode == "directory":
-            self.failIfIn(
-                "Received files written to {name!r}".format(name=receive_name),
-                receive_stderr)
-            # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
-            #        .format(name=receive_name))
-            # self.failUnless(re.search(want, receive_stderr),
-            #                (want, receive_stderr))
-            if failmode == "noclobber":
-                self.failUnlessIn(
-                    "Error: "
-                    "refusing to overwrite existing 'testdir'{NL}"
-                    .format(NL=NL),
-                    receive_stderr)
-            else:
-                self.failUnlessIn(("Error: "
-                                   "insufficient free space (0B) for directory"
-                                   " ({size:d}B){NL}").format(
-                                       NL=NL, size=size), receive_stderr)
-
-        if failmode == "noclobber":
-            fn = os.path.join(receive_dir, receive_name)
-            self.failUnless(os.path.exists(fn))
+                assert receive_stderr == ""
+        elif mode == "slow-text":
+            assert receive_stderr == key_established
+        elif mode == "slow-sender-text":
+            assert receive_stderr == "Waiting for sender...\n"
+    elif mode == "file":
+        self.failUnlessEqual(receive_stdout, "")
+        self.failUnlessIn(u"Receiving file ({size:s}) into: {name!r}".format(
+            size=naturalsize(len(message)), name=receive_filename),
+            receive_stderr)
+        self.failUnlessIn(u"Received file written to ", receive_stderr)
+        fn = os.path.join(receive_dir, receive_filename)
+        self.failUnless(os.path.exists(fn))
+        with open(fn, "r") as f:
+            self.failUnlessEqual(f.read(), message)
+    elif mode == "directory":
+        self.failUnlessEqual(receive_stdout, "")
+        want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
+                .format(name=receive_dirname))
+        self.failUnless(
+            re.search(want, receive_stderr), (want, receive_stderr))
+        self.failUnlessIn(
+            u"Received files written to {name!r}"
+            .format(name=receive_dirname),
+            receive_stderr)
+        fn = os.path.join(receive_dir, receive_dirname)
+        self.failUnless(os.path.exists(fn), fn)
+        for i in range(5):
+            fn = os.path.join(receive_dir, receive_dirname, str(i))
             with open(fn, "r") as f:
-                self.failUnlessEqual(f.read(), PRESERVE)
+                self.failUnlessEqual(f.read(), message(i))
+            self.failUnlessEqual(modes[i], stat.S_IMODE(
+                os.stat(fn).st_mode))
 
-    def test_fail_file_noclobber(self):
-        return self._do_test_fail("file", "noclobber")
+async def test_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory)
 
-    def test_fail_directory_noclobber(self):
-        return self._do_test_fail("directory", "noclobber")
+async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, as_subprocess=True)
 
-    def test_fail_file_toobig(self):
-        return self._do_test_fail("file", "toobig")
+async def test_text_tor(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, fake_tor=True)
 
-    def test_fail_directory_toobig(self):
-        return self._do_test_fail("directory", "toobig")
+async def test_text_verify(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, verify=True)
 
+async def test_file(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="file")
+
+async def test_file_override(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="file", override_filename=True)
+
+async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="file", overwrite=True)
+
+async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
+
+async def test_file_tor(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="file", fake_tor=True)
+
+async def test_empty_file(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="empty-file")
+
+async def test_directory(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="directory")
+
+async def test_directory_addslash(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="directory", addslash=True)
+
+async def test_directory_override(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="directory", override_filename=True)
+
+async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="directory", overwrite=True)
+
+async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(
+        wormhole_executable,
+        scripts_env,
+        mailbox,
+        tmpdir_factory,
+        mode="directory",
+        overwrite=True,
+        mock_accept=True,
+    )
+
+async def test_slow_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="slow-text")
+
+async def test_slow_sender_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, tmpdir_factory, mode="slow-sender-text")
+
+
+@pytest_twisted.ensureDeferred
+async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_factory, mode, failmode):
+    assert mode in ("file", "directory")
+    assert failmode in ("noclobber", "toobig")
+    send_cfg = config("send")
+    recv_cfg = config("receive")
+
+    for cfg in [send_cfg, recv_cfg]:
+        cfg.hide_progress = True
+        cfg.relay_url = relayurl
+        cfg.transit_helper = ""
+        cfg.listen = False
+        cfg.code = u"1-abc"
+        cfg.stdout = io.StringIO()
+        cfg.stderr = io.StringIO()
+
+    send_dir = tmpdir_factory.mktemp(".")
+    os.mkdir(send_dir)
+    receive_dir = tmpdir_factory.mktemp(".")
+    os.mkdir(receive_dir)
+    recv_cfg.accept_file = True  # don't ask for permission
+
+    if mode == "file":
+        message = "test message\n"
+        send_cfg.what = receive_name = send_filename = "testfile"
+        fn = os.path.join(send_dir, send_filename)
+        with open(fn, "w") as f:
+            f.write(message)
+        size = os.stat(fn).st_size
+
+    elif mode == "directory":
+        # $send_dir/
+        # $send_dir/$dirname/
+        # $send_dir/$dirname/[12345]
+        # cd $send_dir && wormhole send $dirname
+        # cd $receive_dir && wormhole receive
+        # expect: $receive_dir/$dirname/[12345]
+
+        size = 0
+        send_cfg.what = receive_name = send_dirname = "testdir"
+        os.mkdir(os.path.join(send_dir, send_dirname))
+        for i in range(5):
+            path = os.path.join(send_dir, send_dirname, str(i))
+            with open(path, "w") as f:
+                f.write("test message %d\n" % i)
+            size += os.stat(path).st_size
+
+    if failmode == "noclobber":
+        PRESERVE = "don't clobber me\n"
+        clobberable = os.path.join(receive_dir, receive_name)
+        with open(clobberable, "w") as f:
+            f.write(PRESERVE)
+
+    send_cfg.cwd = send_dir
+    send_d = cmd_send.send(send_cfg)
+
+    recv_cfg.cwd = receive_dir
+    receive_d = cmd_receive.receive(recv_cfg)
+
+    # both sides will fail
+    if failmode == "noclobber":
+        free_space = 10000000
+    else:
+        free_space = 0
+    with mock.patch(
+            "wormhole.cli.cmd_receive.estimate_free_space",
+            return_value=free_space):
+        f = await self.assertFailure(send_d, TransferError)
+        self.assertEqual(
+            str(f), "remote error, transfer abandoned: transfer rejected")
+        f = await self.assertFailure(receive_d, TransferError)
+        self.assertEqual(str(f), "transfer rejected")
+
+    send_stdout = send_cfg.stdout.getvalue()
+    send_stderr = send_cfg.stderr.getvalue()
+    receive_stdout = recv_cfg.stdout.getvalue()
+    receive_stderr = recv_cfg.stderr.getvalue()
+
+    # all output here comes from a StringIO, which uses \n for
+    # newlines, even if we're on windows
+    NL = "\n"
+
+    self.maxDiff = None  # show full output for assertion failures
+
+    self.assertEqual(send_stdout, "")
+    self.assertEqual(receive_stdout, "")
+
+    # check sender
+    if mode == "file":
+        self.failUnlessIn("Sending {size:s} file named '{name}'{NL}"
+                          .format(
+                              size=naturalsize(size),
+                              name=send_filename,
+                              NL=NL), send_stderr)
+        self.failUnlessIn(
+            u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failUnlessIn(
+            u"On the other computer, please run:{NL}{NL}"
+            "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failIfIn(
+            "File sent.. waiting for confirmation{NL}"
+            "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+            send_stderr)
+    elif mode == "directory":
+        self.failUnlessIn("Sending directory", send_stderr)
+        self.failUnlessIn("named 'testdir'", send_stderr)
+        self.failUnlessIn(
+            u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failUnlessIn(
+            u"On the other computer, please run:{NL}{NL}"
+            "wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL),
+            send_stderr,
+        )
+        self.failIfIn(
+            "File sent.. waiting for confirmation{NL}"
+            "Confirmation received. Transfer complete.{NL}".format(NL=NL),
+            send_stderr)
+
+    # check receiver
+    if mode == "file":
+        self.failIfIn("Received file written to ", receive_stderr)
+        if failmode == "noclobber":
+            self.failUnlessIn(
+                "Error: "
+                "refusing to overwrite existing 'testfile'{NL}"
+                .format(NL=NL),
+                receive_stderr)
+        else:
+            self.failUnlessIn(
+                "Error: "
+                "insufficient free space (0B) for file ({size:d}B){NL}"
+                .format(NL=NL, size=size), receive_stderr)
+    elif mode == "directory":
+        self.failIfIn(
+            "Received files written to {name!r}".format(name=receive_name),
+            receive_stderr)
+        # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
+        #        .format(name=receive_name))
+        # self.failUnless(re.search(want, receive_stderr),
+        #                (want, receive_stderr))
+        if failmode == "noclobber":
+            self.failUnlessIn(
+                "Error: "
+                "refusing to overwrite existing 'testdir'{NL}"
+                .format(NL=NL),
+                receive_stderr)
+        else:
+            self.failUnlessIn(("Error: "
+                               "insufficient free space (0B) for directory"
+                               " ({size:d}B){NL}").format(
+                                   NL=NL, size=size), receive_stderr)
+
+    if failmode == "noclobber":
+        fn = os.path.join(receive_dir, receive_name)
+        self.failUnless(os.path.exists(fn))
+        with open(fn, "r") as f:
+            self.failUnlessEqual(f.read(), PRESERVE)
+
+async def test_fail_file_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_tests_fail(wormhole_executable, scripts_env, mailbox, tmpdir_factory, "file", "noclobber")
+
+async def test_fail_directory_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_tests_fail(wormhole_executable, scripts_env, mailbox, tmpdir_factory, "directory", "noclobber")
+
+async def test_fail_file_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_tests_fail(wormhole_executable, scripts_env, mailbox, tmpdir_factory, "file", "toobig")
+
+async def test_fail_directory_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_tests_fail(wormhole_executable, scripts_env, mailbox, tmpdir_factory, "directory", "toobig")
+
+
+class ServerBase:
+    async def setUp(self):
+        pass
 
 class ZeroMode(ServerBase, unittest.TestCase):
     @pytest_twisted.ensureDeferred
@@ -1478,3 +1479,4 @@ class Help(unittest.TestCase):
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Cannot specify a code", result.output)
+
