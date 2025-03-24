@@ -20,32 +20,20 @@ def reactor():
     from twisted.internet import reactor
     yield reactor
 
+from .common import setup_mailbox, setup_transit_relay
+
 
 @pytest.fixture(scope="session")
 def mailbox(reactor):
-    db = create_channel_db(":memory:")
-    usage_db = create_usage_db(":memory:")
-    rendezvous = make_server(db, usage_db=usage_db)
-    ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
-    site = make_web_server(rendezvous, log_requests=False)
-    port = pytest_twisted.blockon(ep.listen(site))
-
-    yield f"ws://127.0.0.1:{port._realPortNumber}/v1"  # XXX private API
-
-    pytest_twisted.blockon(port.stopListening())
+    mb = setup_mailbox(reactor)
+    mb.service.startService()
+    yield mb
+    pytest_twisted.blockon(mb.service.stopService())
 
 
 @pytest.fixture(scope="session")
 def transit_relay(reactor):
-    transitport = allocate_tcp_port()
-    endpoint = f"tcp:{transitport}:interface=127.0.0.1"
-    ep = endpoints.serverFromString(reactor, endpoint)
-    usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
-    transit_server = ServerFactory()
-    transit_server.protocol = TransitConnection
-    transit_server.log_requests = False
-    transit_server.transit = Transit(usage, reactor.seconds)
-    service = StreamServerEndpointService(ep, transit_server)
+    url, service = setup_transit_relay()
     pytest_twisted.blockon(service.startService())
-    yield endpoint
+    yield url
     pytest_twisted.blockon(service.stopService())

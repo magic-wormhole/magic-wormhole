@@ -1,4 +1,5 @@
 # no unicode_literals until twisted update
+from attrs import define
 from click.testing import CliRunner
 from twisted.application import internet, service
 from twisted.internet import defer, endpoints, reactor, task, protocol
@@ -6,10 +7,13 @@ from twisted.python import log
 
 from unittest import mock
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
-from wormhole_mailbox_server.server import make_server
-from wormhole_mailbox_server.web import make_web_server
+from wormhole_mailbox_server.server import make_server, Server
+from wormhole_mailbox_server.web import make_web_server, PrivacyEnhancedSite
 from wormhole_transit_relay.transit_server import Transit, TransitConnection
 from wormhole_transit_relay.usage import create_usage_tracker
+
+import pytest_twisted
+import sqlite3
 
 from ..cli import cli
 from ..transit import allocate_tcp_port
@@ -43,6 +47,50 @@ class MyInternetService(service.Service, object):
 
     def getPort(self):  # only call once!
         return self._port_d
+
+@define
+class Mailbox:
+    channel_db: sqlite3.Connection
+    usage_db: sqlite3.Connection
+    rendezvous: Server
+    web: PrivacyEnhancedSite
+    url: str
+    service: internet.StreamServerEndpointService
+
+
+def setup_mailbox(reactor, advertise_version=None, error=None):
+    """
+    Set up an in-memory Mailbox server.
+
+    If `advertise_version` is not `None`, we advertise it
+    If `error` is not `None` we include `error` in the Welcome
+
+    NOTE: Caller is responsible for starting and stopping the service
+
+    :returns: two-tuple of (relay-url, IService instance).
+    """
+    db = create_channel_db(":memory:")
+    usage_db = create_usage_db(":memory:")
+    rendezvous = make_server(db, usage_db=usage_db)
+    ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
+    site = make_web_server(rendezvous, log_requests=False)
+    port = pytest_twisted.blockon(ep.listen(site))
+    service = internet.StreamServerEndpointService(ep, site)
+    relay_url = f"ws://127.0.0.1:{port._realPortNumber}/v1"  # XXX private API
+    return Mailbox(db, usage_db, rendezvous, site, relay_url, service)
+
+
+def setup_transit_relay(reactor):
+    transitport = allocate_tcp_port()
+    endpoint = f"tcp:{transitport}:interface=127.0.0.1"
+    ep = endpoints.serverFromString(reactor, endpoint)
+    usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
+    transit_server = ServerFactory()
+    transit_server.protocol = TransitConnection
+    transit_server.log_requests = False
+    transit_server.transit = Transit(usage, reactor.seconds)
+    service = internet.StreamServerEndpointService(ep, transit_server)
+    return endpoint, service
 
 
 class ServerBase:
