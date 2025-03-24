@@ -400,7 +400,7 @@ class Input(unittest.TestCase):
         return i, code, lister, events
 
     def test_ignore_completion(self):
-        i, c, l, events = self.build()
+        i, c, lister, events = self.build()
         helper = i.start()
         self.assertIsInstance(helper, _input.Helper)
         self.assertEqual(events, [("l.refresh", )])
@@ -418,7 +418,7 @@ class Input(unittest.TestCase):
         self.assertEqual(events, [("c.finished_input", "1-word-word")])
 
     def test_bad_nameplate(self):
-        i, c, l, events = self.build()
+        i, c, lister, events = self.build()
         helper = i.start()
         self.assertIsInstance(helper, _input.Helper)
         self.assertEqual(events, [("l.refresh", )])
@@ -439,7 +439,7 @@ class Input(unittest.TestCase):
         self.assertEqual(events, [("c.finished_input", "1-word-word")])
 
     def test_with_completion(self):
-        i, c, l, events = self.build()
+        i, c, lister, events = self.build()
         helper = i.start()
         self.assertIsInstance(helper, _input.Helper)
         self.assertEqual(events, [("l.refresh", )])
@@ -502,49 +502,49 @@ class Lister(unittest.TestCase):
         return lister, rc, i, events
 
     def test_connect_first(self):
-        l, rc, i, events = self.build()
-        l.connected()
-        l.lost()
-        l.connected()
+        lister, rc, i, events = self.build()
+        lister.connected()
+        lister.lost()
+        lister.connected()
         self.assertEqual(events, [])
-        l.refresh()
+        lister.refresh()
         self.assertEqual(events, [
             ("rc.tx_list", ),
         ])
         events[:] = []
-        l.rx_nameplates({"1", "2", "3"})
+        lister.rx_nameplates({"1", "2", "3"})
         self.assertEqual(events, [
             ("i.got_nameplates", {"1", "2", "3"}),
         ])
         events[:] = []
         # now we're satisfied: disconnecting and reconnecting won't ask again
-        l.lost()
-        l.connected()
+        lister.lost()
+        lister.connected()
         self.assertEqual(events, [])
 
         # but if we're told to refresh, we'll do so
-        l.refresh()
+        lister.refresh()
         self.assertEqual(events, [
             ("rc.tx_list", ),
         ])
 
     def test_connect_first_ask_twice(self):
-        l, rc, i, events = self.build()
-        l.connected()
+        lister, rc, i, events = self.build()
+        lister.connected()
         self.assertEqual(events, [])
-        l.refresh()
-        l.refresh()
+        lister.refresh()
+        lister.refresh()
         self.assertEqual(events, [
             ("rc.tx_list", ),
             ("rc.tx_list", ),
         ])
-        l.rx_nameplates({"1", "2", "3"})
+        lister.rx_nameplates({"1", "2", "3"})
         self.assertEqual(events, [
             ("rc.tx_list", ),
             ("rc.tx_list", ),
             ("i.got_nameplates", {"1", "2", "3"}),
         ])
-        l.rx_nameplates({"1", "2", "3", "4"})
+        lister.rx_nameplates({"1", "2", "3", "4"})
         self.assertEqual(events, [
             ("rc.tx_list", ),
             ("rc.tx_list", ),
@@ -553,40 +553,40 @@ class Lister(unittest.TestCase):
         ])
 
     def test_reconnect(self):
-        l, rc, i, events = self.build()
-        l.refresh()
-        l.connected()
+        lister, rc, i, events = self.build()
+        lister.refresh()
+        lister.connected()
         self.assertEqual(events, [
             ("rc.tx_list", ),
         ])
         events[:] = []
-        l.lost()
-        l.connected()
+        lister.lost()
+        lister.connected()
         self.assertEqual(events, [
             ("rc.tx_list", ),
         ])
 
     def test_refresh_first(self):
-        l, rc, i, events = self.build()
-        l.refresh()
+        lister, rc, i, events = self.build()
+        lister.refresh()
         self.assertEqual(events, [])
-        l.connected()
+        lister.connected()
         self.assertEqual(events, [
             ("rc.tx_list", ),
         ])
-        l.rx_nameplates({"1", "2", "3"})
+        lister.rx_nameplates({"1", "2", "3"})
         self.assertEqual(events, [
             ("rc.tx_list", ),
             ("i.got_nameplates", {"1", "2", "3"}),
         ])
 
     def test_unrefreshed(self):
-        l, rc, i, events = self.build()
+        lister, rc, i, events = self.build()
         self.assertEqual(events, [])
         # we receive a spontaneous rx_nameplates, without asking
-        l.connected()
+        lister.connected()
         self.assertEqual(events, [])
-        l.rx_nameplates({"1", "2", "3"})
+        lister.rx_nameplates({"1", "2", "3"})
         self.assertEqual(events, [
             ("i.got_nameplates", {"1", "2", "3"}),
         ])
