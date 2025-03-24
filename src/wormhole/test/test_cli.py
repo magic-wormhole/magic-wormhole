@@ -11,7 +11,7 @@ from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
 from twisted.internet import endpoints, reactor
-from twisted.internet.defer import gatherResults, inlineCallbacks, CancelledError
+from twisted.internet.defer import gatherResults, CancelledError
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils

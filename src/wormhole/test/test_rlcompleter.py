@@ -1,7 +1,6 @@
 from itertools import count
 
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks
 from twisted.internet.threads import deferToThread
 from twisted.trial import unittest
 

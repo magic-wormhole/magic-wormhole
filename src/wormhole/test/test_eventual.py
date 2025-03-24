@@ -1,5 +1,5 @@
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
 from twisted.trial import unittest
 

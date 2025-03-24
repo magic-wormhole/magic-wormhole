@@ -4,7 +4,7 @@ from binascii import hexlify, unhexlify
 from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
 from twisted.internet import address, defer, endpoints, error, protocol, task
-from twisted.internet.defer import gatherResults, inlineCallbacks
+from twisted.internet.defer import gatherResults
 from twisted.test import proto_helpers
 from twisted.trial import unittest
 
