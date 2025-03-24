@@ -363,30 +363,26 @@ def is_runnable(self):
     return locale_env
 
 
-class ScriptVersion(ScriptsBase, unittest.TestCase):
-    # we need Twisted to run the server, but we run the sender and receiver
-    # with deferToThread()
+@pytest_twisted.ensureDeferred
+async def test_version(wormhole_executable):
+    """
+    "wormhole" must be on the path, so e.g. "pip install -e ." in a
+    virtualenv. This guards against an environment where the tests
+    below might run the wrong executable.
+    """
 
-    @pytest_twisted.ensureDeferred
-    async def test_version(self):
-        # "wormhole" must be on the path, so e.g. "pip install -e ." in a
-        # virtualenv. This guards against an environment where the tests
-        # below might run the wrong executable.
-        self.maxDiff = None
-        wormhole = self.find_executable()
-        # we must pass on the environment so that "something" doesn't
-        # get sad about UTF8 vs. ascii encodings
-        out, err, rc = await getProcessOutputAndValue(
-            wormhole, ["--version"], env=os.environ)
-        err = err.decode("utf-8")
-        if "DistributionNotFound" in err:
-            log.msg("stderr was %s" % err)
-            last = err.strip().split("\n")[-1]
-            self.fail("wormhole not runnable: %s" % last)
-        ver = out.decode("utf-8") or err
-        self.failUnlessEqual(ver.strip(),
-                             "magic-wormhole {}".format(__version__))
-        self.failUnlessEqual(rc, 0)
+    # we must pass on the environment so that "something" doesn't
+    # get sad about UTF8 vs. ascii encodings
+    out, err, rc = await getProcessOutputAndValue(
+        wormhole_executable, ["--version"], env=os.environ)
+    err = err.decode("utf-8")
+    if "DistributionNotFound" in err:
+        log.msg("stderr was %s" % err)
+        last = err.strip().split("\n")[-1]
+        self.fail("wormhole not runnable: %s" % last)
+    ver = out.decode("utf-8") or err
+    assert ver.strip() == "magic-wormhole {}".format(__version__)
+    assert rc == 0
 
 
 @implementer(ITorManager)
