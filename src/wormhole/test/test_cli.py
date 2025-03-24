@@ -20,14 +20,15 @@ from zope.interface import implementer
 
 from unittest import mock
 
-from pytest_twisted import ensureDeferred
+import pytest_twisted
+import pytest
 
 from .. import __version__
 from .._interfaces import ITorManager
 from ..cli import cli, cmd_receive, cmd_send, welcome
 from ..errors import (ServerConnectionError, TransferError,
                       UnsendableFileError, WelcomeError, WrongPasswordError)
-from .common import ServerBase, config
+from .common import config
 
 
 def build_offer(args):
@@ -257,7 +258,7 @@ class LocaleFinder:
     def __init__(self):
         self._run_once = False
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def find_utf8_locale(self):
         if sys.platform == "win32":
             return "en_US.UTF-8"
@@ -267,7 +268,7 @@ class LocaleFinder:
         self._run_once = True
         return self._best_locale
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def _find_utf8_locale(self):
         # Click really wants to be running under a unicode-capable locale,
         # especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
@@ -298,64 +299,75 @@ class LocaleFinder:
 locale_finder = LocaleFinder()
 
 
-class ScriptsBase:
-    def find_executable(self):
-        # to make sure we're running the right executable (in a virtualenv),
-        # we require that our "wormhole" lives in the same directory as our
-        # "python"
-        locations = procutils.which("wormhole")
-        if not locations:
-            raise unittest.SkipTest("unable to find 'wormhole' in $PATH")
-        wormhole = locations[0]
-        if (os.path.dirname(os.path.abspath(wormhole)) != os.path.dirname(
-                sys.executable)):
-            log.msg("locations: %s" % (locations, ))
-            log.msg("sys.executable: %s" % (sys.executable, ))
-            raise unittest.SkipTest(
-                "found the wrong 'wormhole' in $PATH: %s %s" %
-                (wormhole, sys.executable))
-        return wormhole
-
-    @ensureDeferred
-    async def is_runnable(self):
-        # One property of Versioneer is that many changes to the source tree
-        # (making a commit, dirtying a previously-clean tree) will change the
-        # version string. Entrypoint scripts frequently insist upon importing
-        # a library version that matches the script version (whatever was
-        # reported when 'pip install' was run), and throw a
-        # DistributionNotFound error when they don't match. This is really
-        # annoying in a workspace created with "pip install -e .", as you
-        # must re-run pip after each commit.
-
-        # So let's report just one error in this case (from test_version),
-        # and skip the other tests that we know will fail.
-
-        # Setting LANG/LC_ALL to a unicode-capable locale is necessary to
-        # convince Click to not complain about a forced-ascii locale. My
-        # apologies to folks who want to run tests on a machine that doesn't
-        # have the C.UTF-8 locale installed.
-        locale = await locale_finder.find_utf8_locale()
-        if not locale:
-            raise unittest.SkipTest("unable to find UTF-8 locale")
-        locale_env = dict(LC_ALL=locale, LANG=locale)
-        wormhole = self.find_executable()
-        res = await getProcessOutputAndValue(
-            wormhole, ["--version"], env=locale_env)
-        out, err, rc = res
-        if rc != 0:
-            log.msg("wormhole not runnable in this tree:")
-            log.msg("out", out)
-            log.msg("err", err)
-            log.msg("rc", rc)
-            raise unittest.SkipTest("wormhole is not runnable in this tree")
-        return locale_env
+@pytest.fixture(scope="module")
+def wormhole_executable():
+    """
+    to make sure we're running the right executable (in a virtualenv),
+    we require that our "wormhole" lives in the same directory as our
+    "python"
+    """
+    locations = procutils.which("wormhole")
+    if not locations:
+        raise unittest.SkipTest("unable to find 'wormhole' in $PATH")
+    wormhole = locations[0]
+    if (os.path.dirname(os.path.abspath(wormhole)) != os.path.dirname(
+            sys.executable)):
+        log.msg("locations: %s" % (locations, ))
+        log.msg("sys.executable: %s" % (sys.executable, ))
+        raise unittest.SkipTest(
+            "found the wrong 'wormhole' in $PATH: %s %s" %
+            (wormhole, sys.executable))
+    return wormhole
 
 
-class ScriptVersion(ServerBase, ScriptsBase, unittest.TestCase):
+@pytest.fixture(scope="module")
+def is_runnable(self):
+    # One property of Versioneer is that many changes to the source tree
+    # (making a commit, dirtying a previously-clean tree) will change the
+    # version string. Entrypoint scripts frequently insist upon importing
+    # a library version that matches the script version (whatever was
+    # reported when 'pip install' was run), and throw a
+    # DistributionNotFound error when they don't match. This is really
+    # annoying in a workspace created with "pip install -e .", as you
+    # must re-run pip after each commit.
+
+    # So let's report just one error in this case (from test_version),
+    # and skip the other tests that we know will fail.
+
+    # Setting LANG/LC_ALL to a unicode-capable locale is necessary to
+    # convince Click to not complain about a forced-ascii locale. My
+    # apologies to folks who want to run tests on a machine that doesn't
+    # have the C.UTF-8 locale installed.
+    locale = pytest_twisted.blockon(
+        locale_finder.find_utf8_locale()
+    )
+    if not locale:
+        raise unittest.SkipTest("unable to find UTF-8 locale")
+    locale_env = dict(LC_ALL=locale, LANG=locale)
+    wormhole = self.find_executable()
+    res = pytest_twisted.blockon(
+        getProcessOutputAndValue(
+            wormhole,
+            ["--version"],
+            env=locale_env,
+        )
+    )
+    out, err, rc = res
+    if rc != 0:
+        log.msg("wormhole not runnable in this tree:")
+        log.msg("out", out)
+        log.msg("err", err)
+        log.msg("rc", rc)
+        pytest.skip("wormhole is not runnable in this tree")
+        return
+    return locale_env
+
+
+class ScriptVersion(ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_version(self):
         # "wormhole" must be on the path, so e.g. "pip install -e ." in a
         # virtualenv. This guards against an environment where the tests
@@ -403,12 +415,12 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     # we need Twisted to run the server, but we run the sender and receiver
     # with deferToThread()
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def setUp(self):
         self._env = await self.is_runnable()
         await ServerBase.setUp(self)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def _do_test(self,
                  as_subprocess=False,
                  mode="text",
@@ -805,7 +817,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
     def test_slow_sender_text(self):
         return self._do_test(mode="slow-sender-text")
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def _do_test_fail(self, mode, failmode):
         assert mode in ("file", "directory")
         assert failmode in ("noclobber", "toobig")
@@ -983,7 +995,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
 
 class ZeroMode(ServerBase, unittest.TestCase):
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_text(self):
         send_cfg = config("send")
         recv_cfg = config("receive")
@@ -1037,7 +1049,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
 
 class NotWelcome(ServerBase, unittest.TestCase):
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def setUp(self):
         await self._setup_relay(error="please upgrade XYZ")
         self.cfg = cfg = config("send")
@@ -1048,7 +1060,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_sender(self):
         self.cfg.text = "hi"
         self.cfg.code = u"1-abc"
@@ -1057,7 +1069,7 @@ class NotWelcome(ServerBase, unittest.TestCase):
         f = await self.assertFailure(send_d, WelcomeError)
         self.assertEqual(str(f), "please upgrade XYZ")
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_receiver(self):
         self.cfg.code = u"1-abc"
 
@@ -1067,12 +1079,12 @@ class NotWelcome(ServerBase, unittest.TestCase):
 
 
 class NoServer(ServerBase, unittest.TestCase):
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def setUp(self):
         await self._setup_relay(None)
         await self._relay_server.disownServiceParent()
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_sender(self):
         cfg = config("send")
         cfg.hide_progress = True
@@ -1089,7 +1101,7 @@ class NoServer(ServerBase, unittest.TestCase):
         e = await self.assertFailure(send_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_sender_allocation(self):
         cfg = config("send")
         cfg.hide_progress = True
@@ -1105,7 +1117,7 @@ class NoServer(ServerBase, unittest.TestCase):
         e = await self.assertFailure(send_d, ServerConnectionError)
         self.assertIsInstance(e.reason, ConnectionRefusedError)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_receiver(self):
         cfg = config("receive")
         cfg.hide_progress = True
@@ -1133,7 +1145,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         cfg.stderr = io.StringIO()
         return cfg
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     @mock.patch('sys.stdout')
     async def test_text(self, stdout):
         # the rendezvous channel should be deleted after success
@@ -1150,7 +1162,7 @@ class Cleanup(ServerBase, unittest.TestCase):
         cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
         self.assertEqual(len(cids), 0)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_text_wrong_password(self):
         # if the password was wrong, the rendezvous channel should still be
         # deleted
@@ -1215,7 +1227,7 @@ class ExtractFile(unittest.TestCase):
 
 
 class AppID(ServerBase, unittest.TestCase):
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def setUp(self):
         await super(AppID, self).setUp()
         self.cfg = cfg = config("send")
@@ -1226,7 +1238,7 @@ class AppID(ServerBase, unittest.TestCase):
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_override(self):
         # make sure we use the overridden appid, not the default
         self.cfg.text = "hello"
@@ -1279,7 +1291,7 @@ class Welcome(unittest.TestCase):
 
 
 class Dispatch(unittest.TestCase):
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_success(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1292,7 +1304,7 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(called, [1])
         self.assertEqual(cfg.stderr.getvalue(), "")
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_timing(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1312,7 +1324,7 @@ class Dispatch(unittest.TestCase):
         with self.assertRaises(UsageError):
             cfg.debug_state = "ZZZ"
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_debug_state_send(self):
         args = config("send")
         args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
@@ -1331,7 +1343,7 @@ class Dispatch(unittest.TestCase):
             args.stdout.getvalue(),
         )
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_debug_state_receive(self):
         args = config("receive")
         args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
@@ -1350,7 +1362,7 @@ class Dispatch(unittest.TestCase):
             args.stdout.getvalue(),
         )
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_wrong_password_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1363,7 +1375,7 @@ class Dispatch(unittest.TestCase):
         expected = fill("ERROR: " + dedent(WrongPasswordError.__doc__)) + "\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_welcome_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1377,7 +1389,7 @@ class Dispatch(unittest.TestCase):
             fill("ERROR: " + dedent(WelcomeError.__doc__)) + "\n\nabcd\n")
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_transfer_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1390,7 +1402,7 @@ class Dispatch(unittest.TestCase):
         expected = "TransferError: abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_server_connection_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
@@ -1406,7 +1418,7 @@ class Dispatch(unittest.TestCase):
         expected += "abcd\n"
         self.assertEqual(cfg.stderr.getvalue(), expected)
 
-    @ensureDeferred
+    @pytest_twisted.ensureDeferred
     async def test_other_error(self):
         cfg = config("send")
         cfg.stderr = io.StringIO()
