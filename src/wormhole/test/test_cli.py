@@ -418,7 +418,7 @@ def strip_deprecations(stderr, NL):
 async def _do_test(
         wormhole_executable,
         scripts_env,
-        relayurl,
+        mailbox,
         transiturl,
         tmpdir_factory,
         as_subprocess=False,
@@ -439,7 +439,7 @@ async def _do_test(
 
     for cfg in [send_cfg, recv_cfg]:
         cfg.hide_progress = True
-        cfg.relay_url = relayurl
+        cfg.relay_url = mailbox.url
         cfg.transit_helper = ""
         cfg.listen = True
         cfg.code = u"1-abc"
@@ -526,7 +526,7 @@ async def _do_test(
         env["_MAGIC_WORMHOLE_TEST_VERIFY_TIMER"] = "999999"
         send_args = [
             '--relay-url',
-            relayurl,
+            mailbox.url,
             '--transit-helper',
             '',
             'send',
@@ -543,7 +543,7 @@ async def _do_test(
         )
         recv_args = [
             '--relay-url',
-            relayurl,
+            mailbox.url,
             '--transit-helper',
             '',
             'receive',
@@ -628,7 +628,7 @@ async def _do_test(
                     await gatherResults([send_d, receive_d], True)
 
         if fake_tor:
-            expected_endpoints = [("127.0.0.1", self.rdv_ws_port, False)]
+            expected_endpoints = [("127.0.0.1", mailbox.port._realPortNumber, False)]
             if mode in ("file", "directory"):
                 expected_endpoints.append(("127.0.0.1", self.transitport, False))
             tx_timing = mtx_tm.call_args[1]["timing"]
@@ -750,53 +750,53 @@ async def _do_test(
                 os.stat(fn).st_mode)
 
 async def test_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory)
 
 async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, as_subprocess=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, as_subprocess=True)
 
 async def test_text_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, fake_tor=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, fake_tor=True)
 
 async def test_text_verify(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, verify=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, verify=True)
 
 async def test_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file")
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file")
 
 async def test_file_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", override_filename=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", override_filename=True)
 
 async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", overwrite=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", overwrite=True)
 
 async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
 
 async def test_file_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", fake_tor=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", fake_tor=True)
 
 async def test_empty_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="empty-file")
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="empty-file")
 
 async def test_directory(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory")
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory")
 
 async def test_directory_addslash(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", addslash=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", addslash=True)
 
 async def test_directory_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", override_filename=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", override_filename=True)
 
 async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", overwrite=True)
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", overwrite=True)
 
 async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(
         wormhole_executable,
         scripts_env,
-        mailbox.url,
-        transit_relay.url,
+        mailbox,
+        transit_relay,
         tmpdir_factory,
         mode="directory",
         overwrite=True,
@@ -804,10 +804,10 @@ async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env,
     )
 
 async def test_slow_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="slow-text")
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="slow-text")
 
 async def test_slow_sender_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="slow-sender-text")
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="slow-sender-text")
 
 
 @pytest_twisted.ensureDeferred
@@ -877,10 +877,13 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
     with mock.patch(
             "wormhole.cli.cmd_receive.estimate_free_space",
             return_value=free_space):
-        f = await self.assertFailure(send_d, TransferError)
-        assert str(f) == "remote error, transfer abandoned: transfer rejected"
-        f = await self.assertFailure(receive_d, TransferError)
-        assert str(f) == "transfer rejected"
+        with pytest.raises(TransferError) as e:
+            await send_d
+        assert str(e.value) == "remote error, transfer abandoned: transfer rejected"
+
+        with pytest.raises(TransferError) as e:
+            await self.assertFailure(receive_d, TransferError)
+        assert str(e.value) == "transfer rejected"
 
     send_stdout = send_cfg.stdout.getvalue()
     send_stderr = send_cfg.stderr.getvalue()

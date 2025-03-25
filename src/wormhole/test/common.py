@@ -56,6 +56,7 @@ class Mailbox:
     web: PrivacyEnhancedSite
     url: str
     service: internet.StreamServerEndpointService
+    port: object  # IPort ?
 
 
 def setup_mailbox(reactor, advertise_version=None, error=None):
@@ -77,7 +78,7 @@ def setup_mailbox(reactor, advertise_version=None, error=None):
     port = pytest_twisted.blockon(ep.listen(site))
     service = internet.StreamServerEndpointService(ep, site)
     relay_url = f"ws://127.0.0.1:{port._realPortNumber}/v1"  # XXX private API
-    return Mailbox(db, usage_db, rendezvous, site, relay_url, service)
+    return Mailbox(db, usage_db, rendezvous, site, relay_url, service, port)
 
 
 def setup_transit_relay(reactor):
