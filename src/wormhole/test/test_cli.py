@@ -190,7 +190,7 @@ class OfferData(unittest.TestCase):
 
         with pytest.raises(TypeError) as e:
             build_offer(self.cfg)
-        assert str(e) == "'%s' is neither file nor directory" % filename
+        assert str(e.value) == "'%s' is neither file nor directory" % filename
 
     def test_symlink(self):
         if not hasattr(os, 'symlink'):
@@ -1102,7 +1102,7 @@ async def test_sender(no_mailbox):
 
     with pytest.raises(ServerConnectionError) as e:
         await cmd_send.send(cfg)
-        assert isinstance(e.reason, ConnectionRefusedError)
+    assert isinstance(e.value.reason, ConnectionRefusedError)
 
 @pytest_twisted.ensureDeferred
 async def test_sender_allocation(no_mailbox):
@@ -1118,7 +1118,7 @@ async def test_sender_allocation(no_mailbox):
 
     with pytest.raises(ServerConnectionError) as e:
         await cmd_send.send(cfg)
-        assert isinstance(e.reason, ConnectionRefusedError)
+    assert isinstance(e.value.reason, ConnectionRefusedError)
 
 @pytest_twisted.ensureDeferred
 async def test_receiver(no_mailbox):
@@ -1134,7 +1134,7 @@ async def test_receiver(no_mailbox):
 
     with pytest.raises(ServerConnectionError) as e:
         await cmd_receive.receive(cfg)
-        assert isinstance(e.reason, ConnectionRefusedError)
+    assert isinstance(e.value.reason, ConnectionRefusedError)
 
 
 @pytest.fixture()
@@ -1232,7 +1232,7 @@ class ExtractFile(unittest.TestCase):
         zi.filename = "/etc/passwd"
         with pytest.raises(ValueError) as e:
             ef(zf, zi, extract_dir)
-            assert "malicious zipfile" in str(e)
+        assert "malicious zipfile" in str(e.value)
 
 
 @pytest_twisted.ensureDeferred
