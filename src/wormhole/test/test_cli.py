@@ -418,6 +418,7 @@ async def _do_test(
         wormhole_executable,
         scripts_env,
         relayurl,
+        transiturl,
         tmpdir_factory,
         as_subprocess=False,
         mode="text",
@@ -579,7 +580,7 @@ async def _do_test(
 
         if fake_tor:
             send_cfg.tor = True
-            send_cfg.transit_helper = self.transit
+            send_cfg.transit_helper = transiturl
             tx_tm = FakeTor()
             with mock.patch(
                     "wormhole.tor_manager.get_tor",
@@ -588,7 +589,7 @@ async def _do_test(
                 send_d = cmd_send.send(send_cfg)
 
             recv_cfg.tor = True
-            recv_cfg.transit_helper = self.transit
+            recv_cfg.transit_helper = transiturl
             rx_tm = FakeTor()
             with mock.patch(
                     "wormhole.tor_manager.get_tor",
@@ -620,7 +621,7 @@ async def _do_test(
                     if verify:
                         s = i.mock_calls[0][1][0]
                         mo = re.search(r'^Verifier (\w+)\. ok\?', s)
-                        self.assertTrue(mo, s)
+                        assert mo == s
                         sender_verifier = mo.group(1)
                 else:
                     await gatherResults([send_d, receive_d], True)
@@ -1141,7 +1142,6 @@ async def test_receiver(no_mailbox):
 @pytest.fixture()
 def send_config(mailbox):
     cfg = create_config("send", mailbox.url)
-    cfg.allocate = True
     yield cfg
 
 
@@ -1153,16 +1153,20 @@ def create_config(name, url):
     cfg.transit_helper = ""
     cfg.stdout = io.StringIO()
     cfg.stderr = io.StringIO()
-    cfg.allocate = False
     return cfg
 
 
 @pytest_twisted.ensureDeferred
-async def test_text(send_config):
+async def test_text(mailbox):
+    send_config = create_config("send", mailbox.url)
+    recv_config = create_config("receive", mailbox.url)
+    send_config.code = "1-test-situation"
+    recv_config.code = "1-test-situation"
     with mock.patch('sys.stdout') as stdout:
         # the rendezvous channel should be deleted after success
+        send_config.text = "some text to send"
         send_d = cmd_send.send(send_config)
-        receive_d = cmd_receive.receive(send_config)
+        receive_d = cmd_receive.receive(recv_config)
 
         await send_d
         await receive_d
@@ -1178,7 +1182,7 @@ async def test_text_wrong_password(send_config):
     # deleted
     send_d = cmd_send.send(send_config)
 
-    rx_cfg = self.make_config()
+    rx_cfg = create_config()
     rx_cfg.code = u"1-WRONG"
     receive_d = cmd_receive.receive(rx_cfg)
 
