@@ -53,11 +53,11 @@ class OfferData(unittest.TestCase):
         self.cfg.text = message = "blah blah blah ponies"
         d, fd_to_send = build_offer(self.cfg)
 
-        self.assertIn("message", d)
-        self.assertNotIn("file", d)
-        self.assertNotIn("directory", d)
-        self.assertEqual(d["message"], message)
-        self.assertEqual(fd_to_send, None)
+        assert "message" in d
+        assert "file" not in d
+        assert "directory" not in d
+        assert d["message"] == message
+        assert fd_to_send == None
 
     def test_file(self):
         self.cfg.what = filename = "my file"
@@ -71,13 +71,13 @@ class OfferData(unittest.TestCase):
         self.cfg.cwd = send_dir
         d, fd_to_send = build_offer(self.cfg)
 
-        self.assertNotIn("message", d)
-        self.assertIn("file", d)
-        self.assertNotIn("directory", d)
-        self.assertEqual(d["file"]["filesize"], len(message))
-        self.assertEqual(d["file"]["filename"], filename)
-        self.assertEqual(fd_to_send.tell(), 0)
-        self.assertEqual(fd_to_send.read(), message)
+        assert "message" not in d
+        assert "file" in d
+        assert "directory" not in d
+        assert d["file"]["filesize"] == len(message)
+        assert d["file"]["filename"] == filename
+        assert fd_to_send.tell() == 0
+        assert fd_to_send.read() == message
 
     def _create_broken_symlink(self):
         if not hasattr(os, 'symlink'):
@@ -97,21 +97,22 @@ class OfferData(unittest.TestCase):
     def test_broken_symlink_raises_err(self):
         self._create_broken_symlink()
         self.cfg.ignore_unsendable_files = False
-        e = self.assertRaises(UnsendableFileError, build_offer, self.cfg)
+        e = with pytest.raises(UnsendableFileError):
+            build_offer(self.cfg)
 
         # On english distributions of Linux, this will be
         # "linky: No such file or directory", but the error may be
         # different on Windows and other locales and/or Unix variants, so
         # we'll just assert the part we know about.
-        self.assertIn("linky: ", str(e))
+        assert "linky: " in str(e)
 
     def test_broken_symlink_is_ignored(self):
         self._create_broken_symlink()
         self.cfg.ignore_unsendable_files = True
         d, fd_to_send = build_offer(self.cfg)
-        self.assertIn('(ignoring error)', self.cfg.stderr.getvalue())
-        self.assertEqual(d['directory']['numfiles'], 0)
-        self.assertEqual(d['directory']['numbytes'], 0)
+        assert '(ignoring error)' in self.cfg.stderr.getvalue()
+        assert d['directory']['numfiles'] == 0
+        assert d['directory']['numbytes'] == 0
 
     def test_missing_file(self):
         self.cfg.what = filename = "missing"
@@ -119,9 +120,9 @@ class OfferData(unittest.TestCase):
         os.mkdir(send_dir)
         self.cfg.cwd = send_dir
 
-        e = self.assertRaises(TransferError, build_offer, self.cfg)
-        self.assertEqual(
-            str(e), "Cannot send: no file/directory named '%s'" % filename)
+        e = with pytest.raises(TransferError):
+            build_offer(self.cfg)
+        assert str(e) == "Cannot send: no file/directory named '%s'" % filename
 
     def _do_test_directory(self, addslash):
         parent_dir = self.mktemp()
@@ -141,24 +142,24 @@ class OfferData(unittest.TestCase):
 
         d, fd_to_send = build_offer(self.cfg)
 
-        self.assertNotIn("message", d)
-        self.assertNotIn("file", d)
-        self.assertIn("directory", d)
-        self.assertEqual(d["directory"]["dirname"], send_dir)
-        self.assertEqual(d["directory"]["mode"], "zipfile/deflated")
-        self.assertEqual(d["directory"]["numfiles"], 5)
-        self.assertIn("numbytes", d["directory"])
-        self.assertIsInstance(d["directory"]["numbytes"], int)
+        assert "message" not in d
+        assert "file" not in d
+        assert "directory" in d
+        assert d["directory"]["dirname"] == send_dir
+        assert d["directory"]["mode"] == "zipfile/deflated"
+        assert d["directory"]["numfiles"] == 5
+        assert "numbytes" in d["directory"]
+        assert isinstance(d["directory"]["numbytes"], int)
 
         zdata = b"".join(fd_to_send)
-        self.assertEqual(len(zdata), d["directory"]["zipsize"])
+        assert len(zdata) == d["directory"]["zipsize"]
         with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
             zipnames = zf.namelist()
-            self.assertEqual(list(sorted(ponies)), list(sorted(zipnames)))
+            assert list(sorted(ponies)) == list(sorted(zipnames))
             for name in zipnames:
                 contents = zf.open(name, "r").read()
-                self.assertEqual(("%s ponies\n" % name).encode("ascii"),
-                                 contents)
+                assert ("%s ponies\n" % name).encode("ascii") == \
+                                 contents
 
     def test_directory(self):
         return self._do_test_directory(addslash=False)
@@ -184,12 +185,12 @@ class OfferData(unittest.TestCase):
         # shutil.copy_tree() is uses can't handle the named pipe.
         self._things_to_delete.append(abs_filename)
 
-        self.assertFalse(os.path.isfile(abs_filename))
-        self.assertFalse(os.path.isdir(abs_filename))
+        assert not os.path.isfile(abs_filename)
+        assert not os.path.isdir(abs_filename)
 
-        e = self.assertRaises(TypeError, build_offer, self.cfg)
-        self.assertEqual(
-            str(e), "'%s' is neither file nor directory" % filename)
+        e = with pytest.raises(TypeError):
+            build_offer(self.cfg)
+        assert str(e) == "'%s' is neither file nor directory" % filename
 
     def test_symlink(self):
         if not hasattr(os, 'symlink'):
@@ -205,8 +206,8 @@ class OfferData(unittest.TestCase):
         self.cfg.cwd = parent_dir
         self.cfg.what = os.path.join("B1", "C.txt")
         d, fd_to_send = build_offer(self.cfg)
-        self.assertEqual(d["file"]["filename"], "C.txt")
-        self.assertEqual(fd_to_send.read(), b"success")
+        assert d["file"]["filename"] == "C.txt"
+        assert fd_to_send.read() == b"success"
 
     def test_symlink_collapse(self):
         if not hasattr(os, 'symlink'):
@@ -240,8 +241,8 @@ class OfferData(unittest.TestCase):
         self.cfg.cwd = parent_dir
         self.cfg.what = os.path.join("B1", "C1", os.pardir, "D.txt")
         d, fd_to_send = build_offer(self.cfg)
-        self.assertEqual(d["file"]["filename"], "D.txt")
-        self.assertEqual(fd_to_send.read(), b"success")
+        assert d["file"]["filename"] == "D.txt"
+        assert fd_to_send.read() == b"success"
 
     if os.name == "nt":
         test_symlink_collapse.todo = "host OS has broken os.path.realpath()"
@@ -631,15 +632,13 @@ async def _do_test(
             if mode in ("file", "directory"):
                 expected_endpoints.append(("127.0.0.1", self.transitport, False))
             tx_timing = mtx_tm.call_args[1]["timing"]
-            self.assertEqual(tx_tm.endpoints, expected_endpoints)
-            self.assertEqual(
-                mtx_tm.mock_calls,
-                [mock.call(reactor, False, None, timing=tx_timing)])
+            assert tx_tm.endpoints == expected_endpoints
+            assert mtx_tm.mock_calls == \
+                [mock.call(reactor, False, None, timing=tx_timing)]
             rx_timing = mrx_tm.call_args[1]["timing"]
-            self.assertEqual(rx_tm.endpoints, expected_endpoints)
-            self.assertEqual(
-                mrx_tm.mock_calls,
-                [mock.call(reactor, False, None, timing=rx_timing)])
+            assert rx_tm.endpoints == expected_endpoints
+            assert mrx_tm.mock_calls == \
+                [mock.call(reactor, False, None, timing=rx_timing)]
 
         send_stdout = send_cfg.stdout.getvalue()
         send_stderr = send_cfg.stderr.getvalue()
@@ -723,33 +722,32 @@ async def _do_test(
         elif mode == "slow-sender-text":
             assert receive_stderr == "Waiting for sender...\n"
     elif mode == "file":
-        self.failUnlessEqual(receive_stdout, "")
+        assert receive_stdout == ""
         self.failUnlessIn(u"Receiving file ({size:s}) into: {name!r}".format(
             size=naturalsize(len(message)), name=receive_filename),
             receive_stderr)
         self.failUnlessIn(u"Received file written to ", receive_stderr)
         fn = os.path.join(receive_dir, receive_filename)
-        self.failUnless(os.path.exists(fn))
+        assert os.path.exists(fn)
         with open(fn, "r") as f:
-            self.failUnlessEqual(f.read(), message)
+            assert f.read() == message
     elif mode == "directory":
-        self.failUnlessEqual(receive_stdout, "")
+        assert receive_stdout == ""
         want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                 .format(name=receive_dirname))
-        self.failUnless(
-            re.search(want, receive_stderr), (want, receive_stderr))
+        assert re.search(want, receive_stderr), (want, receive_stderr)
         self.failUnlessIn(
             u"Received files written to {name!r}"
             .format(name=receive_dirname),
             receive_stderr)
         fn = os.path.join(receive_dir, receive_dirname)
-        self.failUnless(os.path.exists(fn), fn)
+        assert os.path.exists(fn), fn
         for i in range(5):
             fn = os.path.join(receive_dir, receive_dirname, str(i))
             with open(fn, "r") as f:
-                self.failUnlessEqual(f.read(), message(i))
-            self.failUnlessEqual(modes[i], stat.S_IMODE(
-                os.stat(fn).st_mode))
+                assert f.read() == message(i)
+            assert modes[i] == stat.S_IMODE(
+                os.stat(fn).st_mode)
 
 async def test_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory)
@@ -879,10 +877,9 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
             "wormhole.cli.cmd_receive.estimate_free_space",
             return_value=free_space):
         f = await self.assertFailure(send_d, TransferError)
-        self.assertEqual(
-            str(f), "remote error, transfer abandoned: transfer rejected")
+        assert str(f) == "remote error, transfer abandoned: transfer rejected"
         f = await self.assertFailure(receive_d, TransferError)
-        self.assertEqual(str(f), "transfer rejected")
+        assert str(f) == "transfer rejected"
 
     send_stdout = send_cfg.stdout.getvalue()
     send_stderr = send_cfg.stderr.getvalue()
@@ -895,8 +892,8 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
 
     self.maxDiff = None  # show full output for assertion failures
 
-    self.assertEqual(send_stdout, "")
-    self.assertEqual(receive_stdout, "")
+    assert send_stdout == ""
+    assert receive_stdout == ""
 
     # check sender
     if mode == "file":
@@ -971,9 +968,9 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
 
     if failmode == "noclobber":
         fn = os.path.join(receive_dir, receive_name)
-        self.failUnless(os.path.exists(fn))
+        assert os.path.exists(fn)
         with open(fn, "r") as f:
-            self.failUnlessEqual(f.read(), PRESERVE)
+            assert f.read() == PRESERVE
 
 async def test_fail_file_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_tests_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "file", "noclobber")
@@ -1067,7 +1064,7 @@ async def test_sender(unwelcome_config):
 
     send_d = cmd_send.send(unwelcome_config)
     f = await self.assertFailure(send_d, WelcomeError)
-    self.assertEqual(str(f), "please upgrade XYZ")
+    assert str(f) == "please upgrade XYZ"
 
 @pytest_twisted.ensureDeferred
 async def test_receiver(self):
@@ -1075,7 +1072,7 @@ async def test_receiver(self):
 
     receive_d = cmd_receive.receive(unwelcome_config)
     f = await self.assertFailure(receive_d, WelcomeError)
-    self.assertEqual(str(f), "please upgrade XYZ")
+    assert str(f) == "please upgrade XYZ"
 
 
 @pytest.fixture(scope="module")
@@ -1191,7 +1188,7 @@ async def test_text_wrong_password(send_config):
     await self.assertFailure(receive_d, WrongPasswordError)
 
     cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
-    self.assertEqual(len(cids), 0)
+    assert len(cids) == 0
 
 
 class ExtractFile(unittest.TestCase):
@@ -1260,29 +1257,29 @@ class Welcome(unittest.TestCase):
 
     def test_empty(self):
         stderr = self.do({})
-        self.assertEqual(stderr, "")
+        assert stderr == ""
 
     def test_version_current(self):
         stderr = self.do({"current_cli_version": "2.0"})
-        self.assertEqual(stderr, "")
+        assert stderr == ""
 
     def test_version_old(self):
         stderr = self.do({"current_cli_version": "3.0"})
         expected = ("Warning: errors may occur unless both sides are"
                     " running the same version\n"
                     "Server claims 3.0 is current, but ours is 2.0\n")
-        self.assertEqual(stderr, expected)
+        assert stderr == expected
 
     def test_version_unreleased(self):
         stderr = self.do(
             {
                 "current_cli_version": "3.0"
             }, my_version="2.5+middle.something")
-        self.assertEqual(stderr, "")
+        assert stderr == ""
 
     def test_motd(self):
         stderr = self.do({"motd": "hello"})
-        self.assertEqual(stderr, "Server (at url) says:\n hello\n")
+        assert stderr == "Server (at url) says:\n hello\n"
 
 
 class Dispatch(unittest.TestCase):
@@ -1296,8 +1293,8 @@ class Dispatch(unittest.TestCase):
             called.append(1)
 
         await cli._dispatch_command(reactor, cfg, fake)
-        self.assertEqual(called, [1])
-        self.assertEqual(cfg.stderr.getvalue(), "")
+        assert called == [1]
+        assert cfg.stderr.getvalue() == ""
 
     @pytest_twisted.ensureDeferred
     async def test_timing(self):
@@ -1310,13 +1307,13 @@ class Dispatch(unittest.TestCase):
             pass
 
         await cli._dispatch_command(reactor, cfg, fake)
-        self.assertEqual(cfg.stderr.getvalue(), "")
-        self.assertEqual(cfg.timing.mock_calls[-1],
-                         mock.call.write("filename", cfg.stderr))
+        assert cfg.stderr.getvalue() == ""
+        assert cfg.timing.mock_calls[-1] == \
+                         mock.call.write("filename", cfg.stderr)
 
     def test_debug_state_invalid_machine(self):
         cfg = cli.Config()
-        with self.assertRaises(UsageError):
+        with pytest.raises(UsageError):
             cfg.debug_state = "ZZZ"
 
     @pytest_twisted.ensureDeferred
@@ -1333,10 +1330,8 @@ class Dispatch(unittest.TestCase):
             pass
         # just check for at least one state-transition we expected to
         # get logged due to the --debug-state option
-        self.assertIn(
-            "send.B[S0_empty].close",
-            args.stdout.getvalue(),
-        )
+        assert "send.B[S0_empty].close" in \
+            args.stdout.getvalue()
 
     @pytest_twisted.ensureDeferred
     async def test_debug_state_receive(self):
@@ -1352,10 +1347,8 @@ class Dispatch(unittest.TestCase):
             pass
         # just check for at least one state-transition we expected to
         # get logged due to the --debug-state option
-        self.assertIn(
-            "recv.B[S0_empty].close",
-            args.stdout.getvalue(),
-        )
+        assert "recv.B[S0_empty].close" in \
+            args.stdout.getvalue()
 
     @pytest_twisted.ensureDeferred
     async def test_wrong_password_error(self):
@@ -1368,7 +1361,7 @@ class Dispatch(unittest.TestCase):
         await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = fill("ERROR: " + dedent(WrongPasswordError.__doc__)) + "\n"
-        self.assertEqual(cfg.stderr.getvalue(), expected)
+        assert cfg.stderr.getvalue() == expected
 
     @pytest_twisted.ensureDeferred
     async def test_welcome_error(self):
@@ -1382,7 +1375,7 @@ class Dispatch(unittest.TestCase):
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = (
             fill("ERROR: " + dedent(WelcomeError.__doc__)) + "\n\nabcd\n")
-        self.assertEqual(cfg.stderr.getvalue(), expected)
+        assert cfg.stderr.getvalue() == expected
 
     @pytest_twisted.ensureDeferred
     async def test_transfer_error(self):
@@ -1395,7 +1388,7 @@ class Dispatch(unittest.TestCase):
         await self.assertFailure(
             cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "TransferError: abcd\n"
-        self.assertEqual(cfg.stderr.getvalue(), expected)
+        assert cfg.stderr.getvalue() == expected
 
     @pytest_twisted.ensureDeferred
     async def test_server_connection_error(self):
@@ -1411,7 +1404,7 @@ class Dispatch(unittest.TestCase):
             "ERROR: " + dedent(ServerConnectionError.__doc__)) + "\n"
         expected += "(relay URL was URL)\n"
         expected += "abcd\n"
-        self.assertEqual(cfg.stderr.getvalue(), expected)
+        assert cfg.stderr.getvalue() == expected
 
     @pytest_twisted.ensureDeferred
     async def test_other_error(self):
@@ -1434,27 +1427,27 @@ class Dispatch(unittest.TestCase):
             await self.assertFailure(
                 cli._dispatch_command(reactor, cfg, fake), SystemExit)
         expected = "<TRACEBACK>\nERROR: abcd\n"
-        self.assertEqual(cfg.stderr.getvalue(), expected)
+        assert cfg.stderr.getvalue() == expected
 
 
 class Help(unittest.TestCase):
     def _check_top_level_help(self, got):
         # the main wormhole.cli.cli.wormhole docstring should be in the
         # output, but formatted differently
-        self.assertIn("Create a Magic Wormhole and communicate through it.",
-                      got)
-        self.assertIn("--relay-url", got)
-        self.assertIn("Receive a text message, file, or directory", got)
+        assert "Create a Magic Wormhole and communicate through it." in \
+                      got
+        assert "--relay-url" in got
+        assert "Receive a text message, file, or directory" in got
 
     def test_help(self):
         result = CliRunner().invoke(cli.wormhole, ["help"])
         self._check_top_level_help(result.output)
-        self.assertEqual(result.exit_code, 0)
+        assert result.exit_code == 0
 
     def test_dash_dash_help(self):
         result = CliRunner().invoke(cli.wormhole, ["--help"])
         self._check_top_level_help(result.output)
-        self.assertEqual(result.exit_code, 0)
+        assert result.exit_code == 0
 
     def test_inconsistent_receive_code_length(self):
         """
@@ -1464,8 +1457,8 @@ class Help(unittest.TestCase):
             cli.wormhole,
             ["receive", "--code-length", "3", "2-foo-bar"]
         )
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Must use --allocate", result.output)
+        assert result.exit_code != 0
+        assert "Must use --allocate" in result.output
 
     def test_inconsistent_receive_allocate(self):
         """
@@ -1475,6 +1468,6 @@ class Help(unittest.TestCase):
             cli.wormhole,
             ["receive", "--allocate", "2-foo-bar"]
         )
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Cannot specify a code", result.output)
+        assert result.exit_code != 0
+        assert "Cannot specify a code" in result.output
 
