@@ -85,7 +85,7 @@ def setup_transit_relay(reactor):
     endpoint = f"tcp:{transitport}:interface=127.0.0.1"
     ep = endpoints.serverFromString(reactor, endpoint)
     usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
-    transit_server = ServerFactory()
+    transit_server = protocol.ServerFactory()
     transit_server.protocol = TransitConnection
     transit_server.log_requests = False
     transit_server.transit = Transit(usage, reactor.seconds)

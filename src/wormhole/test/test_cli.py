@@ -97,7 +97,7 @@ class OfferData(unittest.TestCase):
     def test_broken_symlink_raises_err(self):
         self._create_broken_symlink()
         self.cfg.ignore_unsendable_files = False
-        e = with pytest.raises(UnsendableFileError):
+        with pytest.raises(UnsendableFileError) as e:
             build_offer(self.cfg)
 
         # On english distributions of Linux, this will be
@@ -120,9 +120,9 @@ class OfferData(unittest.TestCase):
         os.mkdir(send_dir)
         self.cfg.cwd = send_dir
 
-        e = with pytest.raises(TransferError):
+        with pytest.raises(TransferError) as e:
             build_offer(self.cfg)
-        assert str(e) == "Cannot send: no file/directory named '%s'" % filename
+        assert str(e.value) == "Cannot send: no file/directory named '%s'" % filename
 
     def _do_test_directory(self, addslash):
         parent_dir = self.mktemp()
@@ -188,7 +188,7 @@ class OfferData(unittest.TestCase):
         assert not os.path.isfile(abs_filename)
         assert not os.path.isdir(abs_filename)
 
-        e = with pytest.raises(TypeError):
+        with pytest.raises(TypeError) as e:
             build_offer(self.cfg)
         assert str(e) == "'%s' is neither file nor directory" % filename
 
@@ -749,64 +749,65 @@ async def _do_test(
             assert modes[i] == stat.S_IMODE(
                 os.stat(fn).st_mode)
 
-async def test_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory)
+async def test_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory)
 
-async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, as_subprocess=True)
+async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, as_subprocess=True)
 
-async def test_text_tor(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, fake_tor=True)
+async def test_text_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, fake_tor=True)
 
-async def test_text_verify(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, verify=True)
+async def test_text_verify(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, verify=True)
 
-async def test_file(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="file")
+async def test_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file")
 
-async def test_file_override(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="file", override_filename=True)
+async def test_file_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", override_filename=True)
 
-async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="file", overwrite=True)
+async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", overwrite=True)
 
-async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
+async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
 
-async def test_file_tor(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="file", fake_tor=True)
+async def test_file_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="file", fake_tor=True)
 
-async def test_empty_file(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="empty-file")
+async def test_empty_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="empty-file")
 
-async def test_directory(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="directory")
+async def test_directory(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory")
 
-async def test_directory_addslash(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="directory", addslash=True)
+async def test_directory_addslash(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", addslash=True)
 
-async def test_directory_override(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="directory", override_filename=True)
+async def test_directory_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", override_filename=True)
 
-async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="directory", overwrite=True)
+async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="directory", overwrite=True)
 
-async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(
         wormhole_executable,
         scripts_env,
         mailbox.url,
+        transit_relay.url,
         tmpdir_factory,
         mode="directory",
         overwrite=True,
         mock_accept=True,
     )
 
-async def test_slow_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="slow-text")
+async def test_slow_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="slow-text")
 
-async def test_slow_sender_text(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-    await _do_test(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, mode="slow-sender-text")
+async def test_slow_sender_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox.url, transit_relay.url, tmpdir_factory, mode="slow-sender-text")
 
 
 @pytest_twisted.ensureDeferred

@@ -33,7 +33,7 @@ def mailbox(reactor):
 
 @pytest.fixture(scope="session")
 def transit_relay(reactor):
-    url, service = setup_transit_relay()
+    url, service = setup_transit_relay(reactor)
     pytest_twisted.blockon(service.startService())
     yield url
     pytest_twisted.blockon(service.stopService())
