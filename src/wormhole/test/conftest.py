@@ -49,11 +49,17 @@ class Observer:
             self.failures.append(event_dict["failure"])
 
     def flush(self, klass):
+        flushed = [
+            f
+            for f in self.failures
+            if isinstance(f.value, klass)
+        ]
         self.failures = [
             f
             for f in self.failures
             if not isinstance(f.value, klass)
         ]
+        return flushed
 
     def assert_empty(self):
         assert [] == self.failures
