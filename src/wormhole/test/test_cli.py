@@ -629,7 +629,7 @@ async def _do_test(
         if fake_tor:
             expected_endpoints = [("127.0.0.1", mailbox.port._realPortNumber, False)]
             if mode in ("file", "directory"):
-                expected_endpoints.append(("127.0.0.1", self.transitport, False))
+                expected_endpoints.append(("127.0.0.1", transitport, False))
             tx_timing = mtx_tm.call_args[1]["timing"]
             assert tx_tm.endpoints == expected_endpoints
             assert mtx_tm.mock_calls == \
@@ -919,7 +919,7 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
             assert (
                 "Error: "
                 "insufficient free space (0B) for directory"
-                " ({size:d}B){NL}").format(NL=NL, size=size) in receive_stderre
+                " ({size:d}B){NL}").format(NL=NL, size=size) in receive_stderr
 
     if failmode == "noclobber":
         fn = os.path.join(receive_dir, receive_name)
@@ -941,14 +941,14 @@ async def test_fail_file_toobig(wormhole_executable, scripts_env, mailbox, tmpdi
 
 
 @pytest_twisted.ensureDeferred
-async def test_text(mailbox):
+async def test_text_ponies(mailbox):
     send_cfg = config("send")
     recv_cfg = config("receive")
     message = "textponies"
 
     for cfg in [send_cfg, recv_cfg]:
         cfg.hide_progress = True
-        cfg.relay_url = self.relayurl
+        cfg.relay_url = mailbox.url
         cfg.transit_helper = ""
         cfg.listen = True
         cfg.zeromode = True
@@ -992,10 +992,14 @@ async def test_text(mailbox):
 
 @pytest.fixture(scope="module")
 def unwelcome_mailbox(reactor):
-    url, service = pytest_twisted.blockon(setup_mailbox(reactor, error="please upgrade XYZ"))
-    pytest_twisted.blockon(service.startService())
-    yield url
-    pytest_twisted.blockon(service.stopService())
+    mailbox = pytest_twisted.blockon(
+        ensureDeferred(
+            setup_mailbox(reactor, error="please upgrade XYZ")
+        )
+    )
+    mailbox.service.startService()
+    yield mailbox.url
+    pytest_twisted.blockon(mailbox.service.stopService())
 
 
 @pytest.fixture()
@@ -1007,25 +1011,31 @@ def unwelcome_config(unwelcome_mailbox):
     cfg.transit_helper = ""
     cfg.stdout = io.StringIO()
     cfg.stderr = io.StringIO()
+    return cfg
 
 
 @pytest_twisted.ensureDeferred
-async def test_sender(unwelcome_config):
+async def test_sender_unwelcome(unwelcome_config):
     unwelcome_config.text = "hi"
     unwelcome_config.code = u"1-abc"
+    unwelcome_config.verbose = True
+    unwelcome_config.stdout = sys.stdout
+    unwelcome_config.stderr = sys.stderr
 
     send_d = cmd_send.send(unwelcome_config)
-    f = await self.assertFailure(send_d, WelcomeError)
-    assert str(f) == "please upgrade XYZ"
+    with pytest.raises(WelcomeError) as e:
+        await send_d
+    assert str(e.value) == "please upgrade XYZ"
 
 
 @pytest_twisted.ensureDeferred
-async def test_receiver(unwelcome_config):
+async def test_receiver_unwelcome(unwelcome_config):
     unwelcome_config.code = u"1-abc"
 
     receive_d = cmd_receive.receive(unwelcome_config)
-    f = await self.assertFailure(receive_d, WelcomeError)
-    assert str(f) == "please upgrade XYZ"
+    with pytest.raises(WelcomeError) as e:
+        await receive_d
+    assert str(e.value) == "please upgrade XYZ"
 
 
 @pytest.fixture(scope="module")
