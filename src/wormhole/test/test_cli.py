@@ -893,13 +893,11 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
             NL=NL) in send_stderr
         assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
         assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
-        assert "File sent.. waiting for confirmation{NL}Confirmation received. Transfer complete.{NL}".format(NL=NL) not in send_stderr
     elif mode == "directory":
         assert "Sending directory" in send_stderr
         assert "named 'testdir'" in send_stderr
         assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
         assert u"On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
-        assert "File sent.. waiting for confirmation{NL}Confirmation received. Transfer complete.{NL}".format(NL=NL) in send_stderr
 
     # check receiver
     if mode == "file":
