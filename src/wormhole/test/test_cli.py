@@ -5,6 +5,7 @@ import re
 import stat
 import sys
 import zipfile
+from functools import partial
 from textwrap import dedent, fill
 
 from click import UsageError
@@ -15,7 +16,6 @@ from twisted.internet.defer import gatherResults, CancelledError, ensureDeferred
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
 from twisted.python import log, procutils
-from twisted.trial import unittest
 from zope.interface import implementer
 
 from unittest import mock
@@ -36,268 +36,266 @@ def build_offer(args):
     return s._build_offer()
 
 
-class OfferData(unittest.TestCase):
-    def setUp(self):
-        self._things_to_delete = []
-        self.cfg = cfg = config("send")
-        cfg.stdout = io.StringIO()
-        cfg.stderr = io.StringIO()
-
-    def tearDown(self):
-        for fn in self._things_to_delete:
-            if os.path.exists(fn):
-                os.unlink(fn)
-        del self.cfg
-
-    def test_text(self):
-        self.cfg.text = message = "blah blah blah ponies"
-        d, fd_to_send = build_offer(self.cfg)
-
-        assert "message" in d
-        assert "file" not in d
-        assert "directory" not in d
-        assert d["message"] == message
-        assert fd_to_send is None
-
-    def test_file(self):
-        self.cfg.what = filename = "my file"
-        message = b"yay ponies\n"
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        abs_filename = os.path.join(send_dir, filename)
-        with open(abs_filename, "wb") as f:
-            f.write(message)
-
-        self.cfg.cwd = send_dir
-        d, fd_to_send = build_offer(self.cfg)
-
-        assert "message" not in d
-        assert "file" in d
-        assert "directory" not in d
-        assert d["file"]["filesize"] == len(message)
-        assert d["file"]["filename"] == filename
-        assert fd_to_send.tell() == 0
-        assert fd_to_send.read() == message
-
-    def _create_broken_symlink(self):
-        if not hasattr(os, 'symlink'):
-            raise unittest.SkipTest("host OS does not support symlinks")
-
-        parent_dir = self.mktemp()
-        os.mkdir(parent_dir)
-        send_dir = "dirname"
-        os.mkdir(os.path.join(parent_dir, send_dir))
-        os.symlink('/non/existent/file',
-                   os.path.join(parent_dir, send_dir, 'linky'))
-
-        send_dir_arg = send_dir
-        self.cfg.what = send_dir_arg
-        self.cfg.cwd = parent_dir
-
-    def test_broken_symlink_raises_err(self):
-        self._create_broken_symlink()
-        self.cfg.ignore_unsendable_files = False
-        with pytest.raises(UnsendableFileError) as e:
-            build_offer(self.cfg)
-
-        # On english distributions of Linux, this will be
-        # "linky: No such file or directory", but the error may be
-        # different on Windows and other locales and/or Unix variants, so
-        # we'll just assert the part we know about.
-        assert "linky: " in str(e)
-
-    def test_broken_symlink_is_ignored(self):
-        self._create_broken_symlink()
-        self.cfg.ignore_unsendable_files = True
-        d, fd_to_send = build_offer(self.cfg)
-        assert '(ignoring error)' in self.cfg.stderr.getvalue()
-        assert d['directory']['numfiles'] == 0
-        assert d['directory']['numbytes'] == 0
-
-    def test_missing_file(self):
-        self.cfg.what = filename = "missing"
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        self.cfg.cwd = send_dir
-
-        with pytest.raises(TransferError) as e:
-            build_offer(self.cfg)
-        assert str(e.value) == "Cannot send: no file/directory named '%s'" % filename
-
-    def _do_test_directory(self, addslash):
-        parent_dir = self.mktemp()
-        os.mkdir(parent_dir)
-        send_dir = "dirname"
-        os.mkdir(os.path.join(parent_dir, send_dir))
-        ponies = [str(i) for i in range(5)]
-        for p in ponies:
-            with open(os.path.join(parent_dir, send_dir, p), "wb") as f:
-                f.write(("%s ponies\n" % p).encode("ascii"))
-
-        send_dir_arg = send_dir
-        if addslash:
-            send_dir_arg += os.sep
-        self.cfg.what = send_dir_arg
-        self.cfg.cwd = parent_dir
-
-        d, fd_to_send = build_offer(self.cfg)
-
-        assert "message" not in d
-        assert "file" not in d
-        assert "directory" in d
-        assert d["directory"]["dirname"] == send_dir
-        assert d["directory"]["mode"] == "zipfile/deflated"
-        assert d["directory"]["numfiles"] == 5
-        assert "numbytes" in d["directory"]
-        assert isinstance(d["directory"]["numbytes"], int)
-
-        zdata = b"".join(fd_to_send)
-        assert len(zdata) == d["directory"]["zipsize"]
-        with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
-            zipnames = zf.namelist()
-            assert list(sorted(ponies)) == list(sorted(zipnames))
-            for name in zipnames:
-                contents = zf.open(name, "r").read()
-                assert ("%s ponies\n" % name).encode("ascii") == \
-                                 contents
-
-    def test_directory(self):
-        return self._do_test_directory(addslash=False)
-
-    def test_directory_addslash(self):
-        return self._do_test_directory(addslash=True)
-
-    def test_unknown(self):
-        self.cfg.what = filename = "unknown"
-        send_dir = self.mktemp()
-        os.mkdir(send_dir)
-        abs_filename = os.path.abspath(os.path.join(send_dir, filename))
-        self.cfg.cwd = send_dir
-
-        try:
-            os.mkfifo(abs_filename)
-        except AttributeError:
-            raise unittest.SkipTest("is mkfifo supported on this platform?")
-
-        # Delete the named pipe for the sake of users who might run "pip
-        # wheel ." in this directory later. That command wants to copy
-        # everything into a tempdir before building a wheel, and the
-        # shutil.copy_tree() is uses can't handle the named pipe.
-        self._things_to_delete.append(abs_filename)
-
-        assert not os.path.isfile(abs_filename)
-        assert not os.path.isdir(abs_filename)
-
-        with pytest.raises(TypeError) as e:
-            build_offer(self.cfg)
-        assert str(e.value) == "'%s' is neither file nor directory" % filename
-
-    def test_symlink(self):
-        if not hasattr(os, 'symlink'):
-            raise unittest.SkipTest("host OS does not support symlinks")
-        # build A/B1 -> B2 (==A/B2), and A/B2/C.txt
-        parent_dir = self.mktemp()
-        os.mkdir(parent_dir)
-        os.mkdir(os.path.join(parent_dir, "B2"))
-        with open(os.path.join(parent_dir, "B2", "C.txt"), "wb") as f:
-            f.write(b"success")
-        os.symlink("B2", os.path.join(parent_dir, "B1"))
-        # now send "B1/C.txt" from A, and it should get the right file
-        self.cfg.cwd = parent_dir
-        self.cfg.what = os.path.join("B1", "C.txt")
-        d, fd_to_send = build_offer(self.cfg)
-        assert d["file"]["filename"] == "C.txt"
-        assert fd_to_send.read() == b"success"
-
-    def test_symlink_collapse(self):
-        if not hasattr(os, 'symlink'):
-            raise unittest.SkipTest("host OS does not support symlinks")
-        # build A/B1, A/B1/D.txt
-        # A/B2/C2, A/B2/D.txt
-        # symlink A/B1/C1 -> A/B2/C2
-        parent_dir = self.mktemp()
-        os.mkdir(parent_dir)
-        os.mkdir(os.path.join(parent_dir, "B1"))
-        with open(os.path.join(parent_dir, "B1", "D.txt"), "wb") as f:
-            f.write(b"fail")
-        os.mkdir(os.path.join(parent_dir, "B2"))
-        os.mkdir(os.path.join(parent_dir, "B2", "C2"))
-        with open(os.path.join(parent_dir, "B2", "D.txt"), "wb") as f:
-            f.write(b"success")
-        os.symlink(
-            os.path.abspath(os.path.join(parent_dir, "B2", "C2")),
-            os.path.join(parent_dir, "B1", "C1"))
-        # Now send "B1/C1/../D.txt" from A. The correct traversal will be:
-        # * start: A
-        # * B1: A/B1
-        # * C1: follow symlink to A/B2/C2
-        # * ..: climb to A/B2
-        # * D.txt: open A/B2/D.txt, which contains "success"
-        # If the code mistakenly uses normpath(), it would do:
-        # * normpath turns B1/C1/../D.txt into B1/D.txt
-        # * start: A
-        # * B1: A/B1
-        # * D.txt: open A/B1/D.txt , which contains "fail"
-        self.cfg.cwd = parent_dir
-        self.cfg.what = os.path.join("B1", "C1", os.pardir, "D.txt")
-        d, fd_to_send = build_offer(self.cfg)
-        assert d["file"]["filename"] == "D.txt"
-        assert fd_to_send.read() == b"success"
-
-    if os.name == "nt":
-        test_symlink_collapse.todo = "host OS has broken os.path.realpath()"
-        # ntpath.py's realpath() is built out of normpath(), and does not
-        # follow symlinks properly, so this test always fails. "wormhole send
-        # PATH" on windows will do the wrong thing. See
-        # https://bugs.python.org/issue9949" for details. I'm making this a
-        # TODO instead of a SKIP because 1: this causes an observable
-        # misbehavior (albeit in rare circumstances), 2: it probably used to
-        # work (sometimes, but not in #251). See cmd_send.py for more notes.
+def maybe_delete(fn):
+    if os.path.exists(fn):
+        os.unlink(fn)
 
 
-class LocaleFinder:
-    def __init__(self):
-        self._run_once = False
+def create_config():
+    cfg = config("send")
+    cfg.stdout = io.StringIO()
+    cfg.stderr = io.StringIO()
+    return cfg
 
-    @pytest_twisted.ensureDeferred
-    async def find_utf8_locale(self):
-        if sys.platform == "win32":
-            return "en_US.UTF-8"
-        if self._run_once:
-            return self._best_locale
-        self._best_locale = await self._find_utf8_locale()
-        self._run_once = True
-        return self._best_locale
 
-    @pytest_twisted.ensureDeferred
-    async def _find_utf8_locale(self):
-        # Click really wants to be running under a unicode-capable locale,
-        # especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
-        # most linux boxes have C.UTF-8 but not en-US.UTF-8 . For tests,
-        # figure out which one is present and use that. For runtime, it's a
-        # mess, as really the user must take responsibility for setting their
-        # locale properly. I'm thinking of abandoning Click and going back to
-        # twisted.python.usage to avoid this problem in the future.
-        (out, err, rc) = await getProcessOutputAndValue("locale", ["-a"])
-        if rc != 0:
-            log.msg("error running 'locale -a', rc=%s" % (rc, ))
-            log.msg("stderr: %s" % (err, ))
-            return None
-        out = out.decode("utf-8")  # make sure we get a string
-        utf8_locales = {}
-        for locale in out.splitlines():
-            locale = locale.strip()
-            if locale.lower().endswith((".utf-8", ".utf8")):
-                utf8_locales[locale.lower()] = locale
-        for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
-            if wanted.lower() in utf8_locales:
-                return utf8_locales[wanted.lower()]
-        if utf8_locales:
-            return list(utf8_locales.values())[0]
+def test_text():
+    cfg = create_config()
+    cfg.text = message = "blah blah blah ponies"
+    d, fd_to_send = build_offer(cfg)
+
+    assert "message" in d
+    assert "file" not in d
+    assert "directory" not in d
+    assert d["message"] == message
+    assert fd_to_send is None
+
+
+def test_file(tmpdir_factory):
+    cfg = create_config()
+    cfg.what = filename = "my file"
+    message = b"yay ponies\n"
+    send_dir = tmpdir_factory.mktemp("sendfile")
+    abs_filename = os.path.join(send_dir, filename)
+    with open(abs_filename, "wb") as f:
+        f.write(message)
+
+    cfg.cwd = send_dir
+    d, fd_to_send = build_offer(cfg)
+
+    assert "message" not in d
+    assert "file" in d
+    assert "directory" not in d
+    assert d["file"]["filesize"] == len(message)
+    assert d["file"]["filename"] == filename
+    assert fd_to_send.tell() == 0
+    assert fd_to_send.read() == message
+
+
+@pytest.mark.skipif(not hasattr(os, 'symlink'), reason="host OS does not support symlinks")
+def _create_broken_symlink(cfg, parent_dir):
+    send_dir = "dirname"
+    os.mkdir(os.path.join(parent_dir, send_dir))
+    os.symlink('/non/existent/file',
+               os.path.join(parent_dir, send_dir, 'linky'))
+
+    send_dir_arg = send_dir
+    cfg.what = send_dir_arg
+    cfg.cwd = parent_dir
+
+
+def test_broken_symlink_raises_err(tmpdir_factory):
+    cfg = create_config()
+    _create_broken_symlink(cfg, tmpdir_factory.mktemp("broken_sym"))
+    cfg.ignore_unsendable_files = False
+    with pytest.raises(UnsendableFileError) as e:
+        build_offer(cfg)
+
+    # On english distributions of Linux, this will be
+    # "linky: No such file or directory", but the error may be
+    # different on Windows and other locales and/or Unix variants, so
+    # we'll just assert the part we know about.
+    assert "linky: " in str(e)
+
+
+def test_broken_symlink_is_ignored(tmpdir_factory):
+    cfg = create_config()
+    _create_broken_symlink(cfg, tmpdir_factory.mktemp("broken_sym_ign"))
+    cfg.ignore_unsendable_files = True
+    d, fd_to_send = build_offer(cfg)
+    assert '(ignoring error)' in cfg.stderr.getvalue()
+    assert d['directory']['numfiles'] == 0
+    assert d['directory']['numbytes'] == 0
+
+
+def test_missing_file(tmpdir_factory):
+    cfg = create_config()
+    cfg.what = filename = "missing"
+    send_dir = tmpdir_factory.mktemp("missing_file")
+    cfg.cwd = send_dir
+
+    with pytest.raises(TransferError) as e:
+        build_offer(cfg)
+    assert str(e.value) == "Cannot send: no file/directory named '%s'" % filename
+
+
+def _do_test_directory(parent_dir, addslash):
+    send_dir = "dirname"
+    os.mkdir(os.path.join(parent_dir, send_dir))
+    ponies = [str(i) for i in range(5)]
+    for p in ponies:
+        with open(os.path.join(parent_dir, send_dir, p), "wb") as f:
+            f.write(("%s ponies\n" % p).encode("ascii"))
+
+    send_dir_arg = send_dir
+    if addslash:
+        send_dir_arg += os.sep
+    cfg = create_config()
+    cfg.what = send_dir_arg
+    cfg.cwd = parent_dir
+
+    d, fd_to_send = build_offer(cfg)
+
+    assert "message" not in d
+    assert "file" not in d
+    assert "directory" in d
+    assert d["directory"]["dirname"] == send_dir
+    assert d["directory"]["mode"] == "zipfile/deflated"
+    assert d["directory"]["numfiles"] == 5
+    assert "numbytes" in d["directory"]
+    assert isinstance(d["directory"]["numbytes"], int)
+
+    zdata = b"".join(fd_to_send)
+    assert len(zdata) == d["directory"]["zipsize"]
+    with zipfile.ZipFile(io.BytesIO(zdata), "r") as zf:
+        zipnames = zf.namelist()
+        assert list(sorted(ponies)) == list(sorted(zipnames))
+        for name in zipnames:
+            contents = zf.open(name, "r").read()
+            assert ("%s ponies\n" % name).encode("ascii") == \
+                             contents
+
+
+def test_directory(tmpdir_factory):
+    return _do_test_directory(tmpdir_factory.mktemp("dir"), addslash=False)
+
+
+def test_directory_addslash(tmpdir_factory):
+    return _do_test_directory(tmpdir_factory.mktemp("addslash"), addslash=True)
+
+
+def test_unknown(request, tmpdir_factory):
+    cfg = create_config()
+    cfg.what = filename = "unknown"
+    send_dir = tmpdir_factory.mktemp("unknown")
+    abs_filename = os.path.abspath(os.path.join(send_dir, filename))
+    cfg.cwd = send_dir
+
+    try:
+        os.mkfifo(abs_filename)
+    except AttributeError:
+        raise unittest.SkipTest("is mkfifo supported on this platform?")
+
+    # Delete the named pipe for the sake of users who might run "pip
+    # wheel ." in this directory later. That command wants to copy
+    # everything into a tempdir before building a wheel, and the
+    # shutil.copy_tree() is uses can't handle the named pipe.
+    request.addfinalizer(partial(maybe_delete, abs_filename))
+
+    assert not os.path.isfile(abs_filename)
+    assert not os.path.isdir(abs_filename)
+
+    with pytest.raises(TypeError) as e:
+        build_offer(cfg)
+    assert str(e.value) == "'%s' is neither file nor directory" % filename
+
+
+@pytest.mark.skipif(not hasattr(os, 'symlink'), reason="host OS does not support symlinks")
+def test_symlink(tmpdir_factory):
+    # build A/B1 -> B2 (==A/B2), and A/B2/C.txt
+    parent_dir = tmpdir_factory.mktemp("symlink_parent")
+    os.mkdir(os.path.join(parent_dir, "B2"))
+    with open(os.path.join(parent_dir, "B2", "C.txt"), "wb") as f:
+        f.write(b"success")
+    os.symlink("B2", os.path.join(parent_dir, "B1"))
+    # now send "B1/C.txt" from A, and it should get the right file
+    cfg = create_config()
+    cfg.cwd = parent_dir
+    cfg.what = os.path.join("B1", "C.txt")
+    d, fd_to_send = build_offer(cfg)
+    assert d["file"]["filename"] == "C.txt"
+    assert fd_to_send.read() == b"success"
+
+
+# ntpath.py's realpath() is built out of normpath(), and does not
+# follow symlinks properly, so this test always fails. "wormhole send
+# PATH" on windows will do the wrong thing. See
+# https://bugs.python.org/issue9949" for details. I'm making this a
+# TODO instead of a SKIP because 1: this causes an observable
+# misbehavior (albeit in rare circumstances), 2: it probably used to
+# work (sometimes, but not in #251). See cmd_send.py for more notes.
+@pytest.mark.skipif(os.name == "nt", reason="host OS has broken os.path.realpath()")
+@pytest.mark.skipif(not hasattr(os, 'symlink'), reason="host OS does not support symlinks")
+def test_symlink_collapse(tmpdir_factory):
+    cfg = create_config()
+    # build A/B1, A/B1/D.txt
+    # A/B2/C2, A/B2/D.txt
+    # symlink A/B1/C1 -> A/B2/C2
+    parent_dir = tmpdir_factory.mktemp("parent")
+    os.mkdir(os.path.join(parent_dir, "B1"))
+    with open(os.path.join(parent_dir, "B1", "D.txt"), "wb") as f:
+        f.write(b"fail")
+    os.mkdir(os.path.join(parent_dir, "B2"))
+    os.mkdir(os.path.join(parent_dir, "B2", "C2"))
+    with open(os.path.join(parent_dir, "B2", "D.txt"), "wb") as f:
+        f.write(b"success")
+    os.symlink(
+        os.path.abspath(os.path.join(parent_dir, "B2", "C2")),
+        os.path.join(parent_dir, "B1", "C1"))
+    # Now send "B1/C1/../D.txt" from A. The correct traversal will be:
+    # * start: A
+    # * B1: A/B1
+    # * C1: follow symlink to A/B2/C2
+    # * ..: climb to A/B2
+    # * D.txt: open A/B2/D.txt, which contains "success"
+    # If the code mistakenly uses normpath(), it would do:
+    # * normpath turns B1/C1/../D.txt into B1/D.txt
+    # * start: A
+    # * B1: A/B1
+    # * D.txt: open A/B1/D.txt , which contains "fail"
+    cfg.cwd = parent_dir
+    cfg.what = os.path.join("B1", "C1", os.pardir, "D.txt")
+    d, fd_to_send = build_offer(cfg)
+    assert d["file"]["filename"] == "D.txt"
+    assert fd_to_send.read() == b"success"
+
+
+async def _find_utf8_locale():
+    """
+    Click really wants to be running under a unicode-capable locale,
+    especially on python3. macOS has en-US.UTF-8 but not C.UTF-8, and
+    most linux boxes have C.UTF-8 but not en-US.UTF-8 . For tests,
+    figure out which one is present and use that. For runtime, it's a
+    mess, as really the user must take responsibility for setting their
+    locale properly. I'm thinking of abandoning Click and going back to
+    twisted.python.usage to avoid this problem in the future.
+    """
+    (out, err, rc) = await getProcessOutputAndValue("locale", ["-a"])
+    if rc != 0:
+        log.msg("error running 'locale -a', rc=%s" % (rc, ))
+        log.msg("stderr: %s" % (err, ))
         return None
+    out = out.decode("utf-8")  # make sure we get a string
+    utf8_locales = {}
+    for locale in out.splitlines():
+        locale = locale.strip()
+        if locale.lower().endswith((".utf-8", ".utf8")):
+            utf8_locales[locale.lower()] = locale
+    for wanted in ["C.utf8", "C.UTF-8", "en_US.utf8", "en_US.UTF-8"]:
+        if wanted.lower() in utf8_locales:
+            return utf8_locales[wanted.lower()]
+    if utf8_locales:
+        return list(utf8_locales.values())[0]
+    return None
 
 
-locale_finder = LocaleFinder()
+@pytest.fixture(scope="module")
+def locale():
+    if sys.platform == "win32":
+        return "en_US.UTF-8"
+    best_locale = pytest_twisted.blockon(
+        ensureDeferred(_find_utf8_locale())
+    )
+    yield best_locale
 
 
 @pytest.fixture(scope="module")
@@ -322,7 +320,7 @@ def wormhole_executable():
 
 
 @pytest.fixture(scope="module")
-def scripts_env(wormhole_executable):
+def scripts_env(wormhole_executable, locale):
     # One property of Versioneer is that many changes to the source tree
     # (making a commit, dirtying a previously-clean tree) will change the
     # version string. Entrypoint scripts frequently insist upon importing
@@ -339,12 +337,8 @@ def scripts_env(wormhole_executable):
     # convince Click to not complain about a forced-ascii locale. My
     # apologies to folks who want to run tests on a machine that doesn't
     # have the C.UTF-8 locale installed.
-    from twisted.internet.defer import ensureDeferred
-    locale = pytest_twisted.blockon(
-        ensureDeferred(locale_finder.find_utf8_locale())
-    )
     if not locale:
-        raise unittest.SkipTest("unable to find UTF-8 locale")
+        return pytest.skip("unable to find UTF-8 locale")
     locale_env = dict(LC_ALL=locale, LANG=locale)
     res = pytest_twisted.blockon(
         getProcessOutputAndValue(
@@ -742,44 +736,58 @@ async def _do_test(
 async def test_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory)
 
+
 async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, as_subprocess=True)
+
 
 async def test_text_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, fake_tor=True)
 
+
 async def test_text_verify(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, verify=True)
+
 
 async def test_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file")
 
+
 async def test_file_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", override_filename=True)
+
 
 async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", overwrite=True)
 
+
 async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
+
 
 async def test_file_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", fake_tor=True)
 
+
 async def test_empty_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="empty-file")
+
 
 async def test_directory(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory")
 
+
 async def test_directory_addslash(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", addslash=True)
+
 
 async def test_directory_override(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", override_filename=True)
 
+
 async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", overwrite=True)
+
 
 async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(
@@ -793,8 +801,10 @@ async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env,
         mock_accept=True,
     )
 
+
 async def test_slow_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="slow-text")
+
 
 async def test_slow_sender_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="slow-sender-text")
@@ -926,14 +936,18 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
         with open(fn, "r") as f:
             assert f.read() == PRESERVE
 
+
 async def test_fail_file_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "file", "noclobber")
+
 
 async def test_fail_directory_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "noclobber")
 
+
 async def test_fail_file_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "file", "toobig")
+
 
 async def test_fail_directory_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "toobig")
@@ -1063,6 +1077,7 @@ async def test_sender(no_mailbox):
         await cmd_send.send(cfg)
     assert isinstance(e.value.reason, ConnectionRefusedError)
 
+
 @pytest_twisted.ensureDeferred
 async def test_sender_allocation(no_mailbox):
     cfg = config("send")
@@ -1078,6 +1093,7 @@ async def test_sender_allocation(no_mailbox):
     with pytest.raises(ServerConnectionError) as e:
         await cmd_send.send(cfg)
     assert isinstance(e.value.reason, ConnectionRefusedError)
+
 
 @pytest_twisted.ensureDeferred
 async def test_receiver(no_mailbox):
@@ -1096,14 +1112,7 @@ async def test_receiver(no_mailbox):
     assert isinstance(e.value.reason, ConnectionRefusedError)
 
 
-@pytest.fixture()
-def send_config(mailbox):
-    # XXX probably just put this directly in tests instead
-    cfg = create_config("send", mailbox.url)
-    yield cfg
-
-
-def create_config(name, url):
+def create_named_config(name, url):
     cfg = config(name)
     # common options for all tests in this suite
     cfg.hide_progress = True
@@ -1116,8 +1125,8 @@ def create_config(name, url):
 
 @pytest_twisted.ensureDeferred
 async def test_text_send(mailbox):
-    send_config = create_config("send", mailbox.url)
-    recv_config = create_config("receive", mailbox.url)
+    send_config = create_named_config("send", mailbox.url)
+    recv_config = create_named_config("receive", mailbox.url)
     send_config.code = "1-test-situation"
     recv_config.code = "1-test-situation"
     with mock.patch('sys.stdout'):
@@ -1137,12 +1146,12 @@ async def test_text_send(mailbox):
 async def test_text_wrong_password(mailbox):
     # if the password was wrong, the rendezvous channel should still be
     # deleted
-    send_config = create_config("send", mailbox.url)
+    send_config = create_named_config("send", mailbox.url)
     send_config.code = "1-foo-bar"
     send_config.text = "some text to send"
     send_d = cmd_send.send(send_config)
 
-    rx_cfg = create_config("send", mailbox.url)
+    rx_cfg = create_named_config("send", mailbox.url)
     rx_cfg.code = u"1-WRONG"
     receive_d = cmd_receive.receive(rx_cfg)
 
@@ -1210,7 +1219,7 @@ async def test_override(request, reactor):
         pytest_twisted.blockon(mailbox.service.stopService())
     request.addfinalizer(cleanup)
 
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.text = "hello"
     cfg.appid = "appid2"
     cfg.code = "1-abc"
@@ -1264,7 +1273,7 @@ def test_motd():
 
 @pytest_twisted.ensureDeferred
 async def test_success(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
     called = []
 
@@ -1278,7 +1287,7 @@ async def test_success(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_timing(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
     cfg.timing = mock.Mock()
     cfg.dump_timing = "filename"
@@ -1291,14 +1300,16 @@ async def test_timing(mailbox):
     assert cfg.timing.mock_calls[-1] == \
                      mock.call.write("filename", cfg.stderr)
 
+
 def test_debug_state_invalid_machine():
     cfg = cli.Config()
     with pytest.raises(UsageError):
         cfg.debug_state = "ZZZ"
 
+
 @pytest_twisted.ensureDeferred
 async def test_debug_state_send(mailbox):
-    args = create_config("send", mailbox.url)
+    args = create_named_config("send", mailbox.url)
     args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
     args.stdout = io.StringIO()
     s = cmd_send.Sender(args, reactor)
@@ -1313,9 +1324,10 @@ async def test_debug_state_send(mailbox):
     assert "send.B[S0_empty].close" in \
         args.stdout.getvalue()
 
+
 @pytest_twisted.ensureDeferred
 async def test_debug_state_receive(mailbox):
-    args = create_config("receive", mailbox.url)
+    args = create_named_config("receive", mailbox.url)
     args.debug_state = "B,N,M,S,O,K,SK,R,RC,L,C,T"
     args.stdout = io.StringIO()
     s = cmd_receive.Receiver(args, reactor)
@@ -1333,7 +1345,7 @@ async def test_debug_state_receive(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_wrong_password_error(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
 
     def fake():
@@ -1347,7 +1359,7 @@ async def test_wrong_password_error(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_welcome_error(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
 
     def fake():
@@ -1362,7 +1374,7 @@ async def test_welcome_error(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_transfer_error(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
 
     def fake():
@@ -1376,7 +1388,7 @@ async def test_transfer_error(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_server_connection_error(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
 
     def fake():
@@ -1393,7 +1405,7 @@ async def test_server_connection_error(mailbox):
 
 @pytest_twisted.ensureDeferred
 async def test_other_error(mailbox):
-    cfg = create_config("send", mailbox.url)
+    cfg = create_named_config("send", mailbox.url)
     cfg.stderr = io.StringIO()
 
     def fake():
