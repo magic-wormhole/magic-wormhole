@@ -8,19 +8,19 @@ from .common import config
 
 def test_send_baseline():
     cfg = config("send", "--text", "hi")
-    assert cfg.what == None
-    assert cfg.code == None
+    assert cfg.what is None
+    assert cfg.code is None
     assert cfg.code_length == 2
-    assert cfg.dump_timing == None
-    assert cfg.hide_progress == False
-    assert cfg.listen == True
-    assert cfg.appid == None
+    assert cfg.dump_timing is None
+    assert not cfg.hide_progress
+    assert cfg.listen
+    assert cfg.appid is None
     assert cfg.relay_url == RENDEZVOUS_RELAY
     assert cfg.transit_helper == TRANSIT_RELAY
     assert cfg.text == "hi"
-    assert cfg.tor == False
-    assert cfg.verify == False
-    assert cfg.zeromode == False
+    assert not cfg.tor
+    assert not cfg.verify
+    assert not cfg.zeromode
 
 def test_send_appid():
     cfg = config("--appid", "xyz", "send", "--text", "hi")
@@ -31,16 +31,16 @@ def test_send_appid():
 def test_send_file():
     cfg = config("send", "fn")
     assert cfg.what == u"fn"
-    assert cfg.text == None
+    assert cfg.text is None
 
 def test_send_text():
     cfg = config("send", "--text", "hi")
-    assert cfg.what == None
+    assert cfg.what is None
     assert cfg.text == u"hi"
 
 def test_send_nolisten():
     cfg = config("send", "--no-listen", "fn")
-    assert cfg.listen == False
+    assert not cfg.listen
 
 def test_send_code():
     cfg = config("send", "--code", "1-abc", "fn")
@@ -56,19 +56,19 @@ def test_send_dump_timing():
 
 def test_send_hide_progress():
     cfg = config("send", "--hide-progress", "fn")
-    assert cfg.hide_progress == True
+    assert cfg.hide_progress
 
 def test_send_tor():
     cfg = config("send", "--tor", "fn")
-    assert cfg.tor == True
+    assert cfg.tor
 
 def test_send_verify():
     cfg = config("send", "--verify", "fn")
-    assert cfg.verify == True
+    assert cfg.verify
 
 def test_send_zeromode():
     cfg = config("send", "-0", "fn")
-    assert cfg.zeromode == True
+    assert cfg.zeromode
 
 def test_send_relay_env_var():
     relay_url = str(mock.sentinel.relay_url)
@@ -97,20 +97,20 @@ def test_send_transit_env_var():
 
 def test_receive_baseline():
     cfg = config("receive")
-    assert cfg.accept_file == False
+    assert not cfg.accept_file
     assert cfg.code is None
     assert cfg.code_length == 2
     assert cfg.dump_timing is None
-    assert cfg.hide_progress == False
+    assert not cfg.hide_progress
     assert cfg.listen
-    assert cfg.only_text == False
+    assert not cfg.only_text
     assert cfg.output_file is None
     assert cfg.appid is None
     assert cfg.relay_url == RENDEZVOUS_RELAY
     assert cfg.transit_helper == TRANSIT_RELAY
-    assert cfg.tor == False
-    assert cfg.verify == False
-    assert cfg.zeromode == False
+    assert not cfg.tor
+    assert not cfg.verify
+    assert not cfg.zeromode
 
 def test_receive_appid():
     cfg = config("--appid", "xyz", "receive")
@@ -120,7 +120,7 @@ def test_receive_appid():
 
 def test_receive_nolisten():
     cfg = config("receive", "--no-listen")
-    assert cfg.listen == False
+    assert not cfg.listen
 
 def test_receive_code():
     cfg = config("receive", "1-abc")
