@@ -19,7 +19,11 @@ def reactor():
 
 @pytest.fixture(scope="session")
 def mailbox(reactor):
-    mb = pytest_twisted.blockon(ensureDeferred(setup_mailbox(reactor)))
+    mb = pytest_twisted.blockon(
+        ensureDeferred(
+            setup_mailbox(reactor, advertise_version="1.2.3")
+        )
+    )
     mb.service.startService()
     yield mb
     pytest_twisted.blockon(mb.service.stopService())

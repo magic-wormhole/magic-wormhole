@@ -72,7 +72,12 @@ async def setup_mailbox(reactor, advertise_version=None, error=None):
     """
     db = create_channel_db(":memory:")
     usage_db = create_usage_db(":memory:")
-    rendezvous = make_server(db, usage_db=usage_db, signal_error=error)
+    rendezvous = make_server(
+        db,
+        usage_db=usage_db,
+        advertise_version=advertise_version,
+        signal_error=error,
+    )
     ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
     site = make_web_server(rendezvous, log_requests=False)
     port = await ep.listen(site)

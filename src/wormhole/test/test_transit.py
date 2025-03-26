@@ -15,7 +15,6 @@ from .. import transit
 from .._hints import DirectTCPV1Hint
 from ..errors import InternalError
 from ..util import HKDF
-from .common import ServerBase
 import pytest
 
 
