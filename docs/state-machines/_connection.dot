@@ -35,7 +35,15 @@ digraph {
 
         C_S_negotiating [label="negotiating" color="orange"]
         C_S_negotiating -> C_P_failed [label="p.onClose"]
-        C_S_negotiating -> C_P_connected [label="p.onOpen" color="orange" fontcolor="orange"]
+
+        C_S_negotiating -> C_P_await_welcome [label="p.onOpen" color="orange" fontcolor="orange"]
+
+        C_P_await_welcome -> C_P_permission [label="_send_bind" color="orange" fontcolor="orange"]
+        C_P_await_welcome [label="await welcome" color="orange"]
+
+        C_P_permission [shape="box" label="tx submit-permission" color="orange"]
+        C_P_permission -> C_P_connected [color="orange"]
+
         C_S_negotiating -> C_P_drop2 [label="C_stop()"]
         C_P_drop2 [shape="box" label="p.dropConnection()"]
         C_P_drop2 -> C_S_disconnecting

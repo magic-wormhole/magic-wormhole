@@ -115,6 +115,24 @@ class Delegated(ServerBase, unittest.TestCase):
         w1.close()
 
 
+class Hashcash(ServerBase, unittest.TestCase):
+    """
+    Integration-style tests of the 'hashcash' permission implementation
+    """
+
+    @inlineCallbacks
+    def setUp(self):
+        yield self._setup_relay(None, permissions="hashcash")
+
+    @inlineCallbacks
+    def test_good_cash(self):
+        w1 = wormhole.create(APPID, self.relayurl, reactor)
+        w1.allocate_code()
+        yield w1.get_code()
+        # w.close() fails because we closed before connecting
+        yield self.assertFailure(w1.close(), LonelyError)
+
+
 class Wormholes(ServerBase, unittest.TestCase):
     # integration test, with a real server
 
