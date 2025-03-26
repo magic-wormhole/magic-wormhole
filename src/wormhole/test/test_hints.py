@@ -14,11 +14,11 @@ def test_endpoint_from_hint_obj():
     def efho(hint, tor=None):
         return endpoint_from_hint_obj(hint, tor, reactor)
     assert isinstance(efho(DirectTCPV1Hint("host", 1234, 0.0)), endpoints.HostnameEndpoint)
-    assert efho("unknown:stuff:yowza:pivlor") == None
+    assert efho("unknown:stuff:yowza:pivlor") is None
 
     # tor=None
-    assert efho(TorTCPV1Hint("host", "port", 0)) == None
-    assert efho(UnknownHint("foo")) == None
+    assert efho(TorTCPV1Hint("host", "port", 0)) is None
+    assert efho(UnknownHint("foo")) is None
 
     tor = mock.Mock()
 
@@ -32,9 +32,9 @@ def test_endpoint_from_hint_obj():
                      ("tor_ep", "host", 1234)
     assert efho(TorTCPV1Hint("host2.onion", 1234, 0.0), tor) == \
                      ("tor_ep", "host2.onion", 1234)
-    assert efho(DirectTCPV1Hint("non-public", 1234, 0.0), tor) == None
+    assert efho(DirectTCPV1Hint("non-public", 1234, 0.0), tor) is None
 
-    assert efho(UnknownHint("foo"), tor) == None
+    assert efho(UnknownHint("foo"), tor) is None
 
 def test_comparable():
     h1 = DirectTCPV1Hint("hostname", "port1", 0.0)
@@ -49,7 +49,7 @@ def test_comparable():
 
 def test_parse_tcp_v1_hint():
     p = parse_tcp_v1_hint
-    assert p({"type": "unknown"}) == None
+    assert p({"type": "unknown"}) is None
     h = p({"type": "direct-tcp-v1", "hostname": "foo", "port": 1234})
     assert h == DirectTCPV1Hint("foo", 1234, 0.0)
     h = p({
@@ -70,20 +70,20 @@ def test_parse_tcp_v1_hint():
     assert h == TorTCPV1Hint("foo", 1234, 2.5)
     assert p({
         "type": "direct-tcp-v1"
-    }) == None  # missing hostname
+    }) is None  # missing hostname
     assert p({
         "type": "direct-tcp-v1",
         "hostname": 12
-    }) == None  # invalid hostname
+    }) is None  # invalid hostname
     assert p({
             "type": "direct-tcp-v1",
             "hostname": "foo"
-        }) == None  # missing port
+        }) is None  # missing port
     assert p({
             "type": "direct-tcp-v1",
             "hostname": "foo",
             "port": "not a number"
-        }) == None  # invalid port
+        }) is None  # invalid port
 
 def test_parse_hint():
     p = parse_hint
@@ -122,31 +122,31 @@ def test_parse_hint_argv():
     assert stderr == ""
 
     h, stderr = p("$!@#^")
-    assert h == None
+    assert h is None
     assert stderr == "unparseable hint '$!@#^'\n"
 
     h, stderr = p("unknown:stuff")
-    assert h == None
+    assert h is None
     assert stderr == \
                      "unknown hint type 'unknown' in 'unknown:stuff'\n"
 
     h, stderr = p("tcp:just-a-hostname")
-    assert h == None
+    assert h is None
     assert stderr == \
         "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n"
 
     h, stderr = p("tcp:host:number")
-    assert h == None
+    assert h is None
     assert stderr == \
                      "non-numeric port in TCP hint 'tcp:host:number'\n"
 
     h, stderr = p("tcp:host:1234:priority=bad")
-    assert h == None
+    assert h is None
     assert stderr == \
         "non-float priority= in TCP hint 'tcp:host:1234:priority=bad'\n"
 
     h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]")
-    assert h == None
+    assert h is None
     assert stderr == "non-numeric port in TCP hint 'tcp:[2001:0db8:85a3::8a2e:0370:7334]'\n"
 
     h, stderr = p("tcp:[2001:0db8:85a3::8a2e:0370:7334]:1234")
@@ -160,7 +160,7 @@ def test_parse_hint_argv():
     assert stderr == ""
 
     h, stderr = p("tcp:[abc::xyz]:1234")
-    assert h == None
+    assert h is None
     assert stderr == "invalid IPv6 address in TCP hint 'tcp:[abc::xyz]:1234'\n"
 
 def test_describe_hint_obj():

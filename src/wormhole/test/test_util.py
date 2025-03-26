@@ -4,8 +4,6 @@ from unittest import mock
 
 from .. import util
 
-import pytest
-
 def test_to_bytes():
     b = util.to_bytes("abc")
     assert isinstance(b, type(b""))
@@ -54,6 +52,6 @@ def test_no_statvfs():
     # the one platform that the code under test was supposed to help with
     try:
         with mock.patch("os.statvfs", side_effect=AttributeError()):
-            assert util.estimate_free_space(".") == None
+            assert util.estimate_free_space(".") is None
     except AttributeError:  # raised by mock.get_original()
         pass

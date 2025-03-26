@@ -1,8 +1,6 @@
 from .. import journal
 from .._interfaces import IJournal
 
-import pytest
-
 def test_journal():
     events = []
     j = journal.Journal(lambda: events.append("checkpoint"))

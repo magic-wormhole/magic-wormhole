@@ -2,8 +2,6 @@ from unittest import mock
 
 from .._wordlist import PGPWordList
 
-import pytest
-
 def test_completions():
     wl = PGPWordList()
     gc = wl.get_completions

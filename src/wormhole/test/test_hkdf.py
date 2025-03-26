@@ -5,7 +5,6 @@ from cryptography.hazmat.primitives import hashes
 
 from .. import util
 
-import pytest
 # def generate_KAT():
 #     print("KAT = [")
 #     for salt in (b"", b"salt"):
