@@ -1,29 +1,27 @@
-from twisted.trial import unittest
-
 from .. import journal
 from .._interfaces import IJournal
 
+import pytest
 
-class Journal(unittest.TestCase):
-    def test_journal(self):
-        events = []
-        j = journal.Journal(lambda: events.append("checkpoint"))
-        self.assert_(IJournal.providedBy(j))
+def test_journal():
+    events = []
+    j = journal.Journal(lambda: events.append("checkpoint"))
+    assert (IJournal.providedBy(j))
 
-        with j.process():
-            j.queue_outbound(events.append, "message1")
-            j.queue_outbound(events.append, "message2")
-            self.assertEqual(events, [])
-        self.assertEqual(events, ["checkpoint", "message1", "message2"])
+    with j.process():
+        j.queue_outbound(events.append, "message1")
+        j.queue_outbound(events.append, "message2")
+        assert events == [],"test_journal: events list is not empty"
+    assert events == ["checkpoint", "message1", "message2"]
 
-    def test_immediate(self):
-        events = []
-        j = journal.ImmediateJournal()
-        self.assert_(IJournal.providedBy(j))
+def test_immediate():
+    events = []
+    j = journal.ImmediateJournal()
+    assert IJournal.providedBy(j)
 
-        with j.process():
-            j.queue_outbound(events.append, "message1")
-            self.assertEqual(events, ["message1"])
-            j.queue_outbound(events.append, "message2")
-            self.assertEqual(events, ["message1", "message2"])
-        self.assertEqual(events, ["message1", "message2"])
+    with j.process():
+        j.queue_outbound(events.append, "message1")
+        assert events == ["message1"]
+        j.queue_outbound(events.append, "message2")
+        assert events == ["message1", "message2"]
+    assert events == ["message1", "message2"]
