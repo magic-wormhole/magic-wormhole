@@ -57,9 +57,10 @@ class Mailbox:
     url: str
     service: internet.StreamServerEndpointService
     port: object  # IPort ?
+    site: object  # ??
 
 
-def setup_mailbox(reactor, advertise_version=None, error=None):
+async def setup_mailbox(reactor, advertise_version=None, error=None):
     """
     Set up an in-memory Mailbox server.
 
@@ -75,10 +76,10 @@ def setup_mailbox(reactor, advertise_version=None, error=None):
     rendezvous = make_server(db, usage_db=usage_db)
     ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
     site = make_web_server(rendezvous, log_requests=False)
-    port = pytest_twisted.blockon(ep.listen(site))
+    port = await ep.listen(site)
     service = internet.StreamServerEndpointService(ep, site)
     relay_url = f"ws://127.0.0.1:{port._realPortNumber}/v1"  # XXX private API
-    return Mailbox(db, usage_db, rendezvous, site, relay_url, service, port)
+    return Mailbox(db, usage_db, rendezvous, site, relay_url, service, port, site)
 
 
 def setup_transit_relay(reactor):

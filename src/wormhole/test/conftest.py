@@ -1,6 +1,7 @@
 from twisted.internet import endpoints
 from twisted.internet.protocol import ServerFactory
 from twisted.application.internet import StreamServerEndpointService
+from twisted.internet.defer import ensureDeferred
 
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
 from wormhole_mailbox_server.server import make_server
@@ -25,7 +26,7 @@ from .common import setup_mailbox, setup_transit_relay
 
 @pytest.fixture(scope="session")
 def mailbox(reactor):
-    mb = setup_mailbox(reactor)
+    mb = pytest_twisted.blockon(ensureDeferred(setup_mailbox(reactor)))
     mb.service.startService()
     yield mb
     pytest_twisted.blockon(mb.service.stopService())
