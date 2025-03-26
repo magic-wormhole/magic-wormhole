@@ -18,6 +18,7 @@ def mailbox(reactor):
     mb.service.startService()
     yield mb
     pytest_twisted.blockon(mb.service.stopService())
+    mb.site.stopFactory()
 
 
 @pytest.fixture(scope="session")
