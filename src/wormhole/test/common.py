@@ -100,49 +100,8 @@ def setup_transit_relay(reactor):
     return client_endpoint, service
 
 
-class ServerBase:
+# XXX missing from ServerBase replacement fixtures:
 
-    async def setUp(self):
-        await self._setup_relay(None)
-
-    async def _setup_relay(self, error, advertise_version=None):
-        self.sp = service.MultiService()
-        self.sp.startService()
-        # need to talk to twisted team about only using unicode in
-        # endpoints.serverFromString
-        db = create_channel_db(":memory:")
-        self._usage_db = create_usage_db(":memory:")
-        self._rendezvous = make_server(
-            db,
-            advertise_version=advertise_version,
-            signal_error=error,
-            usage_db=self._usage_db)
-        ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
-        site = make_web_server(self._rendezvous, log_requests=False)
-        # self._lp = await ep.listen(site)
-        s = MyInternetService(ep, site)
-        s.setServiceParent(self.sp)
-        self.rdv_ws_port = await s.getPort()
-        self._relay_server = s
-        # self._rendezvous = s._rendezvous
-        self.relayurl = u"ws://127.0.0.1:%d/v1" % self.rdv_ws_port
-        # ws://127.0.0.1:%d/wormhole-relay/ws
-
-        self.transitport = allocate_tcp_port()
-        ep = endpoints.serverFromString(
-            reactor, "tcp:%d:interface=127.0.0.1" % self.transitport)
-
-        usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
-        self._transit_server = protocol.ServerFactory()
-        self._transit_server.protocol = TransitConnection
-        self._transit_server.log_requests = False
-        self._transit_server.transit = Transit(usage, reactor.seconds)
-
-
-        internet.StreamServerEndpointService(ep, self._transit_server).setServiceParent(self.sp)
-        self.transit = u"tcp:127.0.0.1:%d" % self.transitport
-
-    async def tearDown(self):
         # Unit tests that spawn a (blocking) client in a thread might still
         # have threads running at this point, if one is stuck waiting for a
         # message from a companion which has exited with an error. Our
@@ -154,6 +113,7 @@ class ServerBase:
         # waiting for a close, I think -- was pretty relieably getting
         # unclean-reactor, but adding a slight pause here stops it...
 
+"""
         tp = reactor.getThreadPool()
         if not tp.working:
             await self.sp.stopService()
@@ -175,6 +135,7 @@ class ServerBase:
             log.msg("wormhole.test.common.ServerBase.tearDown:"
                     " I convinced all threads to exit.")
         await d
+"""
 
 
 def config(*argv):

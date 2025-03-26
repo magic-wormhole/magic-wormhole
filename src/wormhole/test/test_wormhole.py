@@ -14,7 +14,7 @@ from ..errors import (KeyFormatError, LonelyError, NoKeyError,
                       WrongPasswordError)
 from ..eventual import EventualQueue
 from ..transit import allocate_tcp_port
-from .common import ServerBase, poll_until
+from .common import poll_until
 import pytest
 
 APPID = "appid"
