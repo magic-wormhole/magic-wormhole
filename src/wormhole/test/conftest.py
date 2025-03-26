@@ -1,4 +1,5 @@
 from twisted.internet.defer import ensureDeferred
+from twisted.python import log
 
 import pytest
 import pytest_twisted
@@ -59,11 +60,10 @@ class Observer:
 @pytest.fixture
 def observe_errors():
     observer = Observer()
-    twisted.logger.globalLogPublisher.addObserver(observer)
+    log.startLoggingWithObserver(observer, 0)
 
     yield observer
 
     gc.collect()
-    twisted.logger.globalLogPublisher.removeObserver(observer)
-
+    log.removeObserver(observer)
     observer.assert_empty()
