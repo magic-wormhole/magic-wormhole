@@ -99,14 +99,14 @@ def test_transit_env_var():
 def test_baseline():
     cfg = config("receive")
     assert cfg.accept_file == False
-    assert cfg.code == None
+    assert cfg.code is None
     assert cfg.code_length == 2
-    assert cfg.dump_timing == None
+    assert cfg.dump_timing is None
     assert cfg.hide_progress == False
-    assert cfg.listen == True
+    assert cfg.listen
     assert cfg.only_text == False
-    assert cfg.output_file == None
-    assert cfg.appid == None
+    assert cfg.output_file is None
+    assert cfg.appid is None
     assert cfg.relay_url == RENDEZVOUS_RELAY
     assert cfg.transit_helper == TRANSIT_RELAY
     assert cfg.tor == False
@@ -137,27 +137,27 @@ def test_dump_timing():
 
 def test_hide_progress():
     cfg = config("receive", "--hide-progress")
-    assert cfg.hide_progress == True
+    assert cfg.hide_progress
 
 def test_tor():
     cfg = config("receive", "--tor")
-    assert cfg.tor == True
+    assert cfg.tor
 
 def test_verify():
     cfg = config("receive", "--verify")
-    assert cfg.verify == True
+    assert cfg.verify
 
 def test_zeromode():
     cfg = config("receive", "-0")
-    assert cfg.zeromode == True
+    assert cfg.zeromode
 
 def test_only_text():
     cfg = config("receive", "-t")
-    assert cfg.only_text == True
+    assert cfg.only_text
 
 def test_accept_file():
     cfg = config("receive", "--accept-file")
-    assert cfg.accept_file == True
+    assert cfg.accept_file
 
 def test_output_file():
     cfg = config("receive", "--output-file", "fn")
@@ -190,7 +190,7 @@ def test_transit_env_var():
 def test_accept_file_env_var():
     with mock.patch.dict(os.environ, WORMHOLE_ACCEPT_FILE="true"):
         cfg = config("receive")
-    assert cfg.accept_file == True
+    assert cfg.accept_file
 
 
 def test_send():
