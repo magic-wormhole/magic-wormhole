@@ -73,7 +73,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     # parse the port:
     mo = re.search(r'^(\d+)$', pieces[1])
     if not mo:
-        print("non-numeric port in TCP hint '%s' %s" % (hint, pieces[1]), file=stderr)
+        print("non-numeric port in TCP hint '%s'" % (hint, ), file=stderr)
         return None
     hint_port = int(pieces[1])
     # parse the rest ("priority=float")
