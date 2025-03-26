@@ -57,7 +57,7 @@ class OfferData(unittest.TestCase):
         assert "file" not in d
         assert "directory" not in d
         assert d["message"] == message
-        assert fd_to_send == None
+        assert fd_to_send is None
 
     def test_file(self):
         self.cfg.what = filename = "my file"

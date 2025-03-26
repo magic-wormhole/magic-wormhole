@@ -3,13 +3,13 @@ from twisted.internet.defer import ensureDeferred
 import pytest
 import pytest_twisted
 
+from .common import setup_mailbox, setup_transit_relay
+
 
 @pytest.fixture(scope="session")
 def reactor():
     from twisted.internet import reactor
     yield reactor
-
-from .common import setup_mailbox, setup_transit_relay
 
 
 @pytest.fixture(scope="session")
