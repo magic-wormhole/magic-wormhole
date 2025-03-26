@@ -43,15 +43,15 @@ class Observer:
 
     def __call__(self, event_dict):
         is_error = event_dict.get('isError')
-        s = 'Unhandled error in Deferred'.casefold()
-        is_unhandled = s in event_dict.get('log_format', '').casefold()
-
-        if is_error and is_unhandled:
-            self.failures.append(event_dict)
+        if is_error:
+            self.failures.append(event_dict["failure"])
 
     def flush(self, klass):
-        for f in self.failures:
-            print(f, klass)
+        self.failures = [
+            f
+            for f in self.failures
+            if not isinstance(f.value, klass)
+        ]
 
     def assert_empty(self):
         assert [] == self.failures
