@@ -629,6 +629,7 @@ async def _do_test(
         if fake_tor:
             expected_endpoints = [("127.0.0.1", mailbox.port._realPortNumber, False)]
             if mode in ("file", "directory"):
+                transitport = int(transiturl.split(":")[2])
                 expected_endpoints.append(("127.0.0.1", transitport, False))
             tx_timing = mtx_tm.call_args[1]["timing"]
             assert tx_tm.endpoints == expected_endpoints
@@ -744,8 +745,8 @@ async def test_text(wormhole_executable, scripts_env, mailbox, transit_relay, tm
 async def test_text_subprocess(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, as_subprocess=True)
 
-##async def test_text_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-##    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, fake_tor=True)
+async def test_text_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, fake_tor=True)
 
 async def test_text_verify(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, verify=True)
@@ -762,8 +763,8 @@ async def test_file_overwrite(wormhole_executable, scripts_env, mailbox, transit
 async def test_file_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", overwrite=True, mock_accept=True)
 
-##async def test_file_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-##    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", fake_tor=True)
+async def test_file_tor(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
+    await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="file", fake_tor=True)
 
 async def test_empty_file(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="empty-file")
@@ -930,14 +931,14 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
 async def test_fail_file_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "file", "noclobber")
 
-#async def test_fail_directory_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-#    await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "noclobber")
+async def test_fail_directory_noclobber(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "noclobber")
 
 async def test_fail_file_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
     await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "file", "toobig")
 
-#async def test_fail_directory_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
-#    await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "toobig")
+async def test_fail_directory_toobig(wormhole_executable, scripts_env, mailbox, tmpdir_factory):
+    await _do_test_fail(wormhole_executable, scripts_env, mailbox.url, tmpdir_factory, "directory", "toobig")
 
 
 @pytest_twisted.ensureDeferred

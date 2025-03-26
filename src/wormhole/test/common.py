@@ -85,6 +85,7 @@ async def setup_mailbox(reactor, advertise_version=None, error=None):
 def setup_transit_relay(reactor):
     transitport = allocate_tcp_port()
     endpoint = f"tcp:{transitport}:interface=127.0.0.1"
+    client_endpoint = f"tcp:127.0.0.1:{transitport}"
     ep = endpoints.serverFromString(reactor, endpoint)
     usage = create_usage_tracker(blur_usage=None, log_file=None, usage_db=None)
     transit_server = protocol.ServerFactory()
@@ -92,9 +93,7 @@ def setup_transit_relay(reactor):
     transit_server.log_requests = False
     transit_server.transit = Transit(usage, reactor.seconds)
     service = internet.StreamServerEndpointService(ep, transit_server)
-    return endpoint, service
-
-
+    return client_endpoint, service
 class ServerBase:
 
     async def setUp(self):
