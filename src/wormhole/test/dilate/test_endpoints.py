@@ -21,7 +21,7 @@ class CannotDilateError(Exception):
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_succeed():
+async def test_control_early_succeed():
     # ep.connect() is called before dilation can proceed
     scid0 = 0
     peeraddr = _SubchannelAddress(scid0)
@@ -52,7 +52,7 @@ async def test_early_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_fail():
+async def test_control_early_fail():
     # ep.connect() is called before dilation is abandoned
     scid0 = 0
     peeraddr = _SubchannelAddress(scid0)
@@ -81,7 +81,7 @@ async def test_early_fail():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_succeed():
+async def test_control_late_succeed():
     # dilation can proceed, then ep.connect() is called
     scid0 = 0
     peeraddr = _SubchannelAddress(scid0)
@@ -110,7 +110,7 @@ async def test_late_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_fail():
+async def test_control_late_fail():
     # dilation is abandoned, then ep.connect() is called
     scid0 = 0
     peeraddr = _SubchannelAddress(scid0)
@@ -144,7 +144,7 @@ def OFFassert_makeConnection(mock_calls):
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_succeed():
+async def test_connector_early_succeed():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -173,7 +173,7 @@ async def test_early_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_fail():
+async def test_connector_early_fail():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -200,7 +200,7 @@ async def test_early_fail():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_succeed():
+async def test_connector_late_succeed():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -227,7 +227,7 @@ async def test_late_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_fail():
+async def test_connector_late_fail():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -252,7 +252,7 @@ async def test_late_fail():
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_succeed():
+async def test_listener_early_succeed():
     # listen, main_channel_ready, got_open, got_open
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
@@ -303,7 +303,7 @@ async def test_early_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_early_fail():
+async def test_listener_early_fail():
     # listen, main_channel_fail
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
@@ -328,7 +328,7 @@ async def test_early_fail():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_succeed():
+async def test_listener_late_succeed():
     # main_channel_ready, got_open, listen, got_open
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
@@ -377,7 +377,7 @@ async def test_late_succeed():
 
 
 @pytest_twisted.ensureDeferred
-async def test_late_fail():
+async def test_listener_late_fail():
     # main_channel_fail, listen
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)

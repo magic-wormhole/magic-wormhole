@@ -24,14 +24,14 @@ def make_sc(set_protocol=True, half_closeable=False):
     return sc, m, scid, hostaddr, peeraddr, p
 
 
-def test_once():
+def test_subchannel_once():
     o = Once(ValueError)
     o()
     with pytest.raises(ValueError):
         o()
 
 
-def test_create():
+def test_subchannel_create():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
     assert ITransport.providedBy(sc)
     assert m.mock_calls == []
@@ -39,7 +39,7 @@ def test_create():
     assert sc.getPeer() is peeraddr
 
 
-def test_write():
+def test_subchannel_write():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     sc.write(b"data")
@@ -49,7 +49,7 @@ def test_write():
     assert m.mock_calls == [mock.call.send_data(scid, b"moredata")]
 
 
-def test_write_when_closing():
+def test_subchannel_write_when_closing():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     sc.loseConnection()
@@ -61,7 +61,7 @@ def test_write_when_closing():
     assert str(e.value) == "write not allowed on closed subchannel"
 
 
-def test_local_close():
+def test_subchannel_local_close():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     sc.loseConnection()
@@ -77,7 +77,7 @@ def test_local_close():
     assert_connectionDone(p.mock_calls)
 
 
-def test_local_double_close():
+def test_subchannel_local_double_close():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     sc.loseConnection()
@@ -95,7 +95,7 @@ def assert_connectionDone(mock_calls):
     assert isinstance(mock_calls[0][1][0], ConnectionDone)
 
 
-def test_remote_close():
+def test_subchannel_remote_close():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
     sc.remote_close()
     assert m.mock_calls == [mock.call.send_close(scid),
@@ -103,7 +103,7 @@ def test_remote_close():
     assert_connectionDone(p.mock_calls)
 
 
-def test_data():
+def test_subchannel_data():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
     sc.remote_data(b"data")
     assert p.mock_calls == [mock.call.dataReceived(b"data")]
@@ -115,7 +115,7 @@ def test_data():
                                     ]
 
 
-def test_data_before_open():
+def test_subchannel_data_before_open():
     sc, m, scid, hostaddr, peeraddr, p = make_sc(set_protocol=False)
     sc.remote_data(b"data1")
     sc.remote_data(b"data2")
@@ -129,7 +129,7 @@ def test_data_before_open():
     assert p.mock_calls == [mock.call.dataReceived(b"more")]
 
 
-def test_close_before_open():
+def test_subchannel_close_before_open():
     sc, m, scid, hostaddr, peeraddr, p = make_sc(set_protocol=False)
     sc.remote_close()
     assert p.mock_calls == []
@@ -138,7 +138,7 @@ def test_close_before_open():
     assert_connectionDone(p.mock_calls)
 
 
-def test_producer():
+def test_subchannel_producer():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     sc.pauseProducing()
@@ -152,7 +152,7 @@ def test_producer():
     m.mock_calls[:] = []
 
 
-def test_consumer():
+def test_subchannel_consumer():
     sc, m, scid, hostaddr, peeraddr, p = make_sc()
 
     # TODO: more, once this is implemented
@@ -160,7 +160,7 @@ def test_consumer():
     sc.unregisterProducer()
 
 
-def test_create():
+def test_halfcloseable_create():
     sc, m, scid, hostaddr, peeraddr, p = make_sc(half_closeable=True)
     assert ITransport.providedBy(sc)
     assert m.mock_calls == []
@@ -168,7 +168,7 @@ def test_create():
     assert sc.getPeer() is peeraddr
 
 
-def test_local_close():
+def test_halfcloseable_local_close():
     sc, m, scid, hostaddr, peeraddr, p = make_sc(half_closeable=True)
 
     sc.write(b"data")
@@ -214,7 +214,7 @@ def test_local_close():
     assert p.mock_calls == [mock.call.readConnectionLost()]
 
 
-def test_remote_close():
+def test_halfcloseable_remote_close():
     sc, m, scid, hostaddr, peeraddr, p = make_sc(half_closeable=True)
 
     sc.write(b"data")

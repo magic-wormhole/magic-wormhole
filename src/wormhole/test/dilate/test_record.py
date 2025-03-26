@@ -281,6 +281,7 @@ def test_large_frame():
     frames
     """
     if not NoiseConnection:
+        import unittest
         raise unittest.SkipTest("noiseprotocol unavailable")
     # XXX could really benefit from some Hypothesis style
     # exploration of more cases .. but we don't already depend on

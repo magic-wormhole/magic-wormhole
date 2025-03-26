@@ -36,7 +36,6 @@ def transit_relay(reactor):
 # from kyle altendorf
 # see also https://github.com/pytest-dev/pytest-twisted/issues/4
 import gc
-import twisted.logger
 
 
 class Observer:

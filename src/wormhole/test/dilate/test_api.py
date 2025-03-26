@@ -1,4 +1,3 @@
-from twisted.internet import reactor
 from twisted.internet.task import deferLater
 from attrs import evolve
 
