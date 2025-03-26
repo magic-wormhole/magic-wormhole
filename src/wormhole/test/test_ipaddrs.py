@@ -4,8 +4,6 @@ import re
 import subprocess
 from unittest import mock
 
-from twisted.trial import unittest
-
 from .. import ipaddrs
 
 DOTTED_QUAD_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
