@@ -2,7 +2,6 @@ import wormhole
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, gatherResults
 from twisted.internet.protocol import Protocol, Factory
-from twisted.trial import unittest
 
 import pytest
 import pytest_twisted
