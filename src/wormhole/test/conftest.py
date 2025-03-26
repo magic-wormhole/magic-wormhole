@@ -19,7 +19,9 @@ def mailbox(reactor):
     mb.service.startService()
     yield mb
     pytest_twisted.blockon(mb.service.stopService())
-    mb.site.stopFactory()
+    pytest_twisted.blockon(mb.port.stopListening())
+    ##from twisted.internet import task
+    ##pytest_twisted.blockon(task.deferLater(reactor, 0.1, lambda: None))
 
 
 @pytest.fixture(scope="session")

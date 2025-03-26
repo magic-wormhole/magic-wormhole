@@ -7,7 +7,7 @@ from twisted.trial import unittest
 import pytest
 import pytest_twisted
 
-from ..common import ServerBase, poll_until
+from ..common import poll_until
 from ..._interfaces import IDilationConnector
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
@@ -33,7 +33,7 @@ class L(Protocol):
 
 
 @pytest_twisted.ensureDeferred()
-@pytest.mark.skipIf(not NoiseConnection)
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_control(reactor, mailbox):
     eq = EventualQueue(reactor)
     w1 = wormhole.create(APPID, mailbox.url, reactor, _enable_dilate=True)
@@ -111,7 +111,7 @@ class ReconF(Factory):
 
 
 @pytest_twisted.ensureDeferred()
-@pytest.mark.skipIf(not NoiseConnection)
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_reconnect(reactor, mailbox):
     eq = EventualQueue(reactor)
     w1 = wormhole.create(APPID, mailbox.url, reactor, _enable_dilate=True)
@@ -180,7 +180,7 @@ async def test_reconnect(reactor, mailbox):
     await w2.close()
 
 @pytest_twisted.ensureDeferred()
-@pytest.mark.skipIf(not NoiseConnection)
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_data_while_offline(reactor, mailbox):
     eq = EventualQueue(reactor)
     w1 = wormhole.create(APPID, mailbox.url, reactor, _enable_dilate=True)
@@ -265,7 +265,7 @@ async def test_data_while_offline(reactor, mailbox):
 
 
 @pytest_twisted.ensureDeferred()
-@pytest.mark.skipIf(not NoiseConnection)
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_endpoints(reactor, mailbox):
     eq = EventualQueue(reactor)
     w1 = wormhole.create(APPID, mailbox.url, reactor, _enable_dilate=True)

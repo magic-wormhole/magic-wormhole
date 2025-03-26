@@ -1,5 +1,4 @@
 from twisted.internet import reactor
-from twisted.trial import unittest
 from twisted.internet.task import deferLater
 from attrs import evolve
 
@@ -12,10 +11,9 @@ from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
 from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer
 
-from ..common import ServerBase
-
 
 @pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_on_status_error(reactor, mailbox):
     """
     Our user code raises an exception during status processing
@@ -45,10 +43,8 @@ async def test_on_status_error(reactor, mailbox):
             pass
 
 @pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_dilation_status(reactor, mailbox):
-    if not NoiseConnection:
-        raise unittest.SkipTest("noiseprotocol unavailable")
-
     eq = EventualQueue(reactor)
 
     status0 = []
