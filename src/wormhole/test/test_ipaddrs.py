@@ -2,6 +2,7 @@ import errno
 import os
 import re
 import subprocess
+from unittest import mock
 
 from twisted.trial import unittest
 
@@ -97,70 +98,71 @@ class FakeProcess:
         return (self.output, self.err)
 
 
-class ListAddresses(unittest.TestCase):
-    def test_list(self):
+def test_list():
+    addresses = ipaddrs.find_addresses()
+    assert "127.0.0.1" in addresses
+    assert "0.0.0.0" not in addresses
+
+# David A.'s OpenSolaris box timed out on this test one time when it was at
+# 2s.
+test_list.timeout = 4
+
+def _test_list_mock(command, output, expected):
+    first = True
+
+    def call_Popen(args,
+                   bufsize=0,
+                   executable=None,
+                   stdin=None,
+                   stdout=None,
+                   stderr=None,
+                   preexec_fn=None,
+                   close_fds=False,
+                   shell=False,
+                   cwd=None,
+                   env=None,
+                   universal_newlines=False,
+                   startupinfo=None,
+                   creationflags=0):
+        nonlocal first
+        if first:
+            first = False
+            e = OSError("EINTR")
+            e.errno = errno.EINTR
+            raise e
+        elif os.path.basename(args[0]) == command:
+            return FakeProcess(output, "")
+        else:
+            e = OSError("[Errno 2] No such file or directory")
+            e.errno = errno.ENOENT
+            raise e
+
+    def call_which(name):
+        return [name]
+
+    patch_popen = mock.patch.object(subprocess, 'Popen', call_Popen)
+    patch_isfile = mock.patch.object(os.path, 'isfile', lambda x: True)
+    patch_which = mock.patch.object(ipaddrs, 'which', call_which)
+
+    with patch_popen, patch_isfile, patch_which:
         addresses = ipaddrs.find_addresses()
-        self.failUnlessIn("127.0.0.1", addresses)
-        self.failIfIn("0.0.0.0", addresses)
 
-    # David A.'s OpenSolaris box timed out on this test one time when it was at
-    # 2s.
-    test_list.timeout = 4
+    assert set(addresses) == set(expected)
 
-    def _test_list_mock(self, command, output, expected):
-        self.first = True
+def test_list_mock_ip_addr():
+    with mock.patch.object(ipaddrs, 'platform', "linux2"):
+        _test_list_mock("ip", MOCK_IPADDR_OUTPUT, UNIX_TEST_ADDRESSES)
 
-        def call_Popen(args,
-                       bufsize=0,
-                       executable=None,
-                       stdin=None,
-                       stdout=None,
-                       stderr=None,
-                       preexec_fn=None,
-                       close_fds=False,
-                       shell=False,
-                       cwd=None,
-                       env=None,
-                       universal_newlines=False,
-                       startupinfo=None,
-                       creationflags=0):
-            if self.first:
-                self.first = False
-                e = OSError("EINTR")
-                e.errno = errno.EINTR
-                raise e
-            elif os.path.basename(args[0]) == command:
-                return FakeProcess(output, "")
-            else:
-                e = OSError("[Errno 2] No such file or directory")
-                e.errno = errno.ENOENT
-                raise e
+def test_list_mock_ifconfig():
+    with mock.patch.object(ipaddrs, 'platform', "linux2"):
+        _test_list_mock("ifconfig", MOCK_IFCONFIG_OUTPUT,
+                        UNIX_TEST_ADDRESSES)
 
-        self.patch(subprocess, 'Popen', call_Popen)
-        self.patch(os.path, 'isfile', lambda x: True)
+def test_list_mock_route():
+    with mock.patch.object(ipaddrs, 'platform', "win32"):
+        _test_list_mock("route.exe", MOCK_ROUTE_OUTPUT,
+                        WINDOWS_TEST_ADDRESSES)
 
-        def call_which(name):
-            return [name]
-
-        self.patch(ipaddrs, 'which', call_which)
-
-        addresses = ipaddrs.find_addresses()
-        self.failUnlessEquals(set(addresses), set(expected))
-
-    def test_list_mock_ip_addr(self):
-        self.patch(ipaddrs, 'platform', "linux2")
-        self._test_list_mock("ip", MOCK_IPADDR_OUTPUT, UNIX_TEST_ADDRESSES)
-
-    def test_list_mock_ifconfig(self):
-        self.patch(ipaddrs, 'platform', "linux2")
-        self._test_list_mock("ifconfig", MOCK_IFCONFIG_OUTPUT,
-                             UNIX_TEST_ADDRESSES)
-
-    def test_list_mock_route(self):
-        self.patch(ipaddrs, 'platform', "win32")
-        self._test_list_mock("route.exe", MOCK_ROUTE_OUTPUT,
-                             WINDOWS_TEST_ADDRESSES)
-
-    def test_list_mock_cygwin(self):
-        self.patch(ipaddrs, 'platform', "cygwin")
-        self._test_list_mock(None, None, CYGWIN_TEST_ADDRESSES)
+def test_list_mock_cygwin():
+    with mock.patch.object(ipaddrs, 'platform', "cygwin"):
+        _test_list_mock(None, None, CYGWIN_TEST_ADDRESSES)
