@@ -12,7 +12,6 @@ from wormhole_mailbox_server.web import make_web_server, PrivacyEnhancedSite
 from wormhole_transit_relay.transit_server import Transit, TransitConnection
 from wormhole_transit_relay.usage import create_usage_tracker
 
-import pytest_twisted
 import sqlite3
 
 from ..cli import cli
@@ -94,6 +93,8 @@ def setup_transit_relay(reactor):
     transit_server.transit = Transit(usage, reactor.seconds)
     service = internet.StreamServerEndpointService(ep, transit_server)
     return client_endpoint, service
+
+
 class ServerBase:
 
     async def setUp(self):

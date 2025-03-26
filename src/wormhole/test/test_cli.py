@@ -1043,7 +1043,7 @@ def no_mailbox(reactor):
     # basically just to get a port number. Having a hard time
     # "creating and killing" correctly in here, so short-cutting to "a
     # port that shouldn't be listening"
-    yield f"ws://127.0.0.1:1/v1"
+    yield "ws://127.0.0.1:1/v1"
 
 
 @pytest_twisted.ensureDeferred
@@ -1115,12 +1115,12 @@ def create_config(name, url):
 
 
 @pytest_twisted.ensureDeferred
-async def test_text(mailbox):
+async def test_text_send(mailbox):
     send_config = create_config("send", mailbox.url)
     recv_config = create_config("receive", mailbox.url)
     send_config.code = "1-test-situation"
     recv_config.code = "1-test-situation"
-    with mock.patch('sys.stdout') as stdout:
+    with mock.patch('sys.stdout'):
         # the rendezvous channel should be deleted after success
         send_config.text = "some text to send"
         send_d = cmd_send.send(send_config)
@@ -1129,9 +1129,8 @@ async def test_text(mailbox):
         await send_d
         await receive_d
 
-        # XXX FIXME: hard-mode to reach in this far with current fixture
-        ##cids = self._rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
-        ##assert len(cids) == 0
+        cids = mailbox.rendezvous.get_app(cmd_send.APPID).get_nameplate_ids()
+        assert len(cids) == 0
 
 
 @pytest_twisted.ensureDeferred

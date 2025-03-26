@@ -1,19 +1,7 @@
-from twisted.internet import endpoints
-from twisted.internet.protocol import ServerFactory
-from twisted.application.internet import StreamServerEndpointService
 from twisted.internet.defer import ensureDeferred
-
-from wormhole_mailbox_server.database import create_channel_db, create_usage_db
-from wormhole_mailbox_server.server import make_server
-from wormhole_mailbox_server.web import make_web_server
-from wormhole_transit_relay.transit_server import Transit, TransitConnection
-from wormhole_transit_relay.usage import create_usage_tracker
-
 
 import pytest
 import pytest_twisted
-
-from ..transit import allocate_tcp_port
 
 
 @pytest.fixture(scope="session")
