@@ -242,7 +242,7 @@ def make_manager(leader=True):
 
 def test_make_side():
     side = make_side()
-    assert type(side) == type(u"")
+    assert type(side) is type(u"")
     assert len(side) == 2 * 8
 
 

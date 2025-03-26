@@ -6,6 +6,10 @@ import pytest_twisted
 
 from .common import setup_mailbox, setup_transit_relay
 
+# from kyle altendorf
+# see also https://github.com/pytest-dev/pytest-twisted/issues/4
+import gc
+
 
 @pytest.fixture(scope="session")
 def reactor():
@@ -33,9 +37,6 @@ def transit_relay(reactor):
 
 
 
-# from kyle altendorf
-# see also https://github.com/pytest-dev/pytest-twisted/issues/4
-import gc
 
 
 class Observer:

@@ -97,7 +97,7 @@ def _test_no_relay(role):
             mock.call.read_message(b"handshake2")]
         assert connector.mock_calls == []
         assert t.mock_calls == []
-        assert c._manager == None
+        assert c._manager is None
     else:
         # we're the follower, so we send our Noise handshake, then
         # encrypt and send the KCM immediately
@@ -110,7 +110,7 @@ def _test_no_relay(role):
         assert t.mock_calls == [
             mock.call.write(exp_handshake),
             mock.call.write(exp_kcm)]
-        assert c._manager == None
+        assert c._manager is None
     clear_mock_calls(n, connector, t, m)
 
     c.dataReceived(b"\x00\x00\x00\x03KCM")
@@ -279,7 +279,7 @@ def test_follower_combined():
     assert t.mock_calls == [
         mock.call.write(exp_handshake),
         mock.call.write(exp_kcm)]
-    assert c._manager == None
+    assert c._manager is None
     clear_mock_calls(n, connector, t, m)
 
     # the leader will select a connection, send the KCM, and then
