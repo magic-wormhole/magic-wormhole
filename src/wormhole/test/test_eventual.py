@@ -1,6 +1,5 @@
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
-from twisted.trial import unittest
 
 from unittest import mock
 
