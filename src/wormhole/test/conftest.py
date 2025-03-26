@@ -64,10 +64,6 @@ def observe_errors():
     yield observer
 
     gc.collect()
-    gc.collect()
-    gc.collect()
-    gc.collect()
-    gc.collect()
     twisted.logger.globalLogPublisher.removeObserver(observer)
 
     observer.assert_empty()
