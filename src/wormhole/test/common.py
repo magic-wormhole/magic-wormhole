@@ -75,11 +75,9 @@ async def setup_mailbox(reactor, advertise_version=None, error=None):
     rendezvous = make_server(db, usage_db=usage_db, signal_error=error)
     ep = endpoints.TCP4ServerEndpoint(reactor, 0, interface="127.0.0.1")
     site = make_web_server(rendezvous, log_requests=False)
-    print("MAKE WEBSERVER", site)
     port = await ep.listen(site)
     service = internet.StreamServerEndpointService(ep, site)
     relay_url = f"ws://127.0.0.1:{port._realPortNumber}/v1"  # XXX private API
-    print("CREATING MAILBOX", port)
     return Mailbox(db, usage_db, rendezvous, site, relay_url, service, port, site)
 
 
@@ -94,7 +92,6 @@ def setup_transit_relay(reactor):
     transit_server.log_requests = False
     transit_server.transit = Transit(usage, reactor.seconds)
     service = internet.StreamServerEndpointService(ep, transit_server)
-    print("TRANSIT!", endpoint)
     return client_endpoint, service
 
 
@@ -104,7 +101,6 @@ class ServerBase:
         await self._setup_relay(None)
 
     async def _setup_relay(self, error, advertise_version=None):
-        print("\n\nSETUP RELAY\n\n")
         self.sp = service.MultiService()
         self.sp.startService()
         # need to talk to twisted team about only using unicode in
