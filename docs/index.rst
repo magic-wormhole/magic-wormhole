@@ -25,6 +25,7 @@ Magic-Wormhole: Get Things From One Computer To Another, Safely
    journal
 
    dilation-protocol
+   CONTRIBUTING
 
 
 Indices and tables
