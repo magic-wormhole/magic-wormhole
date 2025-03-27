@@ -111,7 +111,7 @@ PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey
 CodeStatus = NoCode | AllocatedCode | ConsumedCode
 
 # Dilation only
-PeerConnection = NoPeer | ConnectingPeer | ReconnectingPeer | ConnectedPeer | StoppedPeer
+PeerConnection = NoPeer | ConnectingPeer | ConnectedPeer | ReconnectingPeer | StoppedPeer
 
 
 # NOTE: probably none of the status stuff should ever reveal secret or
