@@ -2,7 +2,6 @@ from itertools import count
 
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThread
-from twisted.trial import unittest
 
 from unittest import mock
 
