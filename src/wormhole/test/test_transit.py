@@ -423,7 +423,7 @@ class MockConnection:
         return self._d
 
 
-def test_describe():
+def test_describe_inbound():
     f = transit.InboundConnectionFactory(None)
     addrH = address.HostnameAddress("example.com", 1234)
     assert f._describePeer(addrH) == "<-example.com:1234"
@@ -436,7 +436,7 @@ def test_describe():
 
 
 @ensureDeferred
-async def test_success():
+async def test_success_inbound():
     f = transit.InboundConnectionFactory("owner")
     f.protocol = MockConnection
     d = f.whenDone()
@@ -447,12 +447,12 @@ async def test_success():
     assert isinstance(p, MockConnection)
     assert p.owner == "owner"
     assert p.relay_handshake is None
-    assert p._start_negotiation_called == False
+    assert not p._start_negotiation_called
     # meh .start
 
     # this is normally called from Connection.connectionMade
     f.connectionWasMade(p)
-    assert p._start_negotiation_called == True
+    assert p._start_negotiation_called
     assert not d.called
     assert p._description == "<-example.com:1234"
 
@@ -500,8 +500,8 @@ async def test_first_success_wins():
 
     p1._d.callback(p1)
     assert await d == p1
-    assert p1._cancelled == False
-    assert p2._cancelled == True
+    assert not p1._cancelled
+    assert p2._cancelled
 
 
 @ensureDeferred
@@ -524,11 +524,11 @@ async def test_cancel():
 
     with pytest.raises(defer.CancelledError):
         await d
-    assert p1._cancelled == True
-    assert p2._cancelled == True
+    assert p1._cancelled
+    assert p2._cancelled
 
 
-def test_success():
+def test_success_outboun():
     f = transit.OutboundConnectionFactory("owner", "relay_handshake",
                                           "description")
     f.protocol = MockConnection
@@ -538,12 +538,12 @@ def test_success():
     assert isinstance(p, MockConnection)
     assert p.owner == "owner"
     assert p.relay_handshake == "relay_handshake"
-    assert p._start_negotiation_called == False
+    assert not p._start_negotiation_called
     # meh .start
 
     # this is normally called from Connection.connectionMade
     f.connectionWasMade(p)  # no-op for outbound
-    assert p._start_negotiation_called == False
+    assert not p._start_negotiation_called
 
 
 class MockOwner:
@@ -601,7 +601,7 @@ def test_check_and_remove():
     assert c.buf == b" exceeded"
 
 
-def test_describe():
+def test_describe_connection():
     c = transit.Connection(None, None, None, "description")
     assert c.describe() == "description"
 
@@ -617,7 +617,7 @@ async def test_sender_accepting():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     owner._state = "go"
@@ -628,12 +628,12 @@ async def test_sender_accepting():
 
     c.dataReceived(b"expect_this")
     assert t.read_buf() == b"go\n"
-    assert t._connected == True
+    assert t._connected
     assert c.state == "records"
     assert await d == c
 
     c.close()
-    assert t._connected == False
+    assert not t._connected
 
 
 @ensureDeferred
@@ -647,7 +647,7 @@ async def test_sender_rejecting():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     owner._state = "nevermind"
@@ -658,7 +658,7 @@ async def test_sender_rejecting():
 
     c.dataReceived(b"expect_this")
     assert t.read_buf() == b"nevermind\n"
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
     with pytest.raises(transit.BadHandshake) as f:
         await d
@@ -675,7 +675,7 @@ async def test_handshake_other_error():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     d = c.startNegotiation()
@@ -685,7 +685,7 @@ async def test_handshake_other_error():
     c.state = RandomError("boom2")
     with pytest.raises(RandomError):
         c.dataReceived(b"surprise!")
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
     with pytest.raises(RandomError):
         await d
@@ -701,7 +701,7 @@ async def test_handshake_bad_state():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     d = c.startNegotiation()
@@ -711,7 +711,7 @@ async def test_handshake_bad_state():
     c.state = "unknown-bogus-state"
     with pytest.raises(ValueError):
         c.dataReceived(b"surprise!")
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
     with pytest.raises(ValueError):
         await d
@@ -728,7 +728,7 @@ async def test_relay_handshake():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
     assert t.read_buf() == b""  # quiet until startNegotiation
 
@@ -761,7 +761,7 @@ async def test_relay_handshake_bad():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
     assert t.read_buf() == b""  # quiet until startNegotiation
 
@@ -771,7 +771,7 @@ async def test_relay_handshake_bad():
     assert c.state == "relay"  # waiting for OK from relay
 
     c.dataReceived(b"not ok\n")
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
 
     with pytest.raises(transit.BadHandshake) as f:
@@ -790,7 +790,7 @@ async def test_receiver_accepted():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     owner._state = "wait-for-decision"
@@ -819,7 +819,7 @@ async def test_receiver_rejected_politely():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     owner._state = "wait-for-decision"
@@ -833,7 +833,7 @@ async def test_receiver_rejected_politely():
     assert not d.called
 
     c.dataReceived(b"nevermind\n")  # polite rejection
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
     with pytest.raises(transit.BadHandshake) as f:
         await d
@@ -851,7 +851,7 @@ async def test_receiver_rejected_rudely():
     t = c.transport = FakeTransport(c, addr)
     c.factory = factory
     c.connectionMade()
-    assert factory._connectionWasMade_called == True
+    assert factory._connectionWasMade_called
     assert factory._p == c
 
     owner._state = "wait-for-decision"
@@ -865,14 +865,14 @@ async def test_receiver_rejected_rudely():
     assert not d.called
 
     t.loseConnection()
-    assert t._connected == False
+    assert not t._connected
     with pytest.raises(transit.BadHandshake) as f:
         await d
     assert str(f.value) == "connection lost"
 
 
 @ensureDeferred
-async def test_cancel():
+async def test_cancel_during_negotiation():
     owner = MockOwner()
     factory = MockFactory()
     addr = address.HostnameAddress("example.com", 1234)
@@ -886,7 +886,7 @@ async def test_cancel():
     # while we're waiting for negotiation, we get cancelled
     d.cancel()
 
-    assert t._connected == False
+    assert not t._connected
     assert c.state == "hung up"
     with pytest.raises(defer.CancelledError):
         await d
@@ -913,7 +913,7 @@ async def test_timeout():
     # while we're waiting for negotiation, the timer expires
     clock.advance(transit.TIMEOUT + 1.0)
 
-    assert t._connected == False
+    assert not t._connected
     with pytest.raises(transit.BadHandshake) as f:
         await d
     assert str(f.value) == "timeout"
@@ -1049,7 +1049,7 @@ async def test_records_corrupt():
         c.dataReceived(encrypted[-2:])
     assert inbound_records == []
     # and the connection should have been dropped
-    assert t._connected == False
+    assert not t._connected
 
 
 @ensureDeferred
@@ -1072,7 +1072,7 @@ async def test_out_of_order_nonce():
         c.dataReceived(encrypted[-2:])
     assert inbound_records == []
     # and the connection should have been dropped
-    assert t._connected == False
+    assert not t._connected
 
 
 # TODO: check that .connectionLost/loseConnection signatures are

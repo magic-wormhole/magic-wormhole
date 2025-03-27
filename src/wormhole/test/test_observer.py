@@ -83,7 +83,7 @@ async def test_error_after_firing():
 
 
 @pytest_twisted.ensureDeferred()
-async def test_fire():
+async def test_fire_multiple():
     c = Clock()
     eq = EventualQueue(c)
     o = SequenceObserver(eq)

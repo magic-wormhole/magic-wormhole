@@ -86,7 +86,7 @@ async def test_delegated(reactor, mailbox):
 
     key1 = w1.derive_key("purpose", 16)
     assert len(key1) == 16
-    assert type(key1) == type(b"")
+    assert type(key1) is type(b"")
     with pytest.raises(TypeError):
         w1.derive_key(b"not unicode", 16)
     with pytest.raises(TypeError):
@@ -97,7 +97,7 @@ async def test_delegated(reactor, mailbox):
 
 
 @ensureDeferred
-async def test_allocate_code(reactor, mailbox):
+async def test_delegate_allocate_code(reactor, mailbox):
     dg = Delegate()
     w1 = wormhole.create(APPID, mailbox.url, reactor, delegate=dg)
     w1.allocate_code()
@@ -106,7 +106,7 @@ async def test_allocate_code(reactor, mailbox):
 
 
 @ensureDeferred
-async def test_input_code(reactor, mailbox):
+async def test_delegate_input_code(reactor, mailbox):
     dg = Delegate()
     w1 = wormhole.create(APPID, mailbox.url, reactor, delegate=dg)
     h = w1.input_code()
@@ -163,7 +163,7 @@ async def test_basic(reactor, mailbox):
 
     key1 = w1.derive_key("purpose", 16)
     assert len(key1) == 16
-    assert type(key1) == type(b"")
+    assert type(key1) is type(b"")
     with pytest.raises(TypeError):
         w1.derive_key(b"not unicode", 16)
     with pytest.raises(TypeError):
@@ -584,7 +584,7 @@ async def test_verifier(reactor, mailbox):
     w2.set_code(code)
     v1 = await w1.get_verifier()  # early
     v2 = await w2.get_verifier()
-    assert type(v1) == type(b"")
+    assert type(v1) is type(b"")
     assert v1 == v2
     w1.send_message(b"data1")
     w2.send_message(b"data2")

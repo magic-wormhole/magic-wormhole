@@ -48,7 +48,7 @@ def create_config():
     return cfg
 
 
-def test_text():
+def test_text_offer():
     cfg = create_config()
     cfg.text = message = "blah blah blah ponies"
     d, fd_to_send = build_offer(cfg)
@@ -60,7 +60,7 @@ def test_text():
     assert fd_to_send is None
 
 
-def test_file(tmpdir_factory):
+def test_file_offer(tmpdir_factory):
     cfg = create_config()
     cfg.what = filename = "my file"
     message = b"yay ponies\n"
@@ -165,11 +165,11 @@ def _do_test_directory(parent_dir, addslash):
                              contents
 
 
-def test_directory(tmpdir_factory):
+def test_directory_simple(tmpdir_factory):
     return _do_test_directory(tmpdir_factory.mktemp("dir"), addslash=False)
 
 
-def test_directory_addslash(tmpdir_factory):
+def test_directory_addslash_simple(tmpdir_factory):
     return _do_test_directory(tmpdir_factory.mktemp("addslash"), addslash=True)
 
 
@@ -183,7 +183,7 @@ def test_unknown(request, tmpdir_factory):
     try:
         os.mkfifo(abs_filename)
     except AttributeError:
-        raise unittest.SkipTest("is mkfifo supported on this platform?")
+        return pytest.skip("is mkfifo supported on this platform?")
 
     # Delete the named pipe for the sake of users who might run "pip
     # wheel ." in this directory later. That command wants to copy
@@ -307,13 +307,13 @@ def wormhole_executable():
     """
     locations = procutils.which("wormhole")
     if not locations:
-        raise unittest.SkipTest("unable to find 'wormhole' in $PATH")
+        return pytest.skip("unable to find 'wormhole' in $PATH")
     wormhole = locations[0]
     if (os.path.dirname(os.path.abspath(wormhole)) != os.path.dirname(
             sys.executable)):
         log.msg("locations: %s" % (locations, ))
         log.msg("sys.executable: %s" % (sys.executable, ))
-        raise unittest.SkipTest(
+        return pytest.skip(
             "found the wrong 'wormhole' in $PATH: %s %s" %
             (wormhole, sys.executable))
     return wormhole

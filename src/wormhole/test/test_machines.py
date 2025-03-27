@@ -156,7 +156,7 @@ def build_receive():
     return r, b, s, events
 
 
-def test_good():
+def test_good_receive():
     r, b, s, events = build_receive()
     key = b"key"
     r.got_key(key)
@@ -255,7 +255,7 @@ def build_key():
     return k, b, m, r, events
 
 
-def test_good():
+def test_good_key():
     k, b, m, r, events = build_key()
     code = u"1-foo"
     k.got_code(code)
@@ -501,7 +501,7 @@ def build_lister():
     return lister, rc, i, events
 
 
-def test_connect_first():
+def test_connect_first_lister():
     lister, rc, i, events = build_lister()
     lister.connected()
     lister.lost()
@@ -624,7 +624,7 @@ def test_allocate_first():
         ("c.allocated", "1", "1-word-word"),
     ]
 
-def test_connect_first():
+def test_connect_first_allocator():
     a, rc, c, events = build_allocator()
     a.connected()
     assert events == []
@@ -697,7 +697,7 @@ def test_set_first():
     n.rx_released()
     assert events == [("t.nameplate_done", )]
 
-def test_connect_first():
+def test_connect_first_nameplate():
     # connection remains up throughout
     n, m, i, rc, t, events = build_nameplate()
     n.connected()
@@ -818,10 +818,12 @@ def test_reconnect_while_done():
     n.connected()
     assert events == []
 
-def test_close_while_idle():
+
+def test_close_while_idle_nameplate():
     n, m, i, rc, t, events = build_nameplate()
     n.close()
     assert events == [("t.nameplate_done", )]
+
 
 def test_close_while_idle_connected():
     n, m, i, rc, t, events = build_nameplate()
@@ -829,6 +831,7 @@ def test_close_while_idle_connected():
     assert events == []
     n.close()
     assert events == [("t.nameplate_done", )]
+
 
 def test_close_while_unclaimed():
     n, m, i, rc, t, events = build_nameplate()
@@ -1063,7 +1066,7 @@ def assert_events(events, initial_events, tx_add_events):
     assert set(events[len(initial_events):]) == tx_add_events
 
 
-def test_connect_first():  # connect before got_mailbox
+def test_connect_first_mailbox():  # connect before got_mailbox
     m, n, rc, o, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
@@ -1172,10 +1175,12 @@ def test_mailbox_first():  # got_mailbox before connect
         ("rc.tx_add", "phase2", b"msg2"),
     })
 
+
 def test_close_while_idle():
     m, n, rc, o, t, events = build_mailbox()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
+
 
 def test_close_while_idle_but_connected():
     m, n, rc, o, t, events = build_mailbox()
@@ -1524,7 +1529,8 @@ def test_set_code_twice():
     with pytest.raises(errors.OnlyOneCodeError):
         b.set_code("1-code")
 
-def test_input_code():
+
+def test_input_code_boss():
     b, events = build_boss()
     b._C.retval = "helper"
     helper = b.input_code()
@@ -1533,7 +1539,8 @@ def test_input_code():
     with pytest.raises(errors.OnlyOneCodeError):
         b.input_code()
 
-def test_allocate_code():
+
+def test_allocate_code_boss():
     b, events = build_boss()
     wl = object()
     with mock.patch("wormhole._boss.PGPWordList", return_value=wl):
@@ -1602,7 +1609,7 @@ def test_websocket_lost():
     def sent_messages(ws):
         for c in ws.mock_calls:
             assert c[0] == "sendMessage", ws.mock_calls
-            assert c[1][1] == False, ws.mock_calls
+            assert not c[1][1]
             yield bytes_to_dict(c[1][0])
 
     assert list(sent_messages(ws)) == [
