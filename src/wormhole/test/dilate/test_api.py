@@ -10,7 +10,7 @@ from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer, ConnectionStatus, PeerSharedKey, CodeStatus
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer, ConnectionStatus, PeerSharedKey, CodeStatus, PeerConnection
 
 from ..common import ServerBase
 
@@ -63,22 +63,21 @@ def assert_dilation_status_order(status_messages):
     """
     for "Dilation"-specific messages, we only analyze the non-wormhole
     status parts and use a similar trick to the above.
-
-    "In general" the peer_connection can go ConnectedPeer back to
-    ConnectingPeer multiple times, but we don't actually do that in
-    this particular test.
     """
     generations = [msg.generation for msg in status_messages]
     # generations must always increase ("sorted" is a stable-sort .. right??)
     assert sorted(generations) == generations, "generation number went backwards"
 
-    peer_sorting = {
-        NoPeer: 1,
-        ConnectingPeer: 2,
-        ConnectedPeer: 3,
-        ReconnectingPeer: 4,
-        StoppedPeer: 5,
-    }
+    # "In general" the peer_connection can go ConnectedPeer back to
+    # ConnectingPeer multiple times, but we don't actually do that in
+    # this particular test.
+    #
+    # shapr points out we could fix this by setting ConnectedPeer and
+    # ReconnectingPeer to the same number -- then they should
+    # stable-sort to the right thing (however, we do not yet have a
+    # test that actually re-connects a peer). e.g.:
+    #     peer_sorting[ReconnectingPeer] = peer_sorting[ConnectedPeer]
+    peer_sorting = _union_sort_order(PeerConnection)
     peers = [msg.peer_connection for msg in status_messages]
     assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
 
