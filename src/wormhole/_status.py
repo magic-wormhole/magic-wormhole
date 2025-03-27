@@ -23,6 +23,13 @@ class Failed:
 
 
 @frozen
+class Closed:
+    """
+    We have purposely shut down our connection to the server
+    """
+
+
+@frozen
 class NoPeer:
     pass
 
@@ -83,7 +90,7 @@ class ConsumedCode:
 
 
 # General mailbox statuses
-ConnectionStatus = Disconnected | Connecting | Connected | Failed
+ConnectionStatus = Disconnected | Connecting | Connected | Failed | Closed
 PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey
 CodeStatus = NoCode | AllocatedCode | ConsumedCode
 

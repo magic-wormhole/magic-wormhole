@@ -9,7 +9,7 @@ from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer
 
 from ..common import ServerBase
 

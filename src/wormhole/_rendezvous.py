@@ -11,7 +11,7 @@ from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
                    dict_to_bytes, provides)
 
-from ._status import Disconnected, Connecting, Connected
+from ._status import Disconnected, Connecting, Connected, Closed
 
 
 class WSClient(websocket.WebSocketClientProtocol):
@@ -229,7 +229,6 @@ class RendezvousConnector(object):
             raise
 
     def ws_close(self, wasClean, code, reason):
-        self._evolve_status(mailbox_connection=Disconnected())
         self._debug("R.lost")
         was_open = bool(self._ws)
         self._ws = None
