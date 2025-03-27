@@ -105,6 +105,11 @@ class ConsumedCode:
     """
 
 
+# note that the tests (e.g. test_api.py) leverage the order of these
+# types inside the Unions, so that we don't have to separately
+# enumerate the expected order (and then also ensure we don't miss any)
+
+
 # General mailbox statuses
 ConnectionStatus = Disconnected | Connecting | Connected | Failed | Closed
 PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey

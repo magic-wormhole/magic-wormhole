@@ -20,6 +20,8 @@ def _union_sort_order(union_klass):
     Convert a Union type into a dict mapping its members to a number
     representing their order in the original type
     """
+    # note: we want these to be in the same order as in the _status
+    # Union-type declarations
     return {
         klass: idx
         for idx, klass in enumerate(typing.get_args(union_klass))
