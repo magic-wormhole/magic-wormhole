@@ -2,7 +2,7 @@
 from attrs import define
 from click.testing import CliRunner
 from twisted.application import internet, service
-from twisted.internet import defer, endpoints, reactor, task, protocol
+from twisted.internet import defer, endpoints, reactor, protocol
 from twisted.python import log
 
 from unittest import mock

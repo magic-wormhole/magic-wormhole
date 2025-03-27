@@ -3,7 +3,6 @@ import re
 
 from twisted.internet.defer import gatherResults
 from twisted.internet.error import ConnectionRefusedError
-from twisted.trial import unittest
 
 from unittest import mock
 from pytest_twisted import ensureDeferred
