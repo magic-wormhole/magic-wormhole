@@ -19,7 +19,7 @@ from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._send import Send
-from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey
+from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey, Closed
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
@@ -398,6 +398,12 @@ class Boss(object):
         )
 
     @m.output()
+    def send_status_closed(self):
+        self._evolve_wormhole_status(
+            mailbox_connection=Closed(),
+        )
+
+    @m.output()
     def W_got_verifier(self, verifier):
         self._W.got_verifier(verifier)
 
@@ -435,7 +441,7 @@ class Boss(object):
     S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
@@ -444,7 +450,7 @@ class Boss(object):
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
@@ -455,7 +461,7 @@ class Boss(object):
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S3_closing.upon(rx_unwelcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
@@ -467,8 +473,8 @@ class Boss(object):
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
-    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
-    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed, send_status_closed])
+    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S4_closed.upon(rx_unwelcome, enter=S4_closed, outputs=[])
     S4_closed.upon(got_verifier, enter=S4_closed, outputs=[])
