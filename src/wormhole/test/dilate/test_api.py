@@ -3,15 +3,27 @@ from twisted.trial import unittest
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 from attrs import evolve
+import typing
 
 
 from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer, ConnectionStatus, PeerSharedKey, CodeStatus
 
 from ..common import ServerBase
+
+
+def _union_sort_order(union_klass):
+    """
+    Convert a Union type into a dict mapping its members to a number
+    representing their order in the original type
+    """
+    return {
+        klass: idx
+        for idx, klass in enumerate(typing.get_args(union_klass))
+    }
 
 
 def assert_mailbox_status_order(status_messages):
@@ -27,23 +39,9 @@ def assert_mailbox_status_order(status_messages):
     messages by that, and assert that this sorted order is the same as
     the raw message order.
     """
-    code_sorting = {
-        NoCode: 1,
-        AllocatedCode: 2,
-        ConsumedCode: 3,
-    }
-    key_sorting = {
-        NoKey: 1,
-        AllegedSharedKey: 2,
-        ConfirmedKey: 3,
-    }
-    mailbox_sorting = {
-        Disconnected: 1,
-        Connecting: 2,
-        Connected: 3,
-        Failed: 4,
-        Closed: 5,
-    }
+    code_sorting = _union_sort_order(CodeStatus)
+    key_sorting = _union_sort_order(PeerSharedKey)
+    mailbox_sorting = _union_sort_order(ConnectionStatus)
 
     code_messages = [st.code for st in status_messages]
     acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
