@@ -23,7 +23,7 @@ from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
 from .._status import (DilationStatus, WormholeStatus,
-                       NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer,
+                       ConnectedPeer, ConnectingPeer, ReconnectingPeer, StoppedPeer,
                        )
 
 
@@ -807,15 +807,15 @@ class Manager(object):
                 generation=dilation_generation,
             )
         )
+
     @m.output()
     def send_status_stopped(self):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=NoPeer(),
+                peer_connection=StoppedPeer(),
             )
         )
-
 
     # We are born WAITING after the local app calls w.dilate(). We enter
     # WANTING (and send a PLEASE) when we learn of a mutually-compatible
@@ -838,12 +838,14 @@ class Manager(object):
     # if we notice a lost connection, just wait for the Leader to notice too
     CONNECTED.upon(connection_lost_follower, enter=LONELY, outputs=[])
     LONELY.upon(rx_RECONNECT, enter=CONNECTING,
-                outputs=[send_reconnecting, start_connecting, send_status_dilation_generation, send_status_reconnecting])
+                outputs=[send_reconnecting, start_connecting,
+                         send_status_dilation_generation, send_status_reconnecting])
     # but if they notice it first, abandon our (seemingly functional)
     # connection, then tell them that we're ready to try again
     CONNECTED.upon(rx_RECONNECT, enter=ABANDONING, outputs=[abandon_connection])
     ABANDONING.upon(connection_lost_follower, enter=CONNECTING,
-                    outputs=[send_reconnecting, start_connecting, send_status_dilation_generation, send_status_reconnecting])
+                    outputs=[send_reconnecting, start_connecting,
+                             send_status_dilation_generation, send_status_reconnecting])
     # and if they notice a problem while we're still connecting, abandon our
     # incomplete attempt and try again. in this case we don't have to wait
     # for a connection to finish shutdown
@@ -890,8 +892,6 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
-    # zero-arg callable that retrieves the current Mailbox status
-    _get_current_mailbox_status = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None

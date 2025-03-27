@@ -1,17 +1,90 @@
+
 from twisted.internet import reactor
 from twisted.trial import unittest
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
-from attrs import evolve
+import typing
 
 
 from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer
+from ..._status import (
+    Disconnected, ConnectedPeer, Closed, ConnectionStatus, PeerSharedKey,
+    CodeStatus, PeerConnection
+)
 
 from ..common import ServerBase
+
+
+def _union_sort_order(union_klass):
+    """
+    Convert a Union type into a dict mapping its members to a number
+    representing their order in the original type
+    """
+    # note: we want these to be in the same order as in the _status
+    # Union-type declarations
+    return {
+        klass: idx
+        for idx, klass in enumerate(typing.get_args(union_klass))
+    }
+
+
+def assert_mailbox_status_order(status_messages):
+    """
+    Confirm the given status messages have the correct properties.
+
+    Here we want to assert that individual status items "go the right
+    way": that is, for most of these things we know that you can't go
+    back to "AllegedSharedKey" after seeing a "ConfirmedKey" (for
+    example).
+
+    So what we do is make a sort-order for each status field, sort the
+    messages by that, and assert that this sorted order is the same as
+    the raw message order.
+    """
+    code_sorting = _union_sort_order(CodeStatus)
+    key_sorting = _union_sort_order(PeerSharedKey)
+    mailbox_sorting = _union_sort_order(ConnectionStatus)
+
+    code_messages = [st.code for st in status_messages]
+    acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
+    assert acceptable_order == code_messages, "'code' status came in an illegal order"
+
+    key_messages = [st.peer_key for st in status_messages]
+    assert sorted(key_messages, key=lambda k: key_sorting[type(k)]) == key_messages
+
+    # "in general" we can go from Connected back to Connecting,
+    # but for this particular test we don't actually do that
+    mailbox_messages = [st.mailbox_connection for st in status_messages]
+    assert sorted(mailbox_messages, key=lambda k: mailbox_sorting[type(k)]) == mailbox_messages
+    # initial and terminal status must be correct
+    assert isinstance(mailbox_messages[0], Disconnected)
+    assert isinstance(mailbox_messages[-1], Closed)
+
+
+def assert_dilation_status_order(status_messages):
+    """
+    for "Dilation"-specific messages, we only analyze the non-wormhole
+    status parts and use a similar trick to the above.
+    """
+    generations = [msg.generation for msg in status_messages]
+    # generations must always increase ("sorted" is a stable-sort .. right??)
+    assert sorted(generations) == generations, "generation number went backwards"
+
+    # "In general" the peer_connection can go ConnectedPeer back to
+    # ConnectingPeer multiple times, but we don't actually do that in
+    # this particular test.
+    #
+    # shapr points out we could fix this by setting ConnectedPeer and
+    # ReconnectingPeer to the same number -- then they should
+    # stable-sort to the right thing (however, we do not yet have a
+    # test that actually re-connects a peer). e.g.:
+    #     peer_sorting[ReconnectingPeer] = peer_sorting[ConnectedPeer]
+    peer_sorting = _union_sort_order(PeerConnection)
+    peers = [msg.peer_connection for msg in status_messages]
+    assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
 
 
 class API(ServerBase, unittest.TestCase):
@@ -108,60 +181,14 @@ class API(ServerBase, unittest.TestCase):
         yield w0.close()
         yield w1.close()
 
-        # check that the wormhole status messages are what we expect
-        def normalize_timestamp(status):
-            if isinstance(status.mailbox_connection, Connecting):
-                return evolve(
-                    status,
-                    mailbox_connection=evolve(status.mailbox_connection, last_attempt=1),
-                )
-            return status
+        # analyze the message orders
 
-        processed = [
-            normalize_timestamp(status)
-            for status in wormhole_status0
-        ]
+        assert_mailbox_status_order(wormhole_status0)
+        assert_mailbox_status_order(wormhole_status1)
 
-        self.assertEqual(
-            processed,
-            [
-                WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
-                WormholeStatus(Connected(self.relayurl), NoKey()),
-                WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
-                WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
-                WormholeStatus(Disconnected(), NoKey()),
-            ]
-        )
+        assert_dilation_status_order(status0)
+        assert_dilation_status_order(status1)
 
-        # we are "normalizing" all the timestamps to be "0" because we
-        # are using the real reactor and therefore it is difficult to
-        # predict what they'll be. Removing the "real reactor" is
-        # itself kind of a deep problem due to the "eventually()"
-        # usage (among some other reasons).
+        # todo: we could expand these to timestamps: we know they
+        # should never go backwards
 
-        def normalize_peer(st):
-            typ = type(st.peer_connection)
-            peer = st.peer_connection
-            if typ == ConnectingPeer:
-                peer = evolve(peer, last_attempt=0)
-            elif typ == ConnectedPeer:
-                peer = evolve(peer, connected_at=0, expires_at=0, hint_description="hint")
-            return evolve(st, peer_connection=peer)
-
-        normalized = [normalize_peer(st) for st in status0]
-
-        # for n in normalized: print(n)
-
-        # check that the Dilation status messages are correct
-        self.assertEqual(
-            normalized,
-            [
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectingPeer(0)),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
-            ]
-        )
