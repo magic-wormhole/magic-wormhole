@@ -122,7 +122,32 @@ class API(ServerBase, unittest.TestCase):
             for status in wormhole_status0
         ]
 
+        # instead of insisting on a specific message order for all
+        # messages, what we want to assert here is about the ordering
+        # of individual status-states
+        #
+        # that is, "code" can go from NoCode -> AllocatedCode (and
+        # then to ConsumedCode) but never "backwards"
+
         # for n in processed: print(n)
+
+        code_messages = [
+            st.code
+            for st in processed
+        ]
+
+        code_sorting = {
+            NoCode: 1,
+            AllocatedCode: 2,
+            ConsumedCode: 3,
+        }
+
+        acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
+        assert acceptable_order == code_messages, "'code' status came in an illegal order"
+
+        # haskell / enum idea: sort these things, by assigning numbers
+        # NoCode = 1, AllocatedCode = 2, ConsumedCode = 3 (for example)
+        return
 
         # order of some stuff depends on "something"
         # is it "who is leader?"
