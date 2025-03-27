@@ -14,6 +14,47 @@ from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKe
 from ..common import ServerBase
 
 
+def assert_mailbox_status_order(status_messages):
+    """
+    Confirm the given status messages have the correct properties.
+
+    That is, none of the fields "go backwards" in their state.
+    """
+    code_sorting = {
+        NoCode: 1,
+        AllocatedCode: 2,
+        ConsumedCode: 3,
+    }
+    key_sorting = {
+        NoKey: 1,
+        AllegedSharedKey: 2,
+        ConfirmedKey: 3,
+    }
+    mailbox_sorting = {
+        Disconnected: 1,
+        Connecting: 2,
+        Connected: 3,
+        Failed: 4,
+        Closed: 5,
+    }
+
+    code_messages = [st.code for st in status_messages]
+    acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
+    assert acceptable_order == code_messages, "'code' status came in an illegal order"
+
+    key_messages = [st.peer_key for st in status_messages]
+    assert sorted(key_messages, key=lambda k: key_sorting[type(k)]) == key_messages
+
+    # "in general" we can go from Connected back to Connecting,
+    # but for this particular test we don't actually do that
+    mailbox_messages = [st.mailbox_connection for st in status_messages]
+    assert sorted(mailbox_messages, key=lambda k: mailbox_sorting[type(k)]) == mailbox_messages
+    # initial and terminal status must be correct
+    assert isinstance(mailbox_messages[0], Disconnected)
+    assert isinstance(mailbox_messages[-1], Closed)
+
+
+
 class API(ServerBase, unittest.TestCase):
 
     @inlineCallbacks
@@ -120,38 +161,8 @@ class API(ServerBase, unittest.TestCase):
         # we can do the same thing for times, too: timestamps can
         # never go backwards.
 
-        code_sorting = {
-            NoCode: 1,
-            AllocatedCode: 2,
-            ConsumedCode: 3,
-        }
-        key_sorting = {
-            NoKey: 1,
-            AllegedSharedKey: 2,
-            ConfirmedKey: 3,
-        }
-        mailbox_sorting = {
-            Disconnected: 1,
-            Connecting: 2,
-            Connected: 3,
-            Failed: 4,
-            Closed: 5,
-        }
-
-        code_messages = [st.code for st in wormhole_status0]
-        acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
-        assert acceptable_order == code_messages, "'code' status came in an illegal order"
-
-        key_messages = [st.peer_key for st in wormhole_status0]
-        assert sorted(key_messages, key=lambda k: key_sorting[type(k)]) == key_messages
-
-        # "in general" we can go from Connected back to Connecting,
-        # but for this particular test we don't actually do that
-        mailbox_messages = [st.mailbox_connection for st in wormhole_status0]
-        assert sorted(mailbox_messages, key=lambda k: mailbox_sorting[type(k)]) == mailbox_messages
-        # initial and terminal status must be correct
-        assert isinstance(mailbox_messages[0], Disconnected)
-        assert isinstance(mailbox_messages[-1], Closed)
+        assert_mailbox_status_order(wormhole_status0)
+        assert_mailbox_status_order(wormhole_status1)
 
         # we could analyze any message with a timestamp and assert
         # that it keeps advancing (>= last one)
