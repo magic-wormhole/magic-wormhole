@@ -58,9 +58,9 @@ Delegated mode:
 
    class MyDelegate:
        def wormhole_got_code(self, code):
-	   print("code: %s" % code)
+           print("code: %s" % code)
        def wormhole_got_message(self, msg): # called for each message
-	   print("got data, %d bytes" % len(msg))
+           print("got data, %d bytes" % len(msg))
 
    w = wormhole.create(appid, relay_url, reactor, delegate=MyDelegate())
    w.allocate_code()
@@ -393,7 +393,7 @@ the entry process:
        w = wormhole.create(appid, relay_url, reactor)
        welcome = await w.get_welcome()
        if "motd" in welcome:
-	   print(welcome["motd"])
+           print(welcome["motd"])
        input_with_completion("Wormhole code:", w.input_code(), reactor)
        ...
 
@@ -688,33 +688,33 @@ subchannel.
 
    def FileSendingProtocol(internet.Protocol):
        def __init__(self, metadata, filename):
-	   self.file_metadata = metadata
-	   self.file_name = filename
+           self.file_metadata = metadata
+           self.file_name = filename
        def connectionMade(self):
-	   self.transport.write(self.file_metadata)
-	   sender = protocols.basic.FileSender()
-	   f = open(self.file_name,"rb")
-	   d = sender.beginFileTransfer(f, self.transport)
-	   d.addBoth(self._done, f)
+           self.transport.write(self.file_metadata)
+           sender = protocols.basic.FileSender()
+           f = open(self.file_name,"rb")
+           d = sender.beginFileTransfer(f, self.transport)
+           d.addBoth(self._done, f)
        def _done(res, f):
-	   self.transport.loseConnection()
-	   f.close()
+           self.transport.loseConnection()
+           f.close()
    def _send(metadata, filename):
        f = protocol.ClientCreator(reactor,
-				  FileSendingProtocol, metadata, filename)
+                                  FileSendingProtocol, metadata, filename)
        subchannel_client_ep.connect(f)
    def FileReceivingProtocol(internet.Protocol):
        state = INITIAL
        def dataReceived(self, data):
-	   if state == INITIAL:
-	       self.state = DATA
-	       metadata = parse(data)
-	       self.f = open(metadata.filename, "wb")
-	   else:
-	       # local file writes are blocking, so don't bother with IConsumer
-	       self.f.write(data)
+           if state == INITIAL:
+               self.state = DATA
+               metadata = parse(data)
+               self.f = open(metadata.filename, "wb")
+           else:
+               # local file writes are blocking, so don't bother with IConsumer
+               self.f.write(data)
        def connectionLost(self, reason):
-	   self.f.close()
+           self.f.close()
    def _dilated(res):
        (control_channel_ep, subchannel_client_ep, subchannel_server_ep) = res
        f = Factory(FileReceivingProtocol)
@@ -743,32 +743,41 @@ Other (human-facing) values are always unicode (“unicode” in python2,
 Full API list
 -------------
 
-+----------------------------------+--------------------------+-------------------------------------+
-| action                           | Deferred-Mode            | Delegated-Mode                      |
-+==================================+==========================+=====================================+
-| .                                | d=w.get_welcome()        | dg.wormhole_got_welcome(welcome)    |
-+----------------------------------+--------------------------+-------------------------------------+
-| w.allocate_code()                |                          |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
-| h=w.input_code()                 |                          |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
-| w.set_code(code)                 |                          |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.get_code()           | dg.wormhole_got_code(code)          |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.get_unverified_key() | dg.wormhole_got_unverified_key(key) |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.get_verifier()       | dg.wormhole_got_verifier(verifier)  |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.get_versions()       | dg.wormhole_got_versions(versions)  |
-+----------------------------------+--------------------------+-------------------------------------+
-| key=w.derive_key(purpose,length) |                          |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
-|       w.send_message(msg)        |                          |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.get_message()        | dg.wormhole_got_message(msg)        |
-+----------------------------------+--------------------------+-------------------------------------+
-| w.close()                        |                          | dg.wormhole_closed(result)          |
-+----------------------------------+--------------------------+-------------------------------------+
-| .                                | d=w.close()              |                                     |
-+----------------------------------+--------------------------+-------------------------------------+
++----------------------+----------------------+----------------------+
+| action               | Deferred-Mode        | Delegated-Mode       |
++======================+======================+======================+
+| .                    | d=w.get_welcome()    | dg.wormhole_         |
+|                      |                      | got_welcome(welcome) |
++----------------------+----------------------+----------------------+
+| w.allocate_code()    |                      |                      |
++----------------------+----------------------+----------------------+
+| h=w.input_code()     |                      |                      |
++----------------------+----------------------+----------------------+
+| w.set_code(code)     |                      |                      |
++----------------------+----------------------+----------------------+
+| .                    | d=w.get_code()       | dg.wor               |
+|                      |                      | mhole_got_code(code) |
++----------------------+----------------------+----------------------+
+| .                    | d=w.                 | dg.wormhole_got      |
+|                      | get_unverified_key() | _unverified_key(key) |
++----------------------+----------------------+----------------------+
+| .                    | d=w.get_verifier()   | dg.wormhole_go       |
+|                      |                      | t_verifier(verifier) |
++----------------------+----------------------+----------------------+
+| .                    | d=w.get_versions()   | dg.wormhole_go       |
+|                      |                      | t_versions(versions) |
++----------------------+----------------------+----------------------+
+| key=w                |                      |                      |
+| .derive_key(purpose, |                      |                      |
+| length)              |                      |                      |
++----------------------+----------------------+----------------------+
+| w.send_message(msg)  |                      |                      |
++----------------------+----------------------+----------------------+
+| .                    | d=w.get_message()    | dg.wormh             |
+|                      |                      | ole_got_message(msg) |
++----------------------+----------------------+----------------------+
+| w.close()            |                      | dg.wor               |
+|                      |                      | mhole_closed(result) |
++----------------------+----------------------+----------------------+
+| .                    | d=w.close()          |                      |
++----------------------+----------------------+----------------------+
