@@ -46,14 +46,36 @@ application-visible subchannels.
 Versions and can-dilate
 -----------------------
 
-The Wormhole protocol includes a ``versions`` message sent immediately
+The Wormhole protocol includes a ``version`` message sent immediately
 after the shared PAKE key is established. This also serves as a
 key-confirmation message, allowing each side to confirm that the other
-side knows the right key. The body of the ``versions`` message is a
+side knows the right key. The body of the ``version`` message is a
 JSON-formatted string with keys that are available for learning the
 abilities of the peer. Dilation is signaled by a key named
 ``can-dilate``, whose value is a list of strings. Any version present in
 both side’s lists is eligible for use.
+
+Official versions shall be named after wizard or mage characters from
+the `Earthsea
+<https://en.wikipedia.org/wiki/List_of_characters_in_Earthsea>`_
+series by Ursula le Guin. The current list of valid, supported
+versions is:
+
+- ``"ged"``: the first version
+
+.. seqdiag::
+
+    seqdiag wormhole {
+        Ayo; Mailbox; Brand;
+        Ayo -> Brand [label="pake", color=blue]
+        Ayo <- Brand [label="pake", color=darkgreen]
+        === provisional key established ===
+        Ayo <- Brand [label="version:\n can-dilate=[highdrake, ged]", color=darkgreen];
+        Ayo -> Brand [label="version:\n can-dilate=[ged]", color=blue];
+
+    }
+
+
 
 Leaders and Followers
 ---------------------
@@ -66,7 +88,7 @@ side with the lexicographically-higher “side” value is named the
 wormhole protocol treats both sides identically, but the distinction
 matters for the Dilation protocol. Both sides send a ``please`` as soon
 as Dilation is triggered. Each side discovers whether it is the Leader
-or the Follower when the peer’s “please” arrives. The Leader has
+or the Follower when the peer’s ``please`` arrives. The Leader has
 exclusive control over whether a given connection is considered
 established or not: if there are multiple potential connections to use,
 the Leader decides which one to use, and the Leader gets to decide when
@@ -75,12 +97,36 @@ new one).
 
 The ``please`` includes a ``use-version`` key, computed as the “best”
 version of the intersection of the two sides’ abilities as reported in
-the ``versions`` message. Both sides will use whichever ``use-version``
-was specified by the Leader (they learn which side is the Leader at the
-same moment they learn the peer’s ``use-version`` value). If the
-Follower cannot handle the ``use-version`` value, Dilation fails (this
-should not happen with honest endpoints, as the Leader knew what the
-Follower was and was not capable of before sending that message).
+the ``versions`` message. Both sides will use whichever
+``use-version`` was specified by the Leader (they learn which side is
+the Leader at the same moment they learn the peer’s ``use-version``
+value). If the Follower cannot handle the ``use-version`` value,
+Dilation fails (this should not happen with honest endpoints, as the
+Leader knew what the Follower was and was not capable of before
+sending that message).
+
+In the example below, ``Brand`` has an experimental version available
+in highest position, but ``Ayo`` does not understand that version so they
+both pick ``"ged"`` as the version to use.
+
+.. seqdiag::
+
+    seqdiag wormhole {
+    Ayo; Mailbox; Brand;
+
+        Ayo -> Brand [label="version:\n can-dilate=[ged]", color=blue];
+        Ayo <- Brand [label="version:\n can-dilate=[experiment, ged]", color=darkgreen];
+
+        === have key-confirmation + versions\ndilate() has been called ===
+
+        Ayo -> Brand [label="dilate-0:\n type=please\n side=214fdf39e7ad016f\n use-version=ged", color=blue];
+        Ayo <- Brand [label="dilate-1:\n type=please\n side=ff36f931f560e7f5\n use-version=ged", color=darkgreen];
+    }
+
+In this illustration, Brand is the leader because their "side" value is higher (that is, ``ff36f931f560e7f5`` is bigger than ``214fdf39e7ad016f``).
+They both chose the version ``"ged"`` in this case, but if there was disagreement, the Leader's decision wins.
+It is a protocol error if the Follower cannot speak the chosen version (and they should immediately close the Mailbox and disconnect).
+
 
 Connection Layers
 -----------------
