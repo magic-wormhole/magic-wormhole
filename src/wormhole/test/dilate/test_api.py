@@ -18,7 +18,14 @@ def assert_mailbox_status_order(status_messages):
     """
     Confirm the given status messages have the correct properties.
 
-    That is, none of the fields "go backwards" in their state.
+    Here we want to assert that individual status items "go the right
+    way": that is, for most of these things we know that you can't go
+    back to "AllegedSharedKey" after seeing a "ConfirmedKey" (for
+    example).
+
+    So what we do is make a sort-order for each status field, sort the
+    messages by that, and assert that this sorted order is the same as
+    the raw message order.
     """
     code_sorting = {
         NoCode: 1,
@@ -53,6 +60,28 @@ def assert_mailbox_status_order(status_messages):
     assert isinstance(mailbox_messages[0], Disconnected)
     assert isinstance(mailbox_messages[-1], Closed)
 
+
+def assert_dilation_status_order(status_messages):
+    """
+    for "Dilation"-specific messages, we only analyze the non-wormhole
+    status parts and use a similar trick to the above.
+
+    "In general" the peer_connection can go ConnectedPeer back to
+    ConnectingPeer multiple times, but we don't actually do that in
+    this particular test.
+    """
+    generations = [msg.generation for msg in status_messages]
+    # generations must always increase ("sorted" is a stable-sort .. right??)
+    assert sorted(generations) == generations, "generation number went backwards"
+
+    peer_sorting = {
+        NoPeer: 1,
+        ConnectingPeer: 2,
+        ConnectedPeer: 3,
+        StoppedPeer: 4,
+    }
+    peers = [msg.peer_connection for msg in status_messages]
+    assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
 
 
 class API(ServerBase, unittest.TestCase):
@@ -149,39 +178,14 @@ class API(ServerBase, unittest.TestCase):
         yield w0.close()
         yield w1.close()
 
-        # here we want to assert that individual status items "go the
-        # right way": that is, for most of these things we know that
-        # you can't go back to "AllegedSharedKey" after seeing a
-        # "ConfirmedKey" (for example).
-        #
-        # so what we do is make a sort-order for each thing, sort the
-        # messages by that, and assert that this sorted order is the
-        # same as the raw messages.
-        #
-        # we can do the same thing for times, too: timestamps can
-        # never go backwards.
+        # analyze the message orders
 
         assert_mailbox_status_order(wormhole_status0)
         assert_mailbox_status_order(wormhole_status1)
 
-        # we could analyze any message with a timestamp and assert
-        # that it keeps advancing (>= last one)
+        assert_dilation_status_order(status0)
+        assert_dilation_status_order(status1)
 
-        # for "Dilation"-specific messages, we only analyze the
-        # non-wormhole status parts and use a similar trick to the
-        # above. "In general" the peer_connection can go ConnectedPeer
-        # back to ConnectingPeer multiple times, but we don't actually
-        # do that in this particular test.
+        # todo: we could expand these to timestamps: we know they
+        # should never go backwards
 
-        generations = [msg.generation for msg in status0]
-        # generations must always increase ("sorted" is a stable-sort .. right??)
-        assert sorted(generations) == generations, "generation number went backwards"
-
-        peer_sorting = {
-            NoPeer: 1,
-            ConnectingPeer: 2,
-            ConnectedPeer: 3,
-            StoppedPeer: 4,
-        }
-        peers = [msg.peer_connection for msg in status0]
-        assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
