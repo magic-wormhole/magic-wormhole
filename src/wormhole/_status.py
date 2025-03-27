@@ -31,16 +31,32 @@ class Closed:
 
 @frozen
 class NoPeer:
-    pass
+    """
+    We have yet to see a peer
+    """
+
+
+@frozen
+class StoppedPeer:
+    """
+    We have disconnected from the peer (probably on purpose)
+    """
 
 
 @frozen
 class ConnectingPeer:
+    """
+    We are actively trying to connect to a peer
+    """
     last_attempt: int  # unix-timestamp
 
 
 @frozen
 class ReconnectingPeer:
+    """
+    We are actively trying to connect to a peer.
+    In contract to `ConnectingPeer`, we've already reached our peer at least once.
+    """
     last_attempt: int  # unix-timestamp
 
 
@@ -95,7 +111,7 @@ PeerSharedKey = NoKey | AllegedSharedKey | ConfirmedKey
 CodeStatus = NoCode | AllocatedCode | ConsumedCode
 
 # Dilation only
-PeerConnection = NoPeer | ConnectingPeer | ConnectedPeer
+PeerConnection = NoPeer | ConnectingPeer | ReconnectingPeer | ConnectedPeer | StoppedPeer
 
 
 # NOTE: probably none of the status stuff should ever reveal secret or

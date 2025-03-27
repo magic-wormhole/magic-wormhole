@@ -23,7 +23,7 @@ from .connection import KCM, Ping, Pong, Open, Data, Close, Ack
 from .inbound import Inbound
 from .outbound import Outbound
 from .._status import (DilationStatus, WormholeStatus,
-                       NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer,
+                       NoPeer, ConnectedPeer, ConnectingPeer, ReconnectingPeer, StoppedPeer,
                        )
 
 
@@ -832,7 +832,7 @@ class Manager(object):
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                peer_connection=NoPeer(),
+                peer_connection=StoppedPeer(),
             )
         )
 
