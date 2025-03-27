@@ -11,7 +11,7 @@ from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
                    dict_to_bytes, provides)
 
-from ._status import Disconnected, Connecting, Connected, Closed
+from ._status import Connecting, Connected
 
 
 class WSClient(websocket.WebSocketClientProtocol):

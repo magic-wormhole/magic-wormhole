@@ -160,7 +160,6 @@ class Nameplate(object):
     def T_nameplate_done(self):
         self._T.nameplate_done()
 
-
     @m.output()
     def send_status_code_allocated(self):
         self._evolve_wormhole_status(

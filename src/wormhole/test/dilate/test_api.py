@@ -1,8 +1,8 @@
+
 from twisted.internet import reactor
 from twisted.trial import unittest
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
-from attrs import evolve
 import typing
 
 
@@ -10,7 +10,10 @@ from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer, ConnectionStatus, PeerSharedKey, CodeStatus, PeerConnection
+from ..._status import (
+    Disconnected, ConnectedPeer, Closed, ConnectionStatus, PeerSharedKey,
+    CodeStatus, PeerConnection
+)
 
 from ..common import ServerBase
 
