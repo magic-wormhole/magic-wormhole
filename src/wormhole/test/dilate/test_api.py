@@ -9,7 +9,7 @@ from ...wormhole import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer
+from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer, NoCode, AllocatedCode, ConsumedCode, Failed, Closed, StoppedPeer, ReconnectingPeer
 
 from ..common import ServerBase
 
@@ -78,7 +78,8 @@ def assert_dilation_status_order(status_messages):
         NoPeer: 1,
         ConnectingPeer: 2,
         ConnectedPeer: 3,
-        StoppedPeer: 4,
+        ReconnectingPeer: 4,
+        StoppedPeer: 5,
     }
     peers = [msg.peer_connection for msg in status_messages]
     assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
