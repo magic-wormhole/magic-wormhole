@@ -1,9 +1,9 @@
 import zope.interface
-from twisted.trial import unittest
 from attr import Attribute
 from attr._make import NOTHING
 from wormhole.util import provides
 
+import pytest
 
 class IFoo(zope.interface.Interface):
     """
@@ -32,42 +32,37 @@ def simple_attr(name):
     )
 
 
-class TestProvides(unittest.TestCase):
+def test_success():
     """
-    Tests for `provides`.
+    Nothing happens if value provides requested interface.
     """
 
-    def test_success(self):
-        """
-        Nothing happens if value provides requested interface.
-        """
+    @zope.interface.implementer(IFoo)
+    class C(object):
+        def f(self):
+            pass
 
-        @zope.interface.implementer(IFoo)
-        class C(object):
-            def f(self):
-                pass
+    v = provides(IFoo)
+    v(None, simple_attr("x"), C())
 
-        v = provides(IFoo)
-        v(None, simple_attr("x"), C())
+def test_fail():
+    """
+    Raises `TypeError` if interfaces isn't provided by value.
+    """
+    value = object()
+    a = simple_attr("x")
 
-    def test_fail(self):
-        """
-        Raises `TypeError` if interfaces isn't provided by value.
-        """
-        value = object()
-        a = simple_attr("x")
+    v = provides(IFoo)
+    with pytest.raises(TypeError):
+        v(None, a, value)
 
-        v = provides(IFoo)
-        with self.assertRaises(TypeError):
-            v(None, a, value)
-
-    def test_repr(self):
-        """
-        Returned validator has a useful `__repr__`.
-        """
-        v = provides(IFoo)
-        assert (
-            "<provides validator for interface {interface!r}>".format(
-                interface=IFoo
-            )
-        ) == repr(v)
+def test_repr():
+    """
+    Returned validator has a useful `__repr__`.
+    """
+    v = provides(IFoo)
+    assert (
+        "<provides validator for interface {interface!r}>".format(
+            interface=IFoo
+        )
+    ) == repr(v)
