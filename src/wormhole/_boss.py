@@ -53,6 +53,11 @@ class Boss(object):
         self._current_wormhole_status = WormholeStatus()
         self._build_workers()
         self._init_other_state()
+        # make sure our listener gets the "initial" state; normally we
+        # only send updates when we evolve() away from this initial
+        # state
+        if self._on_status_update is not None:
+            self._on_status_update(self._current_wormhole_status)
 
     def _build_workers(self):
         self._N = Nameplate(self._evolve_wormhole_status)
@@ -107,7 +112,7 @@ class Boss(object):
         # before anyone asks for Dilation at all
         status = evolve(self._current_wormhole_status, **kwargs)
         if self._on_status_update is not None:
-            self._on_status_update(self._current_wormhole_status)
+            self._on_status_update(status)
         # ...and so we might not even _have_ anything Dilation related yet
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)

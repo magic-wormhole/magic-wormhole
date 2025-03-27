@@ -123,7 +123,7 @@ class _DelegatedWormhole(object):
 
 @implementer(IWormhole, IDeferredWormhole)
 class _DeferredWormhole(object):
-    def __init__(self, reactor, eq, _enable_dilate=False, _on_status_update=None):
+    def __init__(self, reactor, eq, _enable_dilate=False):
         self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
@@ -134,16 +134,11 @@ class _DeferredWormhole(object):
         self._received_observer = SequenceObserver(eq)
         self._closed = False
         self._closed_observer = OneShotObserver(eq)
-        # this will receive "WormholeStatus" updates, whereas the
-        # .dilate(..., on_status_update=) receives dilation updates
-        # (so effectively both)
-        self._on_status_update = _on_status_update  # Callable[[WormholeStatus], None]
 
         self._enable_dilate = _enable_dilate
 
     def _set_boss(self, boss):
         self._boss = boss
-        self._boss._on_status_update = self._on_status_update
 
     # from above
     def get_code(self):
@@ -288,7 +283,7 @@ def create(
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate, _on_status_update=on_status_update)
+        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate)
     # this indicates Wormhole capabilities
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
@@ -302,7 +297,7 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, eq, cooperator, journal, tor, timing)
+             reactor, eq, cooperator, journal, tor, timing, on_status_update)
     w._set_boss(b)
     b.start()
     return w
