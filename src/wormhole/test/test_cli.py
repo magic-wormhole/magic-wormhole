@@ -606,7 +606,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
                         with mock.patch.object(builtins, 'input',
-                                return_value='yes') as i:
+                                               return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:
                             s = i.mock_calls[0][1][0]
