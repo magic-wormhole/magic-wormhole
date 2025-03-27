@@ -159,8 +159,8 @@ async def test_set():
     assert not d2.called
     s.discard(2)
     eq.flush_sync()
-    assert await d1 == None
-    assert await d2 == None
+    assert await d1 is None
+    assert await d2 is None
 
     s.add(3)
     s.discard(3)

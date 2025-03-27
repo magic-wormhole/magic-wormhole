@@ -1,5 +1,4 @@
-from twisted.internet import defer, reactor
-from twisted.trial import unittest
+from twisted.internet import defer
 
 from pytest_twisted import ensureDeferred
 
@@ -17,7 +16,7 @@ async def test_xfer(reactor, mailbox):
     d2 = xfer_util.receive(reactor, APPID, mailbox.url, code)
     send_result = await d1
     receive_result = await d2
-    assert send_result == None
+    assert send_result is None
     assert receive_result == data
 
 
@@ -40,7 +39,7 @@ async def test_on_code(reactor, mailbox):
     receive_result = await d2
     assert send_code == [code]
     assert receive_code == [code]
-    assert send_result == None
+    assert send_result is None
     assert receive_result == data
 
 
@@ -59,5 +58,5 @@ async def test_make_code(reactor, mailbox):
     d2 = xfer_util.receive(reactor, APPID, mailbox.url, code)
     send_result = await d1
     receive_result = await d2
-    assert send_result == None
+    assert send_result is None
     assert receive_result == data

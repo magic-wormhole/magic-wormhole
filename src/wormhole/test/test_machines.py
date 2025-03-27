@@ -472,10 +472,10 @@ async def test_with_completion():
     assert helper.get_word_completions("") == set()
     wl = FakeWordList()
     i.got_wordlist(wl)
-    assert await d == None
+    assert await d is None
     # a new Deferred should fire right away
     d = helper.when_wordlist_is_available()
-    assert await d == None
+    assert await d is None
 
     wl._completions = {"abc-", "abcd-", "ae-"}
     assert helper.get_word_completions("a") == wl._completions

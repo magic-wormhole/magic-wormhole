@@ -446,7 +446,7 @@ async def test_success():
     p = f.buildProtocol(addr)
     assert isinstance(p, MockConnection)
     assert p.owner == "owner"
-    assert p.relay_handshake == None
+    assert p.relay_handshake is None
     assert p._start_negotiation_called == False
     # meh .start
 
@@ -1143,7 +1143,7 @@ def test_producer():
     assert c.transport.producerState == "producing"
 
     c.disconnectConsumer()
-    assert consumer.producer == None
+    assert consumer.producer is None
     c.connectConsumer(consumer)
 
     c.stopProducing()
@@ -1274,7 +1274,7 @@ def test_consumer():
     assert records == [b"r1."]
 
     c.unregisterProducer()
-    assert c.transport.producer == None
+    assert c.transport.producer is None
 
 
 def test_basic():
