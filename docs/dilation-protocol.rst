@@ -97,7 +97,7 @@ new one).
 
 The ``please`` includes a ``use-version`` key, computed as the “best”
 version of the intersection of the two sides’ abilities as reported in
-the ``versions`` message. Both sides will use whichever
+the ``version`` message. Both sides will use whichever
 ``use-version`` was specified by the Leader (they learn which side is
 the Leader at the same moment they learn the peer’s ``use-version``
 value). If the Follower cannot handle the ``use-version`` value,
@@ -201,7 +201,7 @@ to access the subchannels.
 The client-like endpoints are used to signal any errors that might
 prevent Dilation. ``control_ep.connect(factory)`` and
 ``client_ep.connect(factory)`` return a Deferred that will errback (with
-``OldPeerCannotDilateError``) if the other side’s ``versions`` message
+``OldPeerCannotDilateError``) if the other side’s ``version`` message
 indicates that it does not support Dilation. The overall dilated
 connection is durable (the Dilation agent will try forever to connect,
 and will automatically reconnect when necessary), so
