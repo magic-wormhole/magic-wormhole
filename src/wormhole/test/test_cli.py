@@ -647,7 +647,7 @@ async def _do_test(
     if mode == "slow-text":
         key_established = "Key established, waiting for confirmation...\n"
 
-    assert send_stdout == ""
+    assert send_stdout == "Note: code has been consumed and can no longer be used.\n"
 
     # check sender
     if mode == "text" or mode == "slow-text":
@@ -892,7 +892,7 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
     # newlines, even if we're on windows
     NL = "\n"
 
-    assert send_stdout == ""
+    assert send_stdout == "Note: code has been consumed and can no longer be used.\n"
     assert receive_stdout == ""
 
     # check sender
@@ -987,7 +987,7 @@ async def test_text_ponies(mailbox):
     # newlines, even if we're on windows
     NL = "\n"
 
-    assert send_stdout == ""
+    assert send_stdout == "Note: code has been consumed and can no longer be used.\n"
 
     # check sender
     expected = ("Sending text message ({bytes:d} Bytes){NL}"

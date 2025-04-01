@@ -645,7 +645,7 @@ def test_connect_first_allocator():
 
 def build_nameplate():
     events = []
-    n = _nameplate.Nameplate()
+    n = _nameplate.Nameplate(lambda **kw: None)
     m = Dummy("m", events, IMailbox, "got_mailbox")
     i = Dummy("i", events, IInput, "got_wordlist")
     rc = Dummy("rc", events, IRendezvousConnector, "tx_claim",
@@ -1558,7 +1558,7 @@ def build_rendezvous():
     client_version = ("python", __version__)
     rc = _rendezvous.RendezvousConnector(
         "ws://host:4000/v1", "appid", "side", reactor, journal,
-        tor_manager, timing.DebugTiming(), client_version)
+        tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
     b = Dummy("b", events, IBoss, "error")
     n = Dummy("n", events, INameplate, "connected", "lost")
     m = Dummy("m", events, IMailbox, "connected", "lost")
@@ -1637,7 +1637,7 @@ def test_endpoints():
     client_version = ("python", __version__)
     rc = _rendezvous.RendezvousConnector(
         "ws://host:4000/v1", "appid", "side", reactor, journal,
-        tor_manager, timing.DebugTiming(), client_version)
+        tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
 
     new_ep = object()
     with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
@@ -1671,7 +1671,7 @@ def test_endpoints():
     directlyProvides(tor_manager, ITorManager)
     rc = _rendezvous.RendezvousConnector(
         "ws://host:4000/v1", "appid", "side", reactor, journal,
-        tor_manager, timing.DebugTiming(), client_version)
+        tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
 
     tor_manager.mock_calls[:] = []
     ep = rc._make_endpoint("ws://host:4000/v1")

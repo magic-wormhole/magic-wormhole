@@ -19,7 +19,7 @@ from ._order import Order
 from ._receive import Receive
 from ._rendezvous import RendezvousConnector
 from ._send import Send
-from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey
+from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey, Closed
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
@@ -53,9 +53,14 @@ class Boss(object):
         self._current_wormhole_status = WormholeStatus()
         self._build_workers()
         self._init_other_state()
+        # make sure our listener gets the "initial" state; normally we
+        # only send updates when we evolve() away from this initial
+        # state
+        if self._on_status_update is not None:
+            self._on_status_update(self._current_wormhole_status)
 
     def _build_workers(self):
-        self._N = Nameplate()
+        self._N = Nameplate(self._evolve_wormhole_status)
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
@@ -63,14 +68,18 @@ class Boss(object):
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
-                                       self._timing, self._client_version, self._wormhole_status)
+                                       self._timing, self._client_version, self._evolve_wormhole_status)
         self._L = Lister(self._timing)
         self._A = Allocator(self._timing)
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
-        self._D = Dilator(self._reactor, self._eventual_queue,
-                          self._cooperator, lambda: self._current_wormhole_status)
+        self._D = Dilator(
+            self._reactor,
+            self._eventual_queue,
+            self._cooperator,
+            self._versions.get("can-dilate", []),
+        )
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)
@@ -97,16 +106,17 @@ class Boss(object):
 
         self._result = "empty"
 
-    def _wormhole_status(self, status):
+    def _evolve_wormhole_status(self, **kwargs):
         # we have to track "the wormhole status" somewhere, because
         # we'll be connected to the Mailbox (and maybe even the peer)
         # before anyone asks for Dilation at all
-        self._current_wormhole_status = status
+        status = evolve(self._current_wormhole_status, **kwargs)
         if self._on_status_update is not None:
-            self._on_status_update(self._current_wormhole_status)
+            self._on_status_update(status)
         # ...and so we might not even _have_ anything Dilation related yet
         if hasattr(self, "_D") and self._D._manager is not None:
             self._D._manager._wormhole_status(status)
+        self._current_wormhole_status = status
 
     # these methods are called from outside
     def start(self):
@@ -384,20 +394,20 @@ class Boss(object):
 
     @m.output()
     def send_status_peer_key(self, key):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                peer_key=AllegedSharedKey(),
-            )
+        self._evolve_wormhole_status(
+            peer_key=AllegedSharedKey(),
         )
 
     @m.output()
     def send_status_confirmed_key(self, plaintext):
-        self._wormhole_status(
-            evolve(
-                self._current_wormhole_status,
-                peer_key=ConfirmedKey(),
-            )
+        self._evolve_wormhole_status(
+            peer_key=ConfirmedKey(),
+        )
+
+    @m.output()
+    def send_status_closed(self):
+        self._evolve_wormhole_status(
+            mailbox_connection=Closed(),
         )
 
     @m.output()
@@ -438,7 +448,7 @@ class Boss(object):
     S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
@@ -447,7 +457,7 @@ class Boss(object):
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
@@ -458,7 +468,7 @@ class Boss(object):
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S3_closing.upon(rx_unwelcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
@@ -470,8 +480,8 @@ class Boss(object):
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
-    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
-    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
+    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed, send_status_closed])
+    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S4_closed.upon(rx_unwelcome, enter=S4_closed, outputs=[])
     S4_closed.upon(got_verifier, enter=S4_closed, outputs=[])

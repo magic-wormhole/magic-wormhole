@@ -6,6 +6,7 @@ from zope.interface import implementer
 from . import _interfaces
 from ._wordlist import PGPWordList
 from .errors import KeyFormatError
+from ._status import AllocatedCode, ConsumedCode
 
 
 def validate_nameplate(nameplate):
@@ -20,8 +21,9 @@ class Nameplate(object):
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
 
-    def __init__(self):
+    def __init__(self, evolve_wormhole_status):
         self._nameplate = None
+        self._evolve_wormhole_status = evolve_wormhole_status
 
     def wire(self, mailbox, input, rendezvous_connector, terminator):
         self._M = _interfaces.IMailbox(mailbox)
@@ -158,16 +160,28 @@ class Nameplate(object):
     def T_nameplate_done(self):
         self._T.nameplate_done()
 
-    S0A.upon(_set_nameplate, enter=S1A, outputs=[record_nameplate])
+    @m.output()
+    def send_status_code_allocated(self):
+        self._evolve_wormhole_status(
+            code=AllocatedCode(),
+        )
+
+    @m.output()
+    def send_status_code_consumed(self):
+        self._evolve_wormhole_status(
+            code=ConsumedCode(),
+        )
+
+    S0A.upon(_set_nameplate, enter=S1A, outputs=[record_nameplate, send_status_code_allocated])
     S0A.upon(connected, enter=S0B, outputs=[])
-    S0A.upon(close, enter=S5A, outputs=[T_nameplate_done])
+    S0A.upon(close, enter=S5A, outputs=[T_nameplate_done, send_status_code_consumed])
     S0B.upon(
-        _set_nameplate, enter=S2B, outputs=[record_nameplate_and_RC_tx_claim])
+        _set_nameplate, enter=S2B, outputs=[record_nameplate_and_RC_tx_claim, send_status_code_allocated])
     S0B.upon(lost, enter=S0A, outputs=[])
-    S0B.upon(close, enter=S5A, outputs=[T_nameplate_done])
+    S0B.upon(close, enter=S5A, outputs=[T_nameplate_done, send_status_code_consumed])
 
     S1A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
-    S1A.upon(close, enter=S5A, outputs=[T_nameplate_done])
+    S1A.upon(close, enter=S5A, outputs=[T_nameplate_done, send_status_code_consumed])
 
     S2A.upon(connected, enter=S2B, outputs=[RC_tx_claim])
     S2A.upon(close, enter=S4A, outputs=[])
@@ -186,7 +200,7 @@ class Nameplate(object):
     S4A.upon(close, enter=S4A, outputs=[])
     S4B.upon(lost, enter=S4A, outputs=[])
     S4B.upon(rx_claimed, enter=S4B, outputs=[])
-    S4B.upon(rx_released, enter=S5B, outputs=[T_nameplate_done])
+    S4B.upon(rx_released, enter=S5B, outputs=[T_nameplate_done, send_status_code_consumed])
     S4B.upon(release, enter=S4B, outputs=[])  # mailbox is lazy
     # Mailbox doesn't remember how many times it's sent a release, and will
     # re-send a new one for each peer message it receives. Ignoring it here

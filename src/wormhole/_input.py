@@ -12,6 +12,7 @@ from . import _interfaces, errors
 from ._nameplate import validate_nameplate
 from .util import provides
 
+
 def first(outputs):
     return list(outputs)[0]
 

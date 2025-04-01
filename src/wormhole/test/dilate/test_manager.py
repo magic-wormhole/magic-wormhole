@@ -13,10 +13,9 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
                                   UnknownDilationMessageType,
                                   UnexpectedKCM,
-                                  UnknownMessageType)
+                                  UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
 from ..._dilation.subchannel import _SubchannelAddress
-from ..._status import WormholeStatus
 from .common import clear_mock_calls
 
 
@@ -37,7 +36,7 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop, lambda: WormholeStatus())
+    dil = Dilator(h.reactor, h.eq, h.coop, DILATION_VERSIONS)
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)
@@ -64,7 +63,7 @@ def test_dilate_first():
     assert eps1 is eps
     assert eps1 is eps2
     assert mm.mock_calls == [mock.call(h.send, side, None,
-                                               h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
 
     assert m.mock_calls == [mock.call.get_endpoints(),
                                     mock.call.get_endpoints()]
@@ -179,7 +178,7 @@ def test_transit_relay():
                     return_value=side):
         dil.dilate(transit_relay_location)
     assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
-                                               h.reactor, h.eq, h.coop, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
 
 
 LEADER = "ff3456abcdef"
@@ -234,7 +233,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, 30.0)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -271,10 +270,10 @@ def test_leader():
     assert hasattr(eps, "connect")
     assert eps.listen == h.listen_ep
 
-    m.got_wormhole_versions({"can-dilate": ["1"]})
+    m.got_wormhole_versions({"can-dilate": ["ged"]})
     assert h.send.mock_calls == [
         mock.call.send("dilate-0",
-                       dict_to_bytes({"type": "please", "side": LEADER, "use-version": "1"}))
+                       dict_to_bytes({"type": "please", "side": LEADER, "use-version": "ged"}))
         ]
     clear_mock_calls(h.send)
 
@@ -471,10 +470,10 @@ def test_leader():
 def test_follower():
     m, h = make_manager(leader=False)
 
-    m.got_wormhole_versions({"can-dilate": ["1"]})
+    m.got_wormhole_versions({"can-dilate": ["ged"]})
     assert h.send.mock_calls == [
         mock.call.send("dilate-0",
-                       dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "1"}))
+                       dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "ged"}))
         ]
     clear_mock_calls(h.send)
     clear_mock_calls(h.inbound)
