@@ -1,10 +1,12 @@
 import re
 from unittest import mock
 from twisted.internet import reactor
-from twisted.trial import unittest
 from twisted.internet.task import Cooperator
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred
 from zope.interface import implementer
+
+import pytest
+from pytest_twisted import ensureDeferred
 
 from ... import _interfaces
 from ...eventual import EventualQueue
@@ -40,54 +42,49 @@ class FakeTerminator(object):
         self.d.callback(None)
 
 
-class Connect(unittest.TestCase):
-    @inlineCallbacks
-    def test1(self):
-        if not NoiseConnection:
-            raise unittest.SkipTest("noiseprotocol unavailable")
-        # print()
-        send_left = MySend("left")
-        send_right = MySend("right")
-        send_left.peer = send_right
-        send_right.peer = send_left
-        key = b"\x00"*32
-        eq = EventualQueue(reactor)
-        cooperator = Cooperator(scheduler=eq.eventually)
+@ensureDeferred
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test1():
+    # print()
+    send_left = MySend("left")
+    send_right = MySend("right")
+    send_left.peer = send_right
+    send_right.peer = send_left
+    key = b"\x00"*32
+    eq = EventualQueue(reactor)
+    cooperator = Cooperator(scheduler=eq.eventually)
 
-        t_left = FakeTerminator()
-        t_right = FakeTerminator()
+    t_left = FakeTerminator()
+    t_right = FakeTerminator()
 
-        d_left = manager.Dilator(reactor, eq, cooperator, ["ged"])
-        d_left.wire(send_left, t_left)
-        d_left.got_key(key)
-        d_left.got_wormhole_versions({"can-dilate": ["ged"]})
-        send_left.dilator = d_left
+    d_left = manager.Dilator(reactor, eq, cooperator, ["ged"])
+    d_left.wire(send_left, t_left)
+    d_left.got_key(key)
+    d_left.got_wormhole_versions({"can-dilate": ["ged"]})
+    send_left.dilator = d_left
 
-        d_right = manager.Dilator(reactor, eq, cooperator, ["ged"])
-        d_right.wire(send_right, t_right)
-        d_right.got_key(key)
-        d_right.got_wormhole_versions({"can-dilate": ["ged"]})
-        send_right.dilator = d_right
+    d_right = manager.Dilator(reactor, eq, cooperator, ["ged"])
+    d_right.wire(send_right, t_right)
+    d_right.got_key(key)
+    d_right.got_wormhole_versions({"can-dilate": ["ged"]})
+    send_right.dilator = d_right
 
-        with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
-                        return_value=["127.0.0.1"]):
-            eps_left_d = d_left.dilate(no_listen=True)
-            eps_right_d = d_right.dilate()
+    with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
+                    return_value=["127.0.0.1"]):
+        eps_left = d_left.dilate(no_listen=True)
+        eps_right = d_right.dilate()
 
-        eps_left = yield eps_left_d
-        eps_right = yield eps_right_d
+    # print("left connected", eps_left)
+    # print("right connected", eps_right)
 
-        # print("left connected", eps_left)
-        # print("right connected", eps_right)
+    control_ep_left, connect_ep_left, listen_ep_left = eps_left
+    control_ep_right, connect_ep_right, listen_ep_right = eps_right
 
-        control_ep_left, connect_ep_left, listen_ep_left = eps_left
-        control_ep_right, connect_ep_right, listen_ep_right = eps_right
+    # we normally shut down with w.close(), which calls Dilator.stop(),
+    # which calls Terminator.stoppedD(), which (after everything else is
+    # done) calls Boss.stopped
+    d_left.stop()
+    d_right.stop()
 
-        # we normally shut down with w.close(), which calls Dilator.stop(),
-        # which calls Terminator.stoppedD(), which (after everything else is
-        # done) calls Boss.stopped
-        d_left.stop()
-        d_right.stop()
-
-        yield t_left.d
-        yield t_right.d
+    await t_left.d
+    await t_right.d

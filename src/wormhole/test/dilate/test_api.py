@@ -1,10 +1,8 @@
-
-from twisted.internet import reactor
-from twisted.trial import unittest
-from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 import typing
 
+import pytest
+import pytest_twisted
 
 from ...wormhole import create
 from ...errors import LonelyError
@@ -14,8 +12,6 @@ from ..._status import (
     Disconnected, ConnectedPeer, Closed, ConnectionStatus, PeerSharedKey,
     CodeStatus, PeerConnection
 )
-
-from ..common import ServerBase
 
 
 def _union_sort_order(union_klass):
@@ -87,107 +83,105 @@ def assert_dilation_status_order(status_messages):
     assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
 
 
-class API(ServerBase, unittest.TestCase):
+@pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test_on_status_error(reactor, mailbox):
+    """
+    Our user code raises an exception during status processing
+    """
+    eq = EventualQueue(reactor)
 
-    @inlineCallbacks
-    def test_on_status_error(self):
-        """
-        Our user code raises an exception during status processing
-        """
-        eq = EventualQueue(reactor)
+    class FakeError(Exception):
+        pass
 
-        class FakeError(Exception):
-            pass
-
-        def on_status(_):
-            raise FakeError()
-        with self.assertRaises(FakeError):
-            w = create(
-                "appid", self.relayurl,
-                reactor,
-                versions={"fun": "quux"},
-                _eventual_queue=eq,
-                _enable_dilate=True,
-                on_status_update=on_status,
-            )
-            yield w.allocate_code()
-            code = yield w.get_code()
-            print(code)
-            try:
-                yield w.close()
-            except LonelyError:
-                pass
-
-    @inlineCallbacks
-    def test_dilation_status(self):
-        if not NoiseConnection:
-            raise unittest.SkipTest("noiseprotocol unavailable")
-
-        eq = EventualQueue(reactor)
-
-        status0 = []
-        status1 = []
-
-        wormhole_status0 = []
-        wormhole_status1 = []
-
-        w0 = create(
-            "appid", self.relayurl,
+    def on_status(_):
+        raise FakeError()
+    with pytest.raises(FakeError):
+        w = create(
+            "appid", mailbox.url,
             reactor,
             versions={"fun": "quux"},
             _eventual_queue=eq,
             _enable_dilate=True,
-            on_status_update=wormhole_status0.append,
+            on_status_update=on_status,
         )
+        await w.allocate_code()
+        code = await w.get_code()
+        print(code)
+        try:
+            await w.close()
+        except LonelyError:
+            pass
 
-        w1 = create(
-            "appid", self.relayurl,
-            reactor,
-            versions={"bar": "baz"},
-            _eventual_queue=eq,
-            _enable_dilate=True,
-            on_status_update=wormhole_status1.append,
-        )
 
-        yield w0.allocate_code()
-        code = yield w0.get_code()
+@pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test_dilation_status(reactor, mailbox):
+    eq = EventualQueue(reactor)
 
-        yield w1.set_code(code)
+    status0 = []
+    status1 = []
 
-        yield w0.dilate(on_status_update=status0.append)
-        yield w1.dilate(on_status_update=status1.append)
+    wormhole_status0 = []
+    wormhole_status1 = []
 
-        # we should see the _other side's_ app-versions
-        v0 = yield w1.get_versions()
-        v1 = yield w0.get_versions()
-        self.assertEqual(v0, {"fun": "quux"})
-        self.assertEqual(v1, {"bar": "baz"})
+    w0 = create(
+        "appid", mailbox.url,
+        reactor,
+        versions={"fun": "quux"},
+        _eventual_queue=eq,
+        _enable_dilate=True,
+        on_status_update=wormhole_status0.append,
+    )
 
-        @inlineCallbacks
-        def wait_for_peer():
-            while True:
-                yield deferLater(reactor, 0.001, lambda: None)
-                peers = [
-                    st
-                    for st in status0
-                    if isinstance(st.peer_connection, ConnectedPeer)
-                ]
-                if peers:
-                    return
-        yield wait_for_peer()
+    w1 = create(
+        "appid", mailbox.url,
+        reactor,
+        versions={"bar": "baz"},
+        _eventual_queue=eq,
+        _enable_dilate=True,
+        on_status_update=wormhole_status1.append,
+    )
 
-        # we don't actually do anything, just disconnect after we have
-        # our peer
-        yield w0.close()
-        yield w1.close()
+    w0.allocate_code()
+    code = await w0.get_code()
 
-        # analyze the message orders
+    w1.set_code(code)
 
-        assert_mailbox_status_order(wormhole_status0)
-        assert_mailbox_status_order(wormhole_status1)
+    w0.dilate(on_status_update=status0.append)
+    w1.dilate(on_status_update=status1.append)
 
-        assert_dilation_status_order(status0)
-        assert_dilation_status_order(status1)
+    # we should see the _other side's_ app-versions
+    v0 = await w1.get_versions()
+    v1 = await w0.get_versions()
+    assert v0 == {"fun": "quux"}
+    assert v1 == {"bar": "baz"}
 
-        # todo: we could expand these to timestamps: we know they
-        # should never go backwards
+    @pytest_twisted.ensureDeferred()
+    async def wait_for_peer():
+        while True:
+            await deferLater(reactor, 0.001, lambda: None)
+            peers = [
+                st
+                for st in status0
+                if isinstance(st.peer_connection, ConnectedPeer)
+            ]
+            if peers:
+                return
+    await wait_for_peer()
+
+    # we don't actually do anything, just disconnect after we have
+    # our peer
+    await w0.close()
+    await w1.close()
+
+    # analyze the message orders
+
+    assert_mailbox_status_order(wormhole_status0)
+    assert_mailbox_status_order(wormhole_status1)
+
+    assert_dilation_status_order(status0)
+    assert_dilation_status_order(status1)
+
+    # todo: we could expand these to timestamps: we know they
+    # should never go backwards

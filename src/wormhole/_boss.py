@@ -162,13 +162,16 @@ class Boss(object):
             "T": self._T
         }
         for machine in which.split():
-            t = (lambda old_state, input, new_state, machine=machine:
-                 self._print_trace(old_state, input, new_state,
-                                   client_name=client_name,
-                                   machine=machine, file=file))
-            names[machine].set_trace(t)
+            def tracer(old_state, input, new_state, machine=machine):
+                self._print_trace(
+                    old_state, input, new_state,
+                    client_name=client_name,
+                    machine=machine,
+                    file=file,
+                )
+            names[machine].set_trace(tracer)
             if machine == "I":
-                self._I.set_debug(t)
+                self._I.set_debug(tracer)
 
     # def serialize(self):
     #     raise NotImplemented
