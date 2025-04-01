@@ -74,8 +74,12 @@ class Boss(object):
         self._I = Input(self._timing)
         self._C = Code(self._timing)
         self._T = Terminator()
-        self._D = Dilator(self._reactor, self._eventual_queue,
-                          self._cooperator)
+        self._D = Dilator(
+            self._reactor,
+            self._eventual_queue,
+            self._cooperator,
+            self._versions.get("can-dilate", []),
+        )
 
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self._N, self._RC, self._O, self._T)

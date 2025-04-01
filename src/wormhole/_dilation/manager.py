@@ -31,7 +31,8 @@ from .._status import (DilationStatus, WormholeStatus,
 # note that these are strings, not numbers, to facilitate
 # experimentation or non-standard versions; the _order_ of versions in
 # "can-dilate" is important!
-DILATION_VERSIONS = ["1"]
+# versions shall be named after wizards from the "Earthsea" series by le Guin
+DILATION_VERSIONS = ["ged"]
 
 
 class OldPeerCannotDilateError(Exception):
@@ -125,6 +126,30 @@ def make_side():
 #   "want" (doesn't send anything)
 # * if follower calls w.dilate() but not leader, follower waits forever
 #   in "want", leader waits forever in "wanted"
+
+
+def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
+    """
+    Decide on a best version given a ranked list of our and their
+    versions (consisting of arbitrary strings). We prefer a higher
+    version from 'our' list over the other list.
+    """
+    their_dilation_versions = set(their_versions)
+    shared_versions = set(my_versions).intersection(their_dilation_versions)
+    best_version = None
+
+    if shared_versions:
+        # the "best" one is whichever version is highest up the
+        # list of acceptable versions
+        best = sorted([
+            (my_versions.index(v), v)
+            for v in shared_versions
+        ])
+        best_version = best[0][1]
+
+    # dilation_version is the best mutually-compatible version we have
+    # with the peer, or None if we have nothing in common
+    return best_version
 
 
 @attrs(eq=False)
@@ -250,6 +275,7 @@ class Manager(object):
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
     _cooperator = attrib(repr=False)
+    _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
@@ -354,17 +380,12 @@ class Manager(object):
 
     def got_wormhole_versions(self, their_wormhole_versions):
         # this always happens before received_dilation_message
-        self._dilation_version = None
-        their_dilation_versions = set(their_wormhole_versions.get("can-dilate", []))
-        my_versions = set(DILATION_VERSIONS)
-        shared_versions = my_versions.intersection(their_dilation_versions)
-        if "1" in shared_versions:
-            self._dilation_version = "1"
+        self._dilation_version = _find_shared_versions(
+            self._acceptable_versions,
+            their_wormhole_versions.get("can-dilate", [])
+        )
 
-        # dilation_version is the best mutually-compatible version we have
-        # with the peer, or None if we have nothing in common
-
-        if not self._dilation_version:  # "1" or None
+        if not self._dilation_version:  # "ged" or None
             # TODO: be more specific about the error. dilation_version==None
             # means we had no version in common with them, which could either
             # be because they're so old they don't dilate at all, or because
@@ -892,6 +913,7 @@ class Dilator(object):
     _reactor = attrib()
     _eventual_queue = attrib()
     _cooperator = attrib()
+    _acceptable_versions = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None
@@ -919,6 +941,7 @@ class Dilator(object):
                 self._reactor,
                 self._eventual_queue,
                 self._cooperator,
+                self._acceptable_versions,
                 ping_interval or 30.0,
                 no_listen,
                 status_update,
