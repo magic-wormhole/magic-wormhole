@@ -61,7 +61,7 @@ class TestDilator(unittest.TestCase):
         self.assertIdentical(eps1, eps)
         self.assertIdentical(eps1, eps2)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, ["ged"], False)])
+                                                   h.reactor, h.eq, h.coop, ["ged"], 30.0, False, None, initial_mailbox_status=None)])
 
         self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
                                         mock.call.get_endpoints()])
@@ -168,11 +168,26 @@ class TestDilator(unittest.TestCase):
                         return_value=side):
             dil.dilate(transit_relay_location)
         self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, ["ged"], False)])
+                                                   h.reactor, h.eq, h.coop, ["ged"], 30.0, False, None, initial_mailbox_status=None)])
 
 
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
+
+
+class ReactorOnlyTime:
+    """
+    Provide a reactor-like mock that at least has seconds()
+    """
+    # not ideal, but prior to this the "reactor" below was literally
+    # just "object()"
+
+    def seconds(self):
+        return 42
+
+    def callLater(self, interval, callable):
+        # should return a DelayedCall
+        return mock.Mock()
 
 
 def make_manager(leader=True):
@@ -185,7 +200,7 @@ def make_manager(leader=True):
         side = FOLLOWER
     h.key = b"\x00" * 32
     h.relay = None
-    h.reactor = object()
+    h.reactor = ReactorOnlyTime()
     h.clock = Clock()
     h.eq = EventualQueue(h.clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
@@ -208,7 +223,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, ["ged"])
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, ["ged"], 30.0)
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -294,7 +309,7 @@ class TestManager(unittest.TestCase):
         m.connector_connection_made(c1)
 
         self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c1)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c1)])
+        self.assertEqual(h.outbound.mock_calls[1:], [mock.call.use_connection(c1)])
         clear_mock_calls(h.inbound, h.outbound)
 
         # the Leader making a new outbound channel should get scid=1
@@ -437,7 +452,7 @@ class TestManager(unittest.TestCase):
         m.connector_connection_made(c3)
 
         self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c3)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c3)])
+        self.assertEqual(h.outbound.mock_calls[1:], [mock.call.use_connection(c3)])
         clear_mock_calls(h.inbound, h.outbound)
 
     def test_follower(self):
@@ -572,10 +587,25 @@ class TestManager(unittest.TestCase):
         self.assertEqual(len(e), 1)
         self.assertEqual(str(e[0].value), "not recognized")
 
-        m.send_ping(3)
+        m.send_ping(3, lambda _: None)
         self.assertEqual(h.outbound.mock_calls,
                          [mock.call.send_if_connected(Pong(3))])
         clear_mock_calls(h.outbound)
+
+        # sort of low-level; what does this look like to API user?
+        class FakeError(Exception):
+            pass
+
+        def cause_error(_):
+            raise FakeError()
+        m.send_ping(4, cause_error)
+        self.assertEqual(h.outbound.mock_calls,
+                         [mock.call.send_if_connected(Pong(4))])
+        clear_mock_calls(h.outbound)
+        with self.assertRaises(FakeError):
+            m.got_record(Pong(4))
+
+
 
     def test_subchannel(self):
         m, h = make_manager(leader=True)

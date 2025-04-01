@@ -110,7 +110,7 @@ generally baked-in to the application source code or default config.
 This library includes the URL of a public mailbox server run by the
 author. Application developers can use this one, or they can run their
 own (see the
-`warner/magic-wormhole-mailbox-server <https://github.com/warner/magic-wormhole-mailbox-server>`__
+`magic-wormhole/magic-wormhole-mailbox-server <https://github.com/magic-wormhole/magic-wormhole-mailbox-server>`__
 repository) and configure their clients to use it instead. The URL of
 the public mailbox server is passed as a unicode string. Note that
 because the server actually speaks WebSockets, the URL starts with
@@ -151,6 +151,10 @@ several optional arguments:
    that will be made available to the peer via the ``got_version``
    event. This data is delivered before any data messages, and can be
    used to indicate peer capabilities.
+- ``on_status_update``: this single-argument callable will receive
+   instances of ``wormhole.WormholeStatus`` as the status of our
+   wormhole changes; useful to show your users
+
 
 Code Management
 ---------------
@@ -581,6 +585,11 @@ server-imposed number/size/rate limits apply. Calling ``w.dilate()``
 initiates the dilation process, and eventually yields a set of
 Endpoints. Once dilated these endpoints can be used to establish
 multiple (encrypted) “subchannel” connections to the other side.
+
+You may pass an ``on_status_update`` callable to ``dilate()``, which
+is a function that will be called with ``wormhole.DilationStatus``
+instances whenever the status of the Dilation connection (or the
+associated mailbox connection) changes.
 
 Each subchannel behaves like a regular Twisted ``ITransport``, so they
 can be glued to the Protocol instance of your choice. They also

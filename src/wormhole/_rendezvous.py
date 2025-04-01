@@ -11,17 +11,17 @@ from . import _interfaces, errors
 from .util import (bytes_to_hexstr, hexstr_to_bytes, bytes_to_dict,
                    dict_to_bytes, provides)
 
+from ._status import Connecting, Connected
+
 
 class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        # print("onConnect", response)
         pass
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
-        # print("onOpen", args)
         # self.wormhole_open = True
         self._RC.ws_open(self)
 
@@ -36,7 +36,6 @@ class WSClient(websocket.WebSocketClientProtocol):
             raise
 
     def onClose(self, wasClean, code, reason):
-        # print("onClose")
         self._RC.ws_close(wasClean, code, reason)
         # if self.wormhole_open:
         #     self.wormhole._ws_closed(wasClean, code, reason)
@@ -71,6 +70,7 @@ class RendezvousConnector(object):
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
+    _evolve_status = attrib()  # callable taking kwargs to change aspects of the status
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -81,11 +81,23 @@ class RendezvousConnector(object):
         f = WSFactory(self, self._url)
         f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
         ep = self._make_endpoint(self._url)
+
+        # ideally, Twisted's ClientService would have an API to tell
+        # us when it tries to do a connection, but it doesn't. So
+        # instead, we wrap the endpoint's "connect()" method so we
+        # know a connection attempt has been made
+        orig = ep.connect
+        def connect_wrap(*args, **kw):
+            self._evolve_status(mailbox_connection=Connecting(self._url, self._reactor.seconds()))
+            return orig(*args, **kw)
+        ep.connect = connect_wrap
+
         self._connector = internet.ClientService(ep, f)
         faf = None if self._have_made_a_successful_connection else 1
         d = self._connector.whenConnected(failAfterFailures=faf)
         # if the initial connection fails, signal an error and shut down. do
         # this in a different reactor turn to avoid some hazards
+
         d.addBoth(lambda res: task.deferLater(self._reactor, 0.0, lambda: res))
         # TODO: use EventualQueue
         d.addErrback(self._initial_connection_failed)
@@ -172,6 +184,7 @@ class RendezvousConnector(object):
     def ws_open(self, proto):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
+        self._evolve_status(mailbox_connection=Connected(self._url))
         self._ws = proto
         try:
             self._tx(

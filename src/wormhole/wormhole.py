@@ -191,10 +191,20 @@ class _DeferredWormhole(object):
             raise NoKeyError()
         return derive_key(self._key, to_bytes(purpose), length)
 
-    def dilate(self, transit_relay_location=None, no_listen=False):
+    # todo: note that only DeferredWormhole has this .. the
+    # DelegatedWormhole thus has no way to dilate?
+
+    # todo: transit_relay_locations (plural) probably, and ability to
+    # pass a list? (there's a TODO about this is connector.py too)
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+        """
+        :returns EndpointRecord: an EndpointRecord containing the three
+            Twisted endpoint objects required to interact with the
+            Dilation channel (as control, connect and listen members).
+        """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen)  # returns endpoints
+        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -263,7 +273,8 @@ def create(
         timing=None,
         stderr=sys.stderr,
         _eventual_queue=None,
-        _enable_dilate=False):
+        _enable_dilate=False,
+        on_status_update=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
@@ -286,7 +297,7 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, eq, cooperator, journal, tor, timing)
+             reactor, eq, cooperator, journal, tor, timing, on_status_update)
     w._set_boss(b)
     b.start()
     return w

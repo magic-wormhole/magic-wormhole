@@ -606,7 +606,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
                 with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
                     if mock_accept or verify:
                         with mock.patch.object(builtins, 'input',
-                                return_value='yes') as i:
+                                               return_value='yes') as i:
                             yield gatherResults([send_d, receive_d], True)
                         if verify:
                             s = i.mock_calls[0][1][0]
@@ -646,7 +646,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
         if mode == "slow-text":
             key_established = "Key established, waiting for confirmation...\n"
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
 
         # check sender
         if mode == "text" or mode == "slow-text":
@@ -887,7 +887,7 @@ class PregeneratedCode(ServerBase, ScriptsBase, unittest.TestCase):
 
         self.maxDiff = None  # show full output for assertion failures
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
         self.assertEqual(receive_stdout, "")
 
         # check sender
@@ -1017,7 +1017,7 @@ class ZeroMode(ServerBase, unittest.TestCase):
 
         self.maxDiff = None  # show full output for assertion failures
 
-        self.assertEqual(send_stdout, "")
+        self.assertEqual(send_stdout, "Note: code has been consumed and can no longer be used.\n")
 
         # check sender
         expected = ("Sending text message ({bytes:d} Bytes){NL}"

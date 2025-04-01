@@ -80,7 +80,8 @@ class Receiver:
             self.args.relay_url,
             self._reactor,
             tor=self._tor,
-            timing=self.args.timing)
+            timing=self.args.timing,
+        )
         if self.args.debug_state:
             w.debug_set_trace("recv", which=" ".join(self.args.debug_state), file=self.args.stdout)
         self._w = w  # so tests can wait on events too

@@ -16,6 +16,7 @@ from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
                            ITorManager)
 from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
+from .._status import WormholeStatus
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, to_bytes)
 
@@ -31,7 +32,7 @@ class FakeWordList(object):
 
 
 class Dummy:
-    def __init__(self, name, events, iface, *meths):
+    def __init__(self, name, events, iface, *meths, **kw):
         self.name = name
         self.events = events
         if iface:
@@ -39,6 +40,8 @@ class Dummy:
         for meth in meths:
             self.mock(meth)
         self.retval = None
+        for k, v in kw.items():
+            setattr(self, k, v)
 
     def mock(self, meth):
         def log(*args):
@@ -643,7 +646,7 @@ class Allocator(unittest.TestCase):
 class Nameplate(unittest.TestCase):
     def build(self):
         events = []
-        n = _nameplate.Nameplate()
+        n = _nameplate.Nameplate(lambda **kw: None)
         m = Dummy("m", events, IMailbox, "got_mailbox")
         i = Dummy("i", events, IInput, "got_wordlist")
         rc = Dummy("rc", events, IRendezvousConnector, "tx_claim",
@@ -1293,6 +1296,7 @@ class Terminator(unittest.TestCase):
 
 class MockBoss(_boss.Boss):
     def __attrs_post_init__(self):
+        self._current_wormhole_status = WormholeStatus()
         # self._build_workers()
         self._init_other_state()
 
@@ -1319,7 +1323,7 @@ class Boss(unittest.TestCase):
         b._RC = Dummy("rc", events, IRendezvousConnector, "start")
         b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                      "set_code")
-        b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key")
+        b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key", _manager=None)
         return b, events
 
     def test_basic(self):
@@ -1549,7 +1553,7 @@ class Rendezvous(unittest.TestCase):
         client_version = ("python", __version__)
         rc = _rendezvous.RendezvousConnector(
             "ws://host:4000/v1", "appid", "side", reactor, journal,
-            tor_manager, timing.DebugTiming(), client_version)
+            tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
         b = Dummy("b", events, IBoss, "error")
         n = Dummy("n", events, INameplate, "connected", "lost")
         m = Dummy("m", events, IMailbox, "connected", "lost")
@@ -1628,7 +1632,7 @@ class Rendezvous(unittest.TestCase):
         client_version = ("python", __version__)
         rc = _rendezvous.RendezvousConnector(
             "ws://host:4000/v1", "appid", "side", reactor, journal,
-            tor_manager, timing.DebugTiming(), client_version)
+            tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
 
         new_ep = object()
         with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
@@ -1662,7 +1666,7 @@ class Rendezvous(unittest.TestCase):
         directlyProvides(tor_manager, ITorManager)
         rc = _rendezvous.RendezvousConnector(
             "ws://host:4000/v1", "appid", "side", reactor, journal,
-            tor_manager, timing.DebugTiming(), client_version)
+            tor_manager, timing.DebugTiming(), client_version, lambda **kw: None)
 
         tor_manager.mock_calls[:] = []
         ep = rc._make_endpoint("ws://host:4000/v1")
