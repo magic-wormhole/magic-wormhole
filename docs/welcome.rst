@@ -20,7 +20,11 @@ Wormhole codes are single-use and do not need to be memorized.
    `Video <https://www.youtube.com/watch?v=oFrTqQw0_3c>`__
 
 As of now (2023) the magic-wormhole protocol has several client
-implementations; see the “Ecosystem” section.
+implementations; see :doc:`ecosystem`
+
+Code: `github.com/magic-wormhole/magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_
+Documentation: `magic-wormhole.readthedocs.io <https://magic-wormhole.readthedocs.io/en/latest/>`_
+
 
 Example
 -------
