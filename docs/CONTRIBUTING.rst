@@ -43,14 +43,15 @@ That said, some people learn by doing and may already have a branch or set of ch
 The best way to propose a change is to "fork" the repository and start a new branch from "master" onto which you make commits.
 Then, when you're ready, propose a Pull Request on the Magic Wormhole repository.
 
-We typically try to provide feedback quickly, and you can poke `@meejah` specifically if nothing seems to be happening (e.g. tag them on a comment).
+We typically try to provide feedback quickly, and you can poke `@meejah` specifically if nothing seems to be happening (e.g. tag that handle on a comment).
+
 
 Visualize the State Machines
 ````````````````````````````
 
 There are several co-operating state-machines in Magic Wormhole.
 
-These are written using the `Automat <>`_ library, which can draw diagrams of the state-machines automatically.
+These are written using the `Automat <https://automat.readthedocs.io/en/latest/>`_ library, which can draw diagrams of the state-machines automatically.
 To do this, run `automat-visualize wormhole` in the root directory of your checkout; images will appear in `.automat-visualize/*.png`.
 
 Everything in the diagrams corresponds to real Python code that you can search for.
