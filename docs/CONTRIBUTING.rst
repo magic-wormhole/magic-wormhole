@@ -73,6 +73,8 @@ For example: `tox -e py311` will run the tests under Python 3.11.
 
 It's also possible to set up a completely local manual test by running the Mailbox server and using `wormhole --relay-url ws://localhost:4000/v1/` to reach that local server instead of the default public one.
 
+**NOTE:** do not import or use `unittest` or `twisted.trial.unittest`, as any reactor-using tests (and there are lots of those) will become confused as to which reactor to use and things will hang.
+
 
 Coding Conventions
 ``````````````````
