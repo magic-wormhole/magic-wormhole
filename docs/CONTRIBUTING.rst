@@ -89,6 +89,7 @@ New code should follow the following patterns:
 - new functions should have docstrings;
 - new functionality should have prose documentation;
 - features and changes should be mentioned in `NEWS.md`;
+- checking linting and styling with `ruff` and/or `pyflakes` (e.g. `tox -e flake8less`)
 
 
 Other Stuff That's Confusing?
