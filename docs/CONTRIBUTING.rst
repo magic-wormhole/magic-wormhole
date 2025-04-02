@@ -92,9 +92,31 @@ New code should follow the following patterns:
 - checking linting and styling with `ruff` and/or `pyflakes` (e.g. `tox -e flake8less`)
 
 
-Other Stuff That's Confusing?
-`````````````````````````````
+Other Stuff That's Confusing
+----------------------------
 
-- `eventually()` and `EventualQueue`
-- global reactor?
-- ...? (**Reach out and ask us!**)
+
+`eventually()` and `EventualQueue`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This pattern ensures that an async thing happens only after at least one "reactor turn".
+
+One drawback -- or at least thing to be aware of -- is that functions doing this (even "functions they call" etc etc) will have to use a functioning reactor of some sort to work.
+The tests are already set up to do this.
+
+Reasons for this include: not having to think as much about stack-depths; work around Automat limitation (of not being able to call `@input` functions from `@output` functions in a reliable way).
+
+
+global reactor
+~~~~~~~~~~~~~~
+
+It is ideal if things that use a reactor get it passed to them (instead of relying on importing "the global reactor" in Twisted).
+Although many things do already accept a reactor parameter, not everything does.
+
+New code should be written to accept a reactor argument.
+
+
+Other Confusing Things
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Are you confused about a thing? Please: **reach out and ask us!**
