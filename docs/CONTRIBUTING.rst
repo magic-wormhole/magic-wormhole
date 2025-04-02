@@ -67,11 +67,11 @@ There are unit-tests covering much of the code-base.
 New code should be covered by unit-tests.
 
 To run the tests, see the `Makefile` / `make test` target.
-There are also `Tox <>`_ environments which is what Continuous Integration (GitHub Actions) uses to run the tests.
+There are also `Tox <https://tox.wiki>`_ environments which is what Continuous Integration (GitHub Actions) uses to run the tests.
 
 For example: `tox -e py311` will run the tests under Python 3.11.
 
-It's also possible to set up a completely local manual test by running the Mailbox server and using `wormhole --relay-url ws://localhost:4000/v1/` to reach that local server instead of the default, public one.
+It's also possible to set up a completely local manual test by running the Mailbox server and using `wormhole --relay-url ws://localhost:4000/v1/` to reach that local server instead of the default public one.
 
 
 Coding Conventions
@@ -80,9 +80,15 @@ Coding Conventions
 While our CI does run some linting checks, there can be a confusing mix of code conventions sometimes.
 New code should follow the following patterns:
 
-- use `@inlineCallbacks` and `yield`. We would like to transition to `async-def`, `await` and `ensureDeferred` but are not there yet;
-- use `pytest`-style tests; use `@pytest.fixture()` to set up pre-requisites for test; use plain `assert` statements;
-
+- use `@inlineCallbacks` and `yield`. We would like to transition to `async-def`, `await` and `ensureDeferred` but are not there yet (exception: the tests);
+- use `pytest`-style tests;
+- use `@pytest.fixture()` to set up pre-requisites for tests;
+- use plain `assert` statements;
+- use `async def` for test functions with `@pytest_twisted.ensureDeferred` decorator;
+- long lines should split up "one argument per line" style;
+- new functions should have docstrings;
+- new functionality should have prose documentation;
+- features and changes should be mentioned in `NEWS.md`;
 
 
 Other Stuff That's Confusing?
@@ -90,4 +96,4 @@ Other Stuff That's Confusing?
 
 - `eventually()` and `EventualQueue`
 - global reactor?
-- 
+- ...? (**Reach out and ask us!**)
