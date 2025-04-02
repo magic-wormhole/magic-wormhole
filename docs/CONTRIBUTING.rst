@@ -22,14 +22,13 @@ Note that there are several separate repositories:
 There are also other client implementations in various states; see :doc:`ecosystem`.
 
 
-Talking about Magic Wormhole
+Talking About Magic Wormhole
 ----------------------------
 
 Many contributions benefit from starting with an "Issue" on GitHub to begin discussion.
 This kind of discussion is appropriate for figuring out how to implement a feature (or even whether it makes sense), discussing how current features work (or don't!) and planning future work.
 
-Sometimes, more ephemeral or real-time discussion is desired.
-Real-time discussions are currently supported on:
+Real-time and ephemeral discussions are currently supported on:
 
 - the `Libera <https://libera.chat/>`_ IRC network, channel `#magic-wormhole` (`web interface <https://web.libera.chat/#magic-wormhole>`_).
 - on Matrix, at `#magic-wormhole:matrix.org <https://matrix.to/#/#magic-wormhole:matrix.org>`_.
