@@ -6,6 +6,7 @@ User-visible changes in "magic-wormhole":
 * Drop support for Python 3.9, upgrade github-actions (#596)
 * add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 * use new Status API to notify a sending user when a code is consumed (#575, @shapr + @meejah)
+* add a contribution guide (#597)
 * (add release-notes here when making PRs)
 
 
