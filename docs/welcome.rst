@@ -23,7 +23,7 @@ As of now (2023) the magic-wormhole protocol has several client
 implementations; see :doc:`ecosystem`
 
 Code: `github.com/magic-wormhole/magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_
-Docsumentation: `magic-wormhole.readthedocs.io <https://magic-wormhole.readthedocs.io/en/latest/>`_
+Documentation: `magic-wormhole.readthedocs.io <https://magic-wormhole.readthedocs.io/en/latest/>`_
 
 
 Example
