@@ -36,6 +36,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 _trial_temp/
+.hypothesis
 
 # Translations
 *.mo
@@ -52,7 +53,7 @@ target/
 /twistd.pid
 /relay.sqlite
 /misc/node_modules/
-/.automat_visualize/
+.automat_visualize/
 /docs/state-machines/*.png
 
 # Virtual environment stuff
