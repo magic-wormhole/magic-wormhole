@@ -63,10 +63,10 @@ It contains the following keys:
 
   - ``"ged"``: the first version
 - ``"dilation-abilities"``: a list of ``dict`` indicating supported
-  hint types. Must have a ``"type"`` key, any other keys are
-  ``type``-dependant.
+  hint types. Must have a ``"type"`` key, a string the kind of hint.
+  Any other keys are ``type``-dependant. Currently valid ``type``s (none of which have additional properites): ``"direct-tcp-v1"``, ``"relay-v1"``.
 - ``"app_versions"``: from the ``versions=`` argument to ``wormhole.create()``, an arbitrary JSON-able ``dict``.
-  This can be used by application code to negotiate versions, or many other uses. In Python, ``IDeferredWormhole.got_versions()`` is called with this ``dict`` (on the peer, and vice-versa).
+  This can be used by application code to negotiate versions, among other uses. In Python, ``IDeferredWormhole.got_versions()`` is called with this ``dict`` (on the peer, and vice-versa).
 
 .. seqdiag::
 
