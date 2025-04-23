@@ -49,19 +49,24 @@ Versions and can-dilate
 The Wormhole protocol includes a ``version`` message sent immediately
 after the shared PAKE key is established. This also serves as a
 key-confirmation message, allowing each side to confirm that the other
-side knows the right key. The body of the ``version`` message is a
-JSON-formatted string with keys that are available for learning the
-abilities of the peer. Dilation is signaled by a key named
-``can-dilate``, whose value is a list of strings. Any version present in
-both side’s lists is eligible for use.
+side knows the right key.
 
-Official versions shall be named after wizard or mage characters from
-the `Earthsea
-<https://en.wikipedia.org/wiki/List_of_characters_in_Earthsea>`_
-series by Ursula le Guin. The current list of valid, supported
-versions is:
+The body of the ``version`` message is a JSON-formatted string.
+It contains the following keys:
 
-- ``"ged"``: the first version
+- ``"can-dilate"``: list of strings, each naming a version. Any of these is eligible for use.
+  Official versions shall be named after wizard or mage characters from
+  the `Earthsea
+  <https://en.wikipedia.org/wiki/List_of_characters_in_Earthsea>`_
+  series by Ursula le Guin. The current list of valid, supported
+  versions is:
+
+  - ``"ged"``: the first version
+- ``"dilation-abilities"``: a list of ``dict`` indicating supported
+  hint types. Must have a ``"type"`` key, any other keys are
+  ``type``-dependant.
+- ``"app_versions"``: from the ``versions=`` argument to ``wormhole.create()``, an arbitrary JSON-able ``dict``.
+  This can be used by application code to negotiate versions, or many other uses.
 
 .. seqdiag::
 
