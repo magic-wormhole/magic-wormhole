@@ -8,9 +8,7 @@ transmitted in-order to the other peer. There are subchannels: logically
 separate streams as the application protocol requires. Multiple ways to
 connect are supported, via “hints”. These exist for direct TCP, TCP via
 Tor, and TCP to a central Transit helper (see also “Canonical hint
-encodings” in the `Transit
-documentation <https://github.com/magic-wormhole/magic-wormhole-protocols/blob/main/transit.md>`__
-).
+encodings” in the :doc:`Transit documentation <transit>`.
 
 These building-blocks allow “application” protocols to be simpler by
 not having to deal with re-connection attempts and network problems.

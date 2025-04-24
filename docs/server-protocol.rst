@@ -236,8 +236,8 @@ mailbox.
 When clients use the ``add`` command to add a client-to-client message,
 they will put the body (a bytestring) into the command as a hex-encoded
 string in the ``body`` key. They will also put the message’s “phase”, as
-a string, into the ``phase`` key. See client-protocol.md for details
-about how different phases are used.
+a string, into the ``phase`` key. See  :doc:`the client protocol
+docs <client-protocol>`  for details about how different phases are used.
 
 When a client sends ``open``, it will get back a ``message`` response
 for every message in the mailbox. It will also get a real-time
@@ -295,7 +295,7 @@ Clients which terminate entirely between messages (e.g. a secure chat
 application, which requires multiple wormhole messages to exchange
 address-book entries, and which must function even if the two apps are
 never both running at the same time) can use “Journal Mode” to ensure
-forward progress is made: see “journal.md” for details.
+forward progress is made: see :doc:`the journal docs <journal>` for details.
 
 
 Diagram of Normal Interaction

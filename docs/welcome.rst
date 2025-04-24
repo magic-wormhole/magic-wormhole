@@ -308,7 +308,7 @@ Library
 The ``wormhole`` module makes it possible for other applications to use
 these code-protected channels. This includes Twisted support, and (in
 the future) will include blocking/synchronous support too. See
-docs/api.md for details.
+:doc:`the API docs <api>` for details.
 
 The file-transfer tools use a second module named ``wormhole.transit``,
 which provides an encrypted record-pipe. It knows how to use the Transit
