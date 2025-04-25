@@ -311,6 +311,10 @@ clients must be left running until the transfer has finished.
 Relays
 ------
 
+There are two servers involved, one of which you may never use.
+- the "Mailbox Server";
+- and a "Transit Relay"
+
 The wormhole library requires a “Mailbox Server” (also known as the
 “Rendezvous Server”): a simple WebSocket-based relay that delivers
 messages from one client to another. This allows the wormhole codes to
