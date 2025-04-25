@@ -17,14 +17,14 @@ Get Things
 
 `Traditionally <https://xkcd.com/949/>`_ transferring files is hard, even in 2025.
 The first and most popular "Thing" is a file or directory.
-For more on this, see :ref:`file-transfer-protocol`
+For more on this, see :doc:`file-transfer-protocol`
 
 Magic Wormhole can send any sort of message, though, including messages making up streams -- for example, `Fowl <https://github.com/meejah/fowl>`_ does exactly this.
-``fowl`` is built on a feature called "Dilation"; see :ref:`dilation-protocol` for more detail.
+``fowl`` is built on a feature called "Dilation"; see :doc:`dilation-protocol` for more detail.
 
 
-One Computer to Another
------------------------
+From One Computer to Another
+----------------------------
 
 Magic Wormhole has many methods to connect peers.
 A peer uses network "hints" to suggest these ways to the other peer.
@@ -48,7 +48,7 @@ Each code is **one-time use only**, so attackers (including the Mailbox server) 
 If such a guess is successful, one of the two intended peers will notice: their connection will fail, typically with a "crowded" or "scary" error.
 
 Early in the protocol a shared secret is established, and all peer-to-peer traffic is encrypted using the `Noise <https://noiseprotocol.org/>`_ protocol from keys derived directly from the shared PAKE secret.
-The section :ref:`attacks` has more details about failure modes.
+The section :doc:`attacks` has more details about failure modes.
 
 
 Motivational Use-Cases
@@ -60,7 +60,7 @@ Motivational Use-Cases
 * `git withme <https://git.sr.ht/~meejah/git-withme>`_ allows two peers to directly use Git together (without any hosting service like GitLab or `gitolite <https://gitolite.com/gitolite/>`_);
 * `Pear On <https://git.sr.ht/~meejah/pear-on>`_ allows two peers to use `tty-share <https://github.com/elisescu/tty-share>`_ directly, without running or using a centralized server;
 * `Warp <https://gitlab.gnome.org/World/warp>`_ is a Gnome GUI application to transfer files and directories (works with the CLI)
-* See :ref:`ecosystem` for more implementations and applications
+* See :doc:`ecosystem` for more implementations and applications
 
 
 Detailed Overview of Magic Wormhole
