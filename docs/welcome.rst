@@ -70,7 +70,7 @@ Motivational Use-Cases
     Unfortunately, asciinema doesn't work with screen-readers -- such users should see the Example below for a screen-reader friendly version
 
 
-* `wormhole send` + `wormhole receive` (as demonstrated above) are provided by this package and allow transfer of arbitrary files and directories;
+* ``wormhole send`` + ``wormhole receive`` (as demonstrated above) are provided by this package and allow transfer of arbitrary files and directories;
 * `Warp <https://gitlab.gnome.org/World/warp>`_ is a Gnome GUI application to transfer files and directories (works with the CLI)
 * `git withme <https://git.sr.ht/~meejah/git-withme>`_ allows two peers to directly use Git together (without any hosting service like GitLab or `gitolite <https://gitolite.com/gitolite/>`_);
 * `Pear On <https://git.sr.ht/~meejah/pear-on>`_ allows two peers to use `tty-share <https://github.com/elisescu/tty-share>`_ directly, without running or using a centralized server;
