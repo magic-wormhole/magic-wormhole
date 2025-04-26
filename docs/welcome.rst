@@ -31,7 +31,7 @@ A peer uses network "hints" to suggest these ways to the other peer.
 This allows considerable flexibility and can succeed in many different network conditions.
 
 Initial and relatively small messages are sent via the "Mailbox" server.
-This lets the two peers contact a well-known resource, and send the intial PAKE messages.
+This lets the two peers contact a well-known resource, and send the initial PAKE messages.
 After establishing this shared key, the peers bootstrap via further messages over the Mailbox.
 See :doc:`client-protocol` for more details.
 
