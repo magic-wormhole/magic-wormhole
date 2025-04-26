@@ -61,7 +61,7 @@ The section :doc:`attacks` has more details about failure modes.
 Motivational Use-Cases
 ======================
 
-.. raw::
+.. raw:: html
 
     <a href="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU" target="_blank"><img src="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.svg" /></a>
 
