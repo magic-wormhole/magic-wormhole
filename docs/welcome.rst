@@ -61,7 +61,12 @@ The section :doc:`attacks` has more details about failure modes.
 Motivational Use-Cases
 ======================
 
-**Insert ascinema demo here**
+.. image:: https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.svg
+    :alt: A real-time demonstration of wormhole; screen-readers see example below (asciinema dot org doesn't correctly show content to screen-readers)
+
+View `on asciinema.org <https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU>`_
+
+----
 
 * `wormhole send` + `wormhole receive` (as demonstrated above) are provided by this package and allow transfer of arbitrary files and directories;
 * `Warp <https://gitlab.gnome.org/World/warp>`_ is a Gnome GUI application to transfer files and directories (works with the CLI)
