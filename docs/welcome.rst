@@ -63,7 +63,7 @@ Motivational Use-Cases
 
 .. raw:: html
 
-    <a href="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU" target="_blank"><img src="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.svg" /></a>
+    <script src="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.js" id="asciicast-6YLCEhZ2dGDhzr3u55OlhViZU" async="true"></script>
 
 .. note::
 
