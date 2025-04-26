@@ -61,12 +61,14 @@ The section :doc:`attacks` has more details about failure modes.
 Motivational Use-Cases
 ======================
 
-.. image:: https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.svg
-    :alt: A real-time demonstration of wormhole; screen-readers see example below (asciinema dot org doesn't correctly show content to screen-readers)
+.. raw::
 
-View `on asciinema.org <https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU>`_
+    <a href="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU" target="_blank"><img src="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.svg" /></a>
 
-----
+.. note::
+
+    Unfortunately, asciinema doesn't work with screen-readers -- such users should see the Example below for a screen-reader friendly version
+
 
 * `wormhole send` + `wormhole receive` (as demonstrated above) are provided by this package and allow transfer of arbitrary files and directories;
 * `Warp <https://gitlab.gnome.org/World/warp>`_ is a Gnome GUI application to transfer files and directories (works with the CLI)
