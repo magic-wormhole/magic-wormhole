@@ -196,9 +196,14 @@ class _DeferredWormhole(object):
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
+    #
+    # XXX in the "subprotocol" world, this only returns TWO endpoints
+    # the "incoming subchannel factory" is determined from our registry:
+    #  - if it's not in there, it's an error
+    #  - otherwise, we know which factory to use
     def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
         """
-        :returns EndpointRecord: an EndpointRecord containing the three
+        :returns EndpointRecord: an EndpointRecord containing the three (TWO!)
             Twisted endpoint objects required to interact with the
             Dilation channel (as control, connect and listen members).
         """
@@ -272,9 +277,14 @@ def create(
         tor=None,
         timing=None,
         stderr=sys.stderr,
+        dilation_subprotocols=None,  # Option[dict[str, dict]] mapping "subprotocol name" to its config
+        # maybe this can just be set(str) ... ("gitwithme", "video")
         _eventual_queue=None,
         _enable_dilate=False,
         on_status_update=None):
+
+    #XXX thread "dilation_subprotocols" through, so that the manager
+
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()

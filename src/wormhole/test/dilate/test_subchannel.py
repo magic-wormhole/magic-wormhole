@@ -3,7 +3,7 @@ from zope.interface import directlyProvides
 from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol
 from twisted.internet.error import ConnectionDone
 from ..._dilation.subchannel import (Once, SubChannel,
-                                     _WormholeAddress, _SubchannelAddress,
+                                     _WormholeAddress, SubchannelAddress,
                                      AlreadyClosedError,
                                      NormalCloseUsedOnHalfCloseable)
 from .common import mock_manager
@@ -13,7 +13,7 @@ import pytest
 def make_sc(set_protocol=True, half_closeable=False):
     scid = 4
     hostaddr = _WormholeAddress()
-    peeraddr = _SubchannelAddress(scid)
+    peeraddr = SubchannelAddress("proto")
     m = mock_manager()
     sc = SubChannel(scid, m, hostaddr, peeraddr)
     p = mock.Mock()

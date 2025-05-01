@@ -13,7 +13,7 @@ from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
-from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,
+from .subchannel import (SubChannel, SubchannelAddress, _WormholeAddress,
                          ControlEndpoint, SubchannelConnectorEndpoint,
                          SubchannelListenerEndpoint)
 from .connector import Connector
@@ -282,6 +282,7 @@ class Manager(object):
     _status = attrib(default=None)  # callable([DilationStatus])
     _initial_mailbox_status = attrib(default=None)  # WormholeStatus
 
+    _subchannels = None
     _dilation_key = None
     _tor = None  # TODO
     _timing = None  # TODO
@@ -319,7 +320,8 @@ class Manager(object):
         # may not ever get revealed to the caller, since the peer might not
         # even be capable of dilation.
         scid0 = 0
-        peer_addr0 = _SubchannelAddress(scid0)
+        #XXX make it an ERROR for user-code to use ""
+        peer_addr0 = SubchannelAddress("")  #XXX good idea? empty-string == control proto/subchannel
         sc0 = SubChannel(scid0, self, self._host_addr, peer_addr0)
         self._inbound.set_subchannel_zero(scid0, sc0)
 
@@ -465,9 +467,9 @@ class Manager(object):
     def subchannel_unregisterProducer(self, sc):
         self._outbound.subchannel_unregisterProducer(sc)
 
-    def send_open(self, scid):
+    def send_open(self, scid, subprotocol):
         assert isinstance(scid, int)
-        self._queue_and_send(Open, scid)
+        self._queue_and_send(Open, scid, subprotocol)
 
     def send_data(self, scid, data):
         assert isinstance(scid, int)
@@ -544,7 +546,7 @@ class Manager(object):
                 return
             self._inbound.update_ack_watermark(r.seqnum)
             if isinstance(r, Open):
-                self._inbound.handle_open(r.scid)
+                self._inbound.handle_open(r.scid, r.subprotocol)
             elif isinstance(r, Data):
                 self._inbound.handle_data(r.scid, r.data)
             else:  # isinstance(r, Close)
@@ -930,6 +932,28 @@ class Dilator(object):
                ping_interval=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
+        ##validate_subchannel_config(subchannel_config)
+        # XXX ^-- or should we pass in something more structured? SubchannelConfig() or something?
+        # ...and why do we even need this? Just a list of valid names..?
+        # in Twisted, "config stuff" goes in the factory anyway, right?
+        # (and we know it's an ISubprotocolFactory in the endpoint..)
+        #
+        # we don't know which end will open .. and without this ^ th
+        # peer doesn't know what subprotocols are valid .. but that's
+        # okay? "just try and see if it fails?"
+        #
+        # each side sends the names of subprotocols it will speak
+        # valid protocols are the intersection of those sets
+        #
+        # ...what about empty-string? just disallowed? (should you be
+        # "allowed" to write a Dilation subprotocol that _can't_ be a
+        # plugin?)
+        #
+        # so what's "a plugin" look like now -- just
+        # @implementer(ISubprotocolFactory)..? (so then we give it a
+        # .name and pass a set/list of them to
+        # crate(dilation_subprotocols=[])
+
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set

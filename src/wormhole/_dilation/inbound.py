@@ -3,7 +3,7 @@ from zope.interface import implementer
 from twisted.python import log
 from .._interfaces import IDilationManager, IInbound, ISubChannel
 from ..util import provides
-from .subchannel import (SubChannel, _SubchannelAddress)
+from .subchannel import (SubChannel, SubchannelAddress)
 
 
 class DuplicateOpenError(Exception):
@@ -68,13 +68,13 @@ class Inbound(object):
         self._highest_inbound_acked = max(self._highest_inbound_acked,
                                           seqnum)
 
-    def handle_open(self, scid):
-        log.msg("inbound.handle_open", scid)
+    def handle_open(self, scid, subprotocol):
+        log.msg("inbound.handle_open", scid, subprotocol)
         if scid in self._open_subchannels:
             log.err(DuplicateOpenError(
                 "received duplicate OPEN for {}".format(scid)))
             return
-        peer_addr = _SubchannelAddress(scid)
+        peer_addr = SubchannelAddress(subprotocol)
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
         self._open_subchannels[scid] = sc
         self._listener_endpoint._got_open(sc, peer_addr)

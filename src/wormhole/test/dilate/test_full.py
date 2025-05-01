@@ -1,4 +1,5 @@
 import wormhole
+from zope.interface import implementer, alsoProvides
 from twisted.internet.defer import Deferred, gatherResults
 from twisted.internet.protocol import Protocol, Factory
 
@@ -9,6 +10,8 @@ from ..common import poll_until
 from ..._interfaces import IDilationConnector
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
+from ..._dilation.subchannel import ISubchannelFactory
+
 
 APPID = u"lothar.com/dilate-test"
 
@@ -48,12 +51,16 @@ async def test_control(reactor, mailbox):
     print("w.dilate ready")
 
     f1 = Factory()
+    f1.subprotocol = "proto"
+    alsoProvides(f1, ISubchannelFactory)
     f1.protocol = L
     f1.d = Deferred()
     f1.d.addCallback(lambda data: eq.fire_eventually(data))
     d1 = eps1.control.connect(f1)
 
     f2 = Factory()
+    f2.subprotocol = "proto"
+    alsoProvides(f2, ISubchannelFactory)
     f2.protocol = L
     f2.d = Deferred()
     f2.d.addCallback(lambda data: eq.fire_eventually(data))
@@ -92,8 +99,10 @@ class ReconP(Protocol):
         self.eventually("connectionLost", (self, why))
 
 
+@implementer(ISubchannelFactory)
 class ReconF(Factory):
     protocol = ReconP
+    subprotocol = "proto"
 
     def __init__(self, eq):
         Factory.__init__(self)
@@ -278,10 +287,12 @@ async def test_endpoints(reactor, mailbox):
     print("w.dilate ready")
 
     f0 = ReconF(eq)
+    f0.subprotocol = "proto"
     await eps2.listen.listen(f0)
 
     from twisted.python import log
     f1 = ReconF(eq)
+    f1.subprotocol = "proto"
     log.msg("connecting")
     p1_client = await eps1.connect.connect(f1)
     log.msg("sending c->s")

@@ -1,13 +1,15 @@
 from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of
-from zope.interface import implementer
+from zope.interface import implementer, Attribute
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
                                          IStreamClientEndpoint,
-                                         IStreamServerEndpoint)
+                                         IStreamServerEndpoint,
+                                         IProtocolFactory,
+                                         )
 from twisted.internet.error import ConnectionDone
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
@@ -21,6 +23,25 @@ from ..util import provides
 # length prefix itself), so the padded message must be less than 2**32 bytes
 # long.
 MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
+
+
+class ISubchannelFactory(IProtocolFactory):
+    subprotocol = Attribute("Some configured subprotocol")
+    # XXX where do we "regsiter" subprotocols?
+    #   - special app_versions subkey?
+    #   - burned in to "versions" itself? (<-- seems more consistent with "it's in the protocol")
+
+
+# @implementer(ISubchannelFactory)
+# class FowlFactory(Factory):
+#     subprotocol = "fowl"
+#
+#     def buildProtocol(self, addr):
+#         # addr == SubchannelAddress
+#         subproto = addr.subprotocol
+#         # returns a Protocol object
+#         assert self.subprotocol == subproto, "unexpected proto"
+#         return SubchannelForwarder()
 
 
 @attrs
@@ -73,8 +94,9 @@ class _WormholeAddress(object):
 
 @implementer(IAddress)
 @attrs
-class _SubchannelAddress(object):
-    _scid = attrib(validator=instance_of(int))
+class SubchannelAddress(object):
+    ##P _scid = attrib(validator=instance_of(int))  # unused, shouldn't be revealed to users
+    subprotocol = attrib(validator=instance_of(str))
 
 
 @attrs(eq=False)
@@ -86,7 +108,7 @@ class SubChannel(object):
     _scid = attrib(validator=instance_of(int))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
-    _peer_addr = attrib(validator=instance_of(_SubchannelAddress))
+    _peer_addr = attrib(validator=instance_of(SubchannelAddress))
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self,
@@ -369,11 +391,26 @@ class SubchannelConnectorEndpoint(object):
 
     @inlineCallbacks
     def connect(self, protocolFactory):
+        # only-if we have _any_ subprotocols defined do we insist on
+        # this (sub) interface.
+        # XXX or .. just _always_ have subprotocols for dilation?
+        if not ISubchannelFactory.providedBy(protocolFactory):
+            raise ValueError(
+                "connect({}) must implement ISubchannelFactory".format(
+                    protocolFactory,
+                )
+            )
+        subprotocol = protocolFactory.subprotocol
+        #XXX fixme no assert
+        assert isinstance(subprotocol, str), "subprotocol name must be str"
+        assert subprotocol != "", "the empty-string subprotocol is reserved for control protocol"
+        #XXX probably want to check that we agreed to this?
+
         # return Deferred that fires with IProtocol or Failure(ConnectError)
         yield self._wait_for_main_channel.when_fired()
         scid = self._manager.allocate_subchannel_id()
-        self._manager.send_open(scid)
-        peer_addr = _SubchannelAddress(scid)
+        self._manager.send_open(scid, subprotocol)
+        peer_addr = SubchannelAddress(subprotocol)
         # ? f.doStart()
         # ? f.startedConnecting(CONNECTOR) # ??
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
@@ -420,7 +457,8 @@ class SubchannelListenerEndpoint(object):
 
     @inlineCallbacks
     def listen(self, protocolFactory):
-        self._once()
+        # protocolFactory HAS to be in our registry already
+##        self._once()
         yield self._wait_for_main_channel.when_fired()
         self._factory = protocolFactory
         while self._pending_opens:

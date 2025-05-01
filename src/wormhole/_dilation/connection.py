@@ -251,7 +251,7 @@ Handshake = namedtuple("Handshake", [])
 KCM = namedtuple("KCM", [])
 Ping = namedtuple("Ping", ["ping_id"])  # ping_id is arbitrary 4-byte value
 Pong = namedtuple("Pong", ["ping_id"])
-Open = namedtuple("Open", ["seqnum", "scid"])  # seqnum is integer
+Open = namedtuple("Open", ["seqnum", "scid", "subprotocol"])  # seqnum is integer, subprotocol is str
 Data = namedtuple("Data", ["seqnum", "scid", "data"])
 Close = namedtuple("Close", ["seqnum", "scid"])  # scid is integer
 Ack = namedtuple("Ack", ["resp_seqnum"])  # resp_seqnum is integer
@@ -280,7 +280,8 @@ def parse_record(plaintext):
     if msgtype == T_OPEN:
         scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
-        return Open(seqnum, scid)
+        subprotocol = str(plaintext[9:], "utf8")
+        return Open(seqnum, scid, subprotocol)
     if msgtype == T_DATA:
         scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
