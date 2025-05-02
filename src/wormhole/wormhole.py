@@ -281,7 +281,7 @@ def create(
         _eventual_queue=None,
         on_status_update=None):
     if dilation_subprotocols is None:
-        dilation_subprotocols = []
+        dilation_subprotocols = set()
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
@@ -290,15 +290,15 @@ def create(
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate)
+        w = _DeferredWormhole(reactor, eq, _enable_dilate=bool(dilation_subprotocols))
     # this indicates Wormhole capabilities
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
-        "dilation-subprotocols": {
+        "dilation-subprotocols": [
             fac.subprotocol
             for fac in dilation_subprotocols
-        },
+        ],
     }
 
     # the way to activate Dilation is by specifying more than zero
