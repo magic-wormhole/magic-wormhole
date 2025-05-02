@@ -277,14 +277,11 @@ def create(
         tor=None,
         timing=None,
         stderr=sys.stderr,
-        dilation_subprotocols=None,  # Option[dict[str, dict]] mapping "subprotocol name" to its config
-        # maybe this can just be set(str) ... ("gitwithme", "video")
+        dilation_subprotocols=None,  # set[ISubprotocolFactory] of all subprotocols we support
         _eventual_queue=None,
-        _enable_dilate=False,
         on_status_update=None):
-
-    #XXX thread "dilation_subprotocols" through, so that the manager
-
+    if dilation_subprotocols is None:
+        dilation_subprotocols = []
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
@@ -298,9 +295,17 @@ def create(
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
+        "dilation-subprotocols": {
+            fac.subprotocol
+            for fac in dilation_subprotocols
+        },
     }
-    if not _enable_dilate:
-        wormhole_versions = {}  # don't advertise Dilation yet: not ready
+
+    # the way to activate Dilation is by specifying more than zero
+    # subprotocols -- so if this is still None or empty-set we do not
+    # want Dilation.
+    if not dilation_subprotocols:
+        wormhole_versions = {}
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, type(b"")):
