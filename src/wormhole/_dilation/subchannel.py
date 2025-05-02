@@ -27,7 +27,7 @@ MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
 
 class ISubchannelFactory(IProtocolFactory):
     subprotocol = Attribute("Some configured subprotocol")
-    # XXX where do we "regsiter" subprotocols?
+    # XXX where do we "register" subprotocols?
     #   - special app_versions subkey?
     #   - burned in to "versions" itself? (<-- seems more consistent with "it's in the protocol")
 

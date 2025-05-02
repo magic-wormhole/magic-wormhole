@@ -191,7 +191,7 @@ Once a side has sent CLOSE it may not send any more DATA messages.
 All L5 subchannels (except the control channel) speak a particular
 "subprotocol".  The name of the subprotocol is sent in the OPEN
 message, and must have been declared as supported in the "versions"
-message. This allows applications to write re-usable and composible
+message. This allows applications to write reusable and composible
 subprotocols on top of Dilation.
 
 In Twisted, subprotocols implement the ``ISubprotocolFactory``
