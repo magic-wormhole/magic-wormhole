@@ -181,10 +181,29 @@ subchannel number. DATA frames are delivered to a specific subchannel.
 When the subchannel is no longer needed, one side will invoke the
 ``close()`` API (``loseConnection()`` in Twisted), which will cause a
 CLOSE message to be sent, and the local L5 object will be put into the
-“closing”state. When the other side receives the CLOSE, it will send its
+“closing” state. When the other side receives the CLOSE, it will send its
 own CLOSE for the same subchannel, and fully close its local object
 (``connectionLost()``). When the first side receives CLOSE in the
 “closing” state, it will fully close its local object too.
+
+Once a side has sent CLOSE it may not send any more DATA messages.
+
+All L5 subchannels (except the control channel) speak a particular
+"subprotocol".  The name of the subprotocol is sent in the OPEN
+message, and must have been declared as supported in the "versions"
+message. This allows applications to write re-usable and composible
+subprotocols on top of Dilation.
+
+In Twisted, subprotocols implement the ``ISubprotocolFactory``
+interface (a sub-interface of Twisted's normal `IProtocolFactory`
+interface).
+They may derive from ``twisted.internet.protocol.Factory`` if desired.
+Upon an incoming L5 subchannel open, the Magic Wormhole library
+invokes the ``buildProtocol`` method on the correct factory, and
+speaks that protocol over that subchannel.
+For outgoing connections, ``.connect()`` is called with an
+``ISubprotocolFactory`` on the "connect" endpoint (returned from
+``.dilate()``).
 
 All L5 subchannels will be paused (``pauseProducing()``) when the L3
 connection is paused or lost. They are resumed when the L3 connection is
