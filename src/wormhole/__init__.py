@@ -10,6 +10,8 @@ __all__ = [
     "__version__",
     "create", "input_with_completion",
     "WormholeStatus",
+
+    # Dilation-related exports
     "DilationStatus",
     "SubchannelAddress",
     "ISubchannelFactory",
