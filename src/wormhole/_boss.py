@@ -42,6 +42,7 @@ class Boss(object):
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
     _timing = attrib(validator=provides(_interfaces.ITiming))
+    _subchannel_factories = attrib()
     _on_status_update = attrib(default=None)  # type should be Callable[[WormholeStatus], None]
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -79,6 +80,7 @@ class Boss(object):
             self._eventual_queue,
             self._cooperator,
             self._versions.get("can-dilate", []),
+            self._subchannel_factories,
         )
 
         self._N.wire(self._M, self._I, self._RC, self._T)

@@ -8,6 +8,7 @@ from zope.interface import implementer
 from twisted.internet.defer import Deferred
 from twisted.internet.interfaces import (IStreamClientEndpoint,
                                          IStreamServerEndpoint)
+from twisted.internet.protocol import Factory
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
@@ -15,7 +16,7 @@ from ..observer import OneShotObserver
 from .._key import derive_key
 from .subchannel import (SubChannel, SubchannelAddress, _WormholeAddress,
                          ControlEndpoint, SubchannelConnectorEndpoint,
-                         SubchannelListenerEndpoint)
+                         SubchannelListenerEndpoint, SubchannelInitiatorFactory)
 from .connector import Connector
 from .._hints import parse_hint
 from .roles import LEADER, FOLLOWER
@@ -78,13 +79,13 @@ class EndpointRecord(Sequence):
     """
     control = attrib(validator=provides(IStreamClientEndpoint))
     connect = attrib(validator=provides(IStreamClientEndpoint))
-    listen = attrib(validator=provides(IStreamServerEndpoint))
+##    listen = attrib(validator=provides(IStreamServerEndpoint))
 
     def __len__(self):
         return 3
 
     def __getitem__(self, n):
-        return (self.control, self.connect, self.listen)[n]
+        return (self.control, self.connect)[n]
 
 
 def make_side():
@@ -277,12 +278,12 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
+    _subchannel_factories = attrib()
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
     _initial_mailbox_status = attrib(default=None)  # WormholeStatus
 
-    _subchannels = None
     _dilation_key = None
     _tor = None  # TODO
     _timing = None  # TODO
@@ -333,8 +334,11 @@ class Manager(object):
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
         self._inbound.set_listener_endpoint(listen_ep)
+        self._port = listen_ep.listen(SubchannelInitiatorFactory(self._subchannel_factories))
 
-        self._endpoints = EndpointRecord(control_ep, connect_ep, listen_ep)
+
+        self._endpoints = EndpointRecord(control_ep, connect_ep)
+        self._listen_endpoint = listen_ep
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
@@ -514,7 +518,8 @@ class Manager(object):
             self._made_first_connection = True
             self._endpoints.control._main_channel_ready()
             self._endpoints.connect._main_channel_ready()
-            self._endpoints.listen._main_channel_ready()
+            self._listen_endpoint._main_channel_ready()
+            ##self._endpoints.listen._main_channel_ready()
         pass
 
     def connector_connection_lost(self):
@@ -916,6 +921,7 @@ class Dilator(object):
     _eventual_queue = attrib()
     _cooperator = attrib()
     _acceptable_versions = attrib()
+    _subchannel_factories = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None
@@ -967,6 +973,7 @@ class Dilator(object):
                 self._cooperator,
                 self._acceptable_versions,
                 ping_interval or 30.0,
+                self._subchannel_factories,
                 no_listen,
                 status_update,
                 initial_mailbox_status=wormhole_status,

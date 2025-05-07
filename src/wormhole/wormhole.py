@@ -18,6 +18,7 @@ from .observer import OneShotObserver, SequenceObserver
 from .timing import DebugTiming
 from .util import bytes_to_hexstr, to_bytes
 from ._version import get_versions
+from ._dilation.subchannel import ISubchannelFactory
 
 __version__ = get_versions()['version']
 del get_versions
@@ -267,6 +268,23 @@ class _DeferredWormhole(object):
         self._received_observer.fire(f)
 
 
+def _validate_subprotocol_config(subprotos):
+    """
+    raises a ValueError if anything is wrong with the subprotocol
+    configuration
+    """
+    for fac in subprotos.values():
+        if not ISubchannelFactory.providedBy(fac):
+            raise ValueError(
+                f"{fac} does not implement wormhole.ISubchannelFactory"
+            )
+    for k in subprotos.keys():
+        if not isinstance(k, str) or not k:
+            raise ValueError(
+                f'subprotocol names must be a non-empty str, found "{k}"'
+            )
+
+
 def create(
         appid,
         relay_url,
@@ -277,16 +295,24 @@ def create(
         tor=None,
         timing=None,
         stderr=sys.stderr,
-        dilation_subprotocols=None,  # set[ISubprotocolFactory] of all subprotocols we support
+        ##dilation_subprotocols=None,  # Option[set[ISubprotocolFactory]] of all subprotocols we support
+        dilation_subprotocols=None,  # Option[dict[str, ISubprotocolFactory]] mapping names to listeners
+
+        ##dilation_subprotocols=set(FowlFactory(), TtyShareFactory()),
+        ##dilation_subprotocols=set(FowlFactory(), FowlControlFactory(), TtyShareFactory()),
+
         _eventual_queue=None,
         on_status_update=None):
     if dilation_subprotocols is None:
-        dilation_subprotocols = set()
+        dilation_subprotocols = dict()
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
     cooperator = Cooperator(scheduler=eq.eventually)
+
+    _validate_subprotocol_config(dilation_subprotocols)
+
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
@@ -295,10 +321,10 @@ def create(
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
-        "dilation-subprotocols": [
-            fac.subprotocol
-            for fac in dilation_subprotocols
-        ],
+        "dilation-subprotocols": {
+            name: fac.subprotocol_config_for(name)
+            for name, fac in dilation_subprotocols.items()
+        },
     }
 
     # the way to activate Dilation is by specifying more than zero
@@ -312,7 +338,7 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, eq, cooperator, journal, tor, timing, on_status_update)
+             reactor, eq, cooperator, journal, tor, timing, dilation_subprotocols, on_status_update)
     w._set_boss(b)
     b.start()
     return w

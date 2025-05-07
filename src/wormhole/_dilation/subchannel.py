@@ -11,6 +11,7 @@ from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IProtocolFactory,
                                          )
 from twisted.internet.error import ConnectionDone
+from twisted.internet.protocol import Factory
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 from ..observer import OneShotObserver
@@ -27,6 +28,16 @@ MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
 
 class ISubchannelFactory(IProtocolFactory):
     subprotocol = Attribute("Some configured subprotocol")
+
+    def subprotocol_config_for(name: str):
+        """
+        Create any static configuration to be sent to the peer in the
+        'versions' message. Must be valid JSON-able dict.
+
+        :param str name: is useful when a single Factory can support
+            many different subprotocol names
+        """
+
     # XXX where do we "register" subprotocols?
     #   - special app_versions subkey?
     #   - burned in to "versions" itself? (<-- seems more consistent with "it's in the protocol")
@@ -419,6 +430,19 @@ class SubchannelConnectorEndpoint(object):
         sc._set_protocol(p)
         p.makeConnection(sc)  # set p.transport = sc and call connectionMade()
         return p
+
+
+class SubchannelInitiatorFactory(Factory):
+
+    def __init__(self, factories):
+        self._factories = factories
+
+    def buildProtocol(self, addr):
+        print("BUILD", addr)
+        subprotocol = addr.subprotocol
+        if not subprotocol in self._factories:
+            raise IllegalSubprotocolError(subprotocol)
+        return self._factories[subprotocol].buildProtocol(addr)
 
 
 @implementer(IStreamServerEndpoint)
