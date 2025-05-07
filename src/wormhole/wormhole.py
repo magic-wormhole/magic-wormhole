@@ -18,7 +18,7 @@ from .observer import OneShotObserver, SequenceObserver
 from .timing import DebugTiming
 from .util import bytes_to_hexstr, to_bytes
 from ._version import get_versions
-from ._dilation.subchannel import ISubchannelFactory
+from ._dilation.subchannel import ISubchannelListenFactory
 
 __version__ = get_versions()['version']
 del get_versions
@@ -274,7 +274,7 @@ def _validate_subprotocol_config(subprotos):
     configuration
     """
     for fac in subprotos.values():
-        if not ISubchannelFactory.providedBy(fac):
+        if not ISubchannelListenFactory.providedBy(fac):
             raise ValueError(
                 f"{fac} does not implement wormhole.ISubchannelFactory"
             )

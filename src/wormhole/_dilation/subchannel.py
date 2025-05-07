@@ -26,8 +26,7 @@ from ..util import provides
 MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
 
 
-class ISubchannelFactory(IProtocolFactory):
-    subprotocol = Attribute("Some configured subprotocol")
+class ISubchannelListenFactory(IProtocolFactory):
 
     def subprotocol_config_for(name: str):
         """
@@ -38,21 +37,22 @@ class ISubchannelFactory(IProtocolFactory):
             many different subprotocol names
         """
 
-    # XXX where do we "register" subprotocols?
-    #   - special app_versions subkey?
-    #   - burned in to "versions" itself? (<-- seems more consistent with "it's in the protocol")
+
+class ISubchannelConnectFactory(IProtocolFactory):
+    subprotocol = Attribute("The name of our subprotocol")
 
 
 # @implementer(ISubchannelFactory)
 # class FowlFactory(Factory):
-#     subprotocol = "fowl"
 #
 #     def buildProtocol(self, addr):
 #         # addr == SubchannelAddress
 #         subproto = addr.subprotocol
+#         if subproto == "fowl-v1":
+#              return SubchannelForwarder(version=1)
 #         # returns a Protocol object
 #         assert self.subprotocol == subproto, "unexpected proto"
-#         return SubchannelForwarder()
+#         return SubchannelForwarder(version=2)
 
 
 @attrs
@@ -402,20 +402,19 @@ class SubchannelConnectorEndpoint(object):
 
     @inlineCallbacks
     def connect(self, protocolFactory):
+        # we do not need to insist on ISubchannelFactory -- that on
         # only-if we have _any_ subprotocols defined do we insist on
         # this (sub) interface.
         # XXX or .. just _always_ have subprotocols for dilation?
-        if not ISubchannelFactory.providedBy(protocolFactory):
+        if not ISubchannelConnectFactory.providedBy(protocolFactory):
             raise ValueError(
-                "connect({}) must implement ISubchannelFactory".format(
+                "connect({}) must implement ISubchannelConnectFactory".format(
                     protocolFactory,
                 )
             )
         subprotocol = protocolFactory.subprotocol
         #XXX fixme no assert
-        assert isinstance(subprotocol, str), "subprotocol name must be str"
-        assert subprotocol != "", "the empty-string subprotocol is reserved for control protocol"
-        #XXX probably want to check that we agreed to this?
+        assert isinstance(subprotocol, str) and subprotocol, "subprotocol name must be a non-empty str"
 
         # return Deferred that fires with IProtocol or Failure(ConnectError)
         yield self._wait_for_main_channel.when_fired()
@@ -438,7 +437,6 @@ class SubchannelInitiatorFactory(Factory):
         self._factories = factories
 
     def buildProtocol(self, addr):
-        print("BUILD", addr)
         subprotocol = addr.subprotocol
         if not subprotocol in self._factories:
             raise IllegalSubprotocolError(subprotocol)
