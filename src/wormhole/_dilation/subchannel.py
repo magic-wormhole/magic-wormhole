@@ -2,7 +2,7 @@ from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of
 from zope.interface import implementer, Attribute
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import inlineCallbacks, Deferred
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
@@ -353,74 +353,69 @@ class SubChannel(object):
 @implementer(IStreamClientEndpoint)
 @attrs
 class ControlEndpoint(object):
-    _peer_addr = attrib(validator=provides(IAddress))
-    _subchannel_zero = attrib(validator=provides(ISubChannel))
+    _subprotocol = attrib(validator=instance_of(str))
+    _main_channel = attrib(validator=instance_of(OneShotObserver))
+    _manager = attrib(validator=provides(IDilationManager))
+    _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _eventual_queue = attrib(repr=False)
-    _used = False
+    _once = attrib(init=False)
 
     def __attrs_post_init__(self):
         self._once = Once(SingleUseEndpointError)
-        self._wait_for_main_channel = OneShotObserver(self._eventual_queue)
-
-    # from manager
-
-    def _main_channel_ready(self):
-        self._wait_for_main_channel.fire(None)
-
-    def _main_channel_failed(self, f):
-        self._wait_for_main_channel.error(f)
 
     @inlineCallbacks
     def connect(self, protocolFactory):
+        #XXX if we're the Leader, then listen (wait for subchannel)
+        #XXX if we're the Follower, then connect (start the subchannel)
         # return Deferred that fires with IProtocol or Failure(ConnectError)
         self._once()
-        yield self._wait_for_main_channel.when_fired()
-        p = protocolFactory.buildProtocol(self._peer_addr)
-        self._subchannel_zero._set_protocol(p)
-        # this sets p.transport and calls p.connectionMade()
-        p.makeConnection(self._subchannel_zero)
-        self._subchannel_zero._deliver_queued_data()
-        return p
+        print("control connect")
+        yield self._main_channel.when_fired()
+        print("have main channel")
+        print("we are", "leader" if self._manager._is_leader() else "follower")
+
+        if self._manager._is_leader():
+            proto = yield self._manager._listen_factory.when_subprotocol(self._subprotocol)
+            print("listen-proto", proto)
+
+        else:
+            #XXX FIXME this is same as code in ConnectEndpoint, re-use
+            scid = self._manager.allocate_subchannel_id()
+            self._manager.send_open(scid, self._subprotocol)
+            peer_addr = SubchannelAddress(self._subprotocol)
+            # ? f.doStart()
+            # ? f.startedConnecting(CONNECTOR) # ??
+            sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
+            self._manager.subchannel_local_open(scid, sc)
+            proto = protocolFactory.buildProtocol(peer_addr)
+            sc._set_protocol(proto)
+            proto.makeConnection(sc)  # set p.transport = sc and call connectionMade()
+        return proto
 
 
 @implementer(IStreamClientEndpoint)
 @attrs
 class SubchannelConnectorEndpoint(object):
+    _subprotocol = attrib(validator=instance_of(str))
+    _main_channel = attrib(validator=instance_of(OneShotObserver))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _eventual_queue = attrib(repr=False)
 
     def __attrs_post_init__(self):
         self._connection_deferreds = deque()
-        self._wait_for_main_channel = OneShotObserver(self._eventual_queue)
-
-    def _main_channel_ready(self):
-        self._wait_for_main_channel.fire(None)
-
-    def _main_channel_failed(self, f):
-        self._wait_for_main_channel.error(f)
+        if not self._subprotocol:
+            raise ValueError(
+                "subprotocol must be a non-empty str"
+            )
 
     @inlineCallbacks
     def connect(self, protocolFactory):
-        # we do not need to insist on ISubchannelFactory -- that on
-        # only-if we have _any_ subprotocols defined do we insist on
-        # this (sub) interface.
-        # XXX or .. just _always_ have subprotocols for dilation?
-        if not ISubchannelConnectFactory.providedBy(protocolFactory):
-            raise ValueError(
-                "connect({}) must implement ISubchannelConnectFactory".format(
-                    protocolFactory,
-                )
-            )
-        subprotocol = protocolFactory.subprotocol
-        #XXX fixme no assert
-        assert isinstance(subprotocol, str) and subprotocol, "subprotocol name must be a non-empty str"
-
         # return Deferred that fires with IProtocol or Failure(ConnectError)
-        yield self._wait_for_main_channel.when_fired()
+        yield self._main_channel.when_fired()
         scid = self._manager.allocate_subchannel_id()
-        self._manager.send_open(scid, subprotocol)
-        peer_addr = SubchannelAddress(subprotocol)
+        self._manager.send_open(scid, self._subprotocol)
+        peer_addr = SubchannelAddress(self._subprotocol)
         # ? f.doStart()
         # ? f.startedConnecting(CONNECTOR) # ??
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
@@ -431,16 +426,49 @@ class SubchannelConnectorEndpoint(object):
         return p
 
 
-class SubchannelInitiatorFactory(Factory):
+class IllegalSubprotocolError(Exception):
+    """
+    A peer tried to open a subprotocol that wasn't declared
+    """
 
+
+class SubchannelInitiatorFactory(Factory):
+    """
+    The one thing that listens for subchannels opening, and
+    instantiates the correct listener based on the subprotocol name
+    """
     def __init__(self, factories):
         self._factories = factories
+        self._protocol_awaiters = dict()
+
+    ##async def when_subprotocol(self, name):  ## "fowl-control"
+    @inlineCallbacks
+    def when_subprotocol(self, name):  ## "fowl-control"
+        """
+        fires with a Protocol when the named subprotocol is available
+        """
+        try:
+            d = self._protocol_awaiters[name]
+        except KeyError:
+            d = self._protocol_awaiters[name] = Deferred()
+        proto = yield d
+        return proto
 
     def buildProtocol(self, addr):
         subprotocol = addr.subprotocol
         if not subprotocol in self._factories:
             raise IllegalSubprotocolError(subprotocol)
-        return self._factories[subprotocol].buildProtocol(addr)
+
+        proto = self._factories[subprotocol].buildProtocol(addr)
+        print(f"{subprotocol} -> {proto}")
+        try:
+            d = self._protocol_awaiters[subprotocol]
+        except KeyError:
+            d = self._protocol_awaiters[subprotocol] = Deferred()
+
+        if not d.called:
+            d.callback(proto)
+        return proto
 
 
 @implementer(IStreamServerEndpoint)
