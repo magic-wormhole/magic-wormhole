@@ -365,19 +365,19 @@ class ControlEndpoint(object):
 
     @inlineCallbacks
     def connect(self, protocolFactory):
-        #XXX if we're the Leader, then listen (wait for subchannel)
-        #XXX if we're the Follower, then connect (start the subchannel)
         # return Deferred that fires with IProtocol or Failure(ConnectError)
         self._once()
-        print("control connect")
         yield self._main_channel.when_fired()
-        print("have main channel")
-        print("we are", "leader" if self._manager._is_leader() else "follower")
 
+        # the leader "listens" -- which means we just need to wait for
+        # the incoming OPEN and the other subchannel stuff will
+        # instantiate a server-style Protocol via the Factory registered in create()
         if self._manager._is_leader():
             proto = yield self._manager._listen_factory.when_subprotocol(self._subprotocol)
-            print("listen-proto", proto)
 
+        # the follower "connects", so we basically do the same thing
+        # as the connect endpoint (XXX FIXME can we _literally_ do the
+        # same as SubchannelConnectorEndpoint?)
         else:
             #XXX FIXME this is same as code in ConnectEndpoint, re-use
             scid = self._manager.allocate_subchannel_id()
