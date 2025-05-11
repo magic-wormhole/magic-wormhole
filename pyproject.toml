@@ -1,10 +1,107 @@
 [build-system]
-requires = ["setuptools>=64.0.0", "wheel", "versioneer"]
-build-backend = "setuptools.build_meta"
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "src/wormhole/_version.py"
-versionfile_build = "wormhole/_version.py"
-tag_prefix = ""
-parentdir_prefix = "magic-wormhole-"
+requires = ["hatchling", "versioningit"]
+build-backend = "hatchling.build"
+
+[project]
+name = "magic-wormhole"
+dynamic = ["version"]
+description = "Securely transfer data between computers"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Brian Warner", email = "warner-magic-wormhole@lothar.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "attrs >= 19.2.0",
+    "autobahn[twisted] >= 0.14.1",
+    "automat",
+    "click",
+    "cryptography",
+    "humanize",
+    "iterable-io >= 1.0.0, <2.0.0",
+    "pynacl",
+    "qrcode >= 8.0",
+    "spake2==0.9",
+    "tqdm >= 4.13.0",
+    "twisted[tls] >= 17.5.0",
+    "txtorcon >= 18.0.2",
+    "zipstream-ng >= 1.7.1, <2.0.0",
+    "pywin32; sys_platform==\"wind32\"",
+]
+
+[project.optional-dependencies]
+build = [
+    "dulwich",
+    "gpg",
+    "readme_renderer",
+    "twine",
+    "wheel",
+]
+dev = [
+    "magic-wormhole-mailbox-server==0.3.1",
+    "magic-wormhole-transit-relay==0.3.1",
+    "pyflakes",
+    "pytest",
+    "pytest_twisted",
+    "tox",
+    "codespell",
+]
+dilate = [
+    "noiseprotocol",
+]
+
+[project.scripts]
+wormhole = "wormhole.cli.cli:wormhole"
+
+[project.urls]
+Homepage = "https://github.com/warner/magic-wormhole"
+
+[tool.versioningit.format]
+# follow versioneer style
+distance = "{base_version}+{distance}.{vcs}{rev}"
+dirty = "{base_version}+{distance}.{vcs}{rev}.dirty"
+distance-dirty = "{base_version}+{distance}.{vcs}{rev}.dirty"
+
+[tool.versioningit.write]
+file = "src/wormhole/_version.py"
+
+[tool.hatch.version]
+source = "versioningit"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wormhole"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"wormhole_complete.bash" = "./wormhole_complete.bash"
+"wormhole_complete.fish" = "./wormhole_complete.fish"
+"wormhole_complete.zsh" = "./wormhole_complete.zsh"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.flake8]
+max-line-length = 120
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git*,*.svg,versioneer.py,*.css,wormhole.exe.spec,*.asc,./.tox,./venv,./docs/_build'
+check-hidden = true
+ignore-regex = '\bassertIn\b'
+ignore-words-list = 'ans,recieve,unparseable'

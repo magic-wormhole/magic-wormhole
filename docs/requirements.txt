@@ -1,6 +1,6 @@
 sphinx
 recommonmark
-setuptools
+hatch
 # See e.g. https://github.com/blockdiag/blockdiag/pull/179 we need a
 # newer blockdiag _or_ to limit Pillow<10
 blockdiag@git+https://github.com/yuzutech/blockdiag.git@v3.3.0
