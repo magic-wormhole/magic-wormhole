@@ -71,10 +71,17 @@ wormhole = "wormhole.cli.cli:wormhole"
 [project.urls]
 Homepage = "https://github.com/warner/magic-wormhole"
 
+[tool.versioningit.format]
+# follow versioneer style
+distance = "{base_version}+{distance}.{vcs}{rev}"
+dirty = "{base_version}+{distance}.{vcs}{rev}.dirty"
+distance-dirty = "{base_version}+{distance}.{vcs}{rev}.dirty"
+
+[tool.versioningit.write]
+file = "src/wormhole/_version.py"
+
 [tool.hatch.version]
 source = "versioningit"
-
-##[tool.versioningit]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wormhole"]
