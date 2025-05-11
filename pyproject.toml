@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "versioningit"]
 build-backend = "hatchling.build"
 
 [project]
@@ -41,12 +41,10 @@ dependencies = [
     "twisted[tls] >= 17.5.0",
     "txtorcon >= 18.0.2",
     "zipstream-ng >= 1.7.1, <2.0.0",
+    "pywin32; sys_platform==\"wind32\"",
 ]
 
 [project.optional-dependencies]
-":sys_platform==\"win32\"" = [
-    "pywin32",
-]
 build = [
     "dulwich",
     "gpg",
@@ -61,6 +59,7 @@ dev = [
     "pytest",
     "pytest_twisted",
     "tox",
+    "codespell",
 ]
 dilate = [
     "noiseprotocol",
@@ -73,7 +72,12 @@ wormhole = "wormhole.cli.cli:wormhole"
 Homepage = "https://github.com/warner/magic-wormhole"
 
 [tool.hatch.version]
-path = "wormhole/__init__.py"
+source = "versioningit"
+
+##[tool.versioningit]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wormhole"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "wormhole_complete.bash" = "./wormhole_complete.bash"
@@ -85,27 +89,12 @@ include = [
     "/src",
 ]
 
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "src/wormhole/_version.py"
-versionfile_build = "wormhole/_version.py"
-tag_prefix = ""
-parentdir_prefix = "magic-wormhole-"
-
-[versioneer]
-VCS = git
-versionfile_source = src/wormhole/_version.py
-versionfile_build = wormhole/_version.py
-tag_prefix =
-parentdir_prefix = magic-wormhole
-
-[flake8]
+[tool.flake8]
 max-line-length = 120
 
-[codespell]
+[tool.codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = .git*,*.svg,versioneer.py,*.css,wormhole.exe.spec,*.asc
+skip = '.git*,*.svg,versioneer.py,*.css,wormhole.exe.spec,*.asc,./.tox,./venv,./docs/_build'
 check-hidden = true
-ignore-regex = \bassertIn\b
-ignore-words-list = ans,recieve,unparseable
+ignore-regex = '\bassertIn\b'
+ignore-words-list = 'ans,recieve,unparseable'
