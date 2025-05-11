@@ -20,6 +20,37 @@ This document assumes you are familiar with the core Mailbox protocol
 and the general promises of Magic Wormhole. For more information see
 :doc:`the Server Protocol <server-protocol>`.
 
+
+Dilation Overview
+=================
+
+A slightly deeper dive.
+
+"Dilation" is an optional feature -- you must enable it on your wormhole during the ``create()`` call.
+If both peers enable Dilation, then it is available.
+
+Each peer also declares a number of "subprotocols" it is willing to speak or support.
+When a subchannel is opened, it uses a particular subprotocol -- which must come from the intersection of both peers declared support.
+(That is to say: you may only use a subprotocol that both peers declare during wormhole setup).
+
+Subprotocols inherit some features from the overall Dilation structure.
+The protocol is already authenticated and end-to-end encrypted.
+It is message-based, so no additional framing is required.
+
+The overall Dilation connection is "durable and reliable", which means that once a message is delivered to a Dilation API it will be (eventually) delivered to the peer.
+Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, sleeping laptops, intermittant connectivity, etc).
+
+In the Python implementation on top of Twisted, we use Twisted APIs -- with the caveat that ``dataReceived()`` is called with an entire message.
+
+The Twisted concept of a ``Factory`` is used to register the protocols you wish to support during the ``create()`` call -- any "incoming" subchannel must declare the "subprotocol" it will use, and this then uses the expected Twisted ``Factory.buildProtocol()`` API to instantiate the ``Protocol`` object for that subchannel.
+
+To initiate an outgoing subchannel, you use the ``DilatedWormhole.subprotocol_connector_for()`` API to first create a Twisted "client style" endpoint.
+Your code would then use ``.connect()`` on the returned object, which will create a ``Protocol`` on your side and initiate the subchannel opening (ultimately using the registered ``Factory`` on the peer to make the other side).
+
+There is kind of subchannel called a "control" channel, where BOTH peers use the "client-style" APIs
+
+
+
 Dilation Internals
 ==================
 

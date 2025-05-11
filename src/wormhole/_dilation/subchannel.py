@@ -365,6 +365,10 @@ class ControlEndpoint(object):
 
     @inlineCallbacks
     def connect(self, protocolFactory):
+        #XXX problem: what if the client-code uses a Factory here that
+        #_isn't_ the same as what was registered for this subprotocol
+        #-- error? use the provided Factory only..?
+
         # return Deferred that fires with IProtocol or Failure(ConnectError)
         self._once()
         yield self._main_channel.when_fired()
