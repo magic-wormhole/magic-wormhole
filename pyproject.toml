@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64.0.0", "wheel", "versioneer"]
+requires = ["setuptools>=64.0.0", "wheel", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [tool.versioneer]
@@ -12,6 +12,7 @@ parentdir_prefix = "magic-wormhole-"
 
 
 [project]
+name = "magic-wormhole"
 authors = [
     {name = "Brian Warner", email = "warner-magic-wormhole@lothar.com"}
 ]
@@ -40,7 +41,6 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -52,6 +52,8 @@ classifiers = [
     "Topic :: System :: Systems Administration",
     "Topic :: Utilities",
 ]
+dynamic = ["version"]
+
 
 
 [project.optional-dependencies]
