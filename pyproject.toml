@@ -55,6 +55,12 @@ classifiers = [
 dynamic = ["version"]
 
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+wormhole = ["wormhole_complete.*"]
+
 
 [project.optional-dependencies]
 dev = [
