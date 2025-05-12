@@ -50,9 +50,9 @@ def get_config() -> VersioneerConfig:
     # _version.py
     cfg = VersioneerConfig()
     cfg.VCS = "git"
-    cfg.style = ""
+    cfg.style = "pep440"
     cfg.tag_prefix = ""
-    cfg.parentdir_prefix = "magic-wormhole"
+    cfg.parentdir_prefix = "magic-wormhole-"
     cfg.versionfile_source = "src/wormhole/_version.py"
     cfg.verbose = False
     return cfg
