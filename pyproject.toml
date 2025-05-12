@@ -52,9 +52,6 @@ classifiers = [
     "Topic :: System :: Systems Administration",
     "Topic :: Utilities",
 ]
-data_files = [
-    ("", ["wormhole_complete.bash", "wormhole_complete.zsh", "wormhole_complete.fish"]),
-]
 
 
 [project.optional-dependencies]

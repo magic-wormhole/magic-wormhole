@@ -17,8 +17,11 @@ test:
 
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
+	mv wormhole_complete.bash src/wormhole
 	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'
+	mv wormhole_complete.zsh src/wormhole
 	fish -c '_WORMHOLE_COMPLETE=fish_source wormhole > wormhole_complete.fish'
+	mv wormhole_complete.fish src/wormhole
 
 release-clean:
 	@echo "Cleanup stale release: " `python newest-version.py`
