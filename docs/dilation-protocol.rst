@@ -54,12 +54,12 @@ Your code would then use ``.connect()`` on the returned object, which will creat
 
 .. NOTE::
 
-    In a first revision of this protocol, there was a special kind of "control" subchannel.
+    In an earlier revision of this protocol, there was a special kind of "control" subchannel.
     This would be a "singleton" style subchannel (at most one would ever exist).
     Both sides would use the "client-style" endpoint API to create their ``Protocol`` objects.
 
-    We do not currently believe this is necessary -- request/response style protocols work well, and all our example programs exist without a "control" channel.
-    However, we are open to introducing this in a future revision of the protocol.
+    We do not currently believe this is necessary -- request/response style protocols work well, and all our example programs exist without a special "control" channel.
+    However, we are *open to introducing this in a future revision* of the protocol.
 
     The only use-case we can think of is when you need an absolute, total ordering of messages sent by both sides.
     If you have a concrete use-case that _can't_ be implemented with the current APIs, **please** get in touch!
