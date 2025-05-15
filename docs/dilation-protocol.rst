@@ -25,7 +25,7 @@ For more information see :doc:`the Server Protocol <server-protocol>`.
 
 
 Dilation Overview
-=================
+-----------------
 
 A slightly deeper dive.
 
@@ -67,7 +67,7 @@ Your code would then use ``.connect()`` on the returned object, which will creat
 
 
 Dilation Internals
-==================
+------------------
 
 This document sometimes mentions programming internals related to Python
 and Twisted; these may be ignored by other implementers (see also `the
@@ -88,7 +88,7 @@ queued-and-acked subchannel messages are used to open/use/close the
 application-visible subchannels.
 
 Versions and can-dilate
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The Wormhole protocol includes a ``version`` message sent immediately
 after the shared PAKE key is established. This also serves as a
@@ -127,7 +127,7 @@ It contains the following keys:
 
 
 Leaders and Followers
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Each side of a Wormhole has a randomly-generated Dilation ``side``
 string (this is included in the ``please`` message, and is independent
@@ -178,7 +178,7 @@ It is a protocol error if the Follower cannot speak the chosen version (and they
 
 
 Connection Layers
------------------
+~~~~~~~~~~~~~~~~~
 
 We describe the protocol as a series of layers. Messages sent on one
 layer may be encoded or transformed before being delivered on some other
