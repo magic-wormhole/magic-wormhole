@@ -202,15 +202,17 @@ class _DeferredWormhole(object):
     # the "incoming subchannel factory" is determined from our registry:
     #  - if it's not in there, it's an error
     #  - otherwise, we know which factory to use
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+    def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
         """
+        :param dict[str, Factory] subprotocols: maps subprotocol names to their protocol Factory
+
         :returns EndpointRecord: an EndpointRecord containing the three (TWO!)
             Twisted endpoint objects required to interact with the
             Dilation channel (as control, connect and listen members).
         """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval)
+        return self._boss.dilate(subprotocols, transit_relay_location, no_listen, on_status_update, ping_interval)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -273,11 +275,11 @@ def _validate_subprotocol_config(subprotos):
     raises a ValueError if anything is wrong with the subprotocol
     configuration
     """
-    for fac in subprotos.values():
-        if not ISubchannelListenFactory.providedBy(fac):
-            raise ValueError(
-                f"{fac} does not implement wormhole.ISubchannelFactory"
-            )
+    # for fac in subprotos.values():
+    #     if not ISubchannelListenFactory.providedBy(fac):
+    #         raise ValueError(
+    #             f"{fac} does not implement wormhole.ISubchannelFactory"
+    #         )
     for k in subprotos.keys():
         if not isinstance(k, str) or not k:
             raise ValueError(
@@ -295,41 +297,35 @@ def create(
         tor=None,
         timing=None,
         stderr=sys.stderr,
+        dilation=None,
         ##dilation_subprotocols=None,  # Option[set[ISubprotocolFactory]] of all subprotocols we support
-        dilation_subprotocols=None,  # Option[dict[str, ISubprotocolFactory]] mapping names to listeners
+        ##dilation_subprotocols=None,  # Option[dict[str, ISubprotocolFactory]] mapping names to listeners
         ##dilation_subprotocols=set(FowlFactory(), TtyShareFactory()),
         ##dilation_subprotocols=set(FowlFactory(), FowlControlFactory(), TtyShareFactory()),
 
+        #XXX idea: {"fowl": Factory()} is for normal (one side listens, one connects) style
+        #     and: {"fowl": None} is for control-style (both sides connect)
+        # this then solves the "connect(UnknownFactory()) on the Leader" problem....
+
         _eventual_queue=None,
         on_status_update=None):
-    if dilation_subprotocols is None:
-        dilation_subprotocols = dict()
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
     cooperator = Cooperator(scheduler=eq.eventually)
 
-    _validate_subprotocol_config(dilation_subprotocols)
-
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(reactor, eq, _enable_dilate=bool(dilation_subprotocols))
+        w = _DeferredWormhole(reactor, eq, _enable_dilate=bool(dilation))
     # this indicates Wormhole capabilities
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
-        "dilation-subprotocols": {
-            name: fac.subprotocol_config_for(name)
-            for name, fac in dilation_subprotocols.items()
-        },
     }
 
-    # the way to activate Dilation is by specifying more than zero
-    # subprotocols -- so if this is still None or empty-set we do not
-    # want Dilation.
-    if not dilation_subprotocols:
+    if not dilation:
         wormhole_versions = {}
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
@@ -337,7 +333,7 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, eq, cooperator, journal, tor, timing, dilation_subprotocols, on_status_update)
+             reactor, eq, cooperator, journal, tor, timing, on_status_update)
     w._set_boss(b)
     b.start()
     return w

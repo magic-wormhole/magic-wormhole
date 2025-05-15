@@ -93,6 +93,12 @@ class DilatedWormhole(object):
             self._manager._eventual_queue,
         )
 
+# both peers:
+# api = wormhole.dilate(..)
+# ep = api.subprotocol.control_for("fowl-control")
+# proto = await ep.connect(FowlControlFactory)
+#
+
     def subprotocol_control_for(self, subprotocol_name):  # -> Deferred[IStreamClientEndpoint]:
         """
         :returns: an IStreamClientEndpoint that creates control-channels
@@ -310,7 +316,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
-    _subchannel_factories = attrib()
+    _subprotocol_factories = attrib()
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
@@ -366,8 +372,7 @@ class Manager(object):
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
         self._inbound.set_listener_endpoint(listen_ep)
-        print("SUBS", self._subchannel_factories.keys())
-        self._listen_factory = SubchannelInitiatorFactory(self._subchannel_factories)
+        self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories)
         self._port = listen_ep.listen(self._listen_factory)
 
         self._api = DilatedWormhole(self)
@@ -960,7 +965,6 @@ class Dilator(object):
     _eventual_queue = attrib()
     _cooperator = attrib()
     _acceptable_versions = attrib()
-    _subchannel_factories = attrib()
 
     def __attrs_post_init__(self):
         self._manager = None
@@ -973,31 +977,14 @@ class Dilator(object):
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is invoked
-    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
+    def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
                ping_interval=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
-        ##validate_subchannel_config(subchannel_config)
-        # XXX ^-- or should we pass in something more structured? SubchannelConfig() or something?
-        # ...and why do we even need this? Just a list of valid names..?
-        # in Twisted, "config stuff" goes in the factory anyway, right?
-        # (and we know it's an ISubprotocolFactory in the endpoint..)
-        #
-        # we don't know which end will open .. and without this ^ th
-        # peer doesn't know what subprotocols are valid .. but that's
-        # okay? "just try and see if it fails?"
-        #
-        # each side sends the names of subprotocols it will speak
-        # valid protocols are the intersection of those sets
-        #
-        # ...what about empty-string? just disallowed? (should you be
-        # "allowed" to write a Dilation subprotocol that _can't_ be a
-        # plugin?)
-        #
-        # so what's "a plugin" look like now -- just
-        # @implementer(ISubprotocolFactory)..? (so then we give it a
-        # .name and pass a set/list of them to
-        # crate(dilation_subprotocols=[])
+
+        #XXX validate "subprotocols": dict mapping to Factory instances
+        print(subprotocols)
+        assert type(subprotocols) == dict, "subprotocols is a dict"
 
         if self._manager is None:
             # build the manager right away, and tell it later when the
@@ -1012,7 +999,7 @@ class Dilator(object):
                 self._cooperator,
                 self._acceptable_versions,
                 ping_interval or 30.0,
-                self._subchannel_factories,
+                subprotocols,
                 no_listen,
                 status_update,
                 initial_mailbox_status=wormhole_status,
@@ -1026,8 +1013,10 @@ class Dilator(object):
                 plaintext = self._pending_inbound_dilate_messages.popleft()
                 m.received_dilation_message(plaintext)
 
-        for fac in self._subchannel_factories.values():
-            fac._dilation_manager = self._manager
+        #XXX do we need this?? can stuff "api" -- the return value of
+        #this -- into any Factories needing it in the caller...
+        #for fac in subprotocols.values():
+        #    fac._dilation_manager = self._manager
 
         return self._manager._api
 

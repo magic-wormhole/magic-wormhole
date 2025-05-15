@@ -206,6 +206,8 @@ class SubChannel(object):
     @m.output()
     def signal_dataReceived(self, data):
         assert self._protocol
+        print(self._protocol)
+        print(repr(data))
         self._protocol.dataReceived(data)
 
     @m.output()
@@ -353,6 +355,9 @@ class SubChannel(object):
 @implementer(IStreamClientEndpoint)
 @attrs
 class ControlEndpoint(object):
+    """
+    This kind of end-point is for 'control' channels where _both_ sides use 
+    """
     _subprotocol = attrib(validator=instance_of(str))
     _main_channel = attrib(validator=instance_of(OneShotObserver))
     _manager = attrib(validator=provides(IDilationManager))
@@ -362,6 +367,8 @@ class ControlEndpoint(object):
 
     def __attrs_post_init__(self):
         self._once = Once(SingleUseEndpointError)
+
+# peer A: DilatedWormhole.
 
     @inlineCallbacks
     def connect(self, protocolFactory):
@@ -459,9 +466,10 @@ class SubchannelInitiatorFactory(Factory):
         return proto
 
     def buildProtocol(self, addr):
+        print("BUILD", addr)
         subprotocol = addr.subprotocol
         if not subprotocol in self._factories:
-            raise IllegalSubprotocolError(subprotocol)
+            raise IllegalSubprotocolError(subprotocol, sorted(self._factories.keys()))
 
         proto = self._factories[subprotocol].buildProtocol(addr)
         print(f"{subprotocol} -> {proto}")
