@@ -1,24 +1,27 @@
 The Dilation Protocol
 =====================
 
-The Dilation protocol is a “bulk data” protocol between two peers
-(either direct p2p connection, or via a Transit relay). It is durable
-and reliable: connections are re-established, and data is definitely
-transmitted in-order to the other peer. There are subchannels: logically
-separate streams as the application protocol requires. Multiple ways to
-connect are supported, via “hints”. These exist for direct TCP, TCP via
-Tor, and TCP to a central Transit helper (see also “Canonical hint
-encodings” in the :doc:`Transit documentation <transit>`.
+Dilation takes Magic Wormhole beyond file-transfer!
 
-These building-blocks allow “application” protocols to be simpler by
-not having to deal with re-connection attempts and network problems.
-Dilation was conceived during development of a “next-generation”
-file-transfer protocol now called “ `Dilated File
+Designed as the basis for a next-generation file-transfer, Dilation is a “bulk data” protocol between two peers.
+Dilation has features suitable for use by a variety of application-level protocols.
+
+Motivational examples: Git With Me, Pear-On, Sync With Me, Fowl.
+
+Dilation is durable and reliable: connections are re-established, and data is definitely transmitted in-order to the other peer.
+There are subchannels: logically separate streams as the application protocol requires.
+
+Multiple ways to connect to peers are supported, via “hints”.
+Hints currently exist for direct TCP, TCP via Tor, and TCP to a central Transit helper (see also “Canonical hint encodings” in the :doc:`Transit documentation <transit>`.
+
+These building-blocks allow “application” protocols to be simpler by not having to deal with re-connection attempts and network problems.
+Dilation was conceived during development of a “next-generation” file-transfer protocol now called “ `Dilated File
 Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
 
-This document assumes you are familiar with the core Mailbox protocol
-and the general promises of Magic Wormhole. For more information see
-:doc:`the Server Protocol <server-protocol>`.
+Dilation does NOT aim to replace all manner of peer-to-peer connections; it has enough features to support many use-cases while keeping the simplicity, security and human-involvement of Magic Wormhole's core.
+
+This document assumes you are familiar with the core Mailbox protocol and the general promises of Magic Wormhole.
+For more information see :doc:`the Server Protocol <server-protocol>`.
 
 
 Dilation Overview
@@ -29,25 +32,37 @@ A slightly deeper dive.
 "Dilation" is an optional feature -- you must enable it on your wormhole during the ``create()`` call.
 If both peers enable Dilation, then it is available.
 
-Each peer also declares a number of "subprotocols" it is willing to speak or support.
-When a subchannel is opened, it uses a particular subprotocol -- which must come from the intersection of both peers declared support.
-(That is to say: you may only use a subprotocol that both peers declare during wormhole setup).
+Once the wormhole is established, both sides call ``.dilate()`` on their wormhole object.
+This is where each peer declares one or more "subprotocols" it is willing to speak or support.
+
+Whenever a subchannel is opened, it must use exactly one subprotocol -- which must come from the intersection of subprotocols the peers declared support for.
+(That is to say: you may only use a subprotocol that both peers declare during ``.dilate()`` setup).
 
 Subprotocols inherit some features from the overall Dilation structure.
 The protocol is already authenticated and end-to-end encrypted.
 It is message-based, so no additional framing is required.
 
 The overall Dilation connection is "durable and reliable", which means that once a message is delivered to a Dilation API it will be (eventually) delivered to the peer.
-Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, sleeping laptops, intermittant connectivity, etc).
+Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, laptop sleeps, intermittant connectivity, or other network weirdness).
 
-In the Python implementation on top of Twisted, we use Twisted APIs -- with the caveat that ``dataReceived()`` is called with an entire message.
+In the Python implementation on top of Twisted, we use Twisted APIs -- with the slight refinement that ``dataReceived()`` is called with an entire message.
 
-The Twisted concept of a ``Factory`` is used to register the protocols you wish to support during the ``create()`` call -- any "incoming" subchannel must declare the "subprotocol" it will use, and this then uses the expected Twisted ``Factory.buildProtocol()`` API to instantiate the ``Protocol`` object for that subchannel.
+The Twisted concept of a ``Factory`` is used to register the protocols you wish to support during the ``.dilate()`` call -- any "incoming" subchannel must declare the "subprotocol" it will use, and this then uses the expected Twisted ``Factory.buildProtocol()`` API to instantiate the ``Protocol`` object for that subchannel.
 
 To initiate an outgoing subchannel, you use the ``DilatedWormhole.subprotocol_connector_for()`` API to first create a Twisted "client style" endpoint.
 Your code would then use ``.connect()`` on the returned object, which will create a ``Protocol`` on your side and initiate the subchannel opening (ultimately using the registered ``Factory`` on the peer to make the other side).
 
-There is kind of subchannel called a "control" channel, where BOTH peers use the "client-style" APIs
+.. NOTE::
+
+    In a first revision of this protocol, there was a special kind of "control" subchannel.
+    This would be a "singleton" style subchannel (at most one would ever exist).
+    Both sides would use the "client-style" endpoint API to create their ``Protocol`` objects.
+
+    We do not currently believe this is necessary -- request/response style protocols work well, and all our example programs exist without a "control" channel.
+    However, we are open to introducing this in a future revision of the protocol.
+
+    The only use-case we can think of is when you need an absolute, total ordering of messages sent by both sides.
+    If you have a concrete use-case that _can't_ be implemented with the current APIs, **please** get in touch!
 
 
 
