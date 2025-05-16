@@ -18,7 +18,6 @@ from .observer import OneShotObserver, SequenceObserver
 from .timing import DebugTiming
 from .util import bytes_to_hexstr, to_bytes
 from ._version import get_versions
-from ._dilation.subchannel import ISubchannelListenFactory
 
 __version__ = get_versions()['version']
 del get_versions
@@ -298,15 +297,6 @@ def create(
         timing=None,
         stderr=sys.stderr,
         dilation=None,
-        ##dilation_subprotocols=None,  # Option[set[ISubprotocolFactory]] of all subprotocols we support
-        ##dilation_subprotocols=None,  # Option[dict[str, ISubprotocolFactory]] mapping names to listeners
-        ##dilation_subprotocols=set(FowlFactory(), TtyShareFactory()),
-        ##dilation_subprotocols=set(FowlFactory(), FowlControlFactory(), TtyShareFactory()),
-
-        #XXX idea: {"fowl": Factory()} is for normal (one side listens, one connects) style
-        #     and: {"fowl": None} is for control-style (both sides connect)
-        # this then solves the "connect(UnknownFactory()) on the Leader" problem....
-
         _eventual_queue=None,
         on_status_update=None):
     timing = timing or DebugTiming()

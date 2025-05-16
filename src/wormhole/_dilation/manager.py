@@ -93,38 +93,6 @@ class DilatedWormhole(object):
             self._manager._eventual_queue,
         )
 
-# both peers:
-# api = wormhole.dilate(..)
-# ep = api.subprotocol.control_for("fowl-control")
-# proto = await ep.connect(FowlControlFactory)
-#
-
-    def subprotocol_control_for(self, subprotocol_name):  # -> Deferred[IStreamClientEndpoint]:
-        """
-        :returns: an IStreamClientEndpoint that creates control-channels
-        of the named subprotocol. These are special in that _both_
-        sides use this API, and there is only ever a single
-        channel. That is, if you use this API a second time on the
-        same peer you will get back the very same IProtocol instance
-
-        This may be thought of as a 'singleton' pattern
-        protocol. Since boths sides use 'client' style APIs, you must
-        pattern your protocol assuming either side can send any
-        message at any time -- it's not obvious who "goes first" (if
-        you need that to be obvious, use ``subprotocol_connector_for``
-        on the peer that should act like a client)
-        """
-        # XXX do we want to "declare" these differently in the wormohle.create() call?
-        # XXX make "ControlEndpoint" do "listen on Leader, and connect on Follower"
-        return ControlEndpoint(
-            subprotocol_name,
-            self._main_channel,
-            self._manager,
-            self._manager._host_addr,
-            self._manager._eventual_queue,
-        )
-
-
 
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
@@ -353,16 +321,6 @@ class Manager(object):
         # into separate pieces.
         self._inbound = Inbound(self, self._host_addr)
         self._outbound = Outbound(self, self._cooperator)  # from us to peer
-
-        # We must open subchannel0 early, since messages may arrive very
-        # quickly once the connection is established. This subchannel may or
-        # may not ever get revealed to the caller, since the peer might not
-        # even be capable of dilation.
-        scid0 = 0
-        #XXX make it an ERROR for user-code to use ""
-        peer_addr0 = SubchannelAddress("")  #XXX good idea? empty-string == control proto/subchannel
-        sc0 = SubChannel(scid0, self, self._host_addr, peer_addr0)
-        self._inbound.set_subchannel_zero(scid0, sc0)
 
         # we can open non-zero subchannels as soon as we get our first
         # connection, and we can make the Endpoints even earlier

@@ -26,35 +26,6 @@ from ..util import provides
 MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
 
 
-class ISubchannelListenFactory(IProtocolFactory):
-
-    def subprotocol_config_for(name: str):
-        """
-        Create any static configuration to be sent to the peer in the
-        'versions' message. Must be valid JSON-able dict.
-
-        :param str name: is useful when a single Factory can support
-            many different subprotocol names
-        """
-
-
-class ISubchannelConnectFactory(IProtocolFactory):
-    subprotocol = Attribute("The name of our subprotocol")
-
-
-# @implementer(ISubchannelFactory)
-# class FowlFactory(Factory):
-#
-#     def buildProtocol(self, addr):
-#         # addr == SubchannelAddress
-#         subproto = addr.subprotocol
-#         if subproto == "fowl-v1":
-#              return SubchannelForwarder(version=1)
-#         # returns a Protocol object
-#         assert self.subprotocol == subproto, "unexpected proto"
-#         return SubchannelForwarder(version=2)
-
-
 @attrs
 class Once(object):
     _errtype = attrib()
@@ -70,6 +41,7 @@ class Once(object):
 
 class SingleUseEndpointError(Exception):
     pass
+
 
 # created in the (OPEN) state, by either:
 #  * receipt of an OPEN message
