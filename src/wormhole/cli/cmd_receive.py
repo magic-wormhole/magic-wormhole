@@ -418,6 +418,7 @@ class Receiver:
                 disable=self.args.hide_progress,
                 unit="B",
                 unit_scale=True,
+                dynamic_ncols=True,
                 total=self.xfersize)
             hasher = hashlib.sha256()
             with progress:
