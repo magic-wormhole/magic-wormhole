@@ -1,10 +1,12 @@
-from twisted.internet.task import deferLater
 import typing
 
 import pytest
 import pytest_twisted
+from zope.interface import implementer
+from twisted.internet.task import deferLater
+from twisted.internet.protocol import Factory
 
-from ...wormhole import create
+from ... import create, ISubchannelFactory
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
@@ -102,7 +104,7 @@ async def test_on_status_error(reactor, mailbox):
             reactor,
             versions={"fun": "quux"},
             _eventual_queue=eq,
-            _enable_dilate=True,
+            dilation_subprotocols={SubFac()},
             on_status_update=on_status,
         )
         await w.allocate_code()
@@ -112,6 +114,11 @@ async def test_on_status_error(reactor, mailbox):
             await w.close()
         except LonelyError:
             pass
+
+
+@implementer(ISubchannelFactory)
+class SubFac(Factory):
+    subprotocol = "jemison"
 
 
 @pytest_twisted.ensureDeferred()
@@ -130,7 +137,7 @@ async def test_dilation_status(reactor, mailbox):
         reactor,
         versions={"fun": "quux"},
         _eventual_queue=eq,
-        _enable_dilate=True,
+        dilation_subprotocols={SubFac()},
         on_status_update=wormhole_status0.append,
     )
 
@@ -139,7 +146,7 @@ async def test_dilation_status(reactor, mailbox):
         reactor,
         versions={"bar": "baz"},
         _eventual_queue=eq,
-        _enable_dilate=True,
+        dilation_subprotocols={SubFac()},
         on_status_update=wormhole_status1.append,
     )
 

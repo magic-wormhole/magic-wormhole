@@ -15,7 +15,7 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnexpectedKCM,
                                   UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
-from ..._dilation.subchannel import _SubchannelAddress
+from ..._dilation.subchannel import SubchannelAddress, ISubchannelFactory
 from .common import clear_mock_calls
 
 
@@ -148,7 +148,10 @@ async def test_peer_cannot_dilate():
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
-    d = eps.connect.connect(None)
+    f = mock.Mock()
+    alsoProvides(f, ISubchannelFactory)
+    f.subprotocol = "proto"
+    d = eps.connect.connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -161,7 +164,10 @@ async def test_disjoint_versions():
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
-    d = eps.connect.connect(None)
+    f = mock.Mock()
+    alsoProvides(f, ISubchannelFactory)
+    f.subprotocol = "proto"
+    d = eps.connect.connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -255,7 +261,7 @@ def test_leader():
     assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
     scid0 = 0
-    sc0_peer_addr = _SubchannelAddress(scid0)
+    sc0_peer_addr = SubchannelAddress("")
     assert h.SubChannel.mock_calls == [
         mock.call(scid0, m, m._host_addr, sc0_peer_addr),
         ]
@@ -326,11 +332,11 @@ def test_leader():
     # the Leader making a new outbound channel should get scid=1
     scid1 = 1
     assert m.allocate_subchannel_id() == scid1
-    r1 = Open(10, scid1)  # seqnum=10
+    r1 = Open(10, scid1, "proto")  # seqnum=10
     h.outbound.build_record = mock.Mock(return_value=r1)
-    m.send_open(scid1)
+    m.send_open(scid1, "proto")
     assert h.outbound.mock_calls == [
-        mock.call.build_record(Open, scid1),
+        mock.call.build_record(Open, scid1, "proto"),
         mock.call.queue_and_send_record(r1),
         ]
     clear_mock_calls(h.outbound)
@@ -363,7 +369,7 @@ def test_leader():
     # test that inbound records get acked and routed to Inbound
     h.inbound.is_record_old = mock.Mock(return_value=False)
     scid2 = 2
-    o200 = Open(200, scid2)
+    o200 = Open(200, scid2, "proto")
     m.got_record(o200)
     assert h.outbound.mock_calls == [
         mock.call.send_if_connected(Ack(200))
@@ -371,7 +377,7 @@ def test_leader():
     assert h.inbound.mock_calls == [
         mock.call.is_record_old(o200),
         mock.call.update_ack_watermark(200),
-        mock.call.handle_open(scid2),
+        mock.call.handle_open(scid2, "proto"),
         ]
     clear_mock_calls(h.outbound, h.inbound)
 
