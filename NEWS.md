@@ -2,16 +2,23 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* (add release-notes here when making PRs)
+
+
+## Release 0.19.0 (28-May-2025)
+
 * Add a "status" feedback API for Dilation (#591, @meejah)
 * use new Status API to notify a sending user when a code is consumed (#575, @shapr + @meejah)
 * add support for Ping/Pong timeouts in Dilation, improving re-connection speed (#590 @meejah)
-* add a contribution guide (#597 @meejah)
 * documentation improvements (#614, #615 @shapr + @meejah)
 * improve Dilation version negotiation (#606, #611 @shapr + @meejah)
 * convert test-suite to pytest (#603, #610 @shapr + @meejah)
 * resize progress bar properly (#622 @shapr)
 * Drop support for Python 3.9, upgrade github-actions (#596 @meejah)
-* (add release-notes here when making PRs)
+* add a contribution guide (#597 @meejah)
+* INCOMPAT: "sdist" files move to an underscore, so the source-package name is
+  now "magic_wormhole-0.19.0.tar.gz" (the wheel files always had an underscore).
+  This is because setuptools v69.3.0 in 2024 implemented PEP 625 from 2020.
 
 
 ## Release 0.18.0 (11-Mar-2025)
