@@ -3,14 +3,14 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * Add a "status" feedback API for Dilation (#591, @meejah)
-* Drop support for Python 3.9, upgrade github-actions (#596 @meejah)
-* add support for Ping/Pong timeouts in Dilation, improving re-connection speed (#590 @meejah)
 * use new Status API to notify a sending user when a code is consumed (#575, @shapr + @meejah)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed (#590 @meejah)
 * add a contribution guide (#597 @meejah)
+* documentation improvements (#614, #615 @shapr + @meejah)
 * improve Dilation version negotiation (#606, #611 @shapr + @meejah)
 * convert test-suite to pytest (#603, #610 @shapr + @meejah)
-* documentation improvements (#614, #615 @shapr + @meejah)
 * resize progress bar properly (#622 @shapr)
+* Drop support for Python 3.9, upgrade github-actions (#596 @meejah)
 * (add release-notes here when making PRs)
 
 
