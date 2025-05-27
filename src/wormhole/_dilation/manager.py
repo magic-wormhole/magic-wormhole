@@ -329,11 +329,12 @@ class Manager(object):
         listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
+        # XXX circular refs, not the greatest
+        self._api = DilatedWormhole(self)
         self._inbound.set_listener_endpoint(listen_ep)
-        self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories)
+        self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories, self._api)
         self._port = listen_ep.listen(self._listen_factory)
 
-        self._api = DilatedWormhole(self)
         ##self._endpoints = EndpointRecord(control_ep, connect_ep)
         self._listen_endpoint = listen_ep
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
@@ -940,7 +941,7 @@ class Dilator(object):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
 
-        #XXX validate "subprotocols": dict mapping to Factory instances
+        #XXX validate "subprotocols": dict mapping to functions returning Factory instances
         print(subprotocols)
         assert type(subprotocols) == dict, "subprotocols is a dict"
 

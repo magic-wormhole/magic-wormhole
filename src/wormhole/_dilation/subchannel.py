@@ -420,9 +420,10 @@ class SubchannelInitiatorFactory(Factory):
     The one thing that listens for subchannels opening, and
     instantiates the correct listener based on the subprotocol name
     """
-    def __init__(self, factories):
+    def __init__(self, factories, dilation):
         self._factories = factories
         self._protocol_awaiters = dict()
+        self._dilation = dilation
 
     ##async def when_subprotocol(self, name):  ## "fowl-control"
     @inlineCallbacks
@@ -443,7 +444,8 @@ class SubchannelInitiatorFactory(Factory):
         if not subprotocol in self._factories:
             raise IllegalSubprotocolError(subprotocol, sorted(self._factories.keys()))
 
-        proto = self._factories[subprotocol].buildProtocol(addr)
+        factory = self._factories[subprotocol](self._dilation)
+        proto = factory.buildProtocol(addr)
         print(f"{subprotocol} -> {proto}")
         try:
             d = self._protocol_awaiters[subprotocol]
