@@ -20,7 +20,7 @@ completions:
 	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'
 	fish -c '_WORMHOLE_COMPLETE=fish_source wormhole > wormhole_complete.fish'
 
-release-clean:
+release-undo-last-tag:
 	@echo "Cleanup stale release: " `python newest-version.py`
 	-rm NEWS.md.asc
 	rm dist/magic[_-]wormhole-`python newest-version.py`.tar.gz*
