@@ -15,7 +15,7 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnexpectedKCM,
                                   UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
-from ..._dilation.subchannel import SubchannelAddress, ISubchannelFactory
+from ..._dilation.subchannel import SubchannelAddress
 from .common import clear_mock_calls
 
 
@@ -149,7 +149,6 @@ async def test_peer_cannot_dilate():
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
     f = mock.Mock()
-    alsoProvides(f, ISubchannelFactory)
     f.subprotocol = "proto"
     d = eps.connect.connect(f)
     h.eq.flush_sync()
@@ -165,7 +164,6 @@ async def test_disjoint_versions():
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
     f = mock.Mock()
-    alsoProvides(f, ISubchannelFactory)
     f.subprotocol = "proto"
     d = eps.connect.connect(f)
     h.eq.flush_sync()
