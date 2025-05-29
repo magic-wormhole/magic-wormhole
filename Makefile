@@ -72,7 +72,7 @@ release-test:
 	rm -rf testmf_venv
 
 release-sign-announce:
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign release-announce-`git describe --abbrev=0`
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign docs/releases/release-announce-`git describe --abbrev=0`
 
 release-upload:
 	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_wormhole-`git describe --abbrev=0`.tar.gz dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
