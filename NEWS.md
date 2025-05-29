@@ -2,9 +2,13 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* (add release-notes here when making PRs)
+
+
+## Release 0.19.1 (29-May-2025)
+
 * Run tests from sdist release
 * Report correct version in test Wormhole server (#625, @mgorny)
-* (add release-notes here when making PRs)
 
 
 ## Release 0.19.0 (28-May-2025)

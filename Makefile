@@ -44,8 +44,8 @@ release:
 	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign NEWS.md
 
 	@echo "Bump version and create tag"
-	python3 update-version.py
-#	python3 update-version.py --patch  # for bugfix release
+#	python3 update-version.py
+	python3 update-version.py --patch  # for bugfix release
 
 	@echo "Build and sign wheel"
 	python3 setup.py bdist_wheel
@@ -65,14 +65,14 @@ release-test:
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
 	testmf_venv/bin/pip uninstall -y magic_wormhole
-	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz[dev]
+	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz[dev,dilate]
 	testmf_venv/bin/wormhole --version
 	echo "see also Issue 625: running tests inside unpacked sdist"
-	testmf_venv/bin/pytest ./testmf_venv/lib/python*/site-packages/wormhole/test/
+	PATH=`pwd`/testmf_venv/bin:${PATH} pytest ./testmf_venv/lib/python*/site-packages/wormhole/test/
 	rm -rf testmf_venv
 
 release-sign-announce:
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign release-announce-`git describe --abbrev=0`
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign docs/releases/release-announce-`git describe --abbrev=0`
 
 release-upload:
 	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_wormhole-`git describe --abbrev=0`.tar.gz dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
