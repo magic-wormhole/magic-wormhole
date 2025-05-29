@@ -458,7 +458,7 @@ specify it instead via Python’s standard dotted import notation, e.g.:
 
 Developers can also just clone the source tree and run ``tox`` to run
 the unit tests on all supported (and installed) versions of
-python: 3.9, 3.10, 3.11, 3.12.
+python: 3.10, 3.11, 3.12, 3.13.
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -482,7 +482,7 @@ License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with Python 3.9, 3.10, 3.11, 3.12.
+This library is compatible with Python 3.10, 3.11, 3.12, 3.13.
 
 .. raw:: html
 
