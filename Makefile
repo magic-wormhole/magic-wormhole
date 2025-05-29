@@ -65,8 +65,10 @@ release-test:
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
 	testmf_venv/bin/pip uninstall -y magic_wormhole
-	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz
+	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz[dev]
 	testmf_venv/bin/wormhole --version
+	echo "see also Issue 625: running tests inside unpacked sdist"
+	testmf_venv/bin/pytest ./testmf_venv/lib/python*/site-packages/wormhole/test/
 	rm -rf testmf_venv
 
 release-sign-announce:
