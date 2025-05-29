@@ -2,6 +2,8 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Run tests from sdist release
+* Report correct version in test Wormhole server (#625, @mgorny)
 * (add release-notes here when making PRs)
 
 
