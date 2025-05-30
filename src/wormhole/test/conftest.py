@@ -19,9 +19,10 @@ def reactor():
 
 @pytest.fixture(scope="session")
 def mailbox(reactor):
+    from wormhole import __version__
     mb = pytest_twisted.blockon(
         ensureDeferred(
-            setup_mailbox(reactor, advertise_version="1.2.3")
+            setup_mailbox(reactor, advertise_version=str(__version__))
         )
     )
     mb.service.startService()

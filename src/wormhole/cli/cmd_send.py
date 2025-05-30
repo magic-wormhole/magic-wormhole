@@ -442,6 +442,7 @@ class Sender:
             disable=self._args.hide_progress,
             unit="B",
             unit_scale=True,
+            dynamic_ncols=True,
             total=filesize)
 
         def _count_and_hash(data):
