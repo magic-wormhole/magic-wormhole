@@ -28,6 +28,7 @@ setup(name="magic-wormhole",
       license="MIT",
       url="https://github.com/warner/magic-wormhole",
       classifiers=trove_classifiers,
+      python_requires=">=3.10",
 
       package_dir={"": "src"},
       packages=["wormhole",
