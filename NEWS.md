@@ -2,6 +2,7 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* Properly update all meta-data + docs regarding 3.9 drop (#592, @hmaarrfk)
 * Un-pin "magic-wormhole-mailbox-server" and "magic-wormhole-transit-relay"
   in the "dev" extra (#630, @mgorny)
 * (add release-notes here when making PRs)
