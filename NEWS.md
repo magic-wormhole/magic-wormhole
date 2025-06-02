@@ -2,10 +2,14 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
+* (add release-notes here when making PRs)
+
+
+## Release 0.19.2 (30-May-2025)
+
 * Properly update all meta-data + docs regarding 3.9 drop (#592, @hmaarrfk)
 * Un-pin "magic-wormhole-mailbox-server" and "magic-wormhole-transit-relay"
   in the "dev" extra (#630, @mgorny)
-* (add release-notes here when making PRs)
 
 
 ## Release 0.19.1 (29-May-2025)
