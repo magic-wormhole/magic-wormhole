@@ -230,7 +230,7 @@ def make_manager(leader=True):
     alsoProvides(h.listen_ep, IStreamServerEndpoint)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
          mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
-         mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
+         mock.patch("wormhole._dilation.subchannel.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
         m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
