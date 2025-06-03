@@ -362,7 +362,7 @@ class ControlEndpoint(object):
         # as the connect endpoint (XXX FIXME can we _literally_ do the
         # same as SubchannelConnectorEndpoint?)
         else:
-            #XXX FIXME this is same as code in ConnectEndpoint, re-use
+            #XXX FIXME this is same as code in ConnectEndpoint, reuse
             scid = self._manager.allocate_subchannel_id()
             self._manager.send_open(scid, self._subprotocol)
             peer_addr = SubchannelAddress(self._subprotocol)

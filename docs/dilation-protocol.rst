@@ -43,7 +43,7 @@ The protocol is already authenticated and end-to-end encrypted.
 It is message-based, so no additional framing is required.
 
 The overall Dilation connection is "durable and reliable", which means that once a message is delivered to a Dilation API it will be (eventually) delivered to the peer.
-Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, laptop sleeps, intermittant connectivity, or other network weirdness).
+Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, laptop sleeps, intermittent connectivity, or other network weirdness).
 
 In the Python implementation on top of Twisted, we use Twisted APIs -- with the slight refinement that ``dataReceived()`` is called with an entire message.
 
