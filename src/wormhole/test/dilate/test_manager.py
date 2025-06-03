@@ -584,7 +584,7 @@ def test_ping_pong(observe_errors):
                      [mock.call.send_if_connected(Pong(1))]
     clear_mock_calls(h.outbound)
 
-    m.got_record(Pong(2))
+    m.got_record(Pong(1))
     # currently ignored, will eventually update a timer
 
     m.got_record("not recognized")
@@ -592,9 +592,9 @@ def test_ping_pong(observe_errors):
     assert len(e) == 1
     assert str(e[0].value) == "not recognized"
 
-    m.send_ping(3, lambda _: None)
+    m.send_ping(2, lambda _: None)
     assert h.outbound.mock_calls == \
-                     [mock.call.send_if_connected(Pong(3))]
+                     [mock.call.send_if_connected(Pong(2))]
     clear_mock_calls(h.outbound)
 
     # sort of low-level; what does this look like to API user?
@@ -603,12 +603,12 @@ def test_ping_pong(observe_errors):
 
     def cause_error(_):
         raise FakeError()
-    m.send_ping(4, cause_error)
+    m.send_ping(3, cause_error)
     assert h.outbound.mock_calls == \
-                     [mock.call.send_if_connected(Pong(4))]
+                     [mock.call.send_if_connected(Pong(3))]
     clear_mock_calls(h.outbound)
     with pytest.raises(FakeError):
-        m.got_record(Pong(4))
+        m.got_record(Pong(3))
 
 
 def test_subchannel():
