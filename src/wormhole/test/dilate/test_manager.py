@@ -145,7 +145,6 @@ async def test_peer_cannot_dilate():
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
     f = mock.Mock()
-    f.subprotocol = "proto"
     d = eps.subprotocol_connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
