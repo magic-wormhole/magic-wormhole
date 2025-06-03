@@ -1,21 +1,17 @@
 import os
 from collections import deque
-from collections.abc import Sequence
 from attr import attrs, attrib, evolve, define, field
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred
-from twisted.internet.interfaces import (IStreamClientEndpoint,
-                                         IStreamServerEndpoint,
-                                         IProtocolFactory)
-from twisted.internet.protocol import Factory
+from twisted.internet.interfaces import IProtocolFactory
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
-from .subchannel import (SubChannel, SubchannelAddress, _WormholeAddress,
+from .subchannel import (_WormholeAddress,
                          SubchannelConnectorEndpoint, SubchannelListenerEndpoint,
                          SubchannelInitiatorFactory)
 from .connector import Connector

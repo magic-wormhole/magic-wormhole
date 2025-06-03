@@ -1,20 +1,18 @@
 from collections import deque
 from attr import attrs, attrib
 from attr.validators import instance_of
-from zope.interface import implementer, Attribute
+from zope.interface import implementer
 from twisted.internet.defer import inlineCallbacks, Deferred
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
                                          IStreamClientEndpoint,
                                          IStreamServerEndpoint,
-                                         IProtocolFactory,
                                          )
 from twisted.internet.error import ConnectionDone
 from twisted.internet.protocol import Factory
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
-from ..observer import OneShotObserver
 from ..util import provides
 
 # each subchannel frame (the data passed into transport.write(data)) gets a

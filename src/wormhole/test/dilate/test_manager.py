@@ -15,7 +15,6 @@ from ..._dilation.manager import (Dilator, Manager, make_side,
                                   UnexpectedKCM,
                                   UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
-from ..._dilation.subchannel import SubchannelAddress
 from .common import clear_mock_calls
 
 
@@ -255,8 +254,6 @@ def test_leader():
     assert h.send.mock_calls == []
     assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
-    scid0 = 0
-    sc0_peer_addr = SubchannelAddress("")
     assert h.SubChannel.mock_calls == []
     assert h.inbound.mock_calls == [
         mock.call.set_listener_endpoint(h.listen_ep)

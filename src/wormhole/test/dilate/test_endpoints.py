@@ -6,14 +6,12 @@ from twisted.internet.interfaces import IProtocolFactory
 import pytest
 import pytest_twisted
 
-from ..._interfaces import ISubChannel
 from ...eventual import EventualQueue
 from ...observer import OneShotObserver
 from ..._dilation.subchannel import (SubchannelConnectorEndpoint,
                                      SubchannelListenerEndpoint,
                                      SubchannelListeningPort,
-                                     _WormholeAddress, SubchannelAddress,
-                                     SingleUseEndpointError)
+                                     _WormholeAddress, SubchannelAddress)
 from .common import mock_manager
 
 
