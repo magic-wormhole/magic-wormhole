@@ -326,61 +326,8 @@ class SubChannel(object):
 
 @implementer(IStreamClientEndpoint)
 @attrs
-class ControlEndpoint(object):
-    """
-    This kind of end-point is for 'control' channels where _both_ sides use 
-    """
-    _subprotocol = attrib(validator=instance_of(str))
-    _main_channel = attrib(validator=instance_of(OneShotObserver))
-    _manager = attrib(validator=provides(IDilationManager))
-    _host_addr = attrib(validator=instance_of(_WormholeAddress))
-    _eventual_queue = attrib(repr=False)
-    _once = attrib(init=False)
-
-    def __attrs_post_init__(self):
-        self._once = Once(SingleUseEndpointError)
-
-# peer A: DilatedWormhole.
-
-    @inlineCallbacks
-    def connect(self, protocolFactory):
-        #XXX problem: what if the client-code uses a Factory here that
-        #_isn't_ the same as what was registered for this subprotocol
-        #-- error? use the provided Factory only..?
-
-        # return Deferred that fires with IProtocol or Failure(ConnectError)
-        self._once()
-        yield self._main_channel.when_fired()
-
-        # the leader "listens" -- which means we just need to wait for
-        # the incoming OPEN and the other subchannel stuff will
-        # instantiate a server-style Protocol via the Factory registered in create()
-        if self._manager._is_leader():
-            proto = yield self._manager._listen_factory.when_subprotocol(self._subprotocol)
-
-        # the follower "connects", so we basically do the same thing
-        # as the connect endpoint (XXX FIXME can we _literally_ do the
-        # same as SubchannelConnectorEndpoint?)
-        else:
-            #XXX FIXME this is same as code in ConnectEndpoint, reuse
-            scid = self._manager.allocate_subchannel_id()
-            self._manager.send_open(scid, self._subprotocol)
-            peer_addr = SubchannelAddress(self._subprotocol)
-            # ? f.doStart()
-            # ? f.startedConnecting(CONNECTOR) # ??
-            sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
-            self._manager.subchannel_local_open(scid, sc)
-            proto = protocolFactory.buildProtocol(peer_addr)
-            sc._set_protocol(proto)
-            proto.makeConnection(sc)  # set p.transport = sc and call connectionMade()
-        return proto
-
-
-@implementer(IStreamClientEndpoint)
-@attrs
 class SubchannelConnectorEndpoint(object):
     _subprotocol = attrib(validator=instance_of(str))
-    _main_channel = attrib(validator=instance_of(OneShotObserver))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
     _eventual_queue = attrib(repr=False)
@@ -395,7 +342,7 @@ class SubchannelConnectorEndpoint(object):
     @inlineCallbacks
     def connect(self, protocolFactory):
         # return Deferred that fires with IProtocol or Failure(ConnectError)
-        yield self._main_channel.when_fired()
+        yield self._manager._main_channel.when_fired()
         scid = self._manager.allocate_subchannel_id()
         self._manager.send_open(scid, self._subprotocol)
         peer_addr = SubchannelAddress(self._subprotocol)
@@ -465,10 +412,8 @@ class SubchannelListenerEndpoint(object):
     _eventual_queue = attrib(repr=False)
 
     def __attrs_post_init__(self):
-        self._once = Once(SingleUseEndpointError)
         self._factory = None
         self._pending_opens = deque()
-        self._wait_for_main_channel = OneShotObserver(self._eventual_queue)
 
     # from manager (actually Inbound)
     def _got_open(self, t, peer_addr):
@@ -483,19 +428,12 @@ class SubchannelListenerEndpoint(object):
         p.makeConnection(t)
         t._deliver_queued_data()
 
-    def _main_channel_ready(self):
-        self._wait_for_main_channel.fire(None)
-
-    def _main_channel_failed(self, f):
-        self._wait_for_main_channel.error(f)
-
     # IStreamServerEndpoint
 
     @inlineCallbacks
     def listen(self, protocolFactory):
         # protocolFactory HAS to be in our registry already
-##        self._once()
-        yield self._wait_for_main_channel.when_fired()
+        yield self._manager._main_channel.when_fired()
         self._factory = protocolFactory
         while self._pending_opens:
             (t, peer_addr) = self._pending_opens.popleft()

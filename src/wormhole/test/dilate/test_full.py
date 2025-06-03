@@ -2,6 +2,7 @@ import wormhole
 from zope.interface import implementer, alsoProvides
 from twisted.internet.defer import Deferred, gatherResults
 from twisted.internet.protocol import Protocol, Factory
+from twisted.internet.interfaces import IProtocolFactory
 
 import pytest
 import pytest_twisted
@@ -10,7 +11,6 @@ from ..common import poll_until
 from ..._interfaces import IDilationConnector
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._dilation.subchannel import ISubchannelFactory
 
 
 APPID = u"lothar.com/dilate-test"
@@ -37,8 +37,8 @@ class L(Protocol):
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_control(reactor, mailbox):
     eq = EventualQueue(reactor)
-    w1 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
-    w2 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
+    w1 = wormhole.create(APPID, mailbox.url, reactor)
+    w2 = wormhole.create(APPID, mailbox.url, reactor)
     w1.allocate_code()
     code = await w1.get_code()
     print("code is: {}".format(code))
@@ -52,7 +52,7 @@ async def test_control(reactor, mailbox):
 
     f1 = Factory()
     f1.subprotocol = "proto"
-    alsoProvides(f1, ISubchannelFactory)
+    alsoProvides(f1, IProtocolFactory)
     f1.protocol = L
     f1.d = Deferred()
     f1.d.addCallback(lambda data: eq.fire_eventually(data))
@@ -60,7 +60,7 @@ async def test_control(reactor, mailbox):
 
     f2 = Factory()
     f2.subprotocol = "proto"
-    alsoProvides(f2, ISubchannelFactory)
+    alsoProvides(f2, IProtocolFactory)
     f2.protocol = L
     f2.d = Deferred()
     f2.d.addCallback(lambda data: eq.fire_eventually(data))
@@ -99,7 +99,7 @@ class ReconP(Protocol):
         self.eventually("connectionLost", (self, why))
 
 
-@implementer(ISubchannelFactory)
+@implementer(IProtocolFactory)
 class ReconF(Factory):
     protocol = ReconP
     subprotocol = "proto"
@@ -117,17 +117,17 @@ class ReconF(Factory):
         return d
 
 
-@implementer(ISubchannelFactory)
+@implementer(IProtocolFactory)
 class SubFac(Factory):
-    subprotocol = "rosalind"
+    pass
 
 
 @pytest_twisted.ensureDeferred()
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_reconnect(reactor, mailbox):
     eq = EventualQueue(reactor)
-    w1 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
-    w2 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
+    w1 = wormhole.create(APPID, mailbox.url, reactor)
+    w2 = wormhole.create(APPID, mailbox.url, reactor)
     w1.allocate_code()
     code = await w1.get_code()
     w2.set_code(code)
@@ -195,8 +195,8 @@ async def test_reconnect(reactor, mailbox):
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_data_while_offline(reactor, mailbox):
     eq = EventualQueue(reactor)
-    w1 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
-    w2 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
+    w1 = wormhole.create(APPID, mailbox.url, reactor)
+    w2 = wormhole.create(APPID, mailbox.url, reactor)
     w1.allocate_code()
     code = await w1.get_code()
     w2.set_code(code)
@@ -280,8 +280,8 @@ async def test_data_while_offline(reactor, mailbox):
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test_endpoints(reactor, mailbox):
     eq = EventualQueue(reactor)
-    w1 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
-    w2 = wormhole.create(APPID, mailbox.url, reactor, dilation_subprotocols={SubFac()})
+    w1 = wormhole.create(APPID, mailbox.url, reactor)
+    w2 = wormhole.create(APPID, mailbox.url, reactor)
     w1.allocate_code()
     code = await w1.get_code()
     w2.set_code(code)

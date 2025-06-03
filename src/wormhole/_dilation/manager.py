@@ -16,8 +16,8 @@ from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
 from .subchannel import (SubChannel, SubchannelAddress, _WormholeAddress,
-                         ControlEndpoint, SubchannelConnectorEndpoint,
-                         SubchannelListenerEndpoint, SubchannelInitiatorFactory)
+                         SubchannelConnectorEndpoint, SubchannelListenerEndpoint,
+                         SubchannelInitiatorFactory)
 from .connector import Connector
 from .._hints import parse_hint
 from .roles import LEADER, FOLLOWER
@@ -67,10 +67,6 @@ class DilatedWormhole(object):
     """
 
     _manager: IDilationManager = field()
-    _main_channel = field(init=False)
-
-    def __attrs_post_init__(self):
-        self._main_channel = OneShotObserver(self._manager._eventual_queue)
 
     def subprotocol_connector_for(self, subprotocol_name):
         """
@@ -88,7 +84,7 @@ class DilatedWormhole(object):
         # sub-interface, etc.
         return SubchannelConnectorEndpoint(
             subprotocol_name,
-            self._main_channel,
+            self._manager._main_channel,
             self._manager,
             self._manager._host_addr,
             self._manager._eventual_queue,
@@ -296,6 +292,7 @@ class Manager(object):
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
     _dilation_version = None  # initialized in got_wormhole_versions
+    _main_channel = None  # initialized in __attrs_port_init__
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -323,15 +320,12 @@ class Manager(object):
         self._inbound = Inbound(self, self._host_addr)
         self._outbound = Outbound(self, self._cooperator)  # from us to peer
 
-        # we can open non-zero subchannels as soon as we get our first
-        # connection, and we can make the Endpoints even earlier
-        #control_ep = ControlEndpoint(peer_addr0, sc0, self._eventual_queue)
-        #connect_ep = SubchannelConnectorEndpoint(self, self._host_addr, self._eventual_queue)
         listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
-        # XXX circular refs, not the greatest
-        self._api = DilatedWormhole(self)
+        # NOTE: circular refs, not the greatest
+        self._main_channel = OneShotObserver(self._eventual_queue)
+        self._api = DilatedWormhole(self, self._main_channel)
         self._inbound.set_listener_endpoint(listen_ep)
         self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories, self._api)
         self._port = listen_ep.listen(self._listen_factory)
@@ -419,7 +413,7 @@ class Manager(object):
             self._status(status_msg)
 
     def fail(self, f):
-        self._api._main_channel.failed(f)
+        self._main_channel.failed(f)
 
     def received_dilation_message(self, plaintext):
         # this receives new in-order DILATE-n payloads, decrypted but not
@@ -518,11 +512,7 @@ class Manager(object):
         self._outbound.use_connection(c)  # does c.registerProducer
         if not self._made_first_connection:
             self._made_first_connection = True
-            self._api._main_channel.fire(None)
-            ##self._endpoints.control._main_channel_ready()
-            ##self._endpoints.connect._main_channel_ready()
-            self._listen_endpoint._main_channel_ready()
-            ##self._endpoints.listen._main_channel_ready()
+            self._main_channel.fire(None)
         pass
 
     def connector_connection_lost(self):
@@ -981,7 +971,7 @@ class Dilator(object):
         #for fac in subprotocols.values():
         #    fac._dilation_manager = self._manager
 
-        return self._manager._api
+        return self._api
 
     # Called by Terminator after everything else (mailbox, nameplate, server
     # connection) has shut down. Expects to fire T.stoppedD() when Dilator is

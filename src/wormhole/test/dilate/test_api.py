@@ -5,8 +5,9 @@ import pytest_twisted
 from zope.interface import implementer
 from twisted.internet.task import deferLater
 from twisted.internet.protocol import Factory
+from twisted.internet.interfaces import IProtocolFactory
 
-from ... import create, ISubchannelFactory
+from ... import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
@@ -116,7 +117,7 @@ async def test_on_status_error(reactor, mailbox):
             pass
 
 
-@implementer(ISubchannelFactory)
+@implementer(IProtocolFactory)
 class SubFac(Factory):
     subprotocol = "jemison"
 
