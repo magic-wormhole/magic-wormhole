@@ -581,6 +581,7 @@ class Manager(object):
     def handle_pong(self, ping_id):
         if ping_id not in self._pings_outstanding:
             print("Weird: pong for ping that isn't outstanding")
+            print(ping_id, self._pings_outstanding)
         else:
             self._peer_saw_ping()
             on_pong, start = self._pings_outstanding.pop(ping_id)

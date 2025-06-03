@@ -584,9 +584,6 @@ def test_ping_pong(observe_errors):
                      [mock.call.send_if_connected(Pong(1))]
     clear_mock_calls(h.outbound)
 
-    m.got_record(Pong(1))
-    # currently ignored, will eventually update a timer
-
     m.got_record("not recognized")
     e = observe_errors.flush(UnknownMessageType)
     assert len(e) == 1
