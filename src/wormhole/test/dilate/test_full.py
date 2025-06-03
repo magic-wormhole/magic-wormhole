@@ -20,7 +20,7 @@ def doBoth(d1, d2):
     return gatherResults([d1, d2], True)
 
 
-class L(Protocol):
+class HelloProtocol(Protocol):
     def connectionMade(self):
         print("got connection")
         self.transport.write(b"hello\n")
@@ -49,7 +49,7 @@ async def test_control(reactor, mailbox):
     # side "0" is the host / listener, side "1" is the guest / connector
     fserv0 = Factory()
     fserv0.d = Deferred()
-    fserv0.protocol = L
+    fserv0.protocol = HelloProtocol
 
     w1.dilate({"proto": fserv0})
     eps2 = w2.dilate({})
@@ -57,7 +57,7 @@ async def test_control(reactor, mailbox):
 
     f2 = Factory()
     alsoProvides(f2, IProtocolFactory)
-    f2.protocol = L
+    f2.protocol = HelloProtocol
     f2.d = Deferred()
     f2.d.addCallback(lambda data: eq.fire_eventually(data))
     d2 = eps2.subprotocol_connector_for("proto").connect(f2)
