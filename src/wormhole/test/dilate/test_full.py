@@ -33,9 +33,23 @@ class HelloProtocol(Protocol):
         print("connectionLost")
 
 
+class BonjourProtocol(Protocol):
+    """
+    A french version of HelloProtocol
+    """
+    def connectionMade(self):
+        self.transport.write(b"bonjour\n")
+
+    def dataReceived(self, data):
+        self.factory.d.callback(data)
+
+    def connectionLost(self, why):
+        pass
+
+
 @pytest_twisted.ensureDeferred()
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
-async def test_control(reactor, mailbox):
+async def test_single_subprotocol(reactor, mailbox):
     eq = EventualQueue(reactor)
     w1 = wormhole.create(APPID, mailbox.url, reactor, dilation=True)
     w2 = wormhole.create(APPID, mailbox.url, reactor, dilation=True)
@@ -74,7 +88,63 @@ async def test_control(reactor, mailbox):
     assert data2 == b"hello\n"
 
     await w2.close()
-test_control.timeout = 30
+
+
+@pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test_double_subprotocol(reactor, mailbox):
+    """
+    Two subprotocols with different names / implementations on the
+    same wormhole.
+    """
+    eq = EventualQueue(reactor)
+    w1 = wormhole.create(APPID, mailbox.url, reactor, dilation=True)
+    w2 = wormhole.create(APPID, mailbox.url, reactor, dilation=True)
+    w1.allocate_code()
+    code = await w1.get_code()
+    print("code is: {}".format(code))
+    w2.set_code(code)
+    await doBoth(w1.get_verifier(), w2.get_verifier())
+    print("connected")
+
+    # side "0" is the host / listener, side "1" is the guest / connector
+    fserv0 = Factory()
+    fserv0.d = Deferred()
+    fserv0.protocol = HelloProtocol
+
+    fserv1 = Factory()
+    fserv1.d = Deferred()
+    fserv1.protocol = BonjourProtocol
+
+    w1.dilate({
+        "hello": fserv0,
+        "bonjour": fserv1,
+    })
+    guest = w2.dilate({})
+
+    f2 = Factory.forProtocol(HelloProtocol)
+    f2.d = Deferred()
+    f2.d.addCallback(lambda data: eq.fire_eventually(data))
+
+    f3 = Factory.forProtocol(BonjourProtocol)
+    f3.d = Deferred()
+    f3.d.addCallback(lambda data: eq.fire_eventually(data))
+
+    d2 = guest.subprotocol_connector_for("hello").connect(f2)
+    d3 = guest.subprotocol_connector_for("bonjour").connect(f3)
+    await d2
+    await d3
+
+    data1 = await fserv0.d
+    data2 = await f2.d
+    assert data1 == b"hello\n"
+    assert data2 == b"hello\n"
+
+    data3 = await fserv1.d
+    data4 = await f3.d
+    assert data3 == data4 == b"bonjour\n"
+
+    await w2.close()
 
 
 class ReconP(Protocol):
