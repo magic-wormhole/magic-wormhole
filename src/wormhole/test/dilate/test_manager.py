@@ -52,22 +52,20 @@ def test_dilate_first():
     (dil, h) = make_dilator()
     side = object()
     m = mock.Mock()
-    eps = object()
-    m.get_endpoints = mock.Mock(return_value=eps)
+    m._api = eps = object()
     mm = mock.Mock(side_effect=[m])
     with mock.patch("wormhole._dilation.manager.Manager", mm), \
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
-        eps1 = dil.dilate()
-        eps2 = dil.dilate()
+        eps1 = dil.dilate({})
+        eps2 = dil.dilate({})
     assert eps1 is eps
     assert eps1 is eps2
     assert mm.mock_calls == [mock.call(h.send, side, None,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {},
+                                       False, None, initial_mailbox_status=None)]
 
-    assert m.mock_calls == [mock.call.get_endpoints(),
-                                    mock.call.get_endpoints()]
-    clear_mock_calls(m)
+    assert m.mock_calls == []
 
     key = b"key"
     transit_key = object()
@@ -121,11 +119,10 @@ def test_dilate_later():
     assert mm.mock_calls == []
 
     with mock.patch("wormhole._dilation.manager.Manager", mm):
-        dil.dilate()
+        dil.dilate({})
     assert m.mock_calls == [mock.call.got_dilation_key(transit_key),
                                     mock.call.got_wormhole_versions(wv),
                                     mock.call.received_dilation_message(dm1),
-                                    mock.call.get_endpoints(),
                                     ]
     clear_mock_calls(m)
 
@@ -144,13 +141,13 @@ def test_stop_early():
 @pytest_twisted.ensureDeferred
 async def test_peer_cannot_dilate():
     (dil, h) = make_dilator()
-    eps = dil.dilate()
+    eps = dil.dilate({})
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
     f = mock.Mock()
     f.subprotocol = "proto"
-    d = eps.connect.connect(f)
+    d = eps.subprotocol_connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -159,13 +156,12 @@ async def test_peer_cannot_dilate():
 @pytest_twisted.ensureDeferred
 async def test_disjoint_versions():
     (dil, h) = make_dilator()
-    eps = dil.dilate()
+    eps = dil.dilate({})
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
     f = mock.Mock()
-    f.subprotocol = "proto"
-    d = eps.connect.connect(f)
+    d = eps.subprotocol_connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -180,9 +176,10 @@ def test_transit_relay():
     with mock.patch("wormhole._dilation.manager.Manager", mm), \
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
-        dil.dilate(transit_relay_location)
+        dil.dilate({}, transit_relay_location)
     assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {},
+                                       False, None, initial_mailbox_status=None)]
 
 
 LEADER = "ff3456abcdef"
@@ -237,7 +234,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -260,19 +257,11 @@ def test_leader():
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
     scid0 = 0
     sc0_peer_addr = SubchannelAddress("")
-    assert h.SubChannel.mock_calls == [
-        mock.call(scid0, m, m._host_addr, sc0_peer_addr),
-        ]
+    assert h.SubChannel.mock_calls == []
     assert h.inbound.mock_calls == [
-        mock.call.set_subchannel_zero(scid0, h.sc0),
         mock.call.set_listener_endpoint(h.listen_ep)
         ]
     clear_mock_calls(h.inbound)
-
-    eps = m.get_endpoints()
-    assert hasattr(eps, "control")
-    assert hasattr(eps, "connect")
-    assert eps.listen == h.listen_ep
 
     m.got_wormhole_versions({"can-dilate": ["ged"]})
     assert h.send.mock_calls == [

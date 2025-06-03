@@ -84,7 +84,6 @@ class DilatedWormhole(object):
         # sub-interface, etc.
         return SubchannelConnectorEndpoint(
             subprotocol_name,
-            self._manager._main_channel,
             self._manager,
             self._manager._host_addr,
             self._manager._eventual_queue,
@@ -325,7 +324,7 @@ class Manager(object):
         # to us
         # NOTE: circular refs, not the greatest
         self._main_channel = OneShotObserver(self._eventual_queue)
-        self._api = DilatedWormhole(self, self._main_channel)
+        self._api = DilatedWormhole(self)
         self._inbound.set_listener_endpoint(listen_ep)
         self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories, self._api)
         self._port = listen_ep.listen(self._listen_factory)
@@ -413,7 +412,7 @@ class Manager(object):
             self._status(status_msg)
 
     def fail(self, f):
-        self._main_channel.failed(f)
+        self._main_channel.error(f)
 
     def received_dilation_message(self, plaintext):
         # this receives new in-order DILATE-n payloads, decrypted but not
@@ -971,7 +970,7 @@ class Dilator(object):
         #for fac in subprotocols.values():
         #    fac._dilation_manager = self._manager
 
-        return self._api
+        return self._manager._api
 
     # Called by Terminator after everything else (mailbox, nameplate, server
     # connection) has shut down. Expects to fire T.stoppedD() when Dilator is
