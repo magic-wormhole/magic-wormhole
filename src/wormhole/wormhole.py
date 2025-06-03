@@ -196,18 +196,17 @@ class _DeferredWormhole(object):
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
-    #
-    # XXX in the "subprotocol" world, this only returns TWO endpoints
-    # the "incoming subchannel factory" is determined from our registry:
-    #  - if it's not in there, it's an error
-    #  - otherwise, we know which factory to use
     def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
         """
-        :param dict[str, Factory] subprotocols: maps subprotocol names to their protocol Factory
+        :param dict[str, Factory] subprotocols: maps subprotocol names to
+            their protocol Factory, which listens for new incoming
+            subchannels of the given name (i.e. the OPEN comes from the
+            other peer to us)
 
-        :returns EndpointRecord: an EndpointRecord containing the three (TWO!)
-            Twisted endpoint objects required to interact with the
-            Dilation channel (as control, connect and listen members).
+        :returns DilatedWormhole: an instance for accessing dilation
+            functionality. This includes creating endpoints that open
+            new subchannels (i.e. the OPEN goes from us to the other
+            peer).
         """
         if not self._enable_dilate:
             raise NotImplementedError

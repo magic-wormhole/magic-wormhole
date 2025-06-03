@@ -7,7 +7,8 @@ from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred
 from twisted.internet.interfaces import (IStreamClientEndpoint,
-                                         IStreamServerEndpoint)
+                                         IStreamServerEndpoint,
+                                         IProtocolFactory)
 from twisted.internet.protocol import Factory
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
@@ -935,15 +936,18 @@ class Dilator(object):
         self._S = ISend(sender)
         self._T = ITerminator(terminator)
 
-    # this is the primary entry point, called when w.dilate() is invoked
+    # this is the primary entry point, called when w.dilate() is
+    # invoked; upstream calls are basically just call-through -- so
+    # all these inputs should be validated.
     def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
                ping_interval=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
 
-        #XXX validate "subprotocols": dict mapping to functions returning Factory instances
-        print(subprotocols)
-        assert type(subprotocols) == dict, "subprotocols is a dict"
+        assert type(subprotocols) == dict, "subprotocols must be a dict"
+        for name, factory in subprotocols.items():
+            assert type(name) is str, "subprotocol names must be str"
+            assert IProtocolFactory.providedBy(factory), "subprotocol listener must implement IFactory"
 
         if self._manager is None:
             # build the manager right away, and tell it later when the

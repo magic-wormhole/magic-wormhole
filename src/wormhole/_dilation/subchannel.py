@@ -444,7 +444,7 @@ class SubchannelInitiatorFactory(Factory):
         if not subprotocol in self._factories:
             raise IllegalSubprotocolError(subprotocol, sorted(self._factories.keys()))
 
-        factory = self._factories[subprotocol](self._dilation)
+        factory = self._factories[subprotocol]
         proto = factory.buildProtocol(addr)
         print(f"{subprotocol} -> {proto}")
         try:

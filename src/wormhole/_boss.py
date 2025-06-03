@@ -232,7 +232,7 @@ class Boss(object):
         self._C.set_code(code)
 
     def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
-        # returns EndpointRecord; see wormhole.dilate() docs
+        # returns DilatedWormhole instance; see wormhole.dilate() docs
         return self._D.dilate(
             subprotocols,
             transit_relay_location,
