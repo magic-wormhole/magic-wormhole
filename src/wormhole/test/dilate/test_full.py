@@ -51,7 +51,7 @@ async def test_control(reactor, mailbox):
     fserv0.d = Deferred()
     fserv0.protocol = L
 
-    eps1 = w1.dilate({"proto": fserv0})
+    w1.dilate({"proto": fserv0})
     eps2 = w2.dilate({})
     print("w.dilate ready")
 
@@ -129,7 +129,7 @@ async def test_reconnect(reactor, mailbox):
 
     f1 = ReconF(eq)
 
-    eps1 = w1.dilate({"proto": f1})
+    w1.dilate({"proto": f1})
     eps2 = w2.dilate({})
     print("w.dilate ready")
 
@@ -155,7 +155,7 @@ async def test_reconnect(reactor, mailbox):
 
     f1.resetDeferred("connectionMade")
     f2.resetDeferred("connectionMade")
-    d1 = f1.resetDeferred("dataReceived")
+    f1.resetDeferred("dataReceived")
     d2 = f2.resetDeferred("dataReceived")
 
     # now we reach inside and drop the connection
@@ -198,7 +198,7 @@ async def test_data_while_offline(reactor, mailbox):
     await doBoth(w1.get_verifier(), w2.get_verifier())
 
     f1 = ReconF(eq)
-    eps1 = w1.dilate({"proto": f1})
+    w1.dilate({"proto": f1})
     eps2 = w2.dilate({})
     print("w.dilate ready")
 
@@ -283,7 +283,7 @@ async def test_endpoints(reactor, mailbox):
     await doBoth(w1.get_verifier(), w2.get_verifier())
 
     f0 = ReconF(eq)
-    eps1 = w1.dilate({"proto": f0})
+    w1.dilate({"proto": f0})
     eps2 = w2.dilate({})
     print("w.dilate ready")
 
