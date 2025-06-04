@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* Update minimal Python version in README.md (#634 @sblondon)
 
 
 ## Release 0.19.2 (30-May-2025)
