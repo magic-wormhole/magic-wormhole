@@ -436,7 +436,7 @@ async def _do_test(
         cfg.relay_url = mailbox.url
         cfg.transit_helper = ""
         cfg.listen = True
-        cfg.code = u"1-abc"
+        cfg.code = "1-abc"
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
         cfg.verify = verify
@@ -450,7 +450,7 @@ async def _do_test(
     elif mode in ("file", "empty-file"):
         if mode == "empty-file":
             message = ""
-        send_filename = u"testfil\u00EB"  # e-with-diaeresis
+        send_filename = "testfil\u00EB"  # e-with-diaeresis
         with open(os.path.join(send_dir, send_filename), "w") as f:
             f.write(message)
         send_cfg.what = send_filename
@@ -458,7 +458,7 @@ async def _do_test(
 
         recv_cfg.accept_file = False if mock_accept else True
         if override_filename:
-            recv_cfg.output_file = receive_filename = u"outfile"
+            recv_cfg.output_file = receive_filename = "outfile"
         if overwrite:
             recv_cfg.output_file = receive_filename
             existing_file = os.path.join(receive_dir, receive_filename)
@@ -474,13 +474,13 @@ async def _do_test(
         # cd $receive_dir && wormhole receive
         # expect: $receive_dir/$dirname/[12345]
 
-        send_dirname = u"testdir"
+        send_dirname = "testdir"
 
         def message(i):
             return "test message %d\n" % i
 
-        os.mkdir(os.path.join(send_dir, u"middle"))
-        source_dir = os.path.join(send_dir, u"middle", send_dirname)
+        os.mkdir(os.path.join(send_dir, "middle"))
+        source_dir = os.path.join(send_dir, "middle", send_dirname)
         os.mkdir(source_dir)
         modes = {}
         for i in range(5):
@@ -490,7 +490,7 @@ async def _do_test(
             if i == 3:
                 os.chmod(path, 0o755)
             modes[i] = stat.S_IMODE(os.stat(path).st_mode)
-        send_dirname_arg = os.path.join(u"middle", send_dirname)
+        send_dirname_arg = os.path.join("middle", send_dirname)
         if addslash:
             send_dirname_arg += os.sep
         send_cfg.what = send_dirname_arg
@@ -498,7 +498,7 @@ async def _do_test(
 
         recv_cfg.accept_file = False if mock_accept else True
         if override_filename:
-            recv_cfg.output_file = receive_dirname = u"outdir"
+            recv_cfg.output_file = receive_dirname = "outdir"
         if overwrite:
             recv_cfg.output_file = receive_dirname
             os.mkdir(os.path.join(receive_dir, receive_dirname))
@@ -671,25 +671,25 @@ async def _do_test(
             )
             assert expected in send_stderr
     elif mode == "file":
-        expected = u"Sending {size:s} file named '{name}'{NL}".format(
+        expected = "Sending {size:s} file named '{name}'{NL}".format(
             size=naturalsize(len(message)),
             name=send_filename,
             NL=NL)
         assert expected in send_stderr
-        assert u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
-        expected = (u"On the other computer, please run:{NL}{NL}"
+        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        expected = ("On the other computer, please run:{NL}{NL}"
                     "wormhole receive {code}{NL}{NL}").format(code=send_cfg.code, NL=NL)
         assert expected in send_stderr
-        assert (u"File sent.. waiting for confirmation{NL}"
+        assert ("File sent.. waiting for confirmation{NL}"
                 "Confirmation received. Transfer complete.{NL}").format(NL=NL) in send_stderr
 
     elif mode == "directory":
-        assert u"Sending directory" in send_stderr
-        assert u"named 'testdir'" in send_stderr
-        assert u"Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
-        assert u"On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert "Sending directory" in send_stderr
+        assert "named 'testdir'" in send_stderr
+        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
 
-        assert u"File sent.. waiting for confirmation{NL}Confirmation received. Transfer complete.{NL}".format(NL=NL) in send_stderr
+        assert "File sent.. waiting for confirmation{NL}Confirmation received. Transfer complete.{NL}".format(NL=NL) in send_stderr
 
     # check receiver
     if mode in ("text", "slow-text", "slow-sender-text"):
@@ -708,12 +708,12 @@ async def _do_test(
             assert receive_stderr == "Waiting for sender...\n"
     elif mode == "file":
         assert receive_stdout == ""
-        want = u"Receiving file ({size:s}) into: {name!r}".format(
+        want = "Receiving file ({size:s}) into: {name!r}".format(
             size=naturalsize(len(message)),
             name=receive_filename,
         )
         assert want in receive_stderr
-        assert u"Received file written to " in receive_stderr
+        assert "Received file written to " in receive_stderr
         fn = os.path.join(receive_dir, receive_filename)
         assert os.path.exists(fn)
         with open(fn, "r") as f:
@@ -723,7 +723,7 @@ async def _do_test(
         want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                 .format(name=receive_dirname))
         assert re.search(want, receive_stderr), (want, receive_stderr)
-        assert u"Received files written to {name!r}".format(name=receive_dirname) in receive_stderr
+        assert "Received files written to {name!r}".format(name=receive_dirname) in receive_stderr
         fn = os.path.join(receive_dir, receive_dirname)
         assert os.path.exists(fn), fn
         for i in range(5):
@@ -822,7 +822,7 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
         cfg.relay_url = relayurl
         cfg.transit_helper = ""
         cfg.listen = False
-        cfg.code = u"1-abc"
+        cfg.code = "1-abc"
         cfg.stdout = io.StringIO()
         cfg.stderr = io.StringIO()
 
@@ -907,7 +907,7 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
         assert "Sending directory" in send_stderr
         assert "named 'testdir'" in send_stderr
         assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
-        assert u"On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
 
     # check receiver
     if mode == "file":
@@ -1030,7 +1030,7 @@ def unwelcome_config(unwelcome_mailbox):
 @pytest_twisted.ensureDeferred
 async def test_sender_unwelcome(unwelcome_config):
     unwelcome_config.text = "hi"
-    unwelcome_config.code = u"1-abc"
+    unwelcome_config.code = "1-abc"
     unwelcome_config.verbose = True
     unwelcome_config.stdout = sys.stdout
     unwelcome_config.stderr = sys.stderr
@@ -1043,7 +1043,7 @@ async def test_sender_unwelcome(unwelcome_config):
 
 @pytest_twisted.ensureDeferred
 async def test_receiver_unwelcome(unwelcome_config):
-    unwelcome_config.code = u"1-abc"
+    unwelcome_config.code = "1-abc"
 
     receive_d = cmd_receive.receive(unwelcome_config)
     with pytest.raises(WelcomeError) as e:
@@ -1071,7 +1071,7 @@ async def test_sender(no_mailbox):
     cfg.stderr = io.StringIO()
 
     cfg.text = "hi"
-    cfg.code = u"1-abc"
+    cfg.code = "1-abc"
 
     with pytest.raises(ServerConnectionError) as e:
         await cmd_send.send(cfg)
@@ -1105,7 +1105,7 @@ async def test_receiver(no_mailbox):
     cfg.stdout = io.StringIO()
     cfg.stderr = io.StringIO()
 
-    cfg.code = u"1-abc"
+    cfg.code = "1-abc"
 
     with pytest.raises(ServerConnectionError) as e:
         await cmd_receive.receive(cfg)
@@ -1152,7 +1152,7 @@ async def test_text_wrong_password(mailbox):
     send_d = cmd_send.send(send_config)
 
     rx_cfg = create_named_config("send", mailbox.url)
-    rx_cfg.code = u"1-WRONG"
+    rx_cfg.code = "1-WRONG"
     receive_d = cmd_receive.receive(rx_cfg)
 
     # both sides should be capable of detecting the mismatch
@@ -1167,7 +1167,7 @@ async def test_text_wrong_password(mailbox):
 
 def test_filenames(tmpdir_factory):
     args = mock.Mock()
-    args.relay_url = u""
+    args.relay_url = ""
     ef = cmd_receive.Receiver(args)._extract_file
     extract_dir = os.path.abspath(tmpdir_factory.mktemp("filenames"))
 
@@ -1231,7 +1231,7 @@ async def test_override(request, reactor):
     used = mailbox.usage_db.execute(
         "SELECT DISTINCT `app_id` FROM `nameplates`").fetchall()
     assert len(used) == 1, f"Incorrect nameplates: {used}"
-    assert used[0]["app_id"] == u"appid2"
+    assert used[0]["app_id"] == "appid2"
 
 
 def _welcome_test(welcome_message, my_version="2.0"):
@@ -1417,7 +1417,7 @@ async def test_other_error(mailbox):
     f = mock.Mock()
 
     def mock_print(file):
-        file.write(u"<TRACEBACK>\n")
+        file.write("<TRACEBACK>\n")
 
     f.printTraceback = mock_print
     with mock.patch("wormhole.cli.cli.Failure", return_value=f):

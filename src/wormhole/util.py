@@ -34,7 +34,7 @@ def to_bytes(u):
 
 
 def to_unicode(any):
-    if isinstance(any, type(u"")):
+    if isinstance(any, type("")):
         return any
     return any.decode("ascii")
 
@@ -42,12 +42,12 @@ def to_unicode(any):
 def bytes_to_hexstr(b):
     assert isinstance(b, type(b""))
     hexstr = hexlify(b).decode("ascii")
-    assert isinstance(hexstr, type(u""))
+    assert isinstance(hexstr, type(""))
     return hexstr
 
 
 def hexstr_to_bytes(hexstr):
-    assert isinstance(hexstr, type(u""))
+    assert isinstance(hexstr, type(""))
     b = unhexlify(hexstr.encode("ascii"))
     assert isinstance(b, type(b""))
     return b

@@ -88,7 +88,7 @@ def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
     if tor:
         h.tor = mock.Mock()
     timing = None
-    h.side = u"abcd1234abcd5678"
+    h.side = "abcd1234abcd5678"
     h.role = role
     c = Connector(h.dilation_key, h.relay, h.manager, h.reactor, h.eq,
                   not listen, h.tor, timing, h.side, h.role)

@@ -37,7 +37,7 @@ def describe_hint_obj(hint, relay, tor):
 
 
 def parse_hint_argv(hint, stderr=sys.stderr):
-    assert isinstance(hint, type(u""))
+    assert isinstance(hint, type(""))
     # return tuple or None for an unparseable hint
     priority = 0.0
     # parse hint type

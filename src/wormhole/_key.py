@@ -63,9 +63,9 @@ def encrypt_data(key, plaintext):
 @attrs
 @implementer(_interfaces.IKey)
 class Key(object):
-    _appid = attrib(validator=instance_of(type(u"")))
+    _appid = attrib(validator=instance_of(type("")))
     _versions = attrib(validator=instance_of(dict))
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -129,9 +129,9 @@ class Key(object):
 
 @attrs
 class _SortedKey(object):
-    _appid = attrib(validator=instance_of(type(u"")))
+    _appid = attrib(validator=instance_of(type("")))
     _versions = attrib(validator=instance_of(dict))
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

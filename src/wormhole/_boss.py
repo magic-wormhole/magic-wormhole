@@ -31,9 +31,9 @@ from .util import bytes_to_dict, provides
 @implementer(_interfaces.IBoss)
 class Boss(object):
     _W = attrib()
-    _side = attrib(validator=instance_of(type(u"")))
-    _url = attrib(validator=instance_of(type(u"")))
-    _appid = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
+    _url = attrib(validator=instance_of(type("")))
+    _appid = attrib(validator=instance_of(type("")))
     _versions = attrib(validator=instance_of(dict))
     _client_version = attrib(validator=instance_of(tuple))
     _reactor = attrib()

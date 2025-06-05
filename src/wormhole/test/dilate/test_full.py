@@ -10,7 +10,7 @@ from ..._interfaces import IDilationConnector
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
 
-APPID = u"lothar.com/dilate-test"
+APPID = "lothar.com/dilate-test"
 
 
 def doBoth(d1, d2):

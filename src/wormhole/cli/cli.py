@@ -103,7 +103,7 @@ class AliasedGroup(click.Group):
 )
 @click.option(
     "--dump-timing",
-    type=type(u""),  # TODO: hide from --help output
+    type=type(""),  # TODO: hide from --help output
     default=None,
     metavar="FILE.json",
     help="(debug) write timing data to file",
@@ -152,7 +152,7 @@ def _dispatch_command(reactor, cfg, command):
         print(str(e), file=cfg.stderr)
         raise SystemExit(1)
     except TransferError as e:
-        print(u"TransferError: %s" % str(e), file=cfg.stderr)
+        print("TransferError: %s" % str(e), file=cfg.stderr)
         raise SystemExit(1)
     except ServerConnectionError as e:
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
@@ -165,7 +165,7 @@ def _dispatch_command(reactor, cfg, command):
         # traceback.print_exc() just prints a TB to the "yield"
         # line above ...
         Failure().printTraceback(file=cfg.stderr)
-        print(u"ERROR:", str(e), file=cfg.stderr)
+        print("ERROR:", str(e), file=cfg.stderr)
         raise SystemExit(1)
 
     cfg.timing.add("exit")
@@ -274,7 +274,7 @@ def help(context, **kwargs):
     "--qr/--no-qr",
     default=True,
     help="Generate and show ASCII-based QR code.")
-@click.argument("what", required=False, type=click.Path(path_type=type(u"")))
+@click.argument("what", required=False, type=click.Path(path_type=type("")))
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""

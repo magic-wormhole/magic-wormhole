@@ -941,7 +941,7 @@ async def make_connection():
 async def test_records_not_binary():
     t, c, owner = await make_connection()
 
-    RECORD1 = u"not binary"
+    RECORD1 = "not binary"
     with pytest.raises(InternalError):
         c.send_record(RECORD1)
 

@@ -18,7 +18,7 @@ from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
 from .welcome import handle_welcome
 
-APPID = u"lothar.com/wormhole/text-or-file-xfer"
+APPID = "lothar.com/wormhole/text-or-file-xfer"
 
 KEY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_KEY_TIMER", 1.0))
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
@@ -51,7 +51,7 @@ def receive(args, reactor=reactor, _debug_stash_wormhole=None):
 
 class Receiver:
     def __init__(self, args, reactor=reactor):
-        assert isinstance(args.relay_url, type(u""))
+        assert isinstance(args.relay_url, type(""))
         self.args = args
         self._reactor = reactor
         self._tor = None
@@ -128,7 +128,7 @@ class Receiver:
         yield self._handle_code(w)
 
         def on_slow_key():
-            print(u"Waiting for sender...", file=self.args.stderr)
+            print("Waiting for sender...", file=self.args.stderr)
 
         notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
         try:
@@ -146,7 +146,7 @@ class Receiver:
 
         def on_slow_verification():
             print(
-                u"Key established, waiting for confirmation...",
+                "Key established, waiting for confirmation...",
                 file=self.args.stderr)
 
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_verification)
@@ -174,16 +174,16 @@ class Receiver:
         while True:
             them_d = yield self._get_data(w)
             recognized = False
-            if u"transit" in them_d:
+            if "transit" in them_d:
                 recognized = True
-                yield self._parse_transit(them_d[u"transit"], w)
-            if u"offer" in them_d:
+                yield self._parse_transit(them_d["transit"], w)
+            if "offer" in them_d:
                 recognized = True
                 if not want_offer:
                     raise TransferError("duplicate offer")
                 want_offer = False
                 try:
-                    yield self._parse_offer(them_d[u"offer"], w)
+                    yield self._parse_offer(them_d["offer"], w)
                 except RespondError as r:
                     self._send_data({"error": r.response}, w)
                     raise TransferError(r.response)
@@ -209,16 +209,16 @@ class Receiver:
         code = self.args.code
         if self.args.zeromode:
             assert not code
-            code = u"0-"
+            code = "0-"
         if code:
             w.set_code(code)
         else:
             if self.args.allocate:
                 w.allocate_code(self.args.code_length)
                 code = yield w.get_code()
-                print(u"Allocated code: {}".format(code), file=self.args.stderr)
-                print(u"On the other computer, please run:", file=self.args.stderr)
-                print(u"   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
+                print("Allocated code: {}".format(code), file=self.args.stderr)
+                print("On the other computer, please run:", file=self.args.stderr)
+                print("   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
 
             else:
                 prompt = "Enter receive wormhole code: "
@@ -233,7 +233,7 @@ class Receiver:
     def _show_verifier(self, verifier_bytes):
         verifier_hex = bytes_to_hexstr(verifier_bytes)
         if self.args.verify:
-            self._msg(u"Verifier %s." % verifier_hex)
+            self._msg("Verifier %s." % verifier_hex)
 
     @inlineCallbacks
     def _parse_transit(self, sender_transit, w):
@@ -256,8 +256,8 @@ class Receiver:
         # (issue #113), I forgot to also change this w.derive_key() (issue
         # #339). We're stuck with it now. Use a local constant to make this
         # clear.
-        BUG339_APPID = u"lothar.com/wormhole/text-or-file-xfer"
-        transit_key = w.derive_key(BUG339_APPID + u"/transit-key",
+        BUG339_APPID = "lothar.com/wormhole/text-or-file-xfer"
+        transit_key = w.derive_key(BUG339_APPID + "/transit-key",
                                    tr.TRANSIT_KEY_LENGTH)
         tr.set_transit_key(transit_key)
 
@@ -268,7 +268,7 @@ class Receiver:
             "abilities-v1": receiver_abilities,
             "hints-v1": receiver_hints,
         }
-        self._send_data({u"transit": receiver_transit}, w)
+        self._send_data({"transit": receiver_transit}, w)
         # TODO: send more hints as the TransitReceiver produces them
 
     @inlineCallbacks
@@ -292,8 +292,8 @@ class Receiver:
             self._write_directory(f)
             yield self._close_transit(rp, datahash)
         else:
-            self._msg(u"I don't know what they're offering\n")
-            self._msg(u"Offer details: %r" % (them_d, ))
+            self._msg("I don't know what they're offering\n")
+            self._msg("Offer details: %r" % (them_d, ))
             raise RespondError("unknown offer type")
 
     def _handle_text(self, them_d, w):
@@ -309,7 +309,7 @@ class Receiver:
         self.xfersize = file_data["filesize"]
         free = estimate_free_space(self.abs_destname)
         if free is not None and free < self.xfersize:
-            self._msg(u"Error: insufficient free space (%sB) for file (%sB)" %
+            self._msg("Error: insufficient free space (%sB) for file (%sB)" %
                       (free, self.xfersize))
             raise TransferRejectedError()
 
@@ -317,7 +317,7 @@ class Receiver:
         # against malicious filenames that might play with how
         # terminals display things. see also
         # e.g. https://github.com/magic-wormhole/magic-wormhole/issues/476
-        self._msg(u"Receiving file (%s) into: %s" %
+        self._msg("Receiving file (%s) into: %s" %
                   (naturalsize(self.xfersize),
                    repr(os.path.basename(self.abs_destname))))
         self._ask_permission()
@@ -328,7 +328,7 @@ class Receiver:
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
         if not zipmode.startswith("zipfile"):
-            self._msg(u"Error: unknown directory-transfer mode '%s'" %
+            self._msg("Error: unknown directory-transfer mode '%s'" %
                       (zipmode, ))
             raise RespondError("unknown mode")
         self.abs_destname = self._decide_destname("directory",
@@ -337,14 +337,14 @@ class Receiver:
         free = estimate_free_space(self.abs_destname)
         if free is not None and free < file_data["numbytes"]:
             self._msg(
-                u"Error: insufficient free space (%sB) for directory (%sB)" %
+                "Error: insufficient free space (%sB) for directory (%sB)" %
                 (free, file_data["numbytes"]))
             raise TransferRejectedError()
 
-        self._msg(u"Receiving directory (%s) into: %s/" %
+        self._msg("Receiving directory (%s) into: %s/" %
                   (naturalsize(self.xfersize),
                    repr(os.path.basename(self.abs_destname))))
-        self._msg(u"%d files, %s (uncompressed)" %
+        self._msg("%d files, %s (uncompressed)" %
                   (file_data["numfiles"], naturalsize(file_data["numbytes"])))
         self._ask_permission()
         # max_size here matches the magic-number in cmd_send and will
@@ -370,12 +370,12 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if self.args.output_file:  # overwrite is intentional
-                self._msg(u"Overwriting %s" % repr(destname))
+                self._msg("Overwriting %s" % repr(destname))
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
                 self._msg(
-                    u"Error: refusing to overwrite existing %s" % repr(destname))
+                    "Error: refusing to overwrite existing %s" % repr(destname))
                 raise TransferRejectedError()
         return abs_destname
 
@@ -393,7 +393,7 @@ class Receiver:
                     if os.path.exists(self.abs_destname):
                         self._remove_existing(self.abs_destname)
                     break
-                print(u"transfer rejected", file=sys.stderr)
+                print("transfer rejected", file=sys.stderr)
                 t.detail(answer="no")
                 raise TransferRejectedError()
             t.detail(answer="yes")
@@ -410,7 +410,7 @@ class Receiver:
     @inlineCallbacks
     def _transfer_data(self, record_pipe, f):
         # now receive the rest of the owl
-        self._msg(u"Receiving (%s).." % record_pipe.describe())
+        self._msg("Receiving (%s).." % record_pipe.describe())
 
         with self.args.timing.add("rx file"):
             progress = tqdm(
@@ -429,8 +429,8 @@ class Receiver:
         # except TransitError
         if received < self.xfersize:
             self._msg()
-            self._msg(u"Connection dropped before full file received")
-            self._msg(u"got %d bytes, wanted %d" % (received, self.xfersize))
+            self._msg("Connection dropped before full file received")
+            self._msg("got %d bytes, wanted %d" % (received, self.xfersize))
             raise TransferError("Connection dropped before full file received")
         assert received == self.xfersize
         return datahash
@@ -439,7 +439,7 @@ class Receiver:
         tmp_name = f.name
         f.close()
         os.rename(tmp_name, self.abs_destname)
-        self._msg(u"Received file written to %s" % os.path.basename(
+        self._msg("Received file written to %s" % os.path.basename(
             self.abs_destname))
 
     def _extract_file(self, zf, info, extract_dir):
@@ -462,20 +462,20 @@ class Receiver:
 
     def _write_directory(self, f):
 
-        self._msg(u"Unpacking zipfile..")
+        self._msg("Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg(u"Received files written to %s/" % repr(os.path.basename(
+            self._msg("Received files written to %s/" % repr(os.path.basename(
                 self.abs_destname)))
             f.close()
 
     @inlineCallbacks
     def _close_transit(self, record_pipe, datahash):
         datahash_hex = bytes_to_hexstr(datahash)
-        ack = {u"ack": u"ok", u"sha256": datahash_hex}
+        ack = {"ack": "ok", "sha256": datahash_hex}
         ack_bytes = dict_to_bytes(ack)
         with self.args.timing.add("send ack"):
             yield record_pipe.send_record(ack_bytes)
