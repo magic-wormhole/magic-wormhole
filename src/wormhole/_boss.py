@@ -231,9 +231,10 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
-        # returns EndpointRecord; see wormhole.dilate() docs
+    def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+        # returns DilatedWormhole instance; see wormhole.dilate() docs
         return self._D.dilate(
+            subprotocols,
             transit_relay_location,
             no_listen=no_listen,
             wormhole_status=self._current_wormhole_status,

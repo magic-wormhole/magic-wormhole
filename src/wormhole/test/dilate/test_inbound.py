@@ -17,7 +17,7 @@ def make_inbound():
 
 def test_seqnum():
     i, m, host_addr = make_inbound()
-    r1 = Open(scid=513, seqnum=1)
+    r1 = Open(scid=513, seqnum=1, subprotocol="proto")
     r2 = Data(scid=513, seqnum=2, data=b"")
     r3 = Close(scid=513, seqnum=3)
     assert not i.is_record_old(r1)
@@ -47,20 +47,20 @@ def test_open_data_close(observe_errors):
     peer_addr = object()
     with mock.patch("wormhole._dilation.inbound.SubChannel",
                     side_effect=[sc1]) as sc:
-        with mock.patch("wormhole._dilation.inbound._SubchannelAddress",
+        with mock.patch("wormhole._dilation.inbound.SubchannelAddress",
                         side_effect=[peer_addr]) as sca:
-            i.handle_open(scid1)
+            i.handle_open(scid1, "proto")
     assert lep.mock_calls == [mock.call._got_open(sc1, peer_addr)]
     assert sc.mock_calls == [mock.call(scid1, m, host_addr, peer_addr)]
-    assert sca.mock_calls == [mock.call(scid1)]
+    assert sca.mock_calls == [mock.call("proto")]
     lep.mock_calls[:] = []
 
     # a subsequent duplicate OPEN should be ignored
     with mock.patch("wormhole._dilation.inbound.SubChannel",
                     side_effect=[sc1]) as sc:
-        with mock.patch("wormhole._dilation.inbound._SubchannelAddress",
+        with mock.patch("wormhole._dilation.inbound.SubchannelAddress",
                         side_effect=[peer_addr]) as sca:
-            i.handle_open(scid1)
+            i.handle_open(scid1, "proto")
     assert lep.mock_calls == []
     assert sc.mock_calls == []
     assert sca.mock_calls == []
@@ -88,35 +88,6 @@ def test_open_data_close(observe_errors):
     i.stop_using_connection()
 
 
-def test_control_channel(observe_errors):
-    i, m, host_addr = make_inbound()
-    lep = mock.Mock()
-    i.set_listener_endpoint(lep)
-
-    scid0 = b"scid"
-    sc0 = mock.Mock()
-    i.set_subchannel_zero(scid0, sc0)
-
-    # OPEN on the control channel identifier should be ignored as a
-    # duplicate, since the control channel is already registered
-    sc1 = mock.Mock()
-    peer_addr = object()
-    with mock.patch("wormhole._dilation.inbound.SubChannel",
-                    side_effect=[sc1]) as sc:
-        with mock.patch("wormhole._dilation.inbound._SubchannelAddress",
-                        side_effect=[peer_addr]) as sca:
-            i.handle_open(scid0)
-    assert lep.mock_calls == []
-    assert sc.mock_calls == []
-    assert sca.mock_calls == []
-    observe_errors.flush(DuplicateOpenError)
-
-    # and DATA to it should be delivered correctly
-    i.handle_data(scid0, b"data")
-    assert sc0.mock_calls == [mock.call.remote_data(b"data")]
-    sc0.mock_calls[:] = []
-
-
 def test_pause():
     i, m, host_addr = make_inbound()
     c = mock.Mock()
@@ -131,10 +102,10 @@ def test_pause():
     peer_addr = object()
     with mock.patch("wormhole._dilation.inbound.SubChannel",
                     side_effect=[sc1, sc2]):
-        with mock.patch("wormhole._dilation.inbound._SubchannelAddress",
+        with mock.patch("wormhole._dilation.inbound.SubchannelAddress",
                         return_value=peer_addr):
-            i.handle_open(scid1)
-            i.handle_open(scid2)
+            i.handle_open(scid1, "proto")
+            i.handle_open(scid2, "proto")
     assert c.mock_calls == []
 
     i.subchannel_pauseProducing(sc1)

@@ -2,138 +2,21 @@ from unittest import mock
 from zope.interface import alsoProvides
 from twisted.internet.task import Clock
 from twisted.python.failure import Failure
+from twisted.internet.interfaces import IProtocolFactory
 import pytest
 import pytest_twisted
 
-from ..._interfaces import ISubChannel
 from ...eventual import EventualQueue
-from ..._dilation.subchannel import (ControlEndpoint,
-                                     SubchannelConnectorEndpoint,
+from ...observer import OneShotObserver
+from ..._dilation.subchannel import (SubchannelConnectorEndpoint,
                                      SubchannelListenerEndpoint,
                                      SubchannelListeningPort,
-                                     _WormholeAddress, _SubchannelAddress,
-                                     SingleUseEndpointError)
+                                     _WormholeAddress, SubchannelAddress)
 from .common import mock_manager
 
 
 class CannotDilateError(Exception):
     pass
-
-
-@pytest_twisted.ensureDeferred
-async def test_control_early_succeed():
-    # ep.connect() is called before dilation can proceed
-    scid0 = 0
-    peeraddr = _SubchannelAddress(scid0)
-    sc0 = mock.Mock()
-    alsoProvides(sc0, ISubChannel)
-    eq = EventualQueue(Clock())
-    ep = ControlEndpoint(peeraddr, sc0, eq)
-
-    f = mock.Mock()
-    p = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
-    d = ep.connect(f)
-    assert not d.called
-
-    ep._main_channel_ready()
-    eq.flush_sync()
-
-    proto = await d
-    assert proto is p
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr)]
-    assert sc0.mock_calls == [mock.call._set_protocol(p),
-                                      mock.call._deliver_queued_data()]
-    assert p.mock_calls == [mock.call.makeConnection(sc0)]
-
-    d = ep.connect(f)
-    with pytest.raises(SingleUseEndpointError):
-        await d
-
-
-@pytest_twisted.ensureDeferred
-async def test_control_early_fail():
-    # ep.connect() is called before dilation is abandoned
-    scid0 = 0
-    peeraddr = _SubchannelAddress(scid0)
-    sc0 = mock.Mock()
-    alsoProvides(sc0, ISubChannel)
-    eq = EventualQueue(Clock())
-    ep = ControlEndpoint(peeraddr, sc0, eq)
-
-    f = mock.Mock()
-    p = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
-    d = ep.connect(f)
-    assert not d.called
-
-    ep._main_channel_failed(Failure(CannotDilateError()))
-    eq.flush_sync()
-
-    with pytest.raises(CannotDilateError):
-        await d
-    assert f.buildProtocol.mock_calls == []
-    assert sc0.mock_calls == []
-
-    d = ep.connect(f)
-    with pytest.raises(SingleUseEndpointError):
-        await d
-
-
-@pytest_twisted.ensureDeferred
-async def test_control_late_succeed():
-    # dilation can proceed, then ep.connect() is called
-    scid0 = 0
-    peeraddr = _SubchannelAddress(scid0)
-    sc0 = mock.Mock()
-    alsoProvides(sc0, ISubChannel)
-    eq = EventualQueue(Clock())
-    ep = ControlEndpoint(peeraddr, sc0, eq)
-
-    ep._main_channel_ready()
-
-    f = mock.Mock()
-    p = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
-    d = ep.connect(f)
-    eq.flush_sync()
-    proto = await d
-    assert proto is p
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr)]
-    assert sc0.mock_calls == [mock.call._set_protocol(p),
-                                      mock.call._deliver_queued_data()]
-    assert p.mock_calls == [mock.call.makeConnection(sc0)]
-
-    d = ep.connect(f)
-    with pytest.raises(SingleUseEndpointError):
-        await d
-
-
-@pytest_twisted.ensureDeferred
-async def test_control_late_fail():
-    # dilation is abandoned, then ep.connect() is called
-    scid0 = 0
-    peeraddr = _SubchannelAddress(scid0)
-    sc0 = mock.Mock()
-    alsoProvides(sc0, ISubChannel)
-    eq = EventualQueue(Clock())
-    ep = ControlEndpoint(peeraddr, sc0, eq)
-
-    ep._main_channel_failed(Failure(CannotDilateError()))
-
-    f = mock.Mock()
-    p = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
-    d = ep.connect(f)
-    eq.flush_sync()
-
-    with pytest.raises(CannotDilateError):
-        await d
-    assert f.buildProtocol.mock_calls == []
-    assert sc0.mock_calls == []
-
-    with pytest.raises(SingleUseEndpointError):
-        await ep.connect(f)
 
 
 def OFFassert_makeConnection(mock_calls):
@@ -148,11 +31,14 @@ async def test_connector_early_succeed():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
-    peeraddr = _SubchannelAddress(0)
+    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
-    ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p = mock.Mock()
     t = mock.Mock()
     f.buildProtocol = mock.Mock(return_value=p)
@@ -161,7 +47,7 @@ async def test_connector_early_succeed():
         d = ep.connect(f)
         eq.flush_sync()
         assert not d.called
-        ep._main_channel_ready()
+        m._main_channel.fire(None)
         eq.flush_sync()
 
     proto = await d
@@ -178,9 +64,12 @@ async def test_connector_early_fail():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
-    ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p = mock.Mock()
     t = mock.Mock()
     f.buildProtocol = mock.Mock(return_value=p)
@@ -189,7 +78,7 @@ async def test_connector_early_fail():
         d = ep.connect(f)
         eq.flush_sync()
         assert not d.called
-        ep._main_channel_failed(Failure(CannotDilateError()))
+        m._main_channel.error(Failure(CannotDilateError()))
         eq.flush_sync()
 
     with pytest.raises(CannotDilateError):
@@ -204,12 +93,15 @@ async def test_connector_late_succeed():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
-    peeraddr = _SubchannelAddress(0)
+    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
-    ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-    ep._main_channel_ready()
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    m._main_channel.fire(None)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p = mock.Mock()
     t = mock.Mock()
     f.buildProtocol = mock.Mock(return_value=p)
@@ -232,10 +124,13 @@ async def test_connector_late_fail():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
-    ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-    ep._main_channel_failed(Failure(CannotDilateError()))
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    m._main_channel.error(Failure(CannotDilateError()))
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p = mock.Mock()
     t = mock.Mock()
     f.buildProtocol = mock.Mock(return_value=p)
@@ -258,9 +153,12 @@ async def test_listener_early_succeed():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
     ep = SubchannelListenerEndpoint(m, hostaddr, eq)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p1 = mock.Mock()
     p2 = mock.Mock()
     f.buildProtocol = mock.Mock(side_effect=[p1, p2])
@@ -270,7 +168,7 @@ async def test_listener_early_succeed():
     assert not d.called
     assert f.buildProtocol.mock_calls == []
 
-    ep._main_channel_ready()
+    m._main_channel.fire(None)
     eq.flush_sync()
     lp = await d
     assert isinstance(lp, SubchannelListeningPort)
@@ -281,7 +179,7 @@ async def test_listener_early_succeed():
     lp.startListening()
 
     t1 = mock.Mock()
-    peeraddr1 = _SubchannelAddress(1)
+    peeraddr1 = SubchannelAddress("proto")
     ep._got_open(t1, peeraddr1)
 
     assert t1.mock_calls == [mock.call._set_protocol(p1),
@@ -290,7 +188,7 @@ async def test_listener_early_succeed():
     assert f.buildProtocol.mock_calls == [mock.call(peeraddr1)]
 
     t2 = mock.Mock()
-    peeraddr2 = _SubchannelAddress(2)
+    peeraddr2 = SubchannelAddress("proto")
     ep._got_open(t2, peeraddr2)
 
     assert t2.mock_calls == [mock.call._set_protocol(p2),
@@ -309,9 +207,12 @@ async def test_listener_early_fail():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
     ep = SubchannelListenerEndpoint(m, hostaddr, eq)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p1 = mock.Mock()
     p2 = mock.Mock()
     f.buildProtocol = mock.Mock(side_effect=[p1, p2])
@@ -320,7 +221,7 @@ async def test_listener_early_fail():
     eq.flush_sync()
     assert not d.called
 
-    ep._main_channel_failed(Failure(CannotDilateError()))
+    m._main_channel.error(Failure(CannotDilateError()))
     eq.flush_sync()
     with pytest.raises(CannotDilateError):
         await d
@@ -335,15 +236,17 @@ async def test_listener_late_succeed():
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
     ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-    ep._main_channel_ready()
+    m._main_channel.fire(None)
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p1 = mock.Mock()
     p2 = mock.Mock()
     f.buildProtocol = mock.Mock(side_effect=[p1, p2])
 
     t1 = mock.Mock()
-    peeraddr1 = _SubchannelAddress(1)
+    peeraddr1 = SubchannelAddress("proto")
     ep._got_open(t1, peeraddr1)
     eq.flush_sync()
 
@@ -364,7 +267,7 @@ async def test_listener_late_succeed():
     assert f.buildProtocol.mock_calls == [mock.call(peeraddr1)]
 
     t2 = mock.Mock()
-    peeraddr2 = _SubchannelAddress(2)
+    peeraddr2 = SubchannelAddress("proto")
     ep._got_open(t2, peeraddr2)
 
     assert t2.mock_calls == [mock.call._set_protocol(p2),
@@ -383,10 +286,13 @@ async def test_listener_late_fail():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
     ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-    ep._main_channel_failed(Failure(CannotDilateError()))
+    m._main_channel.error(Failure(CannotDilateError()))
 
     f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
     p1 = mock.Mock()
     p2 = mock.Mock()
     f.buildProtocol = mock.Mock(side_effect=[p1, p2])
