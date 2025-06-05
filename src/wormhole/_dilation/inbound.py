@@ -39,9 +39,6 @@ class Inbound(object):
     def set_listener_endpoint(self, listener_endpoint):
         self._listener_endpoint = listener_endpoint
 
-    # def set_subchannel_zero(self, scid0, sc0):
-    #     self._open_subchannels[scid0] = sc0
-
     def use_connection(self, c):
         self._connection = c
         # We can pause the connection's reads when we receive too much data. If
