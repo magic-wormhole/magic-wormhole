@@ -58,8 +58,11 @@ class DilatedWormhole(object):
     """
     Represents actions available once a wormhole has been successfully dilated.
 
-    All APIs taking a 'subprotocol' name may only use one that was
-    specified when the wormhole was first created.
+    New subchannels to the other peer may be established by first
+    obtaining an `IStreamClientEndpoint` from the
+    `subprotocol_connector_for("subproto-name")` method. Note that
+    ``.connect()`` on these endpoints will ``.errback()`` if Dilation
+    cannot be established.
     """
 
     _manager: IDilationManager = field()
