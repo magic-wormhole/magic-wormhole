@@ -2,10 +2,11 @@ from unittest import mock
 from zope.interface import directlyProvides
 from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol
 from twisted.internet.error import ConnectionDone
-from ..._dilation.subchannel import (Once, SubChannel,
+from ..._dilation.subchannel import (SubChannel,
                                      _WormholeAddress, SubchannelAddress,
                                      AlreadyClosedError,
                                      NormalCloseUsedOnHalfCloseable)
+from ..._dilation.manager import Once
 from .common import mock_manager
 import pytest
 

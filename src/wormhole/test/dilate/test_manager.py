@@ -11,6 +11,7 @@ from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
+                                  CanOnlyDilateOnceError,
                                   UnknownDilationMessageType,
                                   UnexpectedKCM,
                                   UnknownMessageType, DILATION_VERSIONS)
@@ -57,9 +58,9 @@ def test_dilate_first():
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
         eps1 = dil.dilate({})
-        eps2 = dil.dilate({})
+        with pytest.raises(CanOnlyDilateOnceError):
+            dil.dilate({})
     assert eps1 is eps
-    assert eps1 is eps2
     assert mm.mock_calls == [mock.call(h.send, side, None,
                                        h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {},
                                        False, None, initial_mailbox_status=None)]
