@@ -24,23 +24,6 @@ from ..util import provides
 MAX_FRAME_LENGTH = 2**32 - 1 - 9 - 16
 
 
-@attrs
-class Once(object):
-    _errtype = attrib()
-
-    def __attrs_post_init__(self):
-        self._called = False
-
-    def __call__(self):
-        if self._called:
-            raise self._errtype()
-        self._called = True
-
-
-class SingleUseEndpointError(Exception):
-    pass
-
-
 # created in the (OPEN) state, by either:
 #  * receipt of an OPEN message
 #  * or local client_endpoint.connect()

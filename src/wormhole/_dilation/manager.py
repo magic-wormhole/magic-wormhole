@@ -86,6 +86,23 @@ class DilatedWormhole(object):
         )
 
 
+@attrs
+class Once(object):
+    _errtype = attrib()
+
+    def __attrs_post_init__(self):
+        self._called = False
+
+    def __call__(self):
+        if self._called:
+            raise self._errtype()
+        self._called = True
+
+
+class CanOnlyDilateOnceError(Exception):
+    pass
+
+
 def make_side():
     return bytes_to_hexstr(os.urandom(8))
 
@@ -315,18 +332,17 @@ class Manager(object):
         self._inbound = Inbound(self, self._host_addr)
         self._outbound = Outbound(self, self._cooperator)  # from us to peer
 
-        listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
-        # NOTE: circular refs, not the greatest
+        listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         self._main_channel = OneShotObserver(self._eventual_queue)
+
+        # NOTE: circular refs, not ideal
         self._api = DilatedWormhole(self)
         self._inbound.set_listener_endpoint(listen_ep)
         self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories, self._api)
         self._port = listen_ep.listen(self._listen_factory)
 
-        ##self._endpoints = EndpointRecord(control_ep, connect_ep)
-        self._listen_endpoint = listen_ep
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
@@ -911,12 +927,14 @@ class Dilator(object):
     _eventual_queue = attrib()
     _cooperator = attrib()
     _acceptable_versions = attrib()
+    _did_dilate = attrib(init=False)
 
     def __attrs_post_init__(self):
         self._manager = None
         self._pending_dilation_key = None
         self._pending_wormhole_versions = None
         self._pending_inbound_dilate_messages = deque()
+        self._did_dilate = Once(CanOnlyDilateOnceError)
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
@@ -930,10 +948,17 @@ class Dilator(object):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
 
+        # ensure users can only call this API once -- even before
+        # 'subprotocols' changes, although it was possible to call the
+        # API more than once, subsequent calls would have no effect
+        # (e.g. transit_relay_location, no_listen, etc would all
+        # remain unchanged)
+        self._did_dilate()
+
         assert type(subprotocols) == dict, "subprotocols must be a dict"
         for name, factory in subprotocols.items():
             assert type(name) is str, "subprotocol names must be str"
-            assert IProtocolFactory.providedBy(factory), "subprotocol listener must implement IFactory"
+            assert IProtocolFactory.providedBy(factory), "subprotocol listener must implement IProtocolFactory, instead see {}".format(type(factory))
 
         if self._manager is None:
             # build the manager right away, and tell it later when the
@@ -961,11 +986,6 @@ class Dilator(object):
             while self._pending_inbound_dilate_messages:
                 plaintext = self._pending_inbound_dilate_messages.popleft()
                 m.received_dilation_message(plaintext)
-
-        #XXX do we need this?? can stuff "api" -- the return value of
-        #this -- into any Factories needing it in the caller...
-        #for fac in subprotocols.values():
-        #    fac._dilation_manager = self._manager
 
         return self._manager._api
 
