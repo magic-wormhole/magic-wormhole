@@ -81,7 +81,7 @@ def build_sender_handshake(key):
 
 
 def build_sided_relay_handshake(key, side):
-    assert isinstance(side, type(u""))
+    assert isinstance(side, type(""))
     assert len(side) == 8 * 2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
@@ -558,7 +558,7 @@ class Common:
                  timing=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
-            if not isinstance(transit_relay, type(u"")):
+            if not isinstance(transit_relay, type("")):
                 raise InternalError
             # TODO: allow multiple hints for a single relay
             relay_hint = parse_hint_argv(transit_relay)
@@ -599,10 +599,10 @@ class Common:
     def get_connection_abilities(self):
         return [
             {
-                u"type": u"direct-tcp-v1"
+                "type": "direct-tcp-v1"
             },
             {
-                u"type": u"relay-v1"
+                "type": "relay-v1"
             },
         ]
 
@@ -612,19 +612,19 @@ class Common:
         direct_hints = yield self._get_direct_hints()
         for dh in direct_hints:
             hints.append({
-                u"type": u"direct-tcp-v1",
-                u"priority": dh.priority,
-                u"hostname": dh.hostname,
-                u"port": dh.port,  # integer
+                "type": "direct-tcp-v1",
+                "priority": dh.priority,
+                "hostname": dh.hostname,
+                "port": dh.port,  # integer
             })
         for relay in self._transit_relays:
-            rhint = {u"type": u"relay-v1", u"hints": []}
+            rhint = {"type": "relay-v1", "hints": []}
             for rh in relay.hints:
-                rhint[u"hints"].append({
-                    u"type": u"direct-tcp-v1",
-                    u"priority": rh.priority,
-                    u"hostname": rh.hostname,
-                    u"port": rh.port
+                rhint["hints"].append({
+                    "type": "direct-tcp-v1",
+                    "priority": rh.priority,
+                    "hostname": rh.hostname,
+                    "port": rh.port
                 })
             hints.append(rhint)
         return hints
@@ -676,18 +676,18 @@ class Common:
 
     def add_connection_hints(self, hints):
         for h in hints:  # hint structs
-            hint_type = h.get(u"type", u"")
-            if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
+            hint_type = h.get("type", "")
+            if hint_type in ["direct-tcp-v1", "tor-tcp-v1"]:
                 dh = parse_tcp_v1_hint(h)
                 if dh:
                     self._their_direct_hints.append(dh)  # hint_obj
-            elif hint_type == u"relay-v1":
+            elif hint_type == "relay-v1":
                 # TODO: each relay-v1 clause describes a different relay,
                 # with a set of equally-valid ways to connect to it. Treat
                 # them as separate relays, instead of merging them all
                 # together like this.
                 relay_hints = []
-                for rhs in h.get(u"hints", []):
+                for rhs in h.get("hints", []):
                     h = parse_tcp_v1_hint(rhs)
                     if h:
                         relay_hints.append(h)

@@ -62,9 +62,9 @@ class WSFactory(websocket.WebSocketClientFactory):
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
 class RendezvousConnector(object):
-    _url = attrib(validator=instance_of(type(u"")))
-    _appid = attrib(validator=instance_of(type(u"")))
-    _side = attrib(validator=instance_of(type(u"")))
+    _url = attrib(validator=instance_of(type("")))
+    _appid = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(type("")))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))

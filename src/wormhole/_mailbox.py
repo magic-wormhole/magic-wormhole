@@ -9,7 +9,7 @@ from . import _interfaces
 @attrs
 @implementer(_interfaces.IMailbox)
 class Mailbox(object):
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover

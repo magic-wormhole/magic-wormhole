@@ -270,7 +270,7 @@ class TrafficTimer(object):
 @implementer(IDilationManager)
 class Manager(object):
     _S = attrib(validator=provides(ISend), repr=False)
-    _my_side = attrib(validator=instance_of(type(u"")))
+    _my_side = attrib(validator=instance_of(type("")))
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)

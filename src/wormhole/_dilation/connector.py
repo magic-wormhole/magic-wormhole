@@ -26,7 +26,7 @@ from ._noise import NoiseConnection
 
 
 def build_sided_relay_handshake(key, side):
-    assert isinstance(side, type(u""))
+    assert isinstance(side, type(""))
     # magic-wormhole-transit-relay expects a specific layout for the
     # handshake message: "please relay {64} for side {16}\n"
     assert len(side) == 8 * 2, side
@@ -75,14 +75,14 @@ class Connector(object):
     """
 
     _dilation_key = attrib(validator=instance_of(type(b"")))
-    _transit_relay_location = attrib(validator=optional(instance_of(type(u""))))
+    _transit_relay_location = attrib(validator=optional(instance_of(type(""))))
     _manager = attrib(validator=provides(IDilationManager))
     _reactor = attrib()
     _eventual_queue = attrib()
     _no_listen = attrib(validator=instance_of(bool))
     _tor = attrib()
     _timing = attrib()
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
     # was self._side = bytes_to_hexstr(os.urandom(8)) # unicode
     _role = attrib()
 

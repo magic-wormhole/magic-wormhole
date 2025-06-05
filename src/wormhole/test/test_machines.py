@@ -54,7 +54,7 @@ class Dummy:
 
 def build_send():
     events = []
-    s = _send.Send(u"side", timing.DebugTiming())
+    s = _send.Send("side", timing.DebugTiming())
     m = Dummy("m", events, IMailbox, "add_message")
     s.wire(m)
     return s, m, events
@@ -112,7 +112,7 @@ def test_key_first():
 
 def build_order():
     events = []
-    o = _order.Order(u"side", timing.DebugTiming())
+    o = _order.Order("side", timing.DebugTiming())
     k = Dummy("k", events, IKey, "got_pake")
     r = Dummy("r", events, IReceive, "got_message")
     o.wire(k, r)
@@ -121,34 +121,34 @@ def build_order():
 
 def test_in_order():
     o, k, r, events = build_order()
-    o.got_message(u"side", u"pake", b"body")
+    o.got_message("side", "pake", b"body")
     assert events == [("k.got_pake", b"body")]  # right away
-    o.got_message(u"side", u"version", b"body")
-    o.got_message(u"side", u"1", b"body")
+    o.got_message("side", "version", b"body")
+    o.got_message("side", "1", b"body")
     assert events == [
         ("k.got_pake", b"body"),
-        ("r.got_message", u"side", u"version", b"body"),
-        ("r.got_message", u"side", u"1", b"body"),
+        ("r.got_message", "side", "version", b"body"),
+        ("r.got_message", "side", "1", b"body"),
     ]
 
 def test_out_of_order():
     o, k, r, events = build_order()
-    o.got_message(u"side", u"version", b"body")
+    o.got_message("side", "version", b"body")
     assert events == []  # nothing yet
-    o.got_message(u"side", u"1", b"body")
+    o.got_message("side", "1", b"body")
     assert events == []  # nothing yet
-    o.got_message(u"side", u"pake", b"body")
+    o.got_message("side", "pake", b"body")
     # got_pake is delivered first
     assert events == [
         ("k.got_pake", b"body"),
-        ("r.got_message", u"side", u"version", b"body"),
-        ("r.got_message", u"side", u"1", b"body"),
+        ("r.got_message", "side", "version", b"body"),
+        ("r.got_message", "side", "1", b"body"),
     ]
 
 
 def build_receive():
     events = []
-    r = _receive.Receive(u"side", timing.DebugTiming())
+    r = _receive.Receive("side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "happy", "scared", "got_verifier",
               "got_message")
     s = Dummy("s", events, ISend, "got_verified_key")
@@ -162,27 +162,27 @@ def test_good_receive():
     r.got_key(key)
     assert events == []
     verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, u"side", u"phase1")
+    phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    r.got_message(u"side", u"phase1", good_body)
+    r.got_message("side", "phase1", good_body)
     assert events == [
         ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
-        ("b.got_message", u"phase1", data1),
+        ("b.got_message", "phase1", data1),
     ]
 
-    phase2_key = derive_phase_key(key, u"side", u"phase2")
+    phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    r.got_message(u"side", u"phase2", good_body)
+    r.got_message("side", "phase2", good_body)
     assert events == [
         ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
-        ("b.got_message", u"phase1", data1),
-        ("b.got_message", u"phase2", data2),
+        ("b.got_message", "phase1", data1),
+        ("b.got_message", "phase2", data2),
     ]
 
 def test_early_bad():
@@ -190,18 +190,18 @@ def test_early_bad():
     key = b"key"
     r.got_key(key)
     assert events == []
-    phase1_key = derive_phase_key(key, u"side", u"bad")
+    phase1_key = derive_phase_key(key, "side", "bad")
     data1 = b"data1"
     bad_body = encrypt_data(phase1_key, data1)
-    r.got_message(u"side", u"phase1", bad_body)
+    r.got_message("side", "phase1", bad_body)
     assert events == [
         ("b.scared", ),
     ]
 
-    phase2_key = derive_phase_key(key, u"side", u"phase2")
+    phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    r.got_message(u"side", u"phase2", good_body)
+    r.got_message("side", "phase2", good_body)
     assert events == [
         ("b.scared", ),
     ]
@@ -212,42 +212,42 @@ def test_late_bad():
     r.got_key(key)
     assert events == []
     verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, u"side", u"phase1")
+    phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    r.got_message(u"side", u"phase1", good_body)
+    r.got_message("side", "phase1", good_body)
     assert events == [
         ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
-        ("b.got_message", u"phase1", data1),
+        ("b.got_message", "phase1", data1),
     ]
 
-    phase2_key = derive_phase_key(key, u"side", u"bad")
+    phase2_key = derive_phase_key(key, "side", "bad")
     data2 = b"data2"
     bad_body = encrypt_data(phase2_key, data2)
-    r.got_message(u"side", u"phase2", bad_body)
+    r.got_message("side", "phase2", bad_body)
     assert events == [
         ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
-        ("b.got_message", u"phase1", data1),
+        ("b.got_message", "phase1", data1),
         ("b.scared", ),
     ]
-    r.got_message(u"side", u"phase1", good_body)
-    r.got_message(u"side", u"phase2", bad_body)
+    r.got_message("side", "phase1", good_body)
+    r.got_message("side", "phase2", bad_body)
     assert events == [
         ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
-        ("b.got_message", u"phase1", data1),
+        ("b.got_message", "phase1", data1),
         ("b.scared", ),
     ]
 
 
 def build_key():
     events = []
-    k = _key.Key(u"appid", {}, u"side", timing.DebugTiming())
+    k = _key.Key("appid", {}, "side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "scared", "got_key")
     m = Dummy("m", events, IMailbox, "add_message")
     r = Dummy("r", events, IReceive, "got_key")
@@ -257,7 +257,7 @@ def build_key():
 
 def test_good_key():
     k, b, m, r, events = build_key()
-    code = u"1-foo"
+    code = "1-foo"
     k.got_code(code)
     assert len(events) == 1
     assert events[0][:2] == ("m.add_message", "pake")
@@ -265,7 +265,7 @@ def test_good_key():
     events[:] = []
     msg1 = json.loads(msg1_json)
     msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
-    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes(u"appid"))
+    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
     msg2_bytes = sp.start()
     key2 = sp.finish(msg1_bytes)
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
@@ -277,7 +277,7 @@ def test_good_key():
 
 def test_bad():
     k, b, m, r, events = build_key()
-    code = u"1-foo"
+    code = "1-foo"
     k.got_code(code)
     assert len(events) == 1
     assert events[0][:2] == ("m.add_message", "pake")
@@ -298,9 +298,9 @@ def test_reversed():
     # PAKE message until the code is set (allowing the PAKE computation
     # to finish). This test exercises that PAKE-then-code sequence.
     k, b, m, r, events = build_key()
-    code = u"1-foo"
+    code = "1-foo"
 
-    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes(u"appid"))
+    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
     msg2_bytes = sp.start()
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
     k.got_pake(msg2)
@@ -332,32 +332,32 @@ def build_code():
 
 def test_set_code():
     c, b, a, n, k, i, events = build_code()
-    c.set_code(u"1-code")
+    c.set_code("1-code")
     assert events == [
-        ("n.set_nameplate", u"1"),
-        ("b.got_code", u"1-code"),
-        ("k.got_code", u"1-code"),
+        ("n.set_nameplate", "1"),
+        ("b.got_code", "1-code"),
+        ("k.got_code", "1-code"),
     ]
 
 def test_set_code_invalid():
     c, b, a, n, k, i, events = build_code()
     with pytest.raises(errors.KeyFormatError) as e:
-        c.set_code(u"1-code ")
+        c.set_code("1-code ")
     assert str(e.value) == "Code '1-code ' contains spaces."
     with pytest.raises(errors.KeyFormatError) as e:
-        c.set_code(u" 1-code")
+        c.set_code(" 1-code")
     assert str(e.value) == "Code ' 1-code' contains spaces."
     with pytest.raises(errors.KeyFormatError) as e:
-        c.set_code(u"code-code")
+        c.set_code("code-code")
     assert str(e.value) == \
         "Nameplate 'code' must be numeric, with no spaces."
 
     # it should still be possible to use the wormhole at this point
-    c.set_code(u"1-code")
+    c.set_code("1-code")
     assert events == [
-        ("n.set_nameplate", u"1"),
-        ("b.got_code", u"1-code"),
-        ("k.got_code", u"1-code"),
+        ("n.set_nameplate", "1"),
+        ("b.got_code", "1-code"),
+        ("k.got_code", "1-code"),
     ]
 
 def test_allocate_code():
@@ -368,9 +368,9 @@ def test_allocate_code():
     events[:] = []
     c.allocated("1", "1-code")
     assert events == [
-        ("n.set_nameplate", u"1"),
-        ("b.got_code", u"1-code"),
-        ("k.got_code", u"1-code"),
+        ("n.set_nameplate", "1"),
+        ("b.got_code", "1-code"),
+        ("k.got_code", "1-code"),
     ]
 
 def test_input_code():
@@ -380,13 +380,13 @@ def test_input_code():
     events[:] = []
     c.got_nameplate("1")
     assert events == [
-        ("n.set_nameplate", u"1"),
+        ("n.set_nameplate", "1"),
     ]
     events[:] = []
     c.finished_input("1-code")
     assert events == [
-        ("b.got_code", u"1-code"),
-        ("k.got_code", u"1-code"),
+        ("b.got_code", "1-code"),
+        ("k.got_code", "1-code"),
     ]
 
 

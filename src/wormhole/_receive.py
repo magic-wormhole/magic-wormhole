@@ -11,7 +11,7 @@ from .util import provides
 @attrs
 @implementer(_interfaces.IReceive)
 class Receive(object):
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(type("")))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

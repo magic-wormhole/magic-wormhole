@@ -30,13 +30,13 @@ def test_send_appid():
 
 def test_send_file():
     cfg = config("send", "fn")
-    assert cfg.what == u"fn"
+    assert cfg.what == "fn"
     assert cfg.text is None
 
 def test_send_text():
     cfg = config("send", "--text", "hi")
     assert cfg.what is None
-    assert cfg.text == u"hi"
+    assert cfg.text == "hi"
 
 def test_send_nolisten():
     cfg = config("send", "--no-listen", "fn")
@@ -44,7 +44,7 @@ def test_send_nolisten():
 
 def test_send_code():
     cfg = config("send", "--code", "1-abc", "fn")
-    assert cfg.code == u"1-abc"
+    assert cfg.code == "1-abc"
 
 def test_send_code_length():
     cfg = config("send", "-c", "3", "fn")
@@ -124,7 +124,7 @@ def test_receive_nolisten():
 
 def test_receive_code():
     cfg = config("receive", "1-abc")
-    assert cfg.code == u"1-abc"
+    assert cfg.code == "1-abc"
 
 def test_receive_code_length():
     cfg = config("receive", "-c", "3", "--allocate")
@@ -160,7 +160,7 @@ def test_receive_accept_file():
 
 def test_receive_output_file():
     cfg = config("receive", "--output-file", "fn")
-    assert cfg.output_file == u"fn"
+    assert cfg.output_file == "fn"
 
 def test_receive_relay_env_var():
     relay_url = str(mock.sentinel.relay_url)

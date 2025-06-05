@@ -23,7 +23,7 @@ from .welcome import handle_welcome
 from iterableio import open_iterable
 from zipstream.ng import ZipStream, walk
 
-APPID = u"lothar.com/wormhole/text-or-file-xfer"
+APPID = "lothar.com/wormhole/text-or-file-xfer"
 VERIFY_TIMER = float(os.environ.get("_MAGIC_WORMHOLE_TEST_VERIFY_TIMER", 1.0))
 
 
@@ -51,7 +51,7 @@ class Sender:
 
     @inlineCallbacks
     def go(self):
-        assert isinstance(self._args.relay_url, type(u""))
+        assert isinstance(self._args.relay_url, type(""))
         if self._args.tor:
             with self._timing.add("import", which="tor_manager"):
                 from ..tor_manager import get_tor
@@ -118,13 +118,13 @@ class Sender:
         offer, self._fd_to_send = self._build_offer()
         args = self._args
 
-        other_cmd = u"wormhole receive"
+        other_cmd = "wormhole receive"
         if args.verify:
-            other_cmd = u"wormhole receive --verify"
+            other_cmd = "wormhole receive --verify"
         if args.zeromode:
             assert not args.code
-            args.code = u"0-"
-            other_cmd += u" -0"
+            args.code = "0-"
+            other_cmd += " -0"
 
         if args.code:
             w.set_code(args.code)
@@ -133,18 +133,18 @@ class Sender:
 
         code = yield w.get_code()
         if not args.zeromode:
-            print(u"Wormhole code is: %s" % code, file=args.stderr)
-            other_cmd += u" " + code
+            print("Wormhole code is: %s" % code, file=args.stderr)
+            other_cmd += " " + code
 
         if not args.zeromode and args.qr:
             qr = QRCode(border=1)
-            qr.add_data(u"wormhole-transfer:%s" % code)
+            qr.add_data("wormhole-transfer:%s" % code)
             qr.print_ascii(out=args.stderr)
 
-        print(u"On the other computer, please run:", file=args.stderr)
-        print(u"", file=args.stderr)
+        print("On the other computer, please run:", file=args.stderr)
+        print("", file=args.stderr)
         print(other_cmd, file=args.stderr)
-        print(u"", file=args.stderr)
+        print("", file=args.stderr)
         # flush stderr so the code is displayed immediately
         args.stderr.flush()
 
@@ -158,7 +158,7 @@ class Sender:
         # TODO: don't stall on w.get_verifier() unless they want it
         def on_slow_connection():
             print(
-                u"Key established, waiting for confirmation...",
+                "Key established, waiting for confirmation...",
                 file=args.stderr)
 
         notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
@@ -210,13 +210,13 @@ class Sender:
                 "abilities-v1": sender_abilities,
                 "hints-v1": sender_hints,
             }
-            self._send_data({u"transit": sender_transit}, w)
+            self._send_data({"transit": sender_transit}, w)
 
             # When I made it possible to override APPID with a CLI argument
             # (issue #113), I forgot to also change this w.derive_key()
             # (issue #339). We're stuck with it now. Use a local constant to
             # make this clear.
-            BUG339_APPID = u"lothar.com/wormhole/text-or-file-xfer"
+            BUG339_APPID = "lothar.com/wormhole/text-or-file-xfer"
 
             # TODO: move this down below w.get_message()
             transit_key = w.derive_key(BUG339_APPID + "/transit-key",
@@ -234,18 +234,18 @@ class Sender:
             them_d = bytes_to_dict(them_d_bytes)
             # print("GOT", them_d)
             recognized = False
-            if u"error" in them_d:
+            if "error" in them_d:
                 raise TransferError(
                     "remote error, transfer abandoned: %s" % them_d["error"])
-            if u"transit" in them_d:
+            if "transit" in them_d:
                 recognized = True
-                yield self._handle_transit(them_d[u"transit"])
-            if u"answer" in them_d:
+                yield self._handle_transit(them_d["transit"])
+            if "answer" in them_d:
                 recognized = True
                 if not want_answer:
                     raise TransferError("duplicate answer")
                 want_answer = True
-                yield self._handle_answer(them_d[u"answer"])
+                yield self._handle_answer(them_d["answer"])
                 return None
             if not recognized:
                 log.msg("unrecognized message %r" % (them_d, ))
@@ -272,14 +272,14 @@ class Sender:
         args = self._args
         text = args.text
         if text == "-":
-            print(u"Reading text message from stdin..", file=args.stderr)
+            print("Reading text message from stdin..", file=args.stderr)
             text = sys.stdin.read()
         if not text and not args.what:
             text = input("Text to send: ")
 
         if text is not None:
             print(
-                u"Sending text message (%s)" % naturalsize(len(text)),
+                "Sending text message (%s)" % naturalsize(len(text)),
                 file=args.stderr)
             offer = {"message": text}
             fd_to_send = None
@@ -342,14 +342,14 @@ class Sender:
                 "filesize": filesize,
             }
             print(
-                u"Sending %s file named '%s'" % (naturalsize(filesize),
+                "Sending %s file named '%s'" % (naturalsize(filesize),
                                                  basename),
                 file=args.stderr)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
 
         if os.path.isdir(what):
-            print(u"Building zipfile..", file=args.stderr)
+            print("Building zipfile..", file=args.stderr)
             # We're sending a directory, stream it as a zipfile
 
             zs = ZipStream(sized=True)
@@ -381,7 +381,7 @@ class Sender:
                 "numfiles": len(filesizes),
             }
             print(
-                u"Sending directory (%s compressed) named '%s'" %
+                "Sending directory (%s compressed) named '%s'" %
                 (naturalsize(filesize), basename),
                 file=args.stderr)
             return offer, zs
@@ -395,7 +395,7 @@ class Sender:
                 "filesize": filesize,
             }
             print(
-                u"Sending %s block device named '%s'" % (naturalsize(filesize),
+                "Sending %s block device named '%s'" % (naturalsize(filesize),
                                                          basename),
                 file=args.stderr)
 
@@ -408,7 +408,7 @@ class Sender:
     def _handle_answer(self, them_answer):
         if self._fd_to_send is None:
             if them_answer["message_ack"] == "ok":
-                print(u"text message sent", file=self._args.stderr)
+                print("text message sent", file=self._args.stderr)
                 return None
             raise TransferError("error sending text: %r" % (them_answer, ))
 
@@ -434,7 +434,7 @@ class Sender:
         self._timing.add("transit connected")
         # record_pipe should implement IConsumer, chunks are just records
         stderr = self._args.stderr
-        print(u"Sending (%s).." % record_pipe.describe(), file=stderr)
+        print("Sending (%s).." % record_pipe.describe(), file=stderr)
 
         hasher = hashlib.sha256()
         progress = tqdm(
@@ -463,18 +463,18 @@ class Sender:
 
         expected_hash = hasher.digest()
         expected_hex = bytes_to_hexstr(expected_hash)
-        print(u"File sent.. waiting for confirmation", file=stderr)
+        print("File sent.. waiting for confirmation", file=stderr)
         with self._timing.add("get ack") as t:
             ack_bytes = yield record_pipe.receive_record()
             record_pipe.close()
             ack = bytes_to_dict(ack_bytes)
-            ok = ack.get(u"ack", u"")
-            if ok != u"ok":
+            ok = ack.get("ack", "")
+            if ok != "ok":
                 t.detail(ack="failed")
                 raise TransferError("Transfer failed (remote says: %r)" % ack)
-            if u"sha256" in ack:
-                if ack[u"sha256"] != expected_hex:
+            if "sha256" in ack:
+                if ack["sha256"] != expected_hex:
                     t.detail(datahash="failed")
                     raise TransferError("Transfer failed (bad remote hash)")
-            print(u"Confirmation received. Transfer complete.", file=stderr)
+            print("Confirmation received. Transfer complete.", file=stderr)
             t.detail(ack="ok")
