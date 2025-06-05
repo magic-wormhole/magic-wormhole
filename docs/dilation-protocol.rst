@@ -236,20 +236,16 @@ Once a side has sent CLOSE it may not send any more DATA messages.
 
 All L5 subchannels (except the control channel) speak a particular
 "subprotocol".  The name of the subprotocol is sent in the OPEN
-message, and must have been declared as supported in the "versions"
 message. This allows applications to write reusable and composible
 subprotocols on top of Dilation.
 
-In Twisted, subprotocols implement the ``ISubprotocolFactory``
-interface (a sub-interface of Twisted's normal `IProtocolFactory`
-interface).
-They may derive from ``twisted.internet.protocol.Factory`` if desired.
-Upon an incoming L5 subchannel open, the Magic Wormhole library
-invokes the ``buildProtocol`` method on the correct factory, and
-speaks that protocol over that subchannel.
-For outgoing connections, ``.connect()`` is called with an
-``ISubprotocolFactory`` on the "connect" endpoint (returned from
-``.dilate()``).
+In Twisted, subprotocols implement the normal ``Factory`` and
+``IProtocol`` interfaces (e.g. like TCP streams).  Upon an incoming L5
+subchannel open, the Magic Wormhole library invokes the
+``buildProtocol`` method on the correct factory, and speaks that
+protocol over that subchannel.  For outgoing connections,
+``.connect()`` is called with an ``IFactory`` on the endpoint for that
+subprotocol (from ``DilatedWormhole.subprotocol_connector_for()``).
 
 All L5 subchannels will be paused (``pauseProducing()``) when the L3
 connection is paused or lost. They are resumed when the L3 connection is
@@ -259,29 +255,31 @@ Initiating Dilation
 -------------------
 
 Dilation is triggered by calling the ``w.dilate()`` API. This
-immediately returns a 3-tuple of standard Twisted-style endpoints that
-can be used to establish subchannels:
-``(control_ep, client_ep, server_ep)``. The first two are client-like,
-while ``server_ep`` is server-like. For Dilation to succeed, both sides
-must call ``w.dilate()``, since the resulting endpoints are the only way
-to access the subchannels.
+immediately returns a ``DilatedWormhole`` instance. The
+``IStreamClientEndpoint`` for a particular subprotocol is obtained via
+``DilatedWormhole.subprotocol_connector_for()``. For Dilation to
+succeed, both sides must call ``w.dilate()`` at some point.
 
 The client-like endpoints are used to signal any errors that might
-prevent Dilation. ``control_ep.connect(factory)`` and
-``client_ep.connect(factory)`` return a Deferred that will errback (with
-``OldPeerCannotDilateError``) if the other side’s ``version`` message
-indicates that it does not support Dilation. The overall dilated
-connection is durable (the Dilation agent will try forever to connect,
-and will automatically reconnect when necessary), so
-``OldPeerCannotDilateError`` is currently the only error that could be
-thrown.
+prevent Dilation. That is, ``subproto.connect(factory)`` return a
+Deferred that will errback (with ``OldPeerCannotDilateError``) if the
+other side’s ``version`` message indicates that it does not support
+Dilation. The overall dilated connection is durable (the Dilation
+agent will try forever to connect, and will automatically reconnect
+when necessary), so ``OldPeerCannotDilateError`` is currently the only
+error that could be thrown.
 
-(TODO: we could use a connection-status API, to provide user feedback)
-
-If the other side *could* support Dilation (i.e. the wormhole library is
+If the other side *could* support Dilation (i.e. the wormhole library is
 new enough), but the peer does not choose to call ``w.dilate()``, this
 Deferred will never fire, and the ``factory`` will never be asked to
 create a new ``Protocol`` instance.
+
+The ``dilate()`` call takes an optional ``status_update=`` argument,
+which is a callable that receives a single argument: an instance of
+``DilationStatus``. This function is called whenever the status
+changes (including the overall ``WormholeStatus`` via the ``.mailbox``
+member). The information contained in these two objects is intended to
+facilitate UX to inform users (e.g. "is it connected?" etc)
 
 The L1 (mailbox) path is used to deliver Dilation requests and
 connection hints. The current mailbox protocol uses named “phases” to
@@ -290,7 +288,7 @@ channel of arbitrary frames or bytes), and all-number phase names are
 reserved for application data (sent via ``w.send_message()``). Therefore
 the Dilation control messages use phases named ``DILATE-0``,
 ``DILATE-1``, etc. Each side maintains its own counter, so one side
-might be up to e.g. ``DILATE-5`` while the other has only gotten as far
+might be up to e.g. ``DILATE-5`` while the other has only gotten as far
 as ``DILATE-2``. This effectively creates a pair of unidirectional
 streams of ``DILATE-n`` messages, each containing one or more Dilation
 record, of various types described below. Note that all phases beyond
