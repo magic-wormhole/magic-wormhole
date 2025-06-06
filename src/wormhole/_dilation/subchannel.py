@@ -351,7 +351,7 @@ class IllegalSubprotocolError(Exception):
 
 @implementer(IStreamServerEndpoint)
 @attrs
-class SubchannelApplicationListenerEndpoint:
+class SubchannelListenerEndpoint:
     """
     This endpoint is used by application code to attach a factory to a
     given subprotocol. Instances are gotten via DilatedWormhole.listener_for()
@@ -366,67 +366,6 @@ class SubchannelApplicationListenerEndpoint:
     def listen(self, factory):
         self._manager._register_subprotocol_factory(self.subprotocol_name, factory)
         return SubchannelListeningPort(self._manager._host_addr)
-
-
-class SubchannelListenerFactory(Factory):
-    """
-    The one thing that listens for subchannels opening, and
-    instantiates the correct listener based on the subprotocol name
-    """
-    def __init__(self, factories, dilation):
-        self._factories = factories
-        self._protocol_awaiters = dict()
-        self._dilation = dilation
-
-    # rules:
-    # reserved listener: we await a real one (but ... buildProtocol() is sync, so how can that work?)
-    # (old way ... used endpoint stuff to do this, so it could wait on the listen() .. but not incoming open?)
-
-    ##async def when_subprotocol(self, name: str) -> IProtocol:  ## "fowl-control"
-    @inlineCallbacks
-    def when_subprotocol(self, name):  ## "fowl-control"
-        """
-        fires with a Protocol when the named subprotocol is available
-        """
-        try:
-            d = self._protocol_awaiters[name]
-        except KeyError:
-            d = self._protocol_awaiters[name] = Deferred()
-        proto = yield d
-        return proto
-
-    def buildProtocol(self, addr):
-        print("BUILD", addr)
-        subprotocol = addr.subprotocol
-#NOTE TO SELF: need to 'forward' startFactory() and stopFactory(), right?
-
-        # if subprotocol not in self._factories: #XX spec
-        #     self.factories[subprotocol] = # some awaitable? When() instance we trigger, basically
-        # else:
-        #     raise RuntimeError(f'already listening for "{subprotocol}".')
-
-        # XXX alternatively! instead of storing *FACTORIES* here, we
-        # store ... something that gets replaced with the thing from
-        # SubchannelApplicationListenerEndpoint.listen(factory)
-        #
-        # AND, and! we can simply make "self._factories[subprotocol]" be empty if nothing has listened, and stuff the "user" factory in there when .listen() is called ... so if there's no listener, we know ... and if there's already one, it's an "already listening" error
-        # ooooo, and we can signal dilation error here too? no...
-        # aaaaaAA! \o/ we can also do this "lazy" and not change the args to "dilate()" at all!
-        # (so we don't even have to 'pre-declare' our subprotocol names [more easily doing 'fancy' stuff like prefixes etc])
-        if not subprotocol in self._factories:
-            raise IllegalSubprotocolError(subprotocol, sorted(self._factories.keys()))
-
-        factory = self._factories[subprotocol]
-        proto = factory.buildProtocol(addr)
-        print(f"{subprotocol} -> {proto}")
-        try:
-            d = self._protocol_awaiters[subprotocol]
-        except KeyError:
-            d = self._protocol_awaiters[subprotocol] = Deferred()
-
-        if not d.called:
-            d.callback(proto)
-        return proto
 
 
 class SubchannelDemultiplex:

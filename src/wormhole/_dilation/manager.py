@@ -14,8 +14,7 @@ from .._key import derive_key
 from .subchannel import (_WormholeAddress,
                          SubchannelConnectorEndpoint,
                          SubchannelDemultiplex,
-                         SubchannelApplicationListenerEndpoint,
-                         SubchannelListenerFactory)
+                         SubchannelListenerEndpoint)
 from .connector import Connector
 from .._hints import parse_hint
 from .roles import LEADER, FOLLOWER
@@ -91,7 +90,7 @@ class DilatedWormhole(object):
         (Can we errback something here if we entirely failed to dilate?)
         --> probably only if we make this API async?
         """
-        return SubchannelApplicationListenerEndpoint(
+        return SubchannelListenerEndpoint(
             subprotocol_name,
             self._manager,
         )
@@ -106,10 +105,6 @@ class DilatedWormhole(object):
         other peer sees an OPEN and instantiates a listener from the
         Factory it was given during creation of the wormhole.
         """
-        # XXX this is an alternative to the "just one endpoint" API --
-        # so we're "burning in" the subprotocol name here, instead of
-        # demanding a new kind of Factory, IProtocolFactory
-        # sub-interface, etc.
         return SubchannelConnectorEndpoint(
             subprotocol_name,
             self._manager,
@@ -368,17 +363,11 @@ class Manager(object):
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
         self._main_channel = OneShotObserver(self._eventual_queue)
-        ##        listen_ep = SubchannelListenerEndpoint(self._main_channel, self._host_addr, self._eventual_queue)
         self._subprotocol_factories = SubchannelDemultiplex()
         #XXX add something to this dict for all 'expected' subprotocol names
 
         # NOTE: circular refs, not ideal
         self._api = DilatedWormhole(self)
-
-##        self._inbound.set_listener_endpoint(listen_ep)
-##        self._listen_factory = SubchannelListenerFactory(self._subprotocol_factories, self._api)
-##        self._port = listen_ep.listen(self._listen_factory)
-##        print("XXXPORT", self._port)
 
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
         # (the callback is provided when send_ping is called)
