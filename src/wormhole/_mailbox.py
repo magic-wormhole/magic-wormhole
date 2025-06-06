@@ -9,7 +9,7 @@ from . import _interfaces
 @attrs
 @implementer(_interfaces.IMailbox)
 class Mailbox(object):
-    _side = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
@@ -95,9 +95,9 @@ class Mailbox(object):
         pass
 
     def rx_message(self, side, phase, body):
-        assert isinstance(side, type("")), type(side)
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(side, str), type(side)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
         if side == self._side:
             self.rx_message_ours(phase, body)
         else:
@@ -131,8 +131,8 @@ class Mailbox(object):
 
     @m.output()
     def queue(self, phase, body):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), (type(body), phase, body)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), (type(body), phase, body)
         self._pending_outbound[phase] = body
 
     @m.output()
@@ -151,8 +151,8 @@ class Mailbox(object):
 
     @m.output()
     def RC_tx_add(self, phase, body):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
         self._RC.tx_add(phase, body)
 
     @m.output()

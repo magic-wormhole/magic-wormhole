@@ -51,7 +51,7 @@ class Sender:
 
     @inlineCallbacks
     def go(self):
-        assert isinstance(self._args.relay_url, type(""))
+        assert isinstance(self._args.relay_url, str)
         if self._args.tor:
             with self._timing.add("import", which="tor_manager"):
                 from ..tor_manager import get_tor

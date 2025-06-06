@@ -241,7 +241,7 @@ def make_manager(leader=True):
 
 def test_make_side():
     side = make_side()
-    assert type(side) is type("")
+    assert type(side) is str
     assert len(side) == 2 * 8
 
 

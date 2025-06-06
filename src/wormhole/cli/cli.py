@@ -103,7 +103,7 @@ class AliasedGroup(click.Group):
 )
 @click.option(
     "--dump-timing",
-    type=type(""),  # TODO: hide from --help output
+    type=str,  # TODO: hide from --help output
     default=None,
     metavar="FILE.json",
     help="(debug) write timing data to file",
@@ -274,7 +274,7 @@ def help(context, **kwargs):
     "--qr/--no-qr",
     default=True,
     help="Generate and show ASCII-based QR code.")
-@click.argument("what", required=False, type=click.Path(path_type=type("")))
+@click.argument("what", required=False, type=click.Path(path_type=str))
 @click.pass_obj
 def send(cfg, **kwargs):
     """Send a text message, file, or directory"""

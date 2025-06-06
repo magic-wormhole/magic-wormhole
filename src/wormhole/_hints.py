@@ -37,7 +37,7 @@ def describe_hint_obj(hint, relay, tor):
 
 
 def parse_hint_argv(hint, stderr=sys.stderr):
-    assert isinstance(hint, type(""))
+    assert isinstance(hint, str)
     # return tuple or None for an unparseable hint
     priority = 0.0
     # parse hint type
@@ -115,7 +115,7 @@ def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
         log.msg("unknown hint type: %r" % (hint, ))
         return None
     if not ("hostname" in hint and
-            isinstance(hint["hostname"], type(""))):
+            isinstance(hint["hostname"], str)):
         log.msg("invalid hostname in hint: %r" % (hint, ))
         return None
     if not ("port" in hint and

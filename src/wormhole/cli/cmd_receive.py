@@ -51,7 +51,7 @@ def receive(args, reactor=reactor, _debug_stash_wormhole=None):
 
 class Receiver:
     def __init__(self, args, reactor=reactor):
-        assert isinstance(args.relay_url, type(""))
+        assert isinstance(args.relay_url, str)
         self.args = args
         self._reactor = reactor
         self._tor = None
