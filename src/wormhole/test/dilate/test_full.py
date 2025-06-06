@@ -65,16 +65,18 @@ async def test_single_subprotocol(reactor, mailbox):
     fserv0.d = Deferred()
     fserv0.protocol = HelloProtocol
 
-    w1.dilate({"proto": fserv0})
-    eps2 = w2.dilate({})
+    eps1 = w1.dilate()
+    eps2 = w2.dilate()
     print("w.dilate ready")
+
+    port = eps1.listener_for("proto").listen(fserv0)
 
     f2 = Factory()
     alsoProvides(f2, IProtocolFactory)
     f2.protocol = HelloProtocol
     f2.d = Deferred()
     f2.d.addCallback(lambda data: eq.fire_eventually(data))
-    d2 = eps2.subprotocol_connector_for("proto").connect(f2)
+    d2 = eps2.connector_for("proto").connect(f2)
     await d2
 
     # note: I'm making some horrible assumptions about one-to-one writes
@@ -116,11 +118,11 @@ async def test_double_subprotocol(reactor, mailbox):
     fserv1.d = Deferred()
     fserv1.protocol = BonjourProtocol
 
-    w1.dilate({
-        "hello": fserv0,
-        "bonjour": fserv1,
-    })
-    guest = w2.dilate({})
+    host = w1.dilate()
+    guest = w2.dilate()
+
+    host.listener_for("hello").listen(fserv0)
+    host.listener_for("bonjour").listen(fserv1)
 
     f2 = Factory.forProtocol(HelloProtocol)
     f2.d = Deferred()
@@ -130,8 +132,8 @@ async def test_double_subprotocol(reactor, mailbox):
     f3.d = Deferred()
     f3.d.addCallback(lambda data: eq.fire_eventually(data))
 
-    d2 = guest.subprotocol_connector_for("hello").connect(f2)
-    d3 = guest.subprotocol_connector_for("bonjour").connect(f3)
+    d2 = guest.connector_for("hello").connect(f2)
+    d3 = guest.connector_for("bonjour").connect(f3)
     await d2
     await d3
 
@@ -199,12 +201,14 @@ async def test_reconnect(reactor, mailbox):
 
     f1 = ReconF(eq)
 
-    w1.dilate({"proto": f1})
-    eps2 = w2.dilate({})
+    eps1 = w1.dilate()
+    eps2 = w2.dilate()
     print("w.dilate ready")
 
+    eps1.listener_for("proto").listen(f1)
+
     f2 = ReconF(eq)
-    d2 = eps2.subprotocol_connector_for("proto").connect(f2)
+    d2 = eps2.connector_for("proto").connect(f2)
     await d2
 
     protocols = {}
@@ -268,12 +272,14 @@ async def test_data_while_offline(reactor, mailbox):
     await doBoth(w1.get_verifier(), w2.get_verifier())
 
     f1 = ReconF(eq)
-    w1.dilate({"proto": f1})
-    eps2 = w2.dilate({})
+    eps1 = w1.dilate()
+    eps2 = w2.dilate()
     print("w.dilate ready")
 
+    eps1.listener_for("proto").listen(f1)
+
     f2 = ReconF(eq)
-    d2 = eps2.subprotocol_connector_for("proto").connect(f2)
+    d2 = eps2.connector_for("proto").connect(f2)
     await d2
 
     protocols = {}
@@ -353,14 +359,15 @@ async def test_endpoints(reactor, mailbox):
     await doBoth(w1.get_verifier(), w2.get_verifier())
 
     f0 = ReconF(eq)
-    w1.dilate({"proto": f0})
-    eps2 = w2.dilate({})
+    eps1 = w1.dilate()
+    eps2 = w2.dilate()
     print("w.dilate ready")
+    eps1.listener_for("proto").listen(f0)
 
     from twisted.python import log
     f1 = ReconF(eq)
     log.msg("connecting")
-    p1_client = await eps2.subprotocol_connector_for("proto").connect(f1)
+    p1_client = await eps2.connector_for("proto").connect(f1)
     log.msg("sending c->s")
     p1_client.transport.write(b"hello from p1\n")
     data = await f0.deferreds["dataReceived"]
@@ -377,7 +384,7 @@ async def test_endpoints(reactor, mailbox):
     f0.resetDeferred("dataReceived")
     f1.resetDeferred("dataReceived")
     f2 = ReconF(eq)
-    p2_client = await eps2.subprotocol_connector_for("proto").connect(f2)
+    p2_client = await eps2.connector_for("proto").connect(f2)
     p2_server = await f0.deferreds["connectionMade"]
     p2_server.transport.write(b"hello p2\n")
     data = await f2.deferreds["dataReceived"]
