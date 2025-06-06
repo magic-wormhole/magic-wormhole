@@ -57,12 +57,12 @@ def test_dilate_first():
     with mock.patch("wormhole._dilation.manager.Manager", mm), \
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
-        eps1 = dil.dilate({})
+        eps1 = dil.dilate()
         with pytest.raises(CanOnlyDilateOnceError):
-            dil.dilate({})
+            dil.dilate()
     assert eps1 is eps
     assert mm.mock_calls == [mock.call(h.send, side, None,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {},
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
                                        False, None, initial_mailbox_status=None)]
 
     assert m.mock_calls == []
@@ -119,7 +119,7 @@ def test_dilate_later():
     assert mm.mock_calls == []
 
     with mock.patch("wormhole._dilation.manager.Manager", mm):
-        dil.dilate({})
+        dil.dilate()
     assert m.mock_calls == [mock.call.got_dilation_key(transit_key),
                                     mock.call.got_wormhole_versions(wv),
                                     mock.call.received_dilation_message(dm1),
@@ -141,12 +141,12 @@ def test_stop_early():
 @pytest_twisted.ensureDeferred
 async def test_peer_cannot_dilate():
     (dil, h) = make_dilator()
-    eps = dil.dilate({})
+    eps = dil.dilate()
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
     f = mock.Mock()
-    d = eps.subprotocol_connector_for("proto").connect(f)
+    d = eps.connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -155,12 +155,12 @@ async def test_peer_cannot_dilate():
 @pytest_twisted.ensureDeferred
 async def test_disjoint_versions():
     (dil, h) = make_dilator()
-    eps = dil.dilate({})
+    eps = dil.dilate()
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
     f = mock.Mock()
-    d = eps.subprotocol_connector_for("proto").connect(f)
+    d = eps.connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -175,9 +175,9 @@ def test_transit_relay():
     with mock.patch("wormhole._dilation.manager.Manager", mm), \
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
-        dil.dilate({}, transit_relay_location)
+        dil.dilate(transit_relay_location)
     assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {},
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
                                        False, None, initial_mailbox_status=None)]
 
 
@@ -255,9 +255,7 @@ def test_leader():
     assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
     assert h.SubChannel.mock_calls == []
-    assert h.inbound.mock_calls == [
-        mock.call.set_listener_endpoint(h.listen_ep)
-        ]
+    assert h.inbound.mock_calls == []
     clear_mock_calls(h.inbound)
 
     m.got_wormhole_versions({"can-dilate": ["ged"]})
