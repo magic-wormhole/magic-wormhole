@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, defaultdict
 from attr import attrs, attrib
 from attr.validators import instance_of
 from zope.interface import implementer
@@ -59,7 +59,13 @@ class _WormholeAddress(object):
 @implementer(IAddress)
 @attrs
 class SubchannelAddress(object):
-    ##P _scid = attrib(validator=instance_of(int))  # unused, shouldn't be revealed to users
+    """
+    All subchannels have a named sub-protocol (as sent by our peer in
+    the OPEN call).
+
+    Although each subchannel does have an 'id', this is a concept
+    private to this implementation, and not exposed here on purpose.
+    """
     subprotocol = attrib(validator=instance_of(str))
 
 
@@ -343,7 +349,26 @@ class IllegalSubprotocolError(Exception):
     """
 
 
-class SubchannelInitiatorFactory(Factory):
+@implementer(IStreamServerEndpoint)
+@attrs
+class SubchannelApplicationListenerEndpoint:
+    """
+    This endpoint is used by application code to attach a factory to a
+    given subprotocol. Instances are gotten via DilatedWormhole.listener_for()
+
+    On listen(), we register for incoming OPENs on for this
+    subprotocol name.
+    """
+
+    subprotocol_name = attrib()
+    _manager = attrib()
+
+    def listen(self, factory):
+        self._manager._register_subprotocol_factory(self.subprotocol_name, factory)
+        return SubchannelListeningPort(self._manager._host_addr)
+
+
+class SubchannelListenerFactory(Factory):
     """
     The one thing that listens for subchannels opening, and
     instantiates the correct listener based on the subprotocol name
@@ -353,7 +378,11 @@ class SubchannelInitiatorFactory(Factory):
         self._protocol_awaiters = dict()
         self._dilation = dilation
 
-    ##async def when_subprotocol(self, name):  ## "fowl-control"
+    # rules:
+    # reserved listener: we await a real one (but ... buildProtocol() is sync, so how can that work?)
+    # (old way ... used endpoint stuff to do this, so it could wait on the listen() .. but not incoming open?)
+
+    ##async def when_subprotocol(self, name: str) -> IProtocol:  ## "fowl-control"
     @inlineCallbacks
     def when_subprotocol(self, name):  ## "fowl-control"
         """
@@ -369,6 +398,21 @@ class SubchannelInitiatorFactory(Factory):
     def buildProtocol(self, addr):
         print("BUILD", addr)
         subprotocol = addr.subprotocol
+#NOTE TO SELF: need to 'forward' startFactory() and stopFactory(), right?
+
+        # if subprotocol not in self._factories: #XX spec
+        #     self.factories[subprotocol] = # some awaitable? When() instance we trigger, basically
+        # else:
+        #     raise RuntimeError(f'already listening for "{subprotocol}".')
+
+        # XXX alternatively! instead of storing *FACTORIES* here, we
+        # store ... something that gets replaced with the thing from
+        # SubchannelApplicationListenerEndpoint.listen(factory)
+        #
+        # AND, and! we can simply make "self._factories[subprotocol]" be empty if nothing has listened, and stuff the "user" factory in there when .listen() is called ... so if there's no listener, we know ... and if there's already one, it's an "already listening" error
+        # ooooo, and we can signal dilation error here too? no...
+        # aaaaaAA! \o/ we can also do this "lazy" and not change the args to "dilate()" at all!
+        # (so we don't even have to 'pre-declare' our subprotocol names [more easily doing 'fancy' stuff like prefixes etc])
         if not subprotocol in self._factories:
             raise IllegalSubprotocolError(subprotocol, sorted(self._factories.keys()))
 
@@ -385,41 +429,51 @@ class SubchannelInitiatorFactory(Factory):
         return proto
 
 
-@implementer(IStreamServerEndpoint)
-@attrs
-class SubchannelListenerEndpoint(object):
-    _manager = attrib(validator=provides(IDilationManager))
-    _host_addr = attrib(validator=provides(IAddress))
-    _eventual_queue = attrib(repr=False)
-
-    def __attrs_post_init__(self):
-        self._factory = None
-        self._pending_opens = deque()
+class SubchannelDemultiplex:
+    """
+    Helper for Inbound to await factories for particular subprotocols,
+    and deliver pending and future OPEN messages to them.
+    """
+    def __init__(self):
+        self._factories = dict()  # name -> IProtocolFactory
+        self._pending_opens = defaultdict(list)  # name -> Sequence[[transport, address]]
 
     # from manager (actually Inbound)
+    # t is Subchannel (transport) instance
+    # peer_addr is a SubchannelAddress
     def _got_open(self, t, peer_addr):
-        if self._factory:
-            self._connect(t, peer_addr)
+        # XXX where do we de-multiplex these on subproto?
+        name = peer_addr.subprotocol
+        print("GOT_OPEN", name)
+        if name in self._factories:
+            self._connect(self._factories[name], t, peer_addr)
         else:
-            self._pending_opens.append((t, peer_addr))
+            self._pending_opens[name].append((t, peer_addr))
 
-    def _connect(self, t, peer_addr):
-        p = self._factory.buildProtocol(peer_addr)
+    def _connect(self, factory, t, peer_addr):
+        p = factory.buildProtocol(peer_addr)
         t._set_protocol(p)
         p.makeConnection(t)
         t._deliver_queued_data()
 
-    # IStreamServerEndpoint
+    def register(self, subprotocol_name, factory):
+        if subprotocol_name in self._factories:
+            #XXX add special handling for 'expected' protos
+            raise ValueError(
+                f'Already listening for subprotocol "{subprotocol_name}"'
+            )
+        self._factories[subprotocol_name] = factory
 
-    @inlineCallbacks
-    def listen(self, protocolFactory):
-        # protocolFactory HAS to be in our registry already
-        yield self._manager._main_channel.when_fired()
-        self._factory = protocolFactory
-        while self._pending_opens:
-            (t, peer_addr) = self._pending_opens.popleft()
-            self._connect(t, peer_addr)
-        return SubchannelListeningPort(self._host_addr)
+        # deliver any pending OPENs that have accumulated for this
+        # subprotocol
+        try:
+            pending = self._pending_opens.pop(subprotocol_name)
+        except KeyError:
+            pending = []
+
+        while pending:
+            (t, peer_addr) = pending.popleft()
+            self._connect(factory, t, peer_addr)
 
 
 @implementer(IListeningPort)

@@ -12,8 +12,10 @@ from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
 from .subchannel import (_WormholeAddress,
-                         SubchannelConnectorEndpoint, SubchannelListenerEndpoint,
-                         SubchannelInitiatorFactory)
+                         SubchannelConnectorEndpoint,
+                         SubchannelDemultiplex,
+                         SubchannelApplicationListenerEndpoint,
+                         SubchannelListenerFactory)
 from .connector import Connector
 from .._hints import parse_hint
 from .roles import LEADER, FOLLOWER
@@ -64,10 +66,37 @@ class DilatedWormhole(object):
     ``.connect()`` on these endpoints will ``.errback()`` if Dilation
     cannot be established.
     """
+    # XXX do we want a "async def when_dilated()" -- this would be
+    # another avenue to learn of errors (e.g. if you never do
+    # .connect() how do you learn this?)
 
     _manager: IDilationManager = field()
 
-    def subprotocol_connector_for(self, subprotocol_name):
+    # XXX can we later add an API that allows for a "matcher"
+    # predicate, so e.g. could do "prefix" stuff if we wanted with the
+    # subprotocols -- why would be want that? We'd use a single
+    # Factory, but distinguish based on the subprotocol name. For
+    # example:
+    #   lambda n: n.startswith('gitwithme/')
+    # (or whatever the application dev wants).
+    def listener_for(self, subprotocol_name):
+        """
+        :returns: an IStreamServerEndpoint that may be used to listen for
+           the creation of new subchannels with a particular name.
+
+        Once ``.listen()`` is called on the returned endpoint, every
+        new subchannel with this name will have ``.buildProtocol()``
+        called, that is what you'd expect Twisted to do.
+
+        (Can we errback something here if we entirely failed to dilate?)
+        --> probably only if we make this API async?
+        """
+        return SubchannelApplicationListenerEndpoint(
+            subprotocol_name,
+            self._manager,
+        )
+
+    def connector_for(self, subprotocol_name):
         """
         :returns: an IStreamClientEndpoint that may be used to create new
             subchannels using a specific kind of subprotocol
@@ -296,7 +325,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
-    _subprotocol_factories = attrib()
+    _expected_subprotocols = attrib()
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
@@ -308,6 +337,7 @@ class Manager(object):
     _next_subchannel_id = None  # initialized in choose_role
     _dilation_version = None  # initialized in got_wormhole_versions
     _main_channel = None  # initialized in __attrs_port_init__
+    _subprotocol_factories = None  # initialized in __attrs_port_init__
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -337,14 +367,18 @@ class Manager(object):
 
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
-        listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         self._main_channel = OneShotObserver(self._eventual_queue)
+        ##        listen_ep = SubchannelListenerEndpoint(self._main_channel, self._host_addr, self._eventual_queue)
+        self._subprotocol_factories = SubchannelDemultiplex()
+        #XXX add something to this dict for all 'expected' subprotocol names
 
         # NOTE: circular refs, not ideal
         self._api = DilatedWormhole(self)
-        self._inbound.set_listener_endpoint(listen_ep)
-        self._listen_factory = SubchannelInitiatorFactory(self._subprotocol_factories, self._api)
-        self._port = listen_ep.listen(self._listen_factory)
+
+##        self._inbound.set_listener_endpoint(listen_ep)
+##        self._listen_factory = SubchannelListenerFactory(self._subprotocol_factories, self._api)
+##        self._port = listen_ep.listen(self._listen_factory)
+##        print("XXXPORT", self._port)
 
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
         # (the callback is provided when send_ping is called)
@@ -389,8 +423,13 @@ class Manager(object):
             raise ValueError("Do not know leader/follower yet")
         return self._my_role == LEADER
 
-#    def get_endpoints(self):
-#        return self._endpoints
+    def _register_subprotocol_factory(self, name, factory):
+        """
+        Internal helper. Application code has asked to listen for a
+        particular subprotocol.  It is an error to listen twice on the
+        same subprotocol.
+        """
+        self._subprotocol_factories.register(name, factory)
 
     def got_dilation_key(self, key):
         assert isinstance(key, bytes)
@@ -946,8 +985,13 @@ class Dilator(object):
     # this is the primary entry point, called when w.dilate() is
     # invoked; upstream calls are basically just call-through -- so
     # all these inputs should be validated.
-    def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
-               ping_interval=None):
+
+    ##XXX insight: we can "reserve" subprotocols by name by passing
+    ##them in here .. but NOT passing them still allows one to create
+    ##listeners. difference: it's an error if an incoming OPEN has no
+    ##"reserved" slot AND no listener yet.
+    def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
+               ping_interval=None, expected_subprotocols=None):
         # XXX this is just fed through directly from the public API;
         # effectively, this _is_ a public API
 
@@ -958,10 +1002,7 @@ class Dilator(object):
         # remain unchanged)
         self._did_dilate()
 
-        assert type(subprotocols) == dict, "subprotocols must be a dict"
-        for name, factory in subprotocols.items():
-            assert type(name) is str, "subprotocol names must be str"
-            assert IProtocolFactory.providedBy(factory), "subprotocol listener must implement IProtocolFactory, instead see {}".format(type(factory))
+        # XXX do something with 'reserved' / 'expected' subprotocol names
 
         if self._manager is None:
             # build the manager right away, and tell it later when the
@@ -976,7 +1017,7 @@ class Dilator(object):
                 self._cooperator,
                 self._acceptable_versions,
                 ping_interval or 30.0,
-                subprotocols,
+                expected_subprotocols,
                 no_listen,
                 status_update,
                 initial_mailbox_status=wormhole_status,

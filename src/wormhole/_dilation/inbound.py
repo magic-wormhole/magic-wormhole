@@ -36,8 +36,8 @@ class Inbound(object):
         self._connection = None
 
     # from our Manager
-    def set_listener_endpoint(self, listener_endpoint):
-        self._listener_endpoint = listener_endpoint
+#    def set_listener_endpoint(self, listener_endpoint):
+#        self._listener_endpoint = listener_endpoint
 
     def use_connection(self, c):
         self._connection = c
@@ -74,7 +74,7 @@ class Inbound(object):
         peer_addr = SubchannelAddress(subprotocol)
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
         self._open_subchannels[scid] = sc
-        self._listener_endpoint._got_open(sc, peer_addr)
+        self._manager._subprotocol_factories._got_open(sc, peer_addr)
 
     def handle_data(self, scid, data):
         log.msg("inbound.handle_data", scid, len(data))

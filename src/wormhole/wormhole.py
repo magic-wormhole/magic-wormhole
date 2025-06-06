@@ -196,7 +196,7 @@ class _DeferredWormhole(object):
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
-    def dilate(self, subprotocols, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, subprotocols=None):
         """
         :param dict[str, Factory] subprotocols: maps subprotocol names to
             their protocol Factory, which listens for new incoming
@@ -210,7 +210,7 @@ class _DeferredWormhole(object):
         """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(subprotocols, transit_relay_location, no_listen, on_status_update, ping_interval)
+        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval, subprotocols)
 
     def close(self):
         # fails with WormholeError unless we established a connection
