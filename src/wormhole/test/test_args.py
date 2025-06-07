@@ -192,10 +192,12 @@ def test_receive_accept_file_env_var():
     assert cfg.accept_file
 
 
-def test_receive_send():
-    cfg = config("send")
-    assert cfg.stdout == sys.stdout
+def test_receive_send(capsys):
+    with capsys.disabled():
+        cfg = config("send")
+        assert cfg.stdout == sys.stdout
 
-def test_receive_receive():
-    cfg = config("receive")
-    assert cfg.stdout == sys.stdout
+def test_receive_receive(capsys):
+    with capsys.disabled():
+        cfg = config("receive")
+        assert cfg.stdout == sys.stdout
