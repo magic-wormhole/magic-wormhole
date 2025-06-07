@@ -31,9 +31,9 @@ from .util import bytes_to_dict, provides
 @implementer(_interfaces.IBoss)
 class Boss(object):
     _W = attrib()
-    _side = attrib(validator=instance_of(type("")))
-    _url = attrib(validator=instance_of(type("")))
-    _appid = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
+    _url = attrib(validator=instance_of(str))
+    _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
     _client_version = attrib(validator=instance_of(tuple))
     _reactor = attrib()
@@ -298,8 +298,8 @@ class Boss(object):
         pass
 
     def got_message(self, phase, plaintext):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(plaintext, type(b"")), type(plaintext)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(plaintext, bytes), type(plaintext)
         d_mo = re.search(r'^dilate-(\d+)$', phase)
         if phase == "version":
             self._got_version(plaintext)
@@ -353,7 +353,7 @@ class Boss(object):
 
     @m.output()
     def S_send(self, plaintext):
-        assert isinstance(plaintext, type(b"")), type(plaintext)
+        assert isinstance(plaintext, bytes), type(plaintext)
         phase = self._next_tx_phase
         self._next_tx_phase += 1
         self._S.send("%d" % phase, plaintext)

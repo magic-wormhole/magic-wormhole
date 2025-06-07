@@ -82,7 +82,7 @@ class _DelegatedWormhole(object):
         cannot be called until when_verifier() has fired, nor after close()
         was called.
         """
-        if not isinstance(purpose, type("")):
+        if not isinstance(purpose, str):
             raise TypeError(type(purpose))
         if not self._key:
             raise NoKeyError()
@@ -185,7 +185,7 @@ class _DeferredWormhole(object):
         cannot be called until when_verified() has fired, nor after close()
         was called.
         """
-        if not isinstance(purpose, type("")):
+        if not isinstance(purpose, str):
             raise TypeError(type(purpose))
         if not self._key:
             raise NoKeyError()
@@ -293,7 +293,7 @@ def create(
         wormhole_versions = {}  # don't advertise Dilation yet: not ready
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
-    if isinstance(v, type(b"")):
+    if isinstance(v, bytes):
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,

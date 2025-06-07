@@ -43,8 +43,8 @@ class Send(object):
 
     @m.output()
     def queue(self, phase, plaintext):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(plaintext, type(b"")), type(plaintext)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(plaintext, bytes), type(plaintext)
         self._queue.append((phase, plaintext))
 
     @m.output()
@@ -60,8 +60,8 @@ class Send(object):
 
     @m.output()
     def deliver(self, phase, plaintext):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(plaintext, type(b"")), type(plaintext)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(plaintext, bytes), type(plaintext)
         self._encrypt_and_send(phase, plaintext)
 
     def _encrypt_and_send(self, phase, plaintext):

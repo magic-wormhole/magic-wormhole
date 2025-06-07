@@ -18,9 +18,9 @@ __all__ = ["derive_key", "derive_phase_key", "CryptoError", "Key"]
 
 
 def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
-    if not isinstance(key, type(b"")):
+    if not isinstance(key, bytes):
         raise TypeError(type(key))
-    if not isinstance(purpose, type(b"")):
+    if not isinstance(purpose, bytes):
         raise TypeError(type(purpose))
     if not isinstance(length, int):
         raise TypeError(type(length))
@@ -28,8 +28,8 @@ def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
 
 
 def derive_phase_key(key, side, phase):
-    assert isinstance(side, type("")), type(side)
-    assert isinstance(phase, type("")), type(phase)
+    assert isinstance(side, str), type(side)
+    assert isinstance(phase, str), type(phase)
     side_bytes = side.encode("ascii")
     phase_bytes = phase.encode("ascii")
     purpose = (b"wormhole:phase:" + sha256(side_bytes).digest() +
@@ -38,8 +38,8 @@ def derive_phase_key(key, side, phase):
 
 
 def decrypt_data(key, encrypted):
-    assert isinstance(key, type(b"")), type(key)
-    assert isinstance(encrypted, type(b"")), type(encrypted)
+    assert isinstance(key, bytes), type(key)
+    assert isinstance(encrypted, bytes), type(encrypted)
     assert len(key) == SecretBox.KEY_SIZE, len(key)
     box = SecretBox(key)
     data = box.decrypt(encrypted)
@@ -47,8 +47,8 @@ def decrypt_data(key, encrypted):
 
 
 def encrypt_data(key, plaintext):
-    assert isinstance(key, type(b"")), type(key)
-    assert isinstance(plaintext, type(b"")), type(plaintext)
+    assert isinstance(key, bytes), type(key)
+    assert isinstance(plaintext, bytes), type(plaintext)
     assert len(key) == SecretBox.KEY_SIZE, len(key)
     box = SecretBox(key)
     nonce = utils.random(SecretBox.NONCE_SIZE)
@@ -63,9 +63,9 @@ def encrypt_data(key, plaintext):
 @attrs
 @implementer(_interfaces.IKey)
 class Key(object):
-    _appid = attrib(validator=instance_of(type("")))
+    _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
-    _side = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -129,9 +129,9 @@ class Key(object):
 
 @attrs
 class _SortedKey(object):
-    _appid = attrib(validator=instance_of(type("")))
+    _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
-    _side = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -165,7 +165,7 @@ class _SortedKey(object):
 
     # from Ordering
     def got_pake(self, body):
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(body, bytes), type(body)
         payload = bytes_to_dict(body)
         if "pake_v1" in payload:
             self.got_pake_good(hexstr_to_bytes(payload["pake_v1"]))
@@ -195,7 +195,7 @@ class _SortedKey(object):
 
     @m.output()
     def compute_key(self, msg2):
-        assert isinstance(msg2, type(b""))
+        assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
         # TODO: make B.got_key() an eventual send, since it will fire the

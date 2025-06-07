@@ -69,7 +69,7 @@ def get_tor(reactor,
 
     if not isinstance(launch_tor, bool):  # note: False is int
         raise TypeError("launch_tor= must be boolean")
-    if not isinstance(tor_control_port, (type(""), type(None))):
+    if not isinstance(tor_control_port, (str, type(None))):
         raise TypeError("tor_control_port= must be str or None")
     assert tor_control_port != ""
     if launch_tor and tor_control_port is not None:

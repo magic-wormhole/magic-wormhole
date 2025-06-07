@@ -141,8 +141,8 @@ class RendezvousConnector(object):
         self._tx("open", mailbox=mailbox)
 
     def tx_add(self, phase, body):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
         self._tx("add", phase=phase, body=bytes_to_hexstr(body))
 
     def tx_release(self, nameplate):
@@ -279,7 +279,7 @@ class RendezvousConnector(object):
 
     def _response_handle_allocated(self, msg):
         nameplate = msg["nameplate"]
-        assert isinstance(nameplate, type("")), type(nameplate)
+        assert isinstance(nameplate, str), type(nameplate)
         self._A.rx_allocated(nameplate)
 
     def _response_handle_nameplates(self, msg):
@@ -290,7 +290,7 @@ class RendezvousConnector(object):
         for n in nameplates:
             assert isinstance(n, dict), type(n)
             nameplate_id = n["id"]
-            assert isinstance(nameplate_id, type("")), type(nameplate_id)
+            assert isinstance(nameplate_id, str), type(nameplate_id)
             nids.add(nameplate_id)
         # deliver a set of nameplate ids
         self._L.rx_nameplates(nids)
@@ -312,13 +312,13 @@ class RendezvousConnector(object):
 
     def _response_handle_claimed(self, msg):
         mailbox = msg["mailbox"]
-        assert isinstance(mailbox, type("")), type(mailbox)
+        assert isinstance(mailbox, str), type(mailbox)
         self._N.rx_claimed(mailbox)
 
     def _response_handle_message(self, msg):
         side = msg["side"]
         phase = msg["phase"]
-        assert isinstance(phase, type("")), type(phase)
+        assert isinstance(phase, str), type(phase)
         body = hexstr_to_bytes(msg["body"])  # bytes
         self._M.rx_message(side, phase, body)
 

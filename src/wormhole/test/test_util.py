@@ -6,31 +6,31 @@ from .. import util
 
 def test_to_bytes():
     b = util.to_bytes("abc")
-    assert isinstance(b, type(b""))
+    assert isinstance(b, bytes)
     assert b == b"abc"
 
     A = unicodedata.lookup("LATIN SMALL LETTER A WITH DIAERESIS")
     b = util.to_bytes(A + "bc")
-    assert isinstance(b, type(b""))
+    assert isinstance(b, bytes)
     assert b == b"\xc3\xa4\x62\x63"
 
 def test_bytes_to_hexstr():
     b = b"\x00\x45\x91\xfe\xff"
     hexstr = util.bytes_to_hexstr(b)
-    assert isinstance(hexstr, type(""))
+    assert isinstance(hexstr, str)
     assert hexstr == "004591feff"
 
 def test_hexstr_to_bytes():
     hexstr = "004591feff"
     b = util.hexstr_to_bytes(hexstr)
     hexstr = util.bytes_to_hexstr(b)
-    assert isinstance(b, type(b""))
+    assert isinstance(b, bytes)
     assert b == b"\x00\x45\x91\xfe\xff"
 
 def test_dict_to_bytes():
     d = {"a": "b"}
     b = util.dict_to_bytes(d)
-    assert isinstance(b, type(b""))
+    assert isinstance(b, bytes)
     assert b == b'{"a": "b"}'
 
 def test_bytes_to_dict():

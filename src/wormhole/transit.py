@@ -81,7 +81,7 @@ def build_sender_handshake(key):
 
 
 def build_sided_relay_handshake(key, side):
-    assert isinstance(side, type(""))
+    assert isinstance(side, str)
     assert len(side) == 8 * 2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
@@ -238,7 +238,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         return self._description
 
     def send_record(self, record):
-        if not isinstance(record, type(b"")):
+        if not isinstance(record, bytes):
             raise InternalError
         assert SecretBox.NONCE_SIZE == 24
         assert self.send_nonce < 2**(8 * 24)
@@ -558,7 +558,7 @@ class Common:
                  timing=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
-            if not isinstance(transit_relay, type("")):
+            if not isinstance(transit_relay, str):
                 raise InternalError
             # TODO: allow multiple hints for a single relay
             relay_hint = parse_hint_argv(transit_relay)
@@ -738,7 +738,7 @@ class Common:
                 CTXinfo=b"transit_record_sender_key")
 
     def set_transit_key(self, key):
-        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(key, bytes), type(key)
         # We use pubsub to protect against the race where the sender knows
         # the hints and the key, and connects to the receiver's transit
         # socket before the receiver gets the relay message (and thus the

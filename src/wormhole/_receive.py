@@ -11,7 +11,7 @@ from .util import provides
 @attrs
 @implementer(_interfaces.IReceive)
 class Receive(object):
-    _side = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -42,9 +42,9 @@ class Receive(object):
 
     # from Ordering
     def got_message(self, side, phase, body):
-        assert isinstance(side, type("")), type(phase)
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(body, type(b"")), type(body)
+        assert isinstance(side, str), type(phase)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
         assert self._key
         data_key = derive_phase_key(self._key, side, phase)
         try:
@@ -86,8 +86,8 @@ class Receive(object):
 
     @m.output()
     def W_got_message(self, phase, plaintext):
-        assert isinstance(phase, type("")), type(phase)
-        assert isinstance(plaintext, type(b"")), type(plaintext)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(plaintext, bytes), type(plaintext)
         self._B.got_message(phase, plaintext)
 
     @m.output()

@@ -270,7 +270,7 @@ class SubChannel(object):
 
     # ITransport
     def write(self, data):
-        assert isinstance(data, type(b""))
+        assert isinstance(data, bytes)
         assert len(data) <= MAX_FRAME_LENGTH
         self.local_data(data)
 
