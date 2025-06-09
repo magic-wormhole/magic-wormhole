@@ -137,7 +137,7 @@ def test_bytes(input, ci):
     used = _input_code_with_completion(prompt, input_helper, reactor)
     assert used is trueish
     assert ci.mock_calls == [mock.call(input_helper, reactor)]
-    assert c.mock_calls == [mock.call.finish(u"code")]
+    assert c.mock_calls == [mock.call.finish("code")]
     assert input.mock_calls == [mock.call(prompt)]
 
 

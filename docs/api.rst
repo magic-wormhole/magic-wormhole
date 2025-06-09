@@ -723,15 +723,14 @@ subchannel.
 Bytes, Strings, Unicode, and Python 3
 -------------------------------------
 
-All cryptographically-sensitive parameters are passed as bytes (“str” in
-python2, “bytes” in python3):
+All cryptographically-sensitive parameters are passed as bytes (“bytes” in
+python3):
 
 -  verifier string
 -  data in/out
 -  transit records in/out
 
-Other (human-facing) values are always unicode (“unicode” in python2,
-“str” in python3):
+Other (human-facing) values are always unicode (“str” in python3):
 
 -  wormhole code
 -  relay URL

@@ -65,7 +65,7 @@ def find_public_key(hint=None):
 def accept(cfg, reactor=reactor):
     yield xfer_util.send(
         reactor,
-        cfg.appid or u"lothar.com/wormhole/ssh-add",
+        cfg.appid or "lothar.com/wormhole/ssh-add",
         cfg.relay_url,
         data=cfg.public_key[2],
         code=cfg.code,
@@ -107,7 +107,7 @@ def invite(cfg, reactor=reactor):
 
     pubkey = yield xfer_util.receive(
         reactor,
-        cfg.appid or u"lothar.com/wormhole/ssh-add",
+        cfg.appid or "lothar.com/wormhole/ssh-add",
         cfg.relay_url,
         None,  # allocate a code for us
         use_tor=cfg.tor,

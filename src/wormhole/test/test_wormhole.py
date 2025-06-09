@@ -86,7 +86,7 @@ async def test_delegated(reactor, mailbox):
 
     key1 = w1.derive_key("purpose", 16)
     assert len(key1) == 16
-    assert type(key1) is type(b"")
+    assert type(key1) is bytes
     with pytest.raises(TypeError):
         w1.derive_key(b"not unicode", 16)
     with pytest.raises(TypeError):
@@ -163,7 +163,7 @@ async def test_basic(reactor, mailbox):
 
     key1 = w1.derive_key("purpose", 16)
     assert len(key1) == 16
-    assert type(key1) is type(b"")
+    assert type(key1) is bytes
     with pytest.raises(TypeError):
         w1.derive_key(b"not unicode", 16)
     with pytest.raises(TypeError):
@@ -584,7 +584,7 @@ async def test_verifier(reactor, mailbox):
     w2.set_code(code)
     v1 = await w1.get_verifier()  # early
     v2 = await w2.get_verifier()
-    assert type(v1) is type(b"")
+    assert type(v1) is bytes
     assert v1 == v2
     w1.send_message(b"data1")
     w2.send_message(b"data2")

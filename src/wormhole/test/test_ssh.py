@@ -11,7 +11,7 @@ OTHERS = ["config", "config~", "known_hosts", "known_hosts~"]
 
 def test_find_one():
     files = OTHERS + ["id_rsa.pub", "id_rsa"]
-    pubkey_data = u"ssh-rsa AAAAkeystuff email@host\n"
+    pubkey_data = "ssh-rsa AAAAkeystuff email@host\n"
     pubkey_file = io.StringIO(pubkey_data)
     with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
         with mock.patch("os.listdir", return_value=files) as ld:
@@ -43,7 +43,7 @@ def test_bad_hint():
 
 def test_find_multiple():
     files = OTHERS + ["id_rsa.pub", "id_rsa", "id_dsa.pub", "id_dsa"]
-    pubkey_data = u"ssh-rsa AAAAkeystuff email@host\n"
+    pubkey_data = "ssh-rsa AAAAkeystuff email@host\n"
     pubkey_file = io.StringIO(pubkey_data)
     with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
         with mock.patch("os.listdir", return_value=files):
@@ -62,7 +62,7 @@ def test_find_multiple():
 
 def test_comment_with_spaces():
     files = OTHERS + ["id_ed25519.pub", "id_ed25519"]
-    pubkey_data = u"ssh-ed25519 AAAAkeystuff comment with spaces"
+    pubkey_data = "ssh-ed25519 AAAAkeystuff comment with spaces"
     pubkey_file = io.StringIO(pubkey_data)
 
     with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=True):
