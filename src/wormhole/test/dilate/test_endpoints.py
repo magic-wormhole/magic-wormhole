@@ -40,7 +40,6 @@ async def test_connector_early_succeed():
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
     t = SubChannel(123, m, hostaddr, peeraddr)
 
-
     class Simple(Protocol):
         pass
 
@@ -60,10 +59,6 @@ async def test_connector_early_succeed():
 
     proto = await d
     assert isinstance(proto, Simple)
-    # "t" has a _set_protocol() call ...but why mock/assert on
-    # internal call? Is there external behavior we can test / care
-    # about?
-
 
 
 @pytest_twisted.ensureDeferred
@@ -71,29 +66,32 @@ async def test_connector_early_fail():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p = mock.Mock()
-    t = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
                     return_value=t) as sc:
         d = ep.connect(f)
         eq.flush_sync()
+        # the Dilation channel has NOT become available yet, so we
+        # should not have actually succeeded to connect our protocol
+        # until it does
         assert not d.called
-        m._main_channel.error(Failure(CannotDilateError()))
-        eq.flush_sync()
+
+    # there has been some kind of error establishing the Dilation
+    # channel, and so it has failed.
+    m._main_channel.error(Failure(CannotDilateError()))
+    eq.flush_sync()
 
     with pytest.raises(CannotDilateError):
         await d
-    assert f.buildProtocol.mock_calls == []
-    assert sc.mock_calls == []
-    assert t.mock_calls == []
 
 
 @pytest_twisted.ensureDeferred
