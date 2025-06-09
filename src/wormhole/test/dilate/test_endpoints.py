@@ -164,27 +164,32 @@ async def test_listener_early_succeed():
     # listen, main_channel_ready, got_open, got_open
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
-    hostaddr = _WormholeAddress()
+    m._host_addr = hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     demux = SubchannelDemultiplex()
+    m._subprotocol_Factories = demux
     ep = SubchannelListenerEndpoint("proto", m)
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p1 = mock.Mock()
-    p2 = mock.Mock()
-    f.buildProtocol = mock.Mock(side_effect=[p1, p2])
+    class Simple(Protocol):
+        pass
 
+    class CollectBuilds(Factory):
+        protocols = []
+
+        def buildProtocol(self, addr):
+            p = Factory.buildProtocol(self, addr)
+            self.protocols.append(p)
+            return p
+
+    f = CollectBuilds()
+    f.protocol = Simple
     demux.register("proto", f)
 
-#XXX the "user" API here is actually DilatedWormhole.listener_for("proto").listen(f)
-#how to hook it into this morass of Mocks?
     d = ep.listen(f)
     eq.flush_sync()
     assert not d.called
-    assert f.buildProtocol.mock_calls == []
 
     m._main_channel.fire(None)
     eq.flush_sync()
@@ -196,24 +201,24 @@ async def test_listener_early_succeed():
     # that anyone would ever call it.
     lp.startListening()
 
-    t1 = mock.Mock()
     peeraddr1 = SubchannelAddress("proto")
-    ep._got_open(t1, peeraddr1)
+    t1 = SubChannel(1234, m, hostaddr, peeraddr1)
+    demux._got_open(t1, peeraddr1)
 
-    assert t1.mock_calls == [mock.call._set_protocol(p1),
-                                     mock.call._deliver_queued_data()]
-    assert p1.mock_calls == [mock.call.makeConnection(t1)]
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr1)]
+    # prior asserts here all about mocks -- basically just testing
+    # that the buildProtocol was called. So now we collect that
+    # ourselves, but anything else interesting we might check? Can a
+    # Twisted API get the protocol from somewhere?
+    assert len(CollectBuilds.protocols) == 1, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
 
-    t2 = mock.Mock()
     peeraddr2 = SubchannelAddress("proto")
-    ep._got_open(t2, peeraddr2)
+    t2 = SubChannel(5678, m, hostaddr, peeraddr2)
+    demux._got_open(t2, peeraddr2)
 
-    assert t2.mock_calls == [mock.call._set_protocol(p2),
-                                     mock.call._deliver_queued_data()]
-    assert p2.mock_calls == [mock.call.makeConnection(t2)]
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr1),
-                                                  mock.call(peeraddr2)]
+    # as above, anything else interesting we should assert?
+    assert len(CollectBuilds.protocols) == 2, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
 
     lp.stopListening()  # TODO: should this do more?
 
