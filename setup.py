@@ -42,6 +42,7 @@ setup(name="magic-wormhole",
           "console_scripts":
           [
               "wormhole = wormhole.cli.cli:wormhole",
+              "magic-wormhole = wormhole.cli.cli:wormhole",
           ]
       },
       install_requires=[
