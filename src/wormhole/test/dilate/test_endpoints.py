@@ -13,6 +13,7 @@ from ..._dilation.subchannel import (SubchannelConnectorEndpoint,
                                      SubchannelListenerEndpoint,
                                      SubchannelListeningPort,
                                      SubchannelDemultiplex,
+                                     SubChannel,
                                      _WormholeAddress, SubchannelAddress)
 from .common import mock_manager
 
@@ -37,7 +38,8 @@ async def test_connector_early_succeed():
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
-    t = mock.Mock()  # transport
+    t = SubChannel(123, m, hostaddr, peeraddr)
+
 
     class Simple(Protocol):
         pass
