@@ -251,51 +251,61 @@ async def test_listener_early_fail():
 
 @pytest_twisted.ensureDeferred
 async def test_listener_late_succeed():
-    # main_channel_ready, got_open, listen, got_open
+    # listen, main_channel_ready, got_open, got_open
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
-    hostaddr = _WormholeAddress()
+    m._host_addr = hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    demux = SubchannelDemultiplex()
+    m._subprotocol_Factories = demux
     ep = SubchannelListenerEndpoint("proto", m)
+    # XXX only real difference between "early" / "late" tests is when we call this -- use a test-variant instead?
     m._main_channel.fire(None)
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p1 = mock.Mock()
-    p2 = mock.Mock()
-    f.buildProtocol = mock.Mock(side_effect=[p1, p2])
+    class Simple(Protocol):
+        pass
 
-    t1 = mock.Mock()
-    peeraddr1 = SubchannelAddress("proto")
-    ep._got_open(t1, peeraddr1)
-    eq.flush_sync()
+    class CollectBuilds(Factory):
+        protocols = []
 
-    assert t1.mock_calls == []
-    assert p1.mock_calls == []
+        def buildProtocol(self, addr):
+            p = Factory.buildProtocol(self, addr)
+            self.protocols.append(p)
+            return p
+
+    f = CollectBuilds()
+    f.protocol = Simple
+    demux.register("proto", f)
 
     d = ep.listen(f)
     eq.flush_sync()
     lp = await d
     assert isinstance(lp, SubchannelListeningPort)
+
     assert lp.getHost() == hostaddr
+    # TODO: IListeningPort says we must provide this, but I don't know
+    # that anyone would ever call it.
     lp.startListening()
 
-    # TODO: assert makeConnection is called *before* _deliver_queued_data
-    assert t1.mock_calls == [mock.call._set_protocol(p1),
-                                     mock.call._deliver_queued_data()]
-    assert p1.mock_calls == [mock.call.makeConnection(t1)]
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr1)]
+    peeraddr1 = SubchannelAddress("proto")
+    t1 = SubChannel(1234, m, hostaddr, peeraddr1)
+    demux._got_open(t1, peeraddr1)
 
-    t2 = mock.Mock()
+    # prior asserts here all about mocks -- basically just testing
+    # that the buildProtocol was called. So now we collect that
+    # ourselves, but anything else interesting we might check? Can a
+    # Twisted API get the protocol from somewhere?
+    assert len(CollectBuilds.protocols) == 1, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
+
     peeraddr2 = SubchannelAddress("proto")
-    ep._got_open(t2, peeraddr2)
+    t2 = SubChannel(5678, m, hostaddr, peeraddr2)
+    demux._got_open(t2, peeraddr2)
 
-    assert t2.mock_calls == [mock.call._set_protocol(p2),
-                                     mock.call._deliver_queued_data()]
-    assert p2.mock_calls == [mock.call.makeConnection(t2)]
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr1),
-                                                  mock.call(peeraddr2)]
+    # as above, anything else interesting we should assert?
+    assert len(CollectBuilds.protocols) == 2, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
 
     lp.stopListening()  # TODO: should this do more?
 
