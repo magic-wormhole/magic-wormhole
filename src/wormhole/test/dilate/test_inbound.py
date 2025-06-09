@@ -10,6 +10,7 @@ from ..._dilation.inbound import (Inbound, DuplicateOpenError,
 def make_inbound():
     m = mock.Mock()
     alsoProvides(m, IDilationManager)
+    m._subprotocol_factories = mock.Mock()
     host_addr = object()
     i = Inbound(m, host_addr)
     return i, m, host_addr
@@ -40,8 +41,6 @@ def test_open_data_close(observe_errors):
     scid1 = b"scid"
     scid2 = b"scXX"
     c = mock.Mock()
-    lep = mock.Mock()
-    i.set_listener_endpoint(lep)
     i.use_connection(c)
     sc1 = mock.Mock()
     peer_addr = object()
@@ -50,10 +49,12 @@ def test_open_data_close(observe_errors):
         with mock.patch("wormhole._dilation.inbound.SubchannelAddress",
                         side_effect=[peer_addr]) as sca:
             i.handle_open(scid1, "proto")
-    assert lep.mock_calls == [mock.call._got_open(sc1, peer_addr)]
+    assert m._subprotocol_factories.mock_calls == [mock.call._got_open(sc1, peer_addr)]
     assert sc.mock_calls == [mock.call(scid1, m, host_addr, peer_addr)]
     assert sca.mock_calls == [mock.call("proto")]
-    lep.mock_calls[:] = []
+
+    # reset calls
+    m._subprotocol_factories.mock_calls[:] = []
 
     # a subsequent duplicate OPEN should be ignored
     with mock.patch("wormhole._dilation.inbound.SubChannel",
@@ -61,7 +62,7 @@ def test_open_data_close(observe_errors):
         with mock.patch("wormhole._dilation.inbound.SubchannelAddress",
                         side_effect=[peer_addr]) as sca:
             i.handle_open(scid1, "proto")
-    assert lep.mock_calls == []
+    assert m._subprotocol_factories.mock_calls == []
     assert sc.mock_calls == []
     assert sca.mock_calls == []
     observe_errors.flush(DuplicateOpenError)
@@ -91,8 +92,6 @@ def test_open_data_close(observe_errors):
 def test_pause():
     i, m, host_addr = make_inbound()
     c = mock.Mock()
-    lep = mock.Mock()
-    i.set_listener_endpoint(lep)
 
     # add two subchannels, pause one, then add a connection
     scid1 = b"sci1"

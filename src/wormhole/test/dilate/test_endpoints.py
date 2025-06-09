@@ -11,6 +11,7 @@ from ...observer import OneShotObserver
 from ..._dilation.subchannel import (SubchannelConnectorEndpoint,
                                      SubchannelListenerEndpoint,
                                      SubchannelListeningPort,
+                                     SubchannelDemultiplex,
                                      _WormholeAddress, SubchannelAddress)
 from .common import mock_manager
 
@@ -154,7 +155,8 @@ async def test_listener_early_succeed():
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
-    ep = SubchannelListenerEndpoint(m, hostaddr, eq)
+    demux = SubchannelDemultiplex()
+    ep = SubchannelListenerEndpoint("proto", m)
 
     f = mock.Mock()
     f.subprotocol = "proto"
@@ -163,6 +165,10 @@ async def test_listener_early_succeed():
     p2 = mock.Mock()
     f.buildProtocol = mock.Mock(side_effect=[p1, p2])
 
+    demux.register("proto", f)
+
+#XXX the "user" API here is actually DilatedWormhole.listener_for("proto").listen(f)
+#how to hook it into this morass of Mocks?
     d = ep.listen(f)
     eq.flush_sync()
     assert not d.called
@@ -208,7 +214,7 @@ async def test_listener_early_fail():
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
-    ep = SubchannelListenerEndpoint(m, hostaddr, eq)
+    ep = SubchannelListenerEndpoint("proto", m)
 
     f = mock.Mock()
     f.subprotocol = "proto"
@@ -235,7 +241,7 @@ async def test_listener_late_succeed():
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
-    ep = SubchannelListenerEndpoint(m, hostaddr, eq)
+    ep = SubchannelListenerEndpoint("proto", m)
     m._main_channel.fire(None)
 
     f = mock.Mock()
@@ -284,10 +290,10 @@ async def test_listener_late_fail():
     # main_channel_fail, listen
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
-    hostaddr = _WormholeAddress()
+    hostaddr = m._host_addr = _WormholeAddress()
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
-    ep = SubchannelListenerEndpoint(m, hostaddr, eq)
+    ep = SubchannelListenerEndpoint("proto", m)
     m._main_channel.error(Failure(CannotDilateError()))
 
     f = mock.Mock()
