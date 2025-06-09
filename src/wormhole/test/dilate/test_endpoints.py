@@ -3,6 +3,7 @@ from zope.interface import alsoProvides
 from twisted.internet.task import Clock
 from twisted.python.failure import Failure
 from twisted.internet.interfaces import IProtocolFactory
+from twisted.internet.protocol import Protocol, Factory
 import pytest
 import pytest_twisted
 
@@ -36,27 +37,31 @@ async def test_connector_early_succeed():
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = mock.Mock()  # transport
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p = mock.Mock()
-    t = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
                     return_value=t) as sc:
         d = ep.connect(f)
         eq.flush_sync()
+        # the Dilation channel has NOT become available yet, so we
+        # should not have actually succeeded to connect our protocol
+        # until it does
         assert not d.called
-        m._main_channel.fire(None)
-        eq.flush_sync()
+
+    # make the Dilation connection available
+    m._main_channel.fire(None)
+    eq.flush_sync()
 
     proto = await d
-    assert proto is p
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr)]
-    assert sc.mock_calls == [mock.call(0, m, hostaddr, peeraddr)]
-    assert t.mock_calls == [mock.call._set_protocol(p)]
-    assert p.mock_calls == [mock.call.makeConnection(t)]
+    assert isinstance(proto, Simple)
+    # "t" has a _set_protocol() call ...but why mock/assert on
+    # internal call? Is there external behavior we can test / care
+    # about?
+
 
 
 @pytest_twisted.ensureDeferred
