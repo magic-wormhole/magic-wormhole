@@ -147,6 +147,7 @@ async def test_connector_late_fail():
     assert t.mock_calls == []
 
 
+# refactor code could make more testable? Demultiplex thing...
 @pytest_twisted.ensureDeferred
 async def test_listener_early_succeed():
     # listen, main_channel_ready, got_open, got_open
