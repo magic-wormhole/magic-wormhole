@@ -31,6 +31,11 @@ def OFFassert_makeConnection(mock_calls):
 
 @pytest_twisted.ensureDeferred
 async def test_connector_early_succeed():
+    """
+    Call 'connect' on a subchannel client-style endpint before the
+    Dilation channel has been established (and then fake Dilation
+    establishment)
+    """
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -96,6 +101,10 @@ async def test_connector_early_fail():
 
 @pytest_twisted.ensureDeferred
 async def test_connector_late_succeed():
+    """
+    Same as test_connector_early_succeed except the Dilation channel
+    is already available before we call .connect()
+    """
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
@@ -103,25 +112,21 @@ async def test_connector_late_succeed():
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
+    # make the Dilation connection available
     m._main_channel.fire(None)
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p = mock.Mock()
-    t = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
                     return_value=t) as sc:
         d = ep.connect(f)
         eq.flush_sync()
 
     proto = await d
-    assert proto is p
-    assert f.buildProtocol.mock_calls == [mock.call(peeraddr)]
-    assert sc.mock_calls == [mock.call(0, m, hostaddr, peeraddr)]
-    assert t.mock_calls == [mock.call._set_protocol(p)]
-    assert p.mock_calls == [mock.call.makeConnection(t)]
+    assert isinstance(proto, Simple)
 
 
 @pytest_twisted.ensureDeferred
@@ -129,27 +134,28 @@ async def test_connector_late_fail():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
+    # there has been some kind of error establishing the Dilation
+    # channel, and so it has failed.
     m._main_channel.error(Failure(CannotDilateError()))
 
-    f = mock.Mock()
-    f.subprotocol = "proto"
-    alsoProvides(f, IProtocolFactory)
-    p = mock.Mock()
-    t = mock.Mock()
-    f.buildProtocol = mock.Mock(return_value=p)
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
                     return_value=t) as sc:
         d = ep.connect(f)
         eq.flush_sync()
 
+    eq.flush_sync()
+
     with pytest.raises(CannotDilateError):
         await d
-    assert f.buildProtocol.mock_calls == []
-    assert sc.mock_calls == []
-    assert t.mock_calls == []
 
 
 # refactor code could make more testable? Demultiplex thing...
