@@ -71,8 +71,8 @@ async def test1():
 
     with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
                     return_value=["127.0.0.1"]):
-        d_left.dilate({}, no_listen=True)
-        d_right.dilate({})
+        d_left.dilate(no_listen=True)
+        d_right.dilate()
 
     # print("left connected", eps_left)
     # print("right connected", eps_right)

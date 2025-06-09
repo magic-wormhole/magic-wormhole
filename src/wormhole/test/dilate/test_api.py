@@ -156,8 +156,8 @@ async def test_dilation_status(reactor, mailbox):
 
     w1.set_code(code)
 
-    w0.dilate({}, on_status_update=status0.append)
-    w1.dilate({}, on_status_update=status1.append)
+    w0.dilate(on_status_update=status0.append)
+    w1.dilate(on_status_update=status1.append)
 
     # we should see the _other side's_ app-versions
     v0 = await w1.get_versions()
