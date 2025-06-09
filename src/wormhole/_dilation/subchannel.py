@@ -363,7 +363,10 @@ class SubchannelListenerEndpoint:
     subprotocol_name = attrib()
     _manager = attrib()
 
+    # this can, in fact, be async
+    @inlineCallbacks
     def listen(self, factory):
+        yield self._manager._main_channel.when_fired()
         self._manager._register_subprotocol_factory(self.subprotocol_name, factory)
         return SubchannelListeningPort(self._manager._host_addr)
 
