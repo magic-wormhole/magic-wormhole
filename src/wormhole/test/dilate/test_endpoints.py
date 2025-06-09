@@ -32,7 +32,7 @@ def OFFassert_makeConnection(mock_calls):
 @pytest_twisted.ensureDeferred
 async def test_connector_early_succeed():
     """
-    Call 'connect' on a subchannel client-style endpint before the
+    Call 'connect' on a subchannel client-style endpoint before the
     Dilation channel has been established (and then fake Dilation
     establishment)
     """
@@ -50,7 +50,7 @@ async def test_connector_early_succeed():
 
     f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                    return_value=t) as sc:
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
         # the Dilation channel has NOT become available yet, so we
@@ -82,7 +82,7 @@ async def test_connector_early_fail():
 
     f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                    return_value=t) as sc:
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
         # the Dilation channel has NOT become available yet, so we
@@ -121,7 +121,7 @@ async def test_connector_late_succeed():
 
     f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                    return_value=t) as sc:
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
 
@@ -148,7 +148,7 @@ async def test_connector_late_fail():
 
     f = Factory.forProtocol(Simple)
     with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                    return_value=t) as sc:
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
 
@@ -223,7 +223,6 @@ async def test_listener_early_fail():
     # listen, main_channel_fail
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
-    hostaddr = _WormholeAddress()
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelListenerEndpoint("proto", m)
@@ -302,7 +301,7 @@ async def test_listener_late_fail():
     # main_channel_fail, listen
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
-    hostaddr = m._host_addr = _WormholeAddress()
+    m._host_addr = _WormholeAddress()
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     ep = SubchannelListenerEndpoint("proto", m)

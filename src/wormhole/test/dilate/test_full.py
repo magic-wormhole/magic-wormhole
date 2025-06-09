@@ -69,7 +69,7 @@ async def test_single_subprotocol(reactor, mailbox):
     eps2 = w2.dilate()
     print("w.dilate ready")
 
-    port = eps1.listener_for("proto").listen(fserv0)
+    eps1.listener_for("proto").listen(fserv0)
 
     f2 = Factory()
     alsoProvides(f2, IProtocolFactory)

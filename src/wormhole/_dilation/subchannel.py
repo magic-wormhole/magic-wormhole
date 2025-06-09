@@ -2,7 +2,7 @@ from collections import deque, defaultdict
 from attr import attrs, attrib
 from attr.validators import instance_of
 from zope.interface import implementer
-from twisted.internet.defer import inlineCallbacks, Deferred
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IAddress, IListeningPort,
                                          IHalfCloseableProtocol,
@@ -10,7 +10,6 @@ from twisted.internet.interfaces import (ITransport, IProducer, IConsumer,
                                          IStreamServerEndpoint,
                                          )
 from twisted.internet.error import ConnectionDone
-from twisted.internet.protocol import Factory
 from automat import MethodicalMachine
 from .._interfaces import ISubChannel, IDilationManager
 from ..util import provides
