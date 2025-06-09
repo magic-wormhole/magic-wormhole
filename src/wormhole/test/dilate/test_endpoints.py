@@ -165,7 +165,6 @@ async def test_listener_early_succeed():
     m = mock_manager()
     m.allocate_subchannel_id = mock.Mock(return_value=0)
     m._host_addr = hostaddr = _WormholeAddress()
-    peeraddr = SubchannelAddress("proto")
     eq = EventualQueue(Clock())
     m._main_channel = OneShotObserver(eq)
     demux = SubchannelDemultiplex()
