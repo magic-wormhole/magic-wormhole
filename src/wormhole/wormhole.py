@@ -196,13 +196,8 @@ class _DeferredWormhole(object):
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, subprotocols=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
         """
-        :param dict[str, Factory] subprotocols: maps subprotocol names to
-            their protocol Factory, which listens for new incoming
-            subchannels of the given name (i.e. the OPEN comes from the
-            other peer to us)
-
         :returns DilatedWormhole: an instance for accessing dilation
             functionality. This includes creating endpoints that open
             new subchannels (i.e. the OPEN goes from us to the other
@@ -210,7 +205,7 @@ class _DeferredWormhole(object):
         """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval, subprotocols)
+        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval, expected_subprotocols)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -266,23 +261,6 @@ class _DeferredWormhole(object):
         self._verifier_observer.error(f)
         self._version_observer.error(f)
         self._received_observer.fire(f)
-
-
-def _validate_subprotocol_config(subprotos):
-    """
-    raises a ValueError if anything is wrong with the subprotocol
-    configuration
-    """
-    # for fac in subprotos.values():
-    #     if not ISubchannelListenFactory.providedBy(fac):
-    #         raise ValueError(
-    #             f"{fac} does not implement wormhole.ISubchannelFactory"
-    #         )
-    for k in subprotos.keys():
-        if not isinstance(k, str) or not k:
-            raise ValueError(
-                f'subprotocol names must be a non-empty str, found "{k}"'
-            )
 
 
 def create(
