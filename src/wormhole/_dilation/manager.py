@@ -406,11 +406,6 @@ class Manager(object):
             # we already have a timer runner, so extend it
             self._timer.delay(self._ping_interval)
 
-    def _is_leader(self):
-        if self._my_role is None:
-            raise ValueError("Do not know leader/follower yet")
-        return self._my_role == LEADER
-
     def _register_subprotocol_factory(self, name, factory):
         """
         Internal helper. Application code has asked to listen for a
