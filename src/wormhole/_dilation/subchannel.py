@@ -164,8 +164,6 @@ class SubChannel(object):
     @m.output()
     def signal_dataReceived(self, data):
         assert self._protocol
-        print(self._protocol)
-        print(repr(data))
         self._protocol.dataReceived(data)
 
     @m.output()
@@ -385,7 +383,6 @@ class SubchannelDemultiplex:
     def _got_open(self, t, peer_addr):
         # XXX where do we de-multiplex these on subproto?
         name = peer_addr.subprotocol
-        print("GOT_OPEN", name)
         if name in self._factories:
             self._connect(self._factories[name], t, peer_addr)
         else:
