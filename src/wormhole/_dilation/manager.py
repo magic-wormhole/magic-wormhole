@@ -4,7 +4,7 @@ from attr import attrs, attrib, evolve, define, field
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
@@ -64,11 +64,13 @@ class DilatedWormhole(object):
     ``.connect()`` on these endpoints will ``.errback()`` if Dilation
     cannot be established.
     """
-    # XXX do we want a "async def when_dilated()" -- this would be
-    # another avenue to learn of errors (e.g. if you never do
-    # .connect() how do you learn this?)
 
     _manager: IDilationManager = field()
+
+    @inlineCallbacks
+    def when_dilated(self):
+        yield self._manager._main_channel.when_fired()
+        return None
 
     # XXX can we later add an API that allows for a "matcher"
     # predicate, so e.g. could do "prefix" stuff if we wanted with the
