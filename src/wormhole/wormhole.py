@@ -196,15 +196,16 @@ class _DeferredWormhole(object):
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
         """
-        :returns EndpointRecord: an EndpointRecord containing the three
-            Twisted endpoint objects required to interact with the
-            Dilation channel (as control, connect and listen members).
+        :returns DilatedWormhole: an instance for accessing dilation
+            functionality. This includes creating endpoints that open
+            new subchannels (i.e. the OPEN goes from us to the other
+            peer).
         """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval)
+        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval, expected_subprotocols)
 
     def close(self):
         # fails with WormholeError unless we established a connection
@@ -272,25 +273,27 @@ def create(
         tor=None,
         timing=None,
         stderr=sys.stderr,
+        dilation=None,
         _eventual_queue=None,
-        _enable_dilate=False,
         on_status_update=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
     cooperator = Cooperator(scheduler=eq.eventually)
+
     if delegate:
         w = _DelegatedWormhole(delegate)
     else:
-        w = _DeferredWormhole(reactor, eq, _enable_dilate=_enable_dilate)
+        w = _DeferredWormhole(reactor, eq, _enable_dilate=bool(dilation))
     # this indicates Wormhole capabilities
     wormhole_versions = {
         "can-dilate": DILATION_VERSIONS,
         "dilation-abilities": Connector.get_connection_abilities(),
     }
-    if not _enable_dilate:
-        wormhole_versions = {}  # don't advertise Dilation yet: not ready
+
+    if not dilation:
+        wormhole_versions = {}
     wormhole_versions["app_versions"] = versions  # app-specific capabilities
     v = __version__
     if isinstance(v, bytes):

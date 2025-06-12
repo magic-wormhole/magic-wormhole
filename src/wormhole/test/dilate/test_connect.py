@@ -71,14 +71,11 @@ async def test1():
 
     with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
                     return_value=["127.0.0.1"]):
-        eps_left = d_left.dilate(no_listen=True)
-        eps_right = d_right.dilate()
+        d_left.dilate(no_listen=True)
+        d_right.dilate()
 
     # print("left connected", eps_left)
     # print("right connected", eps_right)
-
-    control_ep_left, connect_ep_left, listen_ep_left = eps_left
-    control_ep_right, connect_ep_right, listen_ep_right = eps_right
 
     # we normally shut down with w.close(), which calls Dilator.stop(),
     # which calls Terminator.stoppedD(), which (after everything else is
