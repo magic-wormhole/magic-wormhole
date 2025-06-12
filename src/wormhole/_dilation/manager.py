@@ -550,6 +550,8 @@ class Manager(object):
         self._outbound.use_connection(c)  # does c.registerProducer
         if not self._made_first_connection:
             self._made_first_connection = True
+            # might be ideal to send information about our selected
+            # Peer connection through here
             self._main_channel.fire(None)
         pass
 
