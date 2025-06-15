@@ -12,7 +12,7 @@ from ._status import AllocatedCode, ConsumedCode
 def validate_nameplate(nameplate):
     if not re.search(r'^\d+$', nameplate):
         raise KeyFormatError(
-            "Nameplate '%s' must be numeric, with no spaces." % nameplate)
+            f"Nameplate '{nameplate}' must be numeric, with no spaces.")
 
 
 @implementer(_interfaces.INameplate)

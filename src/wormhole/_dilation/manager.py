@@ -559,7 +559,7 @@ class Manager(object):
         elif isinstance(r, Ack):
             self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
-            log.err(UnknownMessageType("{}".format(r)))
+            log.err(UnknownMessageType(f"{r}"))
         # todo: it might be better to tell the TrafficTimer
         # state-machine every time we see _any_ traffic (i.e. here)
         # -- currently we're demanding that we see the "Pong"

@@ -50,4 +50,4 @@ class DebugTiming:
             ]
             json.dump(data, f, indent=1)
             f.write("\n")
-        print("Timing data written to %s" % fn, file=stderr)
+        print(f"Timing data written to {fn}", file=stderr)

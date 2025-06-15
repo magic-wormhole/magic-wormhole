@@ -33,7 +33,7 @@ def test_find_none():
             with pytest.raises(cmd_ssh.PubkeyError) as f:
                 cmd_ssh.find_public_key()
     dot_ssh = os.path.expanduser("~/.ssh/")
-    assert str(f.value) == "No public keys in '{}'".format(dot_ssh)
+    assert str(f.value) == f"No public keys in '{dot_ssh}'"
 
 def test_bad_hint():
     with mock.patch("wormhole.cli.cmd_ssh.exists", return_value=False):

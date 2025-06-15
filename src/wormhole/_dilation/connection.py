@@ -202,7 +202,7 @@ class _Framer(object):
             # Don't complain until we see the expected length, or a newline,
             # so we can capture the weird input in the log for debugging.
             if (b"\n" in self._buffer or lb >= le):
-                log.msg("bad {}: {}".format(name, self._buffer[:le]))
+                log.msg(f"bad {name}: {self._buffer[:le]}")
                 raise Disconnect()
             return False  # wait a bit longer
         # good so far, just waiting for the rest
@@ -293,7 +293,7 @@ def parse_record(plaintext):
     if msgtype == T_ACK:
         resp_seqnum = from_be4(plaintext[1:5])
         return Ack(resp_seqnum)
-    log.err("received unknown message type: {}".format(plaintext))
+    log.err(f"received unknown message type: {plaintext}")
     raise ValueError()
 
 

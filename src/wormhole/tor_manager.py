@@ -95,7 +95,7 @@ def get_tor(reactor,
             control_ep = clientFromString(reactor, tor_control_port)
             tor = yield txtorcon.connect(reactor, control_ep)  # might raise
             print(
-                " using Tor via control port at %s" % tor_control_port,
+                f" using Tor via control port at {tor_control_port}",
                 file=stderr)
     else:
         # Let txtorcon look through a list of usual places. If that fails,

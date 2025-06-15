@@ -62,7 +62,5 @@ def test_repr():
     """
     v = provides(IFoo)
     assert (
-        "<provides validator for interface {interface!r}>".format(
-            interface=IFoo
-        )
+        f"<provides validator for interface {IFoo!r}>"
     ) == repr(v)
