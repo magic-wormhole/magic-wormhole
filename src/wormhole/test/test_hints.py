@@ -123,7 +123,7 @@ def test_parse_hint_argv():
 
     h, stderr = p("$!@#^")
     assert h is None
-    assert stderr == "unparseable hint '$!@#^'\n"
+    assert stderr == "unparsable hint '$!@#^'\n"
 
     h, stderr = p("unknown:stuff")
     assert h is None
@@ -133,7 +133,7 @@ def test_parse_hint_argv():
     h, stderr = p("tcp:just-a-hostname")
     assert h is None
     assert stderr == \
-        "unparseable TCP hint (need more colons) 'tcp:just-a-hostname'\n"
+        "unparsable TCP hint (need more colons) 'tcp:just-a-hostname'\n"
 
     h, stderr = p("tcp:host:number")
     assert h is None
