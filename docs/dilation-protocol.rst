@@ -251,9 +251,11 @@ In Twisted, subprotocols implement the normal ``Factory`` and
 ``IProtocol`` interfaces (e.g. like TCP streams).  Upon an incoming L5
 subchannel open, the Magic Wormhole library invokes the
 ``buildProtocol`` method on the correct factory, and speaks that
-protocol over that subchannel.  For outgoing connections,
-``.connect()`` is called with an ``IFactory`` on the endpoint for that
-subprotocol (from ``DilatedWormhole.subprotocol_connector_for()``).
+protocol over that subchannel. These are registered via a server-style
+endpoint obtained from ``DilatedWormhole.listener_for(...)``.  For
+outgoing connections, ``.connect()`` is called with an ``IFactory`` on
+the endpoint for that subprotocol (from
+``DilatedWormhole.connector_for(...)``).
 
 All L5 subchannels will be paused (``pauseProducing()``) when the L3
 connection is paused or lost. They are resumed when the L3 connection is
@@ -265,11 +267,11 @@ Initiating Dilation
 Dilation is triggered by calling the ``w.dilate()`` API. This
 immediately returns a ``DilatedWormhole`` instance. The
 ``IStreamClientEndpoint`` for a particular subprotocol is obtained via
-``DilatedWormhole.subprotocol_connector_for()``. For Dilation to
+``DilatedWormhole.connector_for()``. For Dilation to
 succeed, both sides must call ``w.dilate()`` at some point.
 
 The client-like endpoints are used to signal any errors that might
-prevent Dilation. That is, ``subproto.connect(factory)`` return a
+prevent Dilation. That is, the ``.connect(factory)`` call returns a
 Deferred that will errback (with ``OldPeerCannotDilateError``) if the
 other side’s ``version`` message indicates that it does not support
 Dilation. The overall dilated connection is durable (the Dilation
