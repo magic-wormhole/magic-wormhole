@@ -19,7 +19,9 @@ These building-blocks allow “application” protocols to be simpler by not hav
 Dilation was conceived during development of a “next-generation” file-transfer protocol now called “ `Dilated File
 Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
 
-Dilation does NOT aim to replace all manner of peer-to-peer connections; it has enough features to support many use-cases while keeping the simplicity, security and human-involvement of Magic Wormhole's core.
+We aim to make Dilation-using subprotocols *composable*: multiple different Dilation-using subprotocols may work alongside each other over the same connection.
+
+Dilation does *NOT* attempt to replace all manner of peer-to-peer connections; it has enough features to support many use-cases while keeping the simplicity, security and human-involvement of Magic Wormhole's core.
 
 This document assumes you are familiar with the core Mailbox protocol and the general promises of Magic Wormhole.
 For more information see :doc:`the Server Protocol <server-protocol>`.
