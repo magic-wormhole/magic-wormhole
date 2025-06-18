@@ -72,13 +72,6 @@ class DilatedWormhole(object):
         yield self._manager._main_channel.when_fired()
         return None
 
-    # XXX can we later add an API that allows for a "matcher"
-    # predicate, so e.g. could do "prefix" stuff if we wanted with the
-    # subprotocols -- why would be want that? We'd use a single
-    # Factory, but distinguish based on the subprotocol name. For
-    # example:
-    #   lambda n: n.startswith('gitwithme/')
-    # (or whatever the application dev wants).
     def listener_for(self, subprotocol_name):
         """
         :returns: an IStreamServerEndpoint that may be used to listen for

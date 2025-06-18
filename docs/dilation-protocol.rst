@@ -6,7 +6,8 @@ Dilation takes Magic Wormhole beyond file-transfer!
 Designed as the basis for a next-generation file-transfer, Dilation is a “bulk data” protocol between two peers.
 Dilation has features suitable for use by a variety of application-level protocols.
 
-Motivational examples: Git With Me, Pear-On, Sync With Me, Fowl.
+.. NOTE::
+    Motivational examples / prototypes include `Fowl <https://fowl.readthedocs.io/en/latest/>`_ and applications that use it directly: `Git With Me <https://sr.ht/~meejah/git-withme/>`_, `Pear-On <https://sr.ht/~meejah/pear-on/>`_ and `shwim (Shell With Me) <https://github.com/meejah/shwim>`_.
 
 Dilation is durable and reliable: connections are re-established, and data is definitely transmitted in-order to the other peer.
 There are subchannels: logically separate streams as the application protocol requires.
