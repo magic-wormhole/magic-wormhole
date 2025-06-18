@@ -34,10 +34,12 @@ A slightly deeper dive.
 If both peers enable Dilation, then it is available.
 
 Once the wormhole is established, both sides call ``.dilate()`` on their wormhole object.
-This is where each peer declares one or more "subprotocols" it is willing to speak or support.
+Only after *both* sides do this is a Dilation peer-to-peer connection established.
 
-Whenever a subchannel is opened, it must use exactly one subprotocol -- which must come from the intersection of subprotocols the peers declared support for.
-(That is to say: you may only use a subprotocol that both peers declare during ``.dilate()`` setup).
+The core of Dilation is some number of "subchannels".
+
+Subchannels are created from either peer via a single round-trip over the established connection.
+Whenever a subchannel is opened, it must use exactly one *subprotocol* -- if the other peer is listening for this kind of subchannel, it is established.
 
 Subprotocols inherit some features from the overall Dilation structure.
 The protocol is already authenticated and end-to-end encrypted.
@@ -48,15 +50,18 @@ Applications do not need to re-try or re-connect so long as the process keeps ru
 
 In the Python implementation on top of Twisted, we use Twisted APIs -- with the slight refinement that ``dataReceived()`` is called with an entire message.
 
-The Twisted concept of a ``Factory`` is used to register the protocols you wish to support during the ``.dilate()`` call -- any "incoming" subchannel must declare the "subprotocol" it will use, and this then uses the expected Twisted ``Factory.buildProtocol()`` API to instantiate the ``Protocol`` object for that subchannel.
+Twisted "endpoints" are used: client-style when opening a new subchannel, and server-style when awaiting a particular kind of subchannel.
+These endpoints are created via the ``DilatedWormhole`` instance returned from the ``dilate()`` call
 
-To initiate an outgoing subchannel, you use the ``DilatedWormhole.subprotocol_connector_for()`` API to first create a Twisted "client style" endpoint.
-Your code would then use ``.connect()`` on the returned object, which will create a ``Protocol`` on your side and initiate the subchannel opening (ultimately using the registered ``Factory`` on the peer to make the other side).
+To initiate an outgoing subchannel, you use the ``DilatedWormhole.connector_for("subproto")`` API to first create a Twisted "client style" endpoint.
+Your code would then use ``.connect()`` on the returned object, which will create a ``Protocol`` on your side and initiate the subchannel opening.
+The other peer must have called ``DilatedWormhole.listener_for("subproto")`` (and ``.listen()`` with their ``Factory``) for this to work.
+That is, for a subprotocol named ``"subproto"``, one side does client-style and one side does server-style Twisted networking.
 
 .. NOTE::
 
     In an earlier revision of this protocol, there was a special kind of "control" subchannel.
-    This would be a "singleton" style subchannel (at most one would ever exist).
+    This was a "singleton" style subchannel (at most one would ever exist).
     Both sides would use the "client-style" endpoint API to create their ``Protocol`` objects.
 
     We do not currently believe this is necessary -- request/response style protocols work well, and all our example programs exist without a special "control" channel.
