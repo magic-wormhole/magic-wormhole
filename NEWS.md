@@ -7,6 +7,7 @@ User-visible changes in "magic-wormhole":
 * Remove 'u' prefix to strings (#636 @sblondon)
 * Use classes directly instead of type() calls (#637 @sblondon)
 * Doc: remove details about python2 types (#638 @sblondon)
+* Add 'hints' information to Dilation status updates (@meejah)
 
 ## Release 0.19.2 (30-May-2025)
 
