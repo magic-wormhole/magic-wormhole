@@ -443,6 +443,18 @@ class Manager(object):
         if self._status is not None:
             self._status(status_msg)
 
+    def _hint_status(self, hints):
+        """
+        Internal helper. From Connector, calls to update the hints we're
+        actually using
+        """
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                hints=hints,
+            )
+        )
+
     def fail(self, f):
         self._main_channel.error(f)
 
