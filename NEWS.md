@@ -7,6 +7,8 @@ User-visible changes in "magic-wormhole":
 * Remove 'u' prefix to strings (#636 @sblondon)
 * Use classes directly instead of type() calls (#637 @sblondon)
 * Doc: remove details about python2 types (#638 @sblondon)
+* Improve ping-timeouts on Mailbox connection (#646 @meejah)
+
 
 ## Release 0.19.2 (30-May-2025)
 
