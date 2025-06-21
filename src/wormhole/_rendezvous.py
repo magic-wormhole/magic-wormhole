@@ -281,6 +281,8 @@ class RendezvousConnector(object):
         payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
+        # might be nice to have a "debug" hook here to track all
+        # messages sent to the mailbox, with timestamps
 
     def _response_handle_allocated(self, msg):
         nameplate = msg["nameplate"]
