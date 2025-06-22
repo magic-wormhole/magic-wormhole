@@ -342,7 +342,7 @@ class SubchannelConnectorEndpoint(object):
 
 class IllegalSubprotocolError(Exception):
     """
-    A peer tried to open a subprotocol that wasn't declared
+    A peer tried to open a subprotocol that has no listener.
     """
 
 
@@ -381,7 +381,6 @@ class SubchannelDemultiplex:
     # t is Subchannel (transport) instance
     # peer_addr is a SubchannelAddress
     def _got_open(self, t, peer_addr):
-        # XXX where do we de-multiplex these on subproto?
         name = peer_addr.subprotocol
         if name in self._factories:
             self._connect(self._factories[name], t, peer_addr)
@@ -396,7 +395,6 @@ class SubchannelDemultiplex:
 
     def register(self, subprotocol_name, factory):
         if subprotocol_name in self._factories:
-            #XXX add special handling for 'expected' protos
             raise ValueError(
                 f'Already listening for subprotocol "{subprotocol_name}"'
             )

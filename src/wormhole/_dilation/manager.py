@@ -984,8 +984,6 @@ class Dilator(object):
         # unchanged)
         self._did_dilate()
 
-        # XXX do something with 'reserved' / 'expected' subprotocol names
-
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
