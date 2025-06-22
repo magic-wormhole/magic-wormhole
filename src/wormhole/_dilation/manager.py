@@ -975,21 +975,13 @@ class Dilator(object):
     # this is the primary entry point, called when w.dilate() is
     # invoked; upstream calls are basically just call-through -- so
     # all these inputs should be validated.
-
-    ##XXX insight: we can "reserve" subprotocols by name by passing
-    ##them in here .. but NOT passing them still allows one to create
-    ##listeners. difference: it's an error if an incoming OPEN has no
-    ##"reserved" slot AND no listener yet.
     def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
                ping_interval=None, expected_subprotocols=None):
-        # XXX this is just fed through directly from the public API;
-        # effectively, this _is_ a public API
-
-        # ensure users can only call this API once -- even before
-        # 'subprotocols' changes, although it was possible to call the
-        # API more than once, subsequent calls would have no effect
-        # (e.g. transit_relay_location, no_listen, etc would all
-        # remain unchanged)
+        # ensure users can only call this API once -- in the past, it
+        # was possible to call the API more than once but any cal
+        # after the first would have no real effect:
+        # transit_relay_location, no_listen, etc would all remain
+        # unchanged)
         self._did_dilate()
 
         # XXX do something with 'reserved' / 'expected' subprotocol names
