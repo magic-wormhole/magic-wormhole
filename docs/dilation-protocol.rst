@@ -48,7 +48,7 @@ The protocol is already authenticated and end-to-end encrypted.
 It is message-based, so no additional framing is required.
 
 The overall Dilation connection is "durable and reliable", which means that once a message is delivered to a Dilation API it will be (eventually) delivered to the peer.
-Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellual networks, laptop sleeps, intermittent connectivity, or other network weirdness).
+Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellular networks, laptop sleeps, intermittent connectivity, or other network weirdness).
 
 In the Python implementation on top of Twisted, we use Twisted APIs -- with the slight refinement that ``dataReceived()`` is called with an entire message.
 
@@ -244,7 +244,7 @@ Once a side has sent CLOSE it may not send any more DATA messages.
 
 All L5 subchannels (except the control channel) speak a particular
 "subprotocol".  The name of the subprotocol is sent in the OPEN
-message. This allows applications to write reusable and composible
+message. This allows applications to write reusable and composable
 subprotocols on top of Dilation.
 
 In Twisted, subprotocols implement the normal ``Factory`` and
@@ -315,7 +315,7 @@ depend upon the type.
 ``w.dilate()`` triggers transmission of a ``please`` (i.e. “please
 dilate”) record with a set of versions that can be accepted. Versions
 use strings, rather than integers, to support experimental protocols,
-however there is still a total ordering of preferability.
+however there is still a total ordering of version preference.
 
 ::
 
@@ -617,7 +617,7 @@ L3 protocol
 
 The L3 layer is responsible for connection selection,
 monitoring/keepalives, and message (de)serialization. Framing is handled
-by L2, so the inbound L3 codepath receives single-message bytestrings,
+by L2, so the inbound L3 codepath receives single-message byte-strings,
 and delivers the same down to L2 for encryption, framing, and
 transmission.
 
@@ -678,7 +678,7 @@ In addition, the Leader must:
 
 In the future, we might have L2 links that are less connection-oriented,
 which might have a unidirectional failure mode, at which point we’ll
-need to monitor full roundtrips. To accomplish this, the Leader will
+need to monitor full round-trips. To accomplish this, the Leader will
 send periodic unconditional PINGs, and the Follower will respond with
 PONGs. If the Leader->Follower connection is down, the PINGs won’t
 arrive and no PONGs will be produced. If the Follower->Leader direction
