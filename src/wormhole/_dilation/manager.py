@@ -358,7 +358,6 @@ class Manager(object):
         # to us
         self._main_channel = OneShotObserver(self._eventual_queue)
         self._subprotocol_factories = SubchannelDemultiplex()
-        #XXX add something to this dict for all 'expected' subprotocol names
 
         # NOTE: circular refs, not ideal
         self._api = DilatedWormhole(self)
