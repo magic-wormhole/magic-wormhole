@@ -56,7 +56,7 @@ class Config(object):
         ]
         if invalid_machines:
             raise click.UsageError(
-                "Cannot debug unknown machines: {}".format(" ".join(invalid_machines))
+                f"Cannot debug unknown machines: {' '.join(invalid_machines)}"
             )
         self._debug_state = debug_state
 
@@ -152,11 +152,11 @@ def _dispatch_command(reactor, cfg, command):
         print(str(e), file=cfg.stderr)
         raise SystemExit(1)
     except TransferError as e:
-        print("TransferError: %s" % str(e), file=cfg.stderr)
+        print(f"TransferError: {str(e)}", file=cfg.stderr)
         raise SystemExit(1)
     except ServerConnectionError as e:
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
-        msg += "(relay URL was %s)\n" % e.url
+        msg += f"(relay URL was {e.url})\n"
         msg += str(e)
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
@@ -443,10 +443,10 @@ def ssh_accept(cfg, code, key_file, yes, **kwargs):
         setattr(cfg, name, value)
     from . import cmd_ssh
     kind, keyid, pubkey = cmd_ssh.find_public_key(key_file)
-    print("Sending public key type='{}' keyid='{}'".format(kind, keyid))
+    print(f"Sending public key type='{kind}' keyid='{keyid}'")
     if yes is not True:
         click.confirm(
-            "Really send public key '{}' ?".format(keyid), abort=True)
+            f"Really send public key '{keyid}' ?", abort=True)
     cfg.public_key = (kind, keyid, pubkey)
     cfg.code = code
 

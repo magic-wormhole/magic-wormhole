@@ -9,7 +9,7 @@ from .util import provides
 
 def validate_code(code):
     if ' ' in code:
-        raise KeyFormatError("Code '%s' contains spaces." % code)
+        raise KeyFormatError(f"Code '{code}' contains spaces.")
     nameplate = code.split("-", 2)[0]
     validate_nameplate(nameplate)  # can raise KeyFormatError
 

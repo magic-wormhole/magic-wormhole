@@ -118,7 +118,7 @@ class RendezvousConnector(object):
             return self._tor.stream_via(p.hostname, port, tls=tls)
         if tls:
             return endpoints.clientFromString(self._reactor,
-                                              "tls:%s:%s" % (p.hostname, port))
+                                              f"tls:{p.hostname}:{port}")
         return endpoints.HostnameEndpoint(self._reactor, p.hostname, port)
 
     def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):
@@ -219,7 +219,7 @@ class RendezvousConnector(object):
             # make tests fail, but real application will ignore it
             log.err(
                 errors._UnknownMessageTypeError(
-                    "Unknown inbound message type %r" % (msg, )))
+                    f"Unknown inbound message type {msg!r}"))
             return
         try:
             return meth(msg)
@@ -272,7 +272,7 @@ class RendezvousConnector(object):
         # are so few messages, 16 bits is enough to be mostly-unique.
         kwargs["id"] = bytes_to_hexstr(os.urandom(2))
         kwargs["type"] = mtype
-        self._debug("R.tx(%s %s)" % (mtype.upper(), kwargs.get("phase", "")))
+        self._debug(f"R.tx({mtype.upper()} {kwargs.get('phase', '')})")
         payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)

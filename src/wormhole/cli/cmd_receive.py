@@ -189,7 +189,7 @@ class Receiver:
                     raise TransferError(r.response)
                 return None
             if not recognized:
-                log.msg("unrecognized message %r" % (them_d, ))
+                log.msg(f"unrecognized message {them_d!r}")
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)
@@ -216,9 +216,9 @@ class Receiver:
             if self.args.allocate:
                 w.allocate_code(self.args.code_length)
                 code = yield w.get_code()
-                print("Allocated code: {}".format(code), file=self.args.stderr)
+                print(f"Allocated code: {code}", file=self.args.stderr)
                 print("On the other computer, please run:", file=self.args.stderr)
-                print("   wormhole send --code {} <filename>".format(code), file=self.args.stderr)
+                print(f"   wormhole send --code {code} <filename>", file=self.args.stderr)
 
             else:
                 prompt = "Enter receive wormhole code: "
@@ -233,7 +233,7 @@ class Receiver:
     def _show_verifier(self, verifier_bytes):
         verifier_hex = bytes_to_hexstr(verifier_bytes)
         if self.args.verify:
-            self._msg("Verifier %s." % verifier_hex)
+            self._msg(f"Verifier {verifier_hex}.")
 
     @inlineCallbacks
     def _parse_transit(self, sender_transit, w):
@@ -293,7 +293,7 @@ class Receiver:
             yield self._close_transit(rp, datahash)
         else:
             self._msg("I don't know what they're offering\n")
-            self._msg("Offer details: %r" % (them_d, ))
+            self._msg(f"Offer details: {them_d!r}")
             raise RespondError("unknown offer type")
 
     def _handle_text(self, them_d, w):
@@ -328,8 +328,7 @@ class Receiver:
         file_data = them_d["directory"]
         zipmode = file_data["mode"]
         if not zipmode.startswith("zipfile"):
-            self._msg("Error: unknown directory-transfer mode '%s'" %
-                      (zipmode, ))
+            self._msg(f"Error: unknown directory-transfer mode '{zipmode}'")
             raise RespondError("unknown mode")
         self.abs_destname = self._decide_destname("directory",
                                                   file_data["dirname"])
@@ -370,12 +369,12 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if self.args.output_file:  # overwrite is intentional
-                self._msg("Overwriting %s" % repr(destname))
+                self._msg(f"Overwriting {repr(destname)}")
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
                 self._msg(
-                    "Error: refusing to overwrite existing %s" % repr(destname))
+                    f"Error: refusing to overwrite existing {repr(destname)}")
                 raise TransferRejectedError()
         return abs_destname
 
@@ -410,7 +409,7 @@ class Receiver:
     @inlineCallbacks
     def _transfer_data(self, record_pipe, f):
         # now receive the rest of the owl
-        self._msg("Receiving (%s).." % record_pipe.describe())
+        self._msg(f"Receiving ({record_pipe.describe()})..")
 
         with self.args.timing.add("rx file"):
             progress = tqdm(
@@ -439,8 +438,7 @@ class Receiver:
         tmp_name = f.name
         f.close()
         os.rename(tmp_name, self.abs_destname)
-        self._msg("Received file written to %s" % os.path.basename(
-            self.abs_destname))
+        self._msg(f"Received file written to {os.path.basename(self.abs_destname)}")
 
     def _extract_file(self, zf, info, extract_dir):
         """

@@ -146,7 +146,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     def _check_and_remove(self, expected):
         # any divergence is a handshake error
         if not self.buf.startswith(expected[:len(self.buf)]):
-            raise BadHandshake("got %r want %r" % (self.buf, expected))
+            raise BadHandshake(f"got {self.buf!r} want {expected!r}")
         if len(self.buf) < len(expected):
             return False  # keep waiting
         self.buf = self.buf[len(expected):]
@@ -197,7 +197,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             return
         if isinstance(self.state, Exception):  # for tests
             raise self.state
-        raise ValueError("internal error: unknown state %s" % (self.state, ))
+        raise ValueError(f"internal error: unknown state {self.state}")
 
     def _negotiationSuccessful(self):
         self.state = "records"
@@ -243,10 +243,10 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         assert SecretBox.NONCE_SIZE == 24
         assert self.send_nonce < 2**(8 * 24)
         assert len(record) < 2**(8 * 4)
-        nonce = unhexlify("%048x" % self.send_nonce)  # big-endian
+        nonce = unhexlify(f"{self.send_nonce:048x}")  # big-endian
         self.send_nonce += 1
         encrypted = self.send_box.encrypt(record, nonce)
-        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+        length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
         self.transport.write(length)
         self.transport.write(encrypted)
 
@@ -341,7 +341,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
         if self._consumer:
             raise RuntimeError(
-                "A consumer is already attached: %r" % self._consumer)
+                f"A consumer is already attached: {self._consumer!r}")
 
         # be aware of an ordering hazard: when we call the consumer's
         # .registerProducer method, they are likely to immediately call
@@ -442,7 +442,7 @@ class InboundConnectionFactory(protocol.ClientFactory):
             return "<-%s:%d" % (addr.hostname, addr.port)
         elif isinstance(addr, (address.IPv4Address, address.IPv6Address)):
             return "<-%s:%d" % (addr.host, addr.port)
-        return "<-%r" % addr
+        return f"<-{addr!r}"
 
     def buildProtocol(self, addr):
         p = self.protocol(self.owner, None, self.start,
@@ -695,7 +695,7 @@ class Common:
                     rh = RelayV1Hint(hints=tuple(sorted(relay_hints)))
                     self._our_relay_hints.add(rh)
             else:
-                log.msg("unknown hint type: %r" % (h, ))
+                log.msg(f"unknown hint type: {h!r}")
 
     def _send_this(self):
         assert self._transit_key

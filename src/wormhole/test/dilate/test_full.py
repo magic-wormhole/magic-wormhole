@@ -23,7 +23,7 @@ class L(Protocol):
         self.transport.write(b"hello\n")
 
     def dataReceived(self, data):
-        print("dataReceived: {}".format(data))
+        print(f"dataReceived: {data}")
         self.factory.d.callback(data)
 
     def connectionLost(self, why):
@@ -38,7 +38,7 @@ async def test_control(reactor, mailbox):
     w2 = wormhole.create(APPID, mailbox.url, reactor, _enable_dilate=True)
     w1.allocate_code()
     code = await w1.get_code()
-    print("code is: {}".format(code))
+    print(f"code is: {code}")
     w2.set_code(code)
     await doBoth(w1.get_verifier(), w2.get_verifier())
     print("connected")
@@ -132,7 +132,7 @@ async def test_reconnect(reactor, mailbox):
 
     def p_connected(p, index):
         protocols[index] = p
-        msg = "hello from %s\n" % index
+        msg = f"hello from {index}\n"
         p.transport.write(msg.encode("ascii"))
     f1.deferreds["connectionMade"].addCallback(p_connected, 1)
     f2.deferreds["connectionMade"].addCallback(p_connected, 2)
@@ -201,7 +201,7 @@ async def test_data_while_offline(reactor, mailbox):
 
     def p_connected(p, index):
         protocols[index] = p
-        msg = "hello from %s\n" % index
+        msg = f"hello from {index}\n"
         p.transport.write(msg.encode("ascii"))
     f1.deferreds["connectionMade"].addCallback(p_connected, 1)
     f2.deferreds["connectionMade"].addCallback(p_connected, 2)

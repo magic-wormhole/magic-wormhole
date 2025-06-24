@@ -454,4 +454,4 @@ def test_describe_inbound():
     assert describe_inbound(IPv6Address("TCP", "::1", 1234)) == \
                      "<-tcp:[::1]:1234"
     other = "none-of-the-above"
-    assert describe_inbound(other) == "<-%r" % other
+    assert describe_inbound(other) == f"<-{other!r}"
