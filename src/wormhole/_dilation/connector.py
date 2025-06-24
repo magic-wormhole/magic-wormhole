@@ -22,6 +22,7 @@ from .roles import LEADER
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
                       parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                       encode_hint)
+from .._status import DilationHint
 from ._noise import NoiseConnection
 
 
@@ -317,6 +318,7 @@ class Connector(object):
         # first, pull out all the relays, we'll connect to them later
         relays = []
         direct = defaultdict(list)
+        hint_status = []
         for h in hints:
             if isinstance(h, RelayV1Hint):
                 relays.append(h)
@@ -329,6 +331,7 @@ class Connector(object):
             for h in direct[p]:
                 if isinstance(h, TorTCPV1Hint) and not self._tor:
                     continue
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", True))
                 self._schedule_connection(delay, h, is_relay=False)
                 made_direct = True
                 # Make all direct connections immediately. Later, we'll change
@@ -360,6 +363,9 @@ class Connector(object):
         for r in relays:
             for h in r.hints:
                 self._schedule_connection(delay, h, is_relay=True)
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", False))
+
+        self._manager._hint_status(hint_status)
         # TODO:
         # if not contenders:
         #    raise TransitError("No contenders for connection")

@@ -251,7 +251,7 @@ Handshake = namedtuple("Handshake", [])
 KCM = namedtuple("KCM", [])
 Ping = namedtuple("Ping", ["ping_id"])  # ping_id is arbitrary 4-byte value
 Pong = namedtuple("Pong", ["ping_id"])
-Open = namedtuple("Open", ["seqnum", "scid"])  # seqnum is integer
+Open = namedtuple("Open", ["seqnum", "scid", "subprotocol"])  # seqnum is integer, subprotocol is str
 Data = namedtuple("Data", ["seqnum", "scid", "data"])
 Close = namedtuple("Close", ["seqnum", "scid"])  # scid is integer
 Ack = namedtuple("Ack", ["resp_seqnum"])  # resp_seqnum is integer
@@ -280,7 +280,8 @@ def parse_record(plaintext):
     if msgtype == T_OPEN:
         scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
-        return Open(seqnum, scid)
+        subprotocol = str(plaintext[9:], "utf8")
+        return Open(seqnum, scid, subprotocol)
     if msgtype == T_DATA:
         scid = from_be4(plaintext[1:5])
         seqnum = from_be4(plaintext[5:9])
@@ -299,26 +300,27 @@ def parse_record(plaintext):
 
 def encode_record(r):
     if isinstance(r, KCM):
-        return b"\x00"
+        return T_KCM
     if isinstance(r, Ping):
-        return b"\x01" + r.ping_id
+        return T_PING + r.ping_id
     if isinstance(r, Pong):
-        return b"\x02" + r.ping_id
+        return T_PONG + r.ping_id
     if isinstance(r, Open):
         assert isinstance(r.scid, int)
         assert isinstance(r.seqnum, int)
-        return b"\x03" + to_be4(r.scid) + to_be4(r.seqnum)
+        assert isinstance(r.subprotocol, str)
+        return T_OPEN + to_be4(r.scid) + to_be4(r.seqnum) + r.subprotocol.encode("utf8")
     if isinstance(r, Data):
         assert isinstance(r.scid, int)
         assert isinstance(r.seqnum, int)
-        return b"\x04" + to_be4(r.scid) + to_be4(r.seqnum) + r.data
+        return T_DATA + to_be4(r.scid) + to_be4(r.seqnum) + r.data
     if isinstance(r, Close):
         assert isinstance(r.scid, int)
         assert isinstance(r.seqnum, int)
-        return b"\x05" + to_be4(r.scid) + to_be4(r.seqnum)
+        return T_CLOSE + to_be4(r.scid) + to_be4(r.seqnum)
     if isinstance(r, Ack):
         assert isinstance(r.resp_seqnum, int)
-        return b"\x06" + to_be4(r.resp_seqnum)
+        return T_ACK + to_be4(r.resp_seqnum)
     raise TypeError(r)
 
 

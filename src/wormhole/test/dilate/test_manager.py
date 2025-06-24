@@ -11,11 +11,11 @@ from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
+                                  CanOnlyDilateOnceError,
                                   UnknownDilationMessageType,
                                   UnexpectedKCM,
                                   UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
-from ..._dilation.subchannel import _SubchannelAddress
 from .common import clear_mock_calls
 
 
@@ -52,22 +52,20 @@ def test_dilate_first():
     (dil, h) = make_dilator()
     side = object()
     m = mock.Mock()
-    eps = object()
-    m.get_endpoints = mock.Mock(return_value=eps)
+    m._api = eps = object()
     mm = mock.Mock(side_effect=[m])
     with mock.patch("wormhole._dilation.manager.Manager", mm), \
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
         eps1 = dil.dilate()
-        eps2 = dil.dilate()
+        with pytest.raises(CanOnlyDilateOnceError):
+            dil.dilate()
     assert eps1 is eps
-    assert eps1 is eps2
     assert mm.mock_calls == [mock.call(h.send, side, None,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
+                                       False, None, initial_mailbox_status=None)]
 
-    assert m.mock_calls == [mock.call.get_endpoints(),
-                                    mock.call.get_endpoints()]
-    clear_mock_calls(m)
+    assert m.mock_calls == []
 
     key = b"key"
     transit_key = object()
@@ -125,7 +123,6 @@ def test_dilate_later():
     assert m.mock_calls == [mock.call.got_dilation_key(transit_key),
                                     mock.call.got_wormhole_versions(wv),
                                     mock.call.received_dilation_message(dm1),
-                                    mock.call.get_endpoints(),
                                     ]
     clear_mock_calls(m)
 
@@ -148,7 +145,8 @@ async def test_peer_cannot_dilate():
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
-    d = eps.connect.connect(None)
+    f = mock.Mock()
+    d = eps.connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -161,7 +159,8 @@ async def test_disjoint_versions():
 
     dil.got_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
-    d = eps.connect.connect(None)
+    f = mock.Mock()
+    d = eps.connector_for("proto").connect(f)
     h.eq.flush_sync()
     with pytest.raises(OldPeerCannotDilateError):
         await d
@@ -178,7 +177,8 @@ def test_transit_relay():
                     return_value=side):
         dil.dilate(transit_relay_location)
     assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
-                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, False, None, initial_mailbox_status=None)]
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
+                                       False, None, initial_mailbox_status=None)]
 
 
 LEADER = "ff3456abcdef"
@@ -230,10 +230,10 @@ def make_manager(leader=True):
     alsoProvides(h.listen_ep, IStreamServerEndpoint)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
          mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
-         mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
+         mock.patch("wormhole._dilation.subchannel.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -254,21 +254,9 @@ def test_leader():
     assert h.send.mock_calls == []
     assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
-    scid0 = 0
-    sc0_peer_addr = _SubchannelAddress(scid0)
-    assert h.SubChannel.mock_calls == [
-        mock.call(scid0, m, m._host_addr, sc0_peer_addr),
-        ]
-    assert h.inbound.mock_calls == [
-        mock.call.set_subchannel_zero(scid0, h.sc0),
-        mock.call.set_listener_endpoint(h.listen_ep)
-        ]
+    assert h.SubChannel.mock_calls == []
+    assert h.inbound.mock_calls == []
     clear_mock_calls(h.inbound)
-
-    eps = m.get_endpoints()
-    assert hasattr(eps, "control")
-    assert hasattr(eps, "connect")
-    assert eps.listen == h.listen_ep
 
     m.got_wormhole_versions({"can-dilate": ["ged"]})
     assert h.send.mock_calls == [
@@ -326,11 +314,11 @@ def test_leader():
     # the Leader making a new outbound channel should get scid=1
     scid1 = 1
     assert m.allocate_subchannel_id() == scid1
-    r1 = Open(10, scid1)  # seqnum=10
+    r1 = Open(10, scid1, "proto")  # seqnum=10
     h.outbound.build_record = mock.Mock(return_value=r1)
-    m.send_open(scid1)
+    m.send_open(scid1, "proto")
     assert h.outbound.mock_calls == [
-        mock.call.build_record(Open, scid1),
+        mock.call.build_record(Open, scid1, "proto"),
         mock.call.queue_and_send_record(r1),
         ]
     clear_mock_calls(h.outbound)
@@ -363,7 +351,7 @@ def test_leader():
     # test that inbound records get acked and routed to Inbound
     h.inbound.is_record_old = mock.Mock(return_value=False)
     scid2 = 2
-    o200 = Open(200, scid2)
+    o200 = Open(200, scid2, "proto")
     m.got_record(o200)
     assert h.outbound.mock_calls == [
         mock.call.send_if_connected(Ack(200))
@@ -371,7 +359,7 @@ def test_leader():
     assert h.inbound.mock_calls == [
         mock.call.is_record_old(o200),
         mock.call.update_ack_watermark(200),
-        mock.call.handle_open(scid2),
+        mock.call.handle_open(scid2, "proto"),
         ]
     clear_mock_calls(h.outbound, h.inbound)
 
@@ -594,17 +582,14 @@ def test_ping_pong(observe_errors):
                      [mock.call.send_if_connected(Pong(1))]
     clear_mock_calls(h.outbound)
 
-    m.got_record(Pong(2))
-    # currently ignored, will eventually update a timer
-
     m.got_record("not recognized")
     e = observe_errors.flush(UnknownMessageType)
     assert len(e) == 1
     assert str(e[0].value) == "not recognized"
 
-    m.send_ping(3, lambda _: None)
+    m.send_ping(2, lambda _: None)
     assert h.outbound.mock_calls == \
-                     [mock.call.send_if_connected(Pong(3))]
+                     [mock.call.send_if_connected(Pong(2))]
     clear_mock_calls(h.outbound)
 
     # sort of low-level; what does this look like to API user?
@@ -613,12 +598,12 @@ def test_ping_pong(observe_errors):
 
     def cause_error(_):
         raise FakeError()
-    m.send_ping(4, cause_error)
+    m.send_ping(3, cause_error)
     assert h.outbound.mock_calls == \
-                     [mock.call.send_if_connected(Pong(4))]
+                     [mock.call.send_if_connected(Pong(3))]
     clear_mock_calls(h.outbound)
     with pytest.raises(FakeError):
-        m.got_record(Pong(4))
+        m.got_record(Pong(3))
 
 
 def test_subchannel():

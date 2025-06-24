@@ -1,4 +1,5 @@
-from attrs import frozen
+from attrs import frozen, Factory
+from typing import List
 
 
 @frozen
@@ -146,6 +147,12 @@ class WormholeStatus(object):
 
 
 @frozen
+class DilationHint:
+    url: str
+    is_direct: bool
+
+
+@frozen
 class DilationStatus(object):
     """
     Represents the current status of a Dilated wormhole
@@ -163,3 +170,6 @@ class DilationStatus(object):
 
     # communication status with peer
     peer_connection: PeerConnection = NoPeer()
+
+    # available methods to get to peer
+    hints: List[DilationHint] = Factory(list)

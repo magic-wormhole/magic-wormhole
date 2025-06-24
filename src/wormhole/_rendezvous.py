@@ -79,7 +79,12 @@ class RendezvousConnector(object):
         self._trace = None
         self._ws = None
         f = WSFactory(self, self._url)
-        f.setProtocolOptions(autoPingInterval=60, autoPingTimeout=600)
+        # kind-of match what Dilation does for peer connections;
+        # there, we send a ping every 30s and give up on the
+        # connection if two fail in a row -- autobahn doesn't give us
+        # _quite_ those same hooks, but we time out in 60s which will
+        # be similar behavior.
+        f.setProtocolOptions(autoPingInterval=30, autoPingTimeout=60)
         ep = self._make_endpoint(self._url)
 
         # ideally, Twisted's ClientService would have an API to tell
@@ -276,6 +281,8 @@ class RendezvousConnector(object):
         payload = dict_to_bytes(kwargs)
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
+        # might be nice to have a "debug" hook here to track all
+        # messages sent to the mailbox, with timestamps
 
     def _response_handle_allocated(self, msg):
         nameplate = msg["nameplate"]

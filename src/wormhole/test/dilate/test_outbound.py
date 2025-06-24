@@ -44,8 +44,8 @@ def make_outbound():
 def test_build_record():
     o, m, c = make_outbound()
     scid1 = b"scid"
-    assert o.build_record(Open, scid1) == \
-                     Open(seqnum=0, scid=b"scid")
+    assert o.build_record(Open, scid1, b"proto") == \
+                     Open(seqnum=0, scid=b"scid", subprotocol=b"proto")
     assert o.build_record(Data, scid1, b"dataaa") == \
                      Data(seqnum=1, scid=b"scid", data=b"dataaa")
     assert o.build_record(Close, scid1) == \
@@ -56,7 +56,7 @@ def test_build_record():
 def test_outbound_queue():
     o, m, c = make_outbound()
     scid1 = b"scid"
-    r1 = o.build_record(Open, scid1)
+    r1 = o.build_record(Open, scid1, b"proto")
     r2 = o.build_record(Data, scid1, b"data1")
     r3 = o.build_record(Data, scid1, b"data2")
     o.queue_and_send_record(r1)
@@ -93,7 +93,7 @@ def test_duplicate_registerProducer():
 def test_connection_send_queued_unpaused():
     o, m, c = make_outbound()
     scid1 = b"scid"
-    r1 = o.build_record(Open, scid1)
+    r1 = o.build_record(Open, scid1, b"proto")
     r2 = o.build_record(Data, scid1, b"data1")
     r3 = o.build_record(Data, scid1, b"data2")
     o.queue_and_send_record(r1)
