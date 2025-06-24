@@ -3,7 +3,7 @@ class _Role(object):
         self._which = which
 
     def __repr__(self):
-        return "Role(%s)" % self._which
+        return f"Role({self._which})"
 
 
 LEADER, FOLLOWER = _Role("LEADER"), _Role("FOLLOWER")

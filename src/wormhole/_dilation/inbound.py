@@ -69,7 +69,7 @@ class Inbound(object):
         log.msg("inbound.handle_open", scid, subprotocol)
         if scid in self._open_subchannels:
             log.err(DuplicateOpenError(
-                "received duplicate OPEN for {}".format(scid)))
+                f"received duplicate OPEN for {scid}"))
             return
         peer_addr = SubchannelAddress(subprotocol)
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
@@ -81,7 +81,7 @@ class Inbound(object):
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(DataForMissingSubchannelError(
-                "received DATA for non-existent subchannel {}".format(scid)))
+                f"received DATA for non-existent subchannel {scid}"))
             return
         sc.remote_data(data)
 
@@ -90,7 +90,7 @@ class Inbound(object):
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(CloseForMissingSubchannelError(
-                "received CLOSE for non-existent subchannel {}".format(scid)))
+                f"received CLOSE for non-existent subchannel {scid}"))
             return
         sc.remote_close()
 

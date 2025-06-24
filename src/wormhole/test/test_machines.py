@@ -46,7 +46,7 @@ class Dummy:
 
     def mock(self, meth):
         def log(*args):
-            self.events.append(("%s.%s" % (self.name, meth), ) + args)
+            self.events.append((f"{self.name}.{meth}", ) + args)
             return self.retval
 
         setattr(self, meth, log)

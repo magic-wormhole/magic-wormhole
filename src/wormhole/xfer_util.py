@@ -57,7 +57,7 @@ def receive(reactor,
     data = json.loads(data.decode("utf-8"))
     offer = data.get('offer', None)
     if not offer:
-        raise Exception("Do not understand response: {}".format(data))
+        raise Exception(f"Do not understand response: {data}")
     msg = None
     if 'message' in offer:
         msg = offer['message']
@@ -69,7 +69,7 @@ def receive(reactor,
             }).encode("utf-8"))
 
     else:
-        raise Exception("Unknown offer type: {}".format(offer.keys()))
+        raise Exception(f"Unknown offer type: {offer.keys()}")
 
     yield wh.close()
     return msg
@@ -130,4 +130,4 @@ def send(reactor,
     if answer:
         return None
     else:
-        raise Exception("Unknown answer: {}".format(data))
+        raise Exception(f"Unknown answer: {data}")
