@@ -133,12 +133,12 @@ class Sender:
 
         code = yield w.get_code()
         if not args.zeromode:
-            print("Wormhole code is: %s" % code, file=args.stderr)
+            print(f"Wormhole code is: {code}", file=args.stderr)
             other_cmd += " " + code
 
         if not args.zeromode and args.qr:
             qr = QRCode(border=1)
-            qr.add_data("wormhole-transfer:%s" % code)
+            qr.add_data(f"wormhole-transfer:{code}")
             qr.print_ascii(out=args.stderr)
 
         print("On the other computer, please run:", file=args.stderr)
@@ -236,7 +236,7 @@ class Sender:
             recognized = False
             if "error" in them_d:
                 raise TransferError(
-                    "remote error, transfer abandoned: %s" % them_d["error"])
+                    f"remote error, transfer abandoned: {them_d['error']}")
             if "transit" in them_d:
                 recognized = True
                 yield self._handle_transit(them_d["transit"])
@@ -248,12 +248,12 @@ class Sender:
                 yield self._handle_answer(them_d["answer"])
                 return None
             if not recognized:
-                log.msg("unrecognized message %r" % (them_d, ))
+                log.msg(f"unrecognized message {them_d!r}")
 
     def _check_verifier(self, w, verifier_bytes):
         verifier = bytes_to_hexstr(verifier_bytes)
         while True:
-            ok = input("Verifier %s. ok? (yes/no): " % verifier)
+            ok = input(f"Verifier {verifier}. ok? (yes/no): ")
             if ok.lower() == "yes":
                 break
             if ok.lower() == "no":
@@ -279,7 +279,7 @@ class Sender:
 
         if text is not None:
             print(
-                "Sending text message (%s)" % naturalsize(len(text)),
+                f"Sending text message ({naturalsize(len(text))})",
                 file=args.stderr)
             offer = {"message": text}
             fd_to_send = None
@@ -332,7 +332,7 @@ class Sender:
         what = os.path.realpath(what)
         if not os.path.exists(what):
             raise TransferError(
-                "Cannot send: no file/directory named '%s'" % args.what)
+                f"Cannot send: no file/directory named '{args.what}'")
 
         if os.path.isfile(what):
             # we're sending a file
@@ -342,8 +342,7 @@ class Sender:
                 "filesize": filesize,
             }
             print(
-                "Sending %s file named '%s'" % (naturalsize(filesize),
-                                                 basename),
+                f"Sending {naturalsize(filesize)} file named '{basename}'",
                 file=args.stderr)
             fd_to_send = open(what, "rb")
             return offer, fd_to_send
@@ -363,11 +362,11 @@ class Sender:
                         recurse=False,
                     )
                 except OSError as e:
-                    errmsg = "{}: {}".format(filepath, e.strerror)
+                    errmsg = f"{filepath}: {e.strerror}"
                     if not self._args.ignore_unsendable_files:
                         raise UnsendableFileError(errmsg)
                     print(
-                        "{} (ignoring error)".format(errmsg),
+                        f"{errmsg} (ignoring error)",
                         file=args.stderr
                     )
 
@@ -395,14 +394,13 @@ class Sender:
                 "filesize": filesize,
             }
             print(
-                "Sending %s block device named '%s'" % (naturalsize(filesize),
-                                                         basename),
+                f"Sending {naturalsize(filesize)} block device named '{basename}'",
                 file=args.stderr)
 
             fd_to_send.seek(0)
             return offer, fd_to_send
 
-        raise TypeError("'%s' is neither file nor directory" % args.what)
+        raise TypeError(f"'{args.what}' is neither file nor directory")
 
     @inlineCallbacks
     def _handle_answer(self, them_answer):
@@ -410,7 +408,7 @@ class Sender:
             if them_answer["message_ack"] == "ok":
                 print("text message sent", file=self._args.stderr)
                 return None
-            raise TransferError("error sending text: %r" % (them_answer, ))
+            raise TransferError(f"error sending text: {them_answer!r}")
 
         if them_answer.get("file_ack") != "ok":
             raise TransferError("ambiguous response from remote, "
@@ -434,7 +432,7 @@ class Sender:
         self._timing.add("transit connected")
         # record_pipe should implement IConsumer, chunks are just records
         stderr = self._args.stderr
-        print("Sending (%s).." % record_pipe.describe(), file=stderr)
+        print(f"Sending ({record_pipe.describe()})..", file=stderr)
 
         hasher = hashlib.sha256()
         progress = tqdm(
@@ -471,7 +469,7 @@ class Sender:
             ok = ack.get("ack", "")
             if ok != "ok":
                 t.detail(ack="failed")
-                raise TransferError("Transfer failed (remote says: %r)" % ack)
+                raise TransferError(f"Transfer failed (remote says: {ack!r})")
             if "sha256" in ack:
                 if ack["sha256"] != expected_hex:
                     t.detail(datahash="failed")

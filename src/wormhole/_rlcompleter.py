@@ -43,7 +43,7 @@ class CodeInputter(object):
         except Exception as e:
             # completer exceptions are normally silently discarded, which
             # makes debugging challenging
-            print("completer exception: %s" % e)
+            print(f"completer exception: {e}")
             traceback.print_exc()
             raise
 
@@ -54,14 +54,14 @@ class CodeInputter(object):
         if state == 0:
             debug("completer starting (%s) (state=0) (ct=%d)" % (text, ct))
             self._matches = self._commit_and_build_completions(text)
-            debug(" matches:", " ".join(["'%s'" % m for m in self._matches]))
+            debug(" matches:", " ".join([f"'{m}'" for m in self._matches]))
         else:
             debug(" s%d t'%s' ct=%d" % (state, text, ct))
 
         if state >= len(self._matches):
             debug("  returning None")
             return None
-        debug("  returning '%s'" % self._matches[state])
+        debug(f"  returning '{self._matches[state]}'")
         return self._matches[state]
 
     def _commit_and_build_completions(self, text):
@@ -99,7 +99,7 @@ class CodeInputter(object):
         else:  # "123-" or "123-supp"
             # time to commit to this nameplate, if they haven't already
             if not self._committed_nameplate:
-                debug("  choose_nameplate(%s)" % nameplate)
+                debug(f"  choose_nameplate({nameplate})")
                 self.bcft(ih.choose_nameplate, nameplate)
                 self._committed_nameplate = nameplate
 
@@ -121,7 +121,7 @@ class CodeInputter(object):
                 # improve the user experience.
                 self.bcft(ih.when_wordlist_is_available)  # blocks on CLAIM
             # and we're completing on words now
-            debug("  getting words (%s)" % (words, ))
+            debug(f"  getting words ({words})")
             completions = [
                 nameplate + "-" + c
                 for c in self.bcft(ih.get_word_completions, words)
@@ -144,9 +144,9 @@ class CodeInputter(object):
                     "nameplate (%s-) already entered, cannot go back" %
                     self._committed_nameplate)
         else:
-            debug("  choose_nameplate(%s)" % nameplate)
+            debug(f"  choose_nameplate({nameplate})")
             self.bcft(self._input_helper.choose_nameplate, nameplate)
-        debug("  choose_words(%s)" % words)
+        debug(f"  choose_words({words})")
         self.bcft(self._input_helper.choose_words, words)
 
 

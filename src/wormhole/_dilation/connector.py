@@ -22,6 +22,7 @@ from .roles import LEADER
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
                       parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                       encode_hint)
+from .._status import DilationHint
 from ._noise import NoiseConnection
 
 
@@ -317,6 +318,7 @@ class Connector(object):
         # first, pull out all the relays, we'll connect to them later
         relays = []
         direct = defaultdict(list)
+        hint_status = []
         for h in hints:
             if isinstance(h, RelayV1Hint):
                 relays.append(h)
@@ -329,6 +331,7 @@ class Connector(object):
             for h in direct[p]:
                 if isinstance(h, TorTCPV1Hint) and not self._tor:
                     continue
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", True))
                 self._schedule_connection(delay, h, is_relay=False)
                 made_direct = True
                 # Make all direct connections immediately. Later, we'll change
@@ -360,6 +363,9 @@ class Connector(object):
         for r in relays:
             for h in r.hints:
                 self._schedule_connection(delay, h, is_relay=True)
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", False))
+
+        self._manager._hint_status(hint_status)
         # TODO:
         # if not contenders:
         #    raise TransitError("No contenders for connection")
@@ -406,7 +412,7 @@ class OutboundConnectionFactory(ClientFactory, object):
     _description = attrib()
 
     def __repr__(self):
-        return "OutboundConnectionFactory(%s %s)" % (self._connector._role, self._description)
+        return f"OutboundConnectionFactory({self._connector._role} {self._description})"
 
     def buildProtocol(self, addr):
         p = self._connector.build_protocol(addr, self._description)
@@ -423,7 +429,7 @@ def describe_inbound(addr):
         return "<-tcp:%s:%d" % (addr.host, addr.port)
     elif isinstance(addr, IPv6Address):
         return "<-tcp:[%s]:%d" % (addr.host, addr.port)
-    return "<-%r" % addr
+    return f"<-{addr!r}"
 
 
 @attrs(repr=False)
@@ -431,7 +437,7 @@ class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def __repr__(self):
-        return "InboundConnectionFactory(%s)" % (self._connector._role)
+        return f"InboundConnectionFactory({self._connector._role})"
 
     def buildProtocol(self, addr):
         description = describe_inbound(addr)

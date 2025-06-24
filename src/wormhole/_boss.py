@@ -126,8 +126,7 @@ class Boss(object):
                      file):
         if new_state:
             print(
-                "%s.%s[%s].%s -> [%s]" % (client_name, machine, old_state,
-                                          input, new_state),
+                f"{client_name}.{machine}[{old_state}].{input} -> [{new_state}]",
                 file=file)
         else:
             # the RendezvousConnector emits message events as if
@@ -135,11 +134,11 @@ class Boss(object):
             # and new_state are empty strings. "input" is one of
             # R.connected, R.rx(type phase+side), R.tx(type
             # phase), R.lost .
-            print("%s.%s.%s" % (client_name, machine, input), file=file)
+            print(f"{client_name}.{machine}.{input}", file=file)
         file.flush()
 
         def output_tracer(output):
-            print(" %s.%s.%s()" % (client_name, machine, output), file=file)
+            print(f" {client_name}.{machine}.{output}()", file=file)
             file.flush()
 
         return output_tracer
@@ -231,14 +230,15 @@ class Boss(object):
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None):
-        # returns EndpointRecord; see wormhole.dilate() docs
+    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
+        # returns DilatedWormhole instance; see wormhole.dilate() docs
         return self._D.dilate(
             transit_relay_location,
             no_listen=no_listen,
             wormhole_status=self._current_wormhole_status,
             status_update=on_status_update,
             ping_interval=ping_interval,
+            expected_subprotocols=expected_subprotocols,
         )
 
     @m.input()
@@ -310,7 +310,7 @@ class Boss(object):
         else:
             # Ignore unrecognized phases, for forwards-compatibility. Use
             # log.err so tests will catch surprises.
-            log.err(_UnknownPhaseError("received unknown phase '%s'" % phase))
+            log.err(_UnknownPhaseError(f"received unknown phase '{phase}'"))
 
     @m.input()
     def _got_version(self, plaintext):

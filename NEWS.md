@@ -7,6 +7,10 @@ User-visible changes in "magic-wormhole":
 * Remove 'u' prefix to strings (#636 @sblondon)
 * Use classes directly instead of type() calls (#637 @sblondon)
 * Doc: remove details about python2 types (#638 @sblondon)
+* Replace formatted strings to f-strings (#642 @sblondon)
+* INCOMPAT: the Dilation extension now enables composition of
+  subchannels, giving each a named subprotocol along with a new API to
+  support it (also removes the generic "control" subchannel) (@meejah @shapr)
 * Improve ping-timeouts on Mailbox connection (#646 @meejah)
 
 

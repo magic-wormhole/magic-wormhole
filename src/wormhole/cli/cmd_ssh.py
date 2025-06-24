@@ -26,17 +26,17 @@ def find_public_key(hint=None):
         hint = expanduser('~/.ssh/')
     else:
         if not exists(hint):
-            raise PubkeyError("Can't find '{}'".format(hint))
+            raise PubkeyError(f"Can't find '{hint}'")
 
     pubkeys = [f for f in os.listdir(hint) if f.endswith('.pub')]
     if len(pubkeys) == 0:
-        raise PubkeyError("No public keys in '{}'".format(hint))
+        raise PubkeyError(f"No public keys in '{hint}'")
     elif len(pubkeys) > 1:
         got_key = False
         while not got_key:
             ans = click.prompt(
                 "Multiple public-keys found:\n" +
-                "\n".join(["  {}: {}".format(a, b)
+                "\n".join([f"  {a}: {b}"
                            for a, b in enumerate(pubkeys)]) +
                 "\nSend which one?"
             )
@@ -81,28 +81,28 @@ def invite(cfg, reactor=reactor):
     def on_code_created(code):
         print("Now tell the other user to run:")
         print()
-        print("wormhole ssh accept {}".format(code))
+        print(f"wormhole ssh accept {code}")
         print()
 
     if cfg.ssh_user is None:
         ssh_path = expanduser('~/.ssh/')
     else:
-        ssh_path = expanduser('~{}/.ssh/'.format(cfg.ssh_user))
+        ssh_path = expanduser(f'~{cfg.ssh_user}/.ssh/')
     auth_key_path = join(ssh_path, 'authorized_keys')
     if not exists(auth_key_path):
-        print("Note: '{}' not found; will be created".format(auth_key_path))
+        print(f"Note: '{auth_key_path}' not found; will be created")
         if not exists(ssh_path):
-            print("      '{}' doesn't exist either".format(ssh_path))
+            print(f"      '{ssh_path}' doesn't exist either")
     else:
         try:
             open(auth_key_path, 'a').close()
         except OSError:
-            print("No write permission on '{}'".format(auth_key_path))
+            print(f"No write permission on '{auth_key_path}'")
             return
     try:
         os.listdir(ssh_path)
     except OSError:
-        print("Can't read '{}'".format(ssh_path))
+        print(f"Can't read '{ssh_path}'")
         return
 
     pubkey = yield xfer_util.receive(
@@ -124,6 +124,5 @@ def invite(cfg, reactor=reactor):
         if not exists(ssh_path):
             os.mkdir(ssh_path, mode=0o700)
     with open(auth_key_path, 'a', 0o600) as f:
-        f.write('{}\n'.format(pubkey.strip()))
-    print("Appended key type='{kind}' id='{key_id}' to '{auth_file}'".format(
-        kind=kind, key_id=keyid, auth_file=auth_key_path))
+        f.write(f'{pubkey.strip()}\n')
+    print(f"Appended key type='{kind}' id='{keyid}' to '{auth_key_path}'")

@@ -19,6 +19,7 @@ from ..._dilation.connector import (Connector,
                                     InboundConnectionFactory,
                                     PROLOGUE_LEADER, PROLOGUE_FOLLOWER,
                                     )
+from ..._status import DilationHint
 from .common import clear_mock_calls
 
 
@@ -180,7 +181,7 @@ def test_basic():
     c.got_hints([hint])
 
     # received hints don't get published
-    assert h.manager.mock_calls == []
+    assert h.manager.mock_calls == [mock.call._hint_status([DilationHint(url='foo:55', is_direct=True)])]
     # they just schedule a connection
     assert c._schedule_connection.mock_calls == \
                      [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
@@ -317,16 +318,22 @@ def test_initial_relay():
     c, h = make_connector(listen=False, relay="tcp:foo:55", role=roles.LEADER)
     c._schedule_connection = mock.Mock()
     c.start()
-    assert h.manager.mock_calls == \
-                     [mock.call.send_hints([{"type": "relay-v1",
-                                             "hints": [
-                                                 {"type": "direct-tcp-v1",
-                                                  "hostname": "foo",
-                                                  "port": 55,
-                                                  "priority": 0.0
-                                                  },
-                                                 ],
-                                             }])]
+    assert h.manager.mock_calls == [
+        mock.call.send_hints([
+            {
+                "type": "relay-v1",
+                "hints": [
+                    {
+                        "type": "direct-tcp-v1",
+                        "hostname": "foo",
+                        "port": 55,
+                        "priority": 0.0
+                    },
+                ],
+            },
+        ]),
+        mock.call._hint_status([DilationHint(url='foo:55', is_direct=False)]),
+    ]
     assert c._schedule_connection.mock_calls == \
                      [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
                                 is_relay=True)]
@@ -338,7 +345,9 @@ def test_tor_no_manager():
     c.start()
     hint = TorTCPV1Hint("foo", 55, 0.0)
     c.got_hints([hint])
-    assert h.manager.mock_calls == []
+    assert h.manager.mock_calls == [
+        mock.call._hint_status([]),
+    ]
     assert c._schedule_connection.mock_calls == []
 
 def test_tor_with_manager():
@@ -454,4 +463,4 @@ def test_describe_inbound():
     assert describe_inbound(IPv6Address("TCP", "::1", 1234)) == \
                      "<-tcp:[::1]:1234"
     other = "none-of-the-above"
-    assert describe_inbound(other) == "<-%r" % other
+    assert describe_inbound(other) == f"<-{other!r}"

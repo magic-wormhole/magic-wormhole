@@ -125,7 +125,7 @@ def test_missing_file(tmpdir_factory):
 
     with pytest.raises(TransferError) as e:
         build_offer(cfg)
-    assert str(e.value) == "Cannot send: no file/directory named '%s'" % filename
+    assert str(e.value) == f"Cannot send: no file/directory named '{filename}'"
 
 
 def _do_test_directory(parent_dir, addslash):
@@ -134,7 +134,7 @@ def _do_test_directory(parent_dir, addslash):
     ponies = [str(i) for i in range(5)]
     for p in ponies:
         with open(os.path.join(parent_dir, send_dir, p), "wb") as f:
-            f.write(("%s ponies\n" % p).encode("ascii"))
+            f.write(f"{p} ponies\n".encode("ascii"))
 
     send_dir_arg = send_dir
     if addslash:
@@ -161,7 +161,7 @@ def _do_test_directory(parent_dir, addslash):
         assert list(sorted(ponies)) == list(sorted(zipnames))
         for name in zipnames:
             contents = zf.open(name, "r").read()
-            assert ("%s ponies\n" % name).encode("ascii") == \
+            assert (f"{name} ponies\n").encode("ascii") == \
                              contents
 
 
@@ -196,7 +196,7 @@ def test_unknown(request, tmpdir_factory):
 
     with pytest.raises(TypeError) as e:
         build_offer(cfg)
-    assert str(e.value) == "'%s' is neither file nor directory" % filename
+    assert str(e.value) == f"'{filename}' is neither file nor directory"
 
 
 @pytest.mark.skipif(not hasattr(os, 'symlink'), reason="host OS does not support symlinks")
@@ -271,8 +271,8 @@ async def _find_utf8_locale():
     """
     (out, err, rc) = await getProcessOutputAndValue("locale", ["-a"])
     if rc != 0:
-        log.msg("error running 'locale -a', rc=%s" % (rc, ))
-        log.msg("stderr: %s" % (err, ))
+        log.msg(f"error running 'locale -a', rc={rc}")
+        log.msg(f"stderr: {err}")
         return None
     out = out.decode("utf-8")  # make sure we get a string
     utf8_locales = {}
@@ -311,11 +311,10 @@ def wormhole_executable():
     wormhole = locations[0]
     if (os.path.dirname(os.path.abspath(wormhole)) != os.path.dirname(
             sys.executable)):
-        log.msg("locations: %s" % (locations, ))
-        log.msg("sys.executable: %s" % (sys.executable, ))
+        log.msg(f"locations: {locations}")
+        log.msg(f"sys.executable: {sys.executable}")
         return pytest.skip(
-            "found the wrong 'wormhole' in $PATH: %s %s" %
-            (wormhole, sys.executable))
+            f"found the wrong 'wormhole' in $PATH: {wormhole} {sys.executable}")
     return wormhole
 
 
@@ -372,11 +371,11 @@ async def test_version(wormhole_executable):
         wormhole_executable, ["--version"], env=os.environ)
     err = err.decode("utf-8")
     if "DistributionNotFound" in err:
-        log.msg("stderr was %s" % err)
+        log.msg(f"stderr was {err}")
         last = err.strip().split("\n")[-1]
-        assert False, "wormhole not runnable: %s" % last
+        assert False, f"wormhole not runnable: {last}"
     ver = out.decode("utf-8") or err
-    assert ver.strip() == "magic-wormhole {}".format(__version__)
+    assert ver.strip() == f"magic-wormhole {__version__}"
     assert rc == 0
 
 
@@ -676,7 +675,7 @@ async def _do_test(
             name=send_filename,
             NL=NL)
         assert expected in send_stderr
-        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert f"Wormhole code is: {send_cfg.code}{NL}" in send_stderr
         expected = ("On the other computer, please run:{NL}{NL}"
                     "wormhole receive {code}{NL}{NL}").format(code=send_cfg.code, NL=NL)
         assert expected in send_stderr
@@ -686,7 +685,7 @@ async def _do_test(
     elif mode == "directory":
         assert "Sending directory" in send_stderr
         assert "named 'testdir'" in send_stderr
-        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert f"Wormhole code is: {send_cfg.code}{NL}" in send_stderr
         assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
 
         assert "File sent.. waiting for confirmation{NL}Confirmation received. Transfer complete.{NL}".format(NL=NL) in send_stderr
@@ -723,7 +722,7 @@ async def _do_test(
         want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                 .format(name=receive_dirname))
         assert re.search(want, receive_stderr), (want, receive_stderr)
-        assert "Received files written to {name!r}".format(name=receive_dirname) in receive_stderr
+        assert f"Received files written to {receive_dirname!r}" in receive_stderr
         fn = os.path.join(receive_dir, receive_dirname)
         assert os.path.exists(fn), fn
         for i in range(5):
@@ -901,29 +900,29 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
             size=naturalsize(size),
             name=send_filename,
             NL=NL) in send_stderr
-        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert f"Wormhole code is: {send_cfg.code}{NL}" in send_stderr
         assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
     elif mode == "directory":
         assert "Sending directory" in send_stderr
         assert "named 'testdir'" in send_stderr
-        assert "Wormhole code is: {code}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
+        assert f"Wormhole code is: {send_cfg.code}{NL}" in send_stderr
         assert "On the other computer, please run:{NL}{NL}wormhole receive {code}{NL}{NL}".format(code=send_cfg.code, NL=NL) in send_stderr
 
     # check receiver
     if mode == "file":
         assert "Received file written to " not in receive_stderr
         if failmode == "noclobber":
-            assert "Error: refusing to overwrite existing 'testfile'{NL}".format(NL=NL) in receive_stderr
+            assert f"Error: refusing to overwrite existing 'testfile'{NL}" in receive_stderr
         else:
-            assert "Error: insufficient free space (0B) for file ({size:d}B){NL}".format(NL=NL, size=size) in receive_stderr
+            assert f"Error: insufficient free space (0B) for file ({size:d}B){NL}" in receive_stderr
     elif mode == "directory":
-        assert "Received files written to {name!r}".format(name=receive_name) not in receive_stderr
+        assert f"Received files written to {receive_name!r}" not in receive_stderr
         # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
         #        .format(name=receive_name))
         # self.failUnless(re.search(want, receive_stderr),
         #                (want, receive_stderr))
         if failmode == "noclobber":
-            assert "Error: refusing to overwrite existing 'testdir'{NL}".format(NL=NL) in receive_stderr
+            assert f"Error: refusing to overwrite existing 'testdir'{NL}" in receive_stderr
         else:
             assert (
                 "Error: "

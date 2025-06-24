@@ -176,7 +176,7 @@ def test_describe_hint_obj():
     assert d(TorTCPV1Hint("host", 1234, 0.0), False, False) == \
                      "->tor:host:1234"
     assert d(UnknownHint("stuff"), False, False) == \
-                     "->%s" % str(UnknownHint("stuff"))
+                     f"->{str(UnknownHint('stuff'))}"
 
 def test_encode_hint():
     e = encode_hint

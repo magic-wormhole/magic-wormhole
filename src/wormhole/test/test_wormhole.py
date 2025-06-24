@@ -516,7 +516,7 @@ async def test_wrong_password_with_spaces(reactor, mailbox):
     badcode = "4 oops spaces"
     with pytest.raises(KeyFormatError) as ex:
         w.set_code(badcode)
-    expected_msg = "Code '%s' contains spaces." % (badcode, )
+    expected_msg = f"Code '{badcode}' contains spaces."
     assert expected_msg == str(ex.value)
     with pytest.raises(LonelyError):
         await w.close()
@@ -528,7 +528,7 @@ async def test_wrong_password_with_leading_space(reactor, mailbox):
     badcode = " 4-oops-space"
     with pytest.raises(KeyFormatError) as ex:
         w.set_code(badcode)
-    expected_msg = "Code '%s' contains spaces." % (badcode, )
+    expected_msg = f"Code '{badcode}' contains spaces."
     assert expected_msg == str(ex.value)
     with pytest.raises(LonelyError):
         await w.close()

@@ -57,7 +57,7 @@ async def test_bad_prologue():
 def _test_no_relay(role):
     c, n, connector, t, eq = make_con(role)
     t_kcm = KCM()
-    t_open = Open(seqnum=1, scid=0x11223344)
+    t_open = Open(seqnum=1, scid=0x11223344, subprotocol="proto")
     t_ack = Ack(resp_seqnum=2)
     n.decrypt = mock.Mock(side_effect=[
         encode_record(t_kcm),
@@ -241,7 +241,7 @@ def test_relay_bad_response():
 def test_follower_combined():
     c, n, connector, t, eq = make_con(FOLLOWER)
     t_kcm = KCM()
-    t_open = Open(seqnum=1, scid=0x11223344)
+    t_open = Open(seqnum=1, scid=0x11223344, subprotocol="proto")
     n.decrypt = mock.Mock(side_effect=[
         encode_record(t_kcm),
         encode_record(t_open),

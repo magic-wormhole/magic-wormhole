@@ -1,20 +1,18 @@
 import os
 from collections import deque
-from collections.abc import Sequence
-from attr import attrs, attrib, evolve
+from attr import attrs, attrib, evolve, define, field
 from attr.validators import instance_of, optional
 from automat import MethodicalMachine
 from zope.interface import implementer
-from twisted.internet.defer import Deferred
-from twisted.internet.interfaces import (IStreamClientEndpoint,
-                                         IStreamServerEndpoint)
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
 from .._key import derive_key
-from .subchannel import (SubChannel, _SubchannelAddress, _WormholeAddress,
-                         ControlEndpoint, SubchannelConnectorEndpoint,
+from .subchannel import (_WormholeAddress,
+                         SubchannelConnectorEndpoint,
+                         SubchannelDemultiplex,
                          SubchannelListenerEndpoint)
 from .connector import Connector
 from .._hints import parse_hint
@@ -55,36 +53,75 @@ class UnknownMessageType(Exception):
     pass
 
 
+@define
+class DilatedWormhole(object):
+    """
+    Represents actions available once a wormhole has been successfully dilated.
+
+    New subchannels to the other peer may be established by first
+    obtaining an `IStreamClientEndpoint` from the
+    `subprotocol_connector_for("subproto-name")` method. Note that
+    ``.connect()`` on these endpoints will ``.errback()`` if Dilation
+    cannot be established.
+    """
+
+    _manager: IDilationManager = field()
+
+    @inlineCallbacks
+    def when_dilated(self):
+        yield self._manager._main_channel.when_fired()
+        return None
+
+    def listener_for(self, subprotocol_name):
+        """
+        :returns: an IStreamServerEndpoint that may be used to listen for
+           the creation of new subchannels with a particular name.
+
+        Once ``.listen()`` is called on the returned endpoint, every
+        new subchannel with this name will have ``.buildProtocol()``
+        called, that is what you'd expect Twisted to do.
+
+        (Can we errback something here if we entirely failed to dilate?)
+        --> probably only if we make this API async?
+        """
+        return SubchannelListenerEndpoint(
+            subprotocol_name,
+            self._manager,
+        )
+
+    def connector_for(self, subprotocol_name):
+        """
+        :returns: an IStreamClientEndpoint that may be used to create new
+            subchannels using a specific kind of subprotocol
+
+        Once ``.connect()`` is called on the returned endpoint, a new
+        subchannel is opened from this peer to the other peer. The
+        other peer sees an OPEN and instantiates a listener from the
+        Factory it was given during creation of the wormhole.
+        """
+        return SubchannelConnectorEndpoint(
+            subprotocol_name,
+            self._manager,
+            self._manager._host_addr,
+            self._manager._eventual_queue,
+        )
+
+
 @attrs
-class EndpointRecord(Sequence):
-    """
-    Endpoints to interact with a particular Dilation session.
+class Once(object):
+    _errtype = attrib()
 
-    The `control` client-style endpoint will receive any message on
-    the logical "control" channel via its `dataReceived()` method. Any
-    such messages are specified by the applications using the Dilation
-    channel.
+    def __attrs_post_init__(self):
+        self._called = False
 
-    The `connect` client-style endpoint allow "this" peer of the
-    Dilation session to open a subchannel (which will contact the
-    other peer via its `listen` endpoint).
+    def __call__(self):
+        if self._called:
+            raise self._errtype()
+        self._called = True
 
-    The `listen` server-style endpoint creates a new protocol whenever
-    a subchannel is opened by the "other" peer interacting with their
-    `connect` endpoint.
 
-    Any meaning attached to subchannels opening or closing is up to
-    the applications using the Dilation channel.
-    """
-    control = attrib(validator=provides(IStreamClientEndpoint))
-    connect = attrib(validator=provides(IStreamClientEndpoint))
-    listen = attrib(validator=provides(IStreamServerEndpoint))
-
-    def __len__(self):
-        return 3
-
-    def __getitem__(self, n):
-        return (self.control, self.connect, self.listen)[n]
+class CanOnlyDilateOnceError(Exception):
+    pass
 
 
 def make_side():
@@ -277,6 +314,7 @@ class Manager(object):
     _cooperator = attrib(repr=False)
     _acceptable_versions = attrib()
     _ping_interval = attrib(validator=instance_of(float))
+    _expected_subprotocols = attrib()
     # TODO: can this validator work when the parameter is optional?
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
@@ -287,6 +325,8 @@ class Manager(object):
     _timing = None  # TODO
     _next_subchannel_id = None  # initialized in choose_role
     _dilation_version = None  # initialized in got_wormhole_versions
+    _main_channel = None  # initialized in __attrs_port_init__
+    _subprotocol_factories = None  # initialized in __attrs_port_init__
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -314,25 +354,14 @@ class Manager(object):
         self._inbound = Inbound(self, self._host_addr)
         self._outbound = Outbound(self, self._cooperator)  # from us to peer
 
-        # We must open subchannel0 early, since messages may arrive very
-        # quickly once the connection is established. This subchannel may or
-        # may not ever get revealed to the caller, since the peer might not
-        # even be capable of dilation.
-        scid0 = 0
-        peer_addr0 = _SubchannelAddress(scid0)
-        sc0 = SubChannel(scid0, self, self._host_addr, peer_addr0)
-        self._inbound.set_subchannel_zero(scid0, sc0)
-
-        # we can open non-zero subchannels as soon as we get our first
-        # connection, and we can make the Endpoints even earlier
-        control_ep = ControlEndpoint(peer_addr0, sc0, self._eventual_queue)
-        connect_ep = SubchannelConnectorEndpoint(self, self._host_addr, self._eventual_queue)
-        listen_ep = SubchannelListenerEndpoint(self, self._host_addr, self._eventual_queue)
         # TODO: let inbound/outbound create the endpoints, then return them
         # to us
-        self._inbound.set_listener_endpoint(listen_ep)
+        self._main_channel = OneShotObserver(self._eventual_queue)
+        self._subprotocol_factories = SubchannelDemultiplex()
 
-        self._endpoints = EndpointRecord(control_ep, connect_ep, listen_ep)
+        # NOTE: circular refs, not ideal
+        self._api = DilatedWormhole(self)
+
         # maps outstanding ping_id's (4 bytes) to a 2-tuple (callback, timestamp)
         # (the callback is provided when send_ping is called)
         self._pings_outstanding = dict()
@@ -371,8 +400,13 @@ class Manager(object):
             # we already have a timer runner, so extend it
             self._timer.delay(self._ping_interval)
 
-    def get_endpoints(self):
-        return self._endpoints
+    def _register_subprotocol_factory(self, name, factory):
+        """
+        Internal helper. Application code has asked to listen for a
+        particular subprotocol.  It is an error to listen twice on the
+        same subprotocol.
+        """
+        self._subprotocol_factories.register(name, factory)
 
     def got_dilation_key(self, key):
         assert isinstance(key, bytes)
@@ -408,10 +442,20 @@ class Manager(object):
         if self._status is not None:
             self._status(status_msg)
 
+    def _hint_status(self, hints):
+        """
+        Internal helper. From Connector, calls to update the hints we're
+        actually using
+        """
+        self._maybe_send_status(
+            evolve(
+                self._latest_status,
+                hints=hints,
+            )
+        )
+
     def fail(self, f):
-        self._endpoints.control._main_channel_failed(f)
-        self._endpoints.connect._main_channel_failed(f)
-        self._endpoints.listen._main_channel_failed(f)
+        self._main_channel.error(f)
 
     def received_dilation_message(self, plaintext):
         # this receives new in-order DILATE-n payloads, decrypted but not
@@ -465,9 +509,9 @@ class Manager(object):
     def subchannel_unregisterProducer(self, sc):
         self._outbound.subchannel_unregisterProducer(sc)
 
-    def send_open(self, scid):
+    def send_open(self, scid, subprotocol):
         assert isinstance(scid, int)
-        self._queue_and_send(Open, scid)
+        self._queue_and_send(Open, scid, subprotocol)
 
     def send_data(self, scid, data):
         assert isinstance(scid, int)
@@ -510,9 +554,9 @@ class Manager(object):
         self._outbound.use_connection(c)  # does c.registerProducer
         if not self._made_first_connection:
             self._made_first_connection = True
-            self._endpoints.control._main_channel_ready()
-            self._endpoints.connect._main_channel_ready()
-            self._endpoints.listen._main_channel_ready()
+            # might be ideal to send information about our selected
+            # Peer connection through here
+            self._main_channel.fire(None)
         pass
 
     def connector_connection_lost(self):
@@ -544,7 +588,7 @@ class Manager(object):
                 return
             self._inbound.update_ack_watermark(r.seqnum)
             if isinstance(r, Open):
-                self._inbound.handle_open(r.scid)
+                self._inbound.handle_open(r.scid, r.subprotocol)
             elif isinstance(r, Data):
                 self._inbound.handle_data(r.scid, r.data)
             else:  # isinstance(r, Close)
@@ -559,7 +603,7 @@ class Manager(object):
         elif isinstance(r, Ack):
             self._outbound.handle_ack(r.resp_seqnum)  # retire queued messages
         else:
-            log.err(UnknownMessageType("{}".format(r)))
+            log.err(UnknownMessageType(f"{r}"))
         # todo: it might be better to tell the TrafficTimer
         # state-machine every time we see _any_ traffic (i.e. here)
         # -- currently we're demanding that we see the "Pong"
@@ -914,22 +958,31 @@ class Dilator(object):
     _eventual_queue = attrib()
     _cooperator = attrib()
     _acceptable_versions = attrib()
+    _did_dilate = attrib(init=False)
 
     def __attrs_post_init__(self):
         self._manager = None
         self._pending_dilation_key = None
         self._pending_wormhole_versions = None
         self._pending_inbound_dilate_messages = deque()
+        self._did_dilate = Once(CanOnlyDilateOnceError)
 
     def wire(self, sender, terminator):
         self._S = ISend(sender)
         self._T = ITerminator(terminator)
 
-    # this is the primary entry point, called when w.dilate() is invoked
+    # this is the primary entry point, called when w.dilate() is
+    # invoked; upstream calls are basically just call-through -- so
+    # all these inputs should be validated.
     def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
-               ping_interval=None):
-        # XXX this is just fed through directly from the public API;
-        # effectively, this _is_ a public API
+               ping_interval=None, expected_subprotocols=None):
+        # ensure users can only call this API once -- in the past, it
+        # was possible to call the API more than once but any cal
+        # after the first would have no real effect:
+        # transit_relay_location, no_listen, etc would all remain
+        # unchanged)
+        self._did_dilate()
+
         if self._manager is None:
             # build the manager right away, and tell it later when the
             # VERSIONS message arrives, and also when the dilation_key is set
@@ -943,6 +996,7 @@ class Dilator(object):
                 self._cooperator,
                 self._acceptable_versions,
                 ping_interval or 30.0,
+                expected_subprotocols,
                 no_listen,
                 status_update,
                 initial_mailbox_status=wormhole_status,
@@ -955,7 +1009,8 @@ class Dilator(object):
             while self._pending_inbound_dilate_messages:
                 plaintext = self._pending_inbound_dilate_messages.popleft()
                 m.received_dilation_message(plaintext)
-        return self._manager.get_endpoints()
+
+        return self._manager._api
 
     # Called by Terminator after everything else (mailbox, nameplate, server
     # connection) has shut down. Expects to fire T.stoppedD() when Dilator is
