@@ -10,8 +10,8 @@ def test_parse():
                      Ping(ping_id=b"\x55\x44\x33\x22")
     assert parse_record(b"\x02\x55\x44\x33\x22") == \
                      Pong(ping_id=b"\x55\x44\x33\x22")
-    assert parse_record(b"\x03\x00\x00\x02\x01\x00\x00\x01\x00") == \
-                     Open(scid=513, seqnum=256)
+    assert parse_record(b"\x03\x00\x00\x02\x01\x00\x00\x01\x00proto") == \
+                     Open(scid=513, seqnum=256, subprotocol="proto")
     assert parse_record(b"\x04\x00\x00\x02\x02\x00\x00\x01\x01dataaa") == \
                      Data(scid=514, seqnum=257, data=b"dataaa")
     assert parse_record(b"\x05\x00\x00\x02\x03\x00\x00\x01\x02") == \
@@ -30,8 +30,8 @@ def test_encode():
     assert encode_record(KCM()) == b"\x00"
     assert encode_record(Ping(ping_id=b"ping")) == b"\x01ping"
     assert encode_record(Pong(ping_id=b"pong")) == b"\x02pong"
-    assert encode_record(Open(scid=65536, seqnum=16)) == \
-                     b"\x03\x00\x01\x00\x00\x00\x00\x00\x10"
+    assert encode_record(Open(scid=65536, seqnum=16, subprotocol="proto")) == \
+                     b"\x03\x00\x01\x00\x00\x00\x00\x00\x10proto"
     assert encode_record(Data(scid=65537, seqnum=17, data=b"dataaa")) == \
                      b"\x04\x00\x01\x00\x01\x00\x00\x00\x11dataaa"
     assert encode_record(Close(scid=65538, seqnum=18)) == \

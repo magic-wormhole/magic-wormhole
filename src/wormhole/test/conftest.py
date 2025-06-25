@@ -73,6 +73,7 @@ class Observer:
 @pytest.fixture
 def observe_errors():
     observer = Observer()
+    gc.collect()
     log.startLoggingWithObserver(observer, 0)
 
     yield observer

@@ -585,7 +585,7 @@ def test_check_and_remove():
     c.buf = b"unexpected"
     with pytest.raises(transit.BadHandshake) as f:
         c._check_and_remove(EXP)
-    assert str(f.value) == "got %r want %r" % (b'unexpected', b'expectation')
+    assert str(f.value) == f"got {b'unexpected'!r} want {b'expectation'!r}"
     assert c.buf == b"unexpected"
 
     c.buf = b"expect"
@@ -954,7 +954,7 @@ async def test_records_good():
     RECORD1 = b"record"
     c.send_record(RECORD1)
     buf = t.read_buf()
-    expected = ("%08x" % (24 + len(RECORD1) + 16)).encode("ascii")
+    expected = f"{24 + len(RECORD1) + 16:08x}".encode("ascii")
     assert hexlify(buf[:4]) == expected
     encrypted = buf[4:]
     receive_box = SecretBox(owner._sender_record_key())
@@ -968,7 +968,7 @@ async def test_records_good():
     RECORD2 = b"record2"
     c.send_record(RECORD2)
     buf = t.read_buf()
-    expected = ("%08x" % (24 + len(RECORD2) + 16)).encode("ascii")
+    expected = f"{24 + len(RECORD2) + 16:08x}".encode("ascii")
     assert hexlify(buf[:4]) == expected
     encrypted = buf[4:]
     receive_box = SecretBox(owner._sender_record_key())
@@ -986,7 +986,7 @@ async def test_records_good():
     RECORD3 = b"record3"
     nonce_buf = unhexlify("%048x" % 0)  # first nonce must be 0
     encrypted = send_box.encrypt(RECORD3, nonce_buf)
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     c.dataReceived(length[:2])
     c.dataReceived(length[2:])
     c.dataReceived(encrypted[:-2])
@@ -997,7 +997,7 @@ async def test_records_good():
     RECORD4 = b"record4"
     nonce_buf = unhexlify("%048x" % 1)  # nonces increment
     encrypted = send_box.encrypt(RECORD4, nonce_buf)
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     c.dataReceived(length[:2])
     c.dataReceived(length[2:])
     c.dataReceived(encrypted[:-2])
@@ -1010,12 +1010,12 @@ async def test_records_good():
     RECORD5 = b"record5"
     nonce_buf = unhexlify("%048x" % 2)  # nonces increment
     encrypted = send_box.encrypt(RECORD5, nonce_buf)
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     r5 = length + encrypted
     RECORD6 = b"record6"
     nonce_buf = unhexlify("%048x" % 3)  # nonces increment
     encrypted = send_box.encrypt(RECORD6, nonce_buf)
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     r6 = length + encrypted
     c.dataReceived(r5 + r6)
     assert inbound_records == [RECORD5, RECORD6]
@@ -1025,7 +1025,7 @@ def corrupt(orig):
     last_byte = orig[-1:]
     num = int(hexlify(last_byte).decode("ascii"), 16)
     corrupt_num = 256 - num
-    as_byte = unhexlify("%02x" % corrupt_num)
+    as_byte = unhexlify(f"{corrupt_num:02x}")
     return orig[:-1] + as_byte
 
 
@@ -1041,7 +1041,7 @@ async def test_records_corrupt():
     send_box = SecretBox(owner._receiver_record_key())
     nonce_buf = unhexlify("%048x" % 0)  # first nonce must be 0
     encrypted = corrupt(send_box.encrypt(RECORD, nonce_buf))
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     c.dataReceived(length)
     c.dataReceived(encrypted[:-2])
     assert inbound_records == []
@@ -1064,7 +1064,7 @@ async def test_out_of_order_nonce():
     send_box = SecretBox(owner._receiver_record_key())
     nonce_buf = unhexlify("%048x" % 1)  # first nonce must be 0
     encrypted = send_box.encrypt(RECORD, nonce_buf)
-    length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+    length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
     c.dataReceived(length)
     c.dataReceived(encrypted[:-2])
     assert inbound_records == []

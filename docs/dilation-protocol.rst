@@ -1,27 +1,81 @@
 The Dilation Protocol
 =====================
 
-The Dilation protocol is a “bulk data” protocol between two peers
-(either direct p2p connection, or via a Transit relay). It is durable
-and reliable: connections are re-established, and data is definitely
-transmitted in-order to the other peer. There are subchannels: logically
-separate streams as the application protocol requires. Multiple ways to
-connect are supported, via “hints”. These exist for direct TCP, TCP via
-Tor, and TCP to a central Transit helper (see also “Canonical hint
-encodings” in the :doc:`Transit documentation <transit>`.
+Dilation takes Magic Wormhole beyond file-transfer!
 
-These building-blocks allow “application” protocols to be simpler by
-not having to deal with re-connection attempts and network problems.
-Dilation was conceived during development of a “next-generation”
-file-transfer protocol now called “ `Dilated File
+Designed as the basis for a next-generation file-transfer, Dilation is a “bulk data” protocol between two peers.
+Dilation has features suitable for use by a variety of application-level protocols.
+
+.. NOTE::
+    Motivational examples / prototypes include `Fowl <https://fowl.readthedocs.io/en/latest/>`_ and applications that use it directly: `Git With Me <https://sr.ht/~meejah/git-withme/>`_, `Pear-On <https://sr.ht/~meejah/pear-on/>`_ and `shwim (Shell With Me) <https://github.com/meejah/shwim>`_.
+
+Dilation is durable and reliable: connections are re-established, and data is definitely transmitted in-order to the other peer.
+There are subchannels: logically separate streams as the application protocol requires.
+
+Multiple ways to connect to peers are supported, via “hints”.
+Hints currently exist for direct TCP, TCP via Tor, and TCP to a central Transit helper (see also “Canonical hint encodings” in the :doc:`Transit documentation <transit>`.
+
+These building-blocks allow “application” protocols to be simpler by not having to deal with re-connection attempts and network problems.
+Dilation was conceived during development of a “next-generation” file-transfer protocol now called “ `Dilated File
 Transfer <https://github.com/magic-wormhole/magic-wormhole-protocols/pull/23>`__”.
 
-This document assumes you are familiar with the core Mailbox protocol
-and the general promises of Magic Wormhole. For more information see
-:doc:`the Server Protocol <server-protocol>`.
+We aim to make Dilation-using subprotocols *composable*: multiple different Dilation-using subprotocols may work alongside each other over the same connection.
+
+Dilation does *NOT* attempt to replace all manner of peer-to-peer connections; it has enough features to support many use-cases while keeping the simplicity, security and human-involvement of Magic Wormhole's core.
+
+This document assumes you are familiar with the core Mailbox protocol and the general promises of Magic Wormhole.
+For more information see :doc:`the Server Protocol <server-protocol>`.
+
+
+Dilation Overview
+-----------------
+
+A slightly deeper dive.
+
+"Dilation" is an optional feature -- you must enable it on your wormhole during the ``create()`` call.
+If both peers enable Dilation, then it is available.
+
+Once the wormhole is established, both sides call ``.dilate()`` on their wormhole object.
+Only after *both* sides do this is a Dilation peer-to-peer connection established.
+
+The core of Dilation is some number of "subchannels".
+
+Subchannels are created from either peer via a single round-trip over the established connection.
+Whenever a subchannel is opened, it must use exactly one *subprotocol* -- if the other peer is listening for this kind of subchannel, it is established.
+
+Subprotocols inherit some features from the overall Dilation structure.
+The protocol is already authenticated and end-to-end encrypted.
+It is message-based, so no additional framing is required.
+
+The overall Dilation connection is "durable and reliable", which means that once a message is delivered to a Dilation API it will be (eventually) delivered to the peer.
+Applications do not need to re-try or re-connect so long as the process keeps running (including changing from wireless to cellular networks, laptop sleeps, intermittent connectivity, or other network weirdness).
+
+In the Python implementation on top of Twisted, we use Twisted APIs -- with the slight refinement that ``dataReceived()`` is called with an entire message.
+
+Twisted "endpoints" are used: client-style when opening a new subchannel, and server-style when awaiting a particular kind of subchannel.
+These endpoints are created via the ``DilatedWormhole`` instance returned from the ``dilate()`` call
+
+To initiate an outgoing subchannel, you use the ``DilatedWormhole.connector_for("subproto")`` API to first create a Twisted "client style" endpoint.
+Your code would then use ``.connect()`` on the returned object, which will create a ``Protocol`` on your side and initiate the subchannel opening.
+The other peer must have called ``DilatedWormhole.listener_for("subproto")`` (and ``.listen()`` with their ``Factory``) for this to work.
+That is, for a subprotocol named ``"subproto"``, one side does client-style and one side does server-style Twisted networking.
+
+.. NOTE::
+
+    In an earlier revision of this protocol, there was a special kind of "control" subchannel.
+    This was a "singleton" style subchannel (at most one would ever exist).
+    Both sides would use the "client-style" endpoint API to create their ``Protocol`` objects.
+
+    We do not currently believe this is necessary -- request/response style protocols work well, and all our example programs exist without a special "control" channel.
+    However, we are *open to introducing this in a future revision* of the protocol.
+
+    The only use-case we can think of is when you need an absolute, total ordering of messages sent by both sides.
+    If you have a concrete use-case that _can't_ be implemented with the current APIs, **please** get in touch!
+
+
 
 Dilation Internals
-==================
+------------------
 
 This document sometimes mentions programming internals related to Python
 and Twisted; these may be ignored by other implementers (see also `the
@@ -42,7 +96,7 @@ queued-and-acked subchannel messages are used to open/use/close the
 application-visible subchannels.
 
 Versions and can-dilate
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The Wormhole protocol includes a ``version`` message sent immediately
 after the shared PAKE key is established. This also serves as a
@@ -81,7 +135,7 @@ It contains the following keys:
 
 
 Leaders and Followers
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Each side of a Wormhole has a randomly-generated Dilation ``side``
 string (this is included in the ``please`` message, and is independent
@@ -132,7 +186,7 @@ It is a protocol error if the Follower cannot speak the chosen version (and they
 
 
 Connection Layers
------------------
+~~~~~~~~~~~~~~~~~
 
 We describe the protocol as a series of layers. Messages sent on one
 layer may be encoded or transformed before being delivered on some other
@@ -181,10 +235,27 @@ subchannel number. DATA frames are delivered to a specific subchannel.
 When the subchannel is no longer needed, one side will invoke the
 ``close()`` API (``loseConnection()`` in Twisted), which will cause a
 CLOSE message to be sent, and the local L5 object will be put into the
-“closing”state. When the other side receives the CLOSE, it will send its
+“closing” state. When the other side receives the CLOSE, it will send its
 own CLOSE for the same subchannel, and fully close its local object
 (``connectionLost()``). When the first side receives CLOSE in the
 “closing” state, it will fully close its local object too.
+
+Once a side has sent CLOSE it may not send any more DATA messages.
+
+All L5 subchannels (except the control channel) speak a particular
+"subprotocol".  The name of the subprotocol is sent in the OPEN
+message. This allows applications to write reusable and composable
+subprotocols on top of Dilation.
+
+In Twisted, subprotocols implement the normal ``Factory`` and
+``IProtocol`` interfaces (e.g. like TCP streams).  Upon an incoming L5
+subchannel open, the Magic Wormhole library invokes the
+``buildProtocol`` method on the correct factory, and speaks that
+protocol over that subchannel. These are registered via a server-style
+endpoint obtained from ``DilatedWormhole.listener_for(...)``.  For
+outgoing connections, ``.connect()`` is called with an ``IFactory`` on
+the endpoint for that subprotocol (from
+``DilatedWormhole.connector_for(...)``).
 
 All L5 subchannels will be paused (``pauseProducing()``) when the L3
 connection is paused or lost. They are resumed when the L3 connection is
@@ -194,29 +265,31 @@ Initiating Dilation
 -------------------
 
 Dilation is triggered by calling the ``w.dilate()`` API. This
-immediately returns a 3-tuple of standard Twisted-style endpoints that
-can be used to establish subchannels:
-``(control_ep, client_ep, server_ep)``. The first two are client-like,
-while ``server_ep`` is server-like. For Dilation to succeed, both sides
-must call ``w.dilate()``, since the resulting endpoints are the only way
-to access the subchannels.
+immediately returns a ``DilatedWormhole`` instance. The
+``IStreamClientEndpoint`` for a particular subprotocol is obtained via
+``DilatedWormhole.connector_for()``. For Dilation to
+succeed, both sides must call ``w.dilate()`` at some point.
 
 The client-like endpoints are used to signal any errors that might
-prevent Dilation. ``control_ep.connect(factory)`` and
-``client_ep.connect(factory)`` return a Deferred that will errback (with
-``OldPeerCannotDilateError``) if the other side’s ``version`` message
-indicates that it does not support Dilation. The overall dilated
-connection is durable (the Dilation agent will try forever to connect,
-and will automatically reconnect when necessary), so
-``OldPeerCannotDilateError`` is currently the only error that could be
-thrown.
+prevent Dilation. That is, the ``.connect(factory)`` call returns a
+Deferred that will errback (with ``OldPeerCannotDilateError``) if the
+other side’s ``version`` message indicates that it does not support
+Dilation. The overall dilated connection is durable (the Dilation
+agent will try forever to connect, and will automatically reconnect
+when necessary), so ``OldPeerCannotDilateError`` is currently the only
+error that could be thrown.
 
-(TODO: we could use a connection-status API, to provide user feedback)
-
-If the other side *could* support Dilation (i.e. the wormhole library is
+If the other side *could* support Dilation (i.e. the wormhole library is
 new enough), but the peer does not choose to call ``w.dilate()``, this
 Deferred will never fire, and the ``factory`` will never be asked to
 create a new ``Protocol`` instance.
+
+The ``dilate()`` call takes an optional ``status_update=`` argument,
+which is a callable that receives a single argument: an instance of
+``DilationStatus``. This function is called whenever the status
+changes (including the overall ``WormholeStatus`` via the ``.mailbox``
+member). The information contained in these two objects is intended to
+facilitate UX to inform users (e.g. "is it connected?" etc)
 
 The L1 (mailbox) path is used to deliver Dilation requests and
 connection hints. The current mailbox protocol uses named “phases” to
@@ -225,7 +298,7 @@ channel of arbitrary frames or bytes), and all-number phase names are
 reserved for application data (sent via ``w.send_message()``). Therefore
 the Dilation control messages use phases named ``DILATE-0``,
 ``DILATE-1``, etc. Each side maintains its own counter, so one side
-might be up to e.g. ``DILATE-5`` while the other has only gotten as far
+might be up to e.g. ``DILATE-5`` while the other has only gotten as far
 as ``DILATE-2``. This effectively creates a pair of unidirectional
 streams of ``DILATE-n`` messages, each containing one or more Dilation
 record, of various types described below. Note that all phases beyond
@@ -242,7 +315,7 @@ depend upon the type.
 ``w.dilate()`` triggers transmission of a ``please`` (i.e. “please
 dilate”) record with a set of versions that can be accepted. Versions
 use strings, rather than integers, to support experimental protocols,
-however there is still a total ordering of preferability.
+however there is still a total ordering of version preference.
 
 ::
 
@@ -544,7 +617,7 @@ L3 protocol
 
 The L3 layer is responsible for connection selection,
 monitoring/keepalives, and message (de)serialization. Framing is handled
-by L2, so the inbound L3 codepath receives single-message bytestrings,
+by L2, so the inbound L3 codepath receives single-message byte-strings,
 and delivers the same down to L2 for encryption, framing, and
 transmission.
 
@@ -605,7 +678,7 @@ In addition, the Leader must:
 
 In the future, we might have L2 links that are less connection-oriented,
 which might have a unidirectional failure mode, at which point we’ll
-need to monitor full roundtrips. To accomplish this, the Leader will
+need to monitor full round-trips. To accomplish this, the Leader will
 send periodic unconditional PINGs, and the Follower will respond with
 PONGs. If the Leader->Follower connection is down, the PINGs won’t
 arrive and no PONGs will be produced. If the Follower->Leader direction

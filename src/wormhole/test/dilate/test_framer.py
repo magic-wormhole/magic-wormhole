@@ -26,8 +26,7 @@ def test_bad_prologue_length():
         with pytest.raises(Disconnect):
             list(f.add_and_parse(b"not the prologue after all"))
     assert m.mock_calls == \
-                     [mock.call("bad prologue: {}".format(
-                         b"inbound_not the p"))]
+                     [mock.call(f"bad prologue: {b'inbound_not the p'}")]
     assert t.mock_calls == []
 
 
@@ -79,7 +78,7 @@ def test_bad_relay():
         with pytest.raises(Disconnect):
             list(f.add_and_parse(b"goodbye\n"))
     assert m.mock_calls == \
-                     [mock.call("bad relay_ok: {}".format(b"goo"))]
+                     [mock.call(f"bad relay_ok: {b'goo'}")]
     assert t.mock_calls == []
 
 

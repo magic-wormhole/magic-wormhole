@@ -3,7 +3,7 @@ from zope.interface import implementer
 from twisted.python import log
 from .._interfaces import IDilationManager, IInbound, ISubChannel
 from ..util import provides
-from .subchannel import (SubChannel, _SubchannelAddress)
+from .subchannel import (SubChannel, SubchannelAddress)
 
 
 class DuplicateOpenError(Exception):
@@ -36,11 +36,8 @@ class Inbound(object):
         self._connection = None
 
     # from our Manager
-    def set_listener_endpoint(self, listener_endpoint):
-        self._listener_endpoint = listener_endpoint
-
-    def set_subchannel_zero(self, scid0, sc0):
-        self._open_subchannels[scid0] = sc0
+#    def set_listener_endpoint(self, listener_endpoint):
+#        self._listener_endpoint = listener_endpoint
 
     def use_connection(self, c):
         self._connection = c
@@ -68,23 +65,23 @@ class Inbound(object):
         self._highest_inbound_acked = max(self._highest_inbound_acked,
                                           seqnum)
 
-    def handle_open(self, scid):
-        log.msg("inbound.handle_open", scid)
+    def handle_open(self, scid, subprotocol):
+        log.msg("inbound.handle_open", scid, subprotocol)
         if scid in self._open_subchannels:
             log.err(DuplicateOpenError(
-                "received duplicate OPEN for {}".format(scid)))
+                f"received duplicate OPEN for {scid}"))
             return
-        peer_addr = _SubchannelAddress(scid)
+        peer_addr = SubchannelAddress(subprotocol)
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
         self._open_subchannels[scid] = sc
-        self._listener_endpoint._got_open(sc, peer_addr)
+        self._manager._subprotocol_factories._got_open(sc, peer_addr)
 
     def handle_data(self, scid, data):
         log.msg("inbound.handle_data", scid, len(data))
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(DataForMissingSubchannelError(
-                "received DATA for non-existent subchannel {}".format(scid)))
+                f"received DATA for non-existent subchannel {scid}"))
             return
         sc.remote_data(data)
 
@@ -93,7 +90,7 @@ class Inbound(object):
         sc = self._open_subchannels.get(scid)
         if sc is None:
             log.err(CloseForMissingSubchannelError(
-                "received CLOSE for non-existent subchannel {}".format(scid)))
+                f"received CLOSE for non-existent subchannel {scid}"))
             return
         sc.remote_close()
 

@@ -43,11 +43,11 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     # parse hint type
     mo = re.search(r'^([a-zA-Z0-9]+):(.*)$', hint)
     if not mo:
-        print("unparseable hint '%s'" % (hint, ), file=stderr)
+        print(f"unparseable hint '{hint}'", file=stderr)
         return None
     hint_type = mo.group(1)
     if hint_type != "tcp":
-        print("unknown hint type '%s' in '%s'" % (hint_type, hint),
+        print(f"unknown hint type '{hint_type}' in '{hint}'",
               file=stderr)
         return None
     hint_value = mo.group(2)
@@ -58,7 +58,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     if mo:
         hint_host = mo.group(1)
         if not isIPv6Address(hint_host):
-            print("invalid IPv6 address in TCP hint '%s'" % (hint, ),
+            print(f"invalid IPv6 address in TCP hint '{hint}'",
                   file=stderr)
             return None
         pieces = [hint_host] + mo.group(2).split(":")
@@ -66,14 +66,14 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     else:
         pieces = hint_value.split(":")
         if len(pieces) < 2:
-            print("unparseable TCP hint (need more colons) '%s'" % (hint, ),
+            print(f"unparseable TCP hint (need more colons) '{hint}'",
                   file=stderr)
             return None
         hint_host = pieces[0]
     # parse the port:
     mo = re.search(r'^(\d+)$', pieces[1])
     if not mo:
-        print("non-numeric port in TCP hint '%s'" % (hint, ), file=stderr)
+        print(f"non-numeric port in TCP hint '{hint}'", file=stderr)
         return None
     hint_port = int(pieces[1])
     # parse the rest ("priority=float")
@@ -83,7 +83,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
             try:
                 priority = float(more_pieces[1])
             except ValueError:
-                print("non-float priority= in TCP hint '%s'" % (hint, ),
+                print(f"non-float priority= in TCP hint '{hint}'",
                       file=stderr)
                 return None
     return DirectTCPV1Hint(hint_host, hint_port, priority)
@@ -112,15 +112,15 @@ def endpoint_from_hint_obj(hint, tor, reactor):
 def parse_tcp_v1_hint(hint):  # hint_struct -> hint_obj
     hint_type = hint.get("type", "")
     if hint_type not in ["direct-tcp-v1", "tor-tcp-v1"]:
-        log.msg("unknown hint type: %r" % (hint, ))
+        log.msg(f"unknown hint type: {hint!r}")
         return None
     if not ("hostname" in hint and
             isinstance(hint["hostname"], str)):
-        log.msg("invalid hostname in hint: %r" % (hint, ))
+        log.msg(f"invalid hostname in hint: {hint!r}")
         return None
     if not ("port" in hint and
             isinstance(hint["port"], int)):
-        log.msg("invalid port in hint: %r" % (hint, ))
+        log.msg(f"invalid port in hint: {hint!r}")
         return None
     priority = hint.get("priority", 0.0)
     if hint_type == "direct-tcp-v1":

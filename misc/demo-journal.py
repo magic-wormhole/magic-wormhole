@@ -280,5 +280,5 @@ if __name__ == "__main__":
     elif command == "run":
         task.react(run, (basedir,))
     else:
-        print("Unrecognized subcommand '%s'" % command)
+        print(f"Unrecognized subcommand '{command}'")
         sys.exit(1)

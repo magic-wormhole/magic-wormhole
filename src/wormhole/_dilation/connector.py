@@ -412,7 +412,7 @@ class OutboundConnectionFactory(ClientFactory, object):
     _description = attrib()
 
     def __repr__(self):
-        return "OutboundConnectionFactory(%s %s)" % (self._connector._role, self._description)
+        return f"OutboundConnectionFactory({self._connector._role} {self._description})"
 
     def buildProtocol(self, addr):
         p = self._connector.build_protocol(addr, self._description)
@@ -429,7 +429,7 @@ def describe_inbound(addr):
         return "<-tcp:%s:%d" % (addr.host, addr.port)
     elif isinstance(addr, IPv6Address):
         return "<-tcp:[%s]:%d" % (addr.host, addr.port)
-    return "<-%r" % addr
+    return f"<-{addr!r}"
 
 
 @attrs(repr=False)
@@ -437,7 +437,7 @@ class InboundConnectionFactory(ServerFactory, object):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def __repr__(self):
-        return "InboundConnectionFactory(%s)" % (self._connector._role)
+        return f"InboundConnectionFactory({self._connector._role})"
 
     def buildProtocol(self, addr):
         description = describe_inbound(addr)
