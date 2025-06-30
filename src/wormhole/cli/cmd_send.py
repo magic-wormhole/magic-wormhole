@@ -139,7 +139,11 @@ class Sender:
         if not args.zeromode and args.qr:
             qr = QRCode(border=1)
             qr.add_data(f"wormhole-transfer:{code}")
-            qr.print_ascii(out=args.stderr)
+            # Use TTY colors if available, otherwise use ASCII
+            if args.stderr.isatty():
+                qr.print_ascii(out=args.stderr, tty=True, invert=False)
+            else:
+                qr.print_ascii(out=args.stderr, tty=False, invert=False)
 
         print("On the other computer, please run:", file=args.stderr)
         print("", file=args.stderr)
