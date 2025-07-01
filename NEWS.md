@@ -12,6 +12,7 @@ User-visible changes in "magic-wormhole":
 * INCOMPAT: the Dilation extension now enables composition of
   subchannels, giving each a named subprotocol along with a new API to
   support it (also removes the generic "control" subchannel) (@meejah @shapr)
+* Improve ping-timeouts on Mailbox connection (#646 @meejah)
 
 
 ## Release 0.19.2 (30-May-2025)
