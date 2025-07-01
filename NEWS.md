@@ -8,6 +8,7 @@ User-visible changes in "magic-wormhole":
 * Use classes directly instead of type() calls (#637 @sblondon)
 * Doc: remove details about python2 types (#638 @sblondon)
 * Replace formatted strings to f-strings (#642 @sblondon)
+* Properly display QR codes on dark-mode displays (#651 @kisst)
 * INCOMPAT: the Dilation extension now enables composition of
   subchannels, giving each a named subprotocol along with a new API to
   support it (also removes the generic "control" subchannel) (@meejah @shapr)
