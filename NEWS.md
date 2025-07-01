@@ -7,6 +7,7 @@ User-visible changes in "magic-wormhole":
 * Remove 'u' prefix to strings (#636 @sblondon)
 * Use classes directly instead of type() calls (#637 @sblondon)
 * Doc: remove details about python2 types (#638 @sblondon)
+* Add 'hints' information to Dilation status updates (@meejah)
 * Replace formatted strings to f-strings (#642 @sblondon)
 * Properly display QR codes on dark-mode displays (#651 @kisst)
 * INCOMPAT: the Dilation extension now enables composition of
