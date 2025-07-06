@@ -9,7 +9,7 @@ versionfile_build = "wormhole/_version.py"
 tag_prefix = ""
 parentdir_prefix = "magic-wormhole-"
 [tool.pytest.ini_options]
-addopts = "-W ignore::DeprecationWarning -r w -v -s"
+addopts = "-W ignore::DeprecationWarning -r w -v"
 testpaths = [
     "src/wormhole/test",
 ]
