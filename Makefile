@@ -13,7 +13,7 @@ lint:
 	tox -e flake8less
 
 test:
-	python -m pytest -W ignore::DeprecationWarning -r w -v -s src/wormhole/test
+	python -m pytest
 
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
