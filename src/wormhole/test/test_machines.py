@@ -23,7 +23,7 @@ import pytest_twisted
 
 
 @implementer(IWordlist)
-class FakeWordList(object):
+class FakeWordList:
     def choose_words(self, length):
         return "-".join(["word"] * length)
 
@@ -71,8 +71,8 @@ def test_send_first():
     assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
     # print(bytes_to_hexstr(events[0][2]))
     enc1 = hexstr_to_bytes(
-        ("000000000000000000000000000000000000000000000000"
-         "22f1a46c3c3496423c394621a2a5a8cf275b08"))
+        "000000000000000000000000000000000000000000000000"
+         "22f1a46c3c3496423c394621a2a5a8cf275b08")
     assert events == [("m.add_message", "phase1", enc1)]
     events[:] = []
 
@@ -81,8 +81,8 @@ def test_send_first():
         s.send("phase2", b"msg")
     assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
     enc2 = hexstr_to_bytes(
-        ("0202020202020202020202020202020202020202"
-         "020202026660337c3eac6513c0dac9818b62ef16d9cd7e"))
+        "0202020202020202020202020202020202020202"
+         "020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
     assert events == [("m.add_message", "phase2", enc2)]
 
 def test_key_first():
@@ -95,8 +95,8 @@ def test_key_first():
     with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
         s.send("phase1", b"msg")
     assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc1 = hexstr_to_bytes(("00000000000000000000000000000000000000000000"
-                            "000022f1a46c3c3496423c394621a2a5a8cf275b08"))
+    enc1 = hexstr_to_bytes("00000000000000000000000000000000000000000000"
+                            "000022f1a46c3c3496423c394621a2a5a8cf275b08")
     assert events == [("m.add_message", "phase1", enc1)]
     events[:] = []
 
@@ -105,8 +105,8 @@ def test_key_first():
         s.send("phase2", b"msg")
     assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
     enc2 = hexstr_to_bytes(
-        ("0202020202020202020202020202020202020"
-         "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e"))
+        "0202020202020202020202020202020202020"
+         "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
     assert events == [("m.add_message", "phase2", enc2)]
 
 

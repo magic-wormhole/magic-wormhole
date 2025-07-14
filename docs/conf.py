@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-#
+
 # Magic-Wormhole documentation build configuration file, created by
 # sphinx-quickstart on Sun Nov 12 10:24:09 2017.
 #

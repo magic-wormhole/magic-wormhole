@@ -38,7 +38,7 @@ def test_success():
     """
 
     @zope.interface.implementer(IFoo)
-    class C(object):
+    class C:
         def f(self):
             pass
 

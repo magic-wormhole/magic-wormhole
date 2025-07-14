@@ -54,7 +54,7 @@ class UnknownMessageType(Exception):
 
 
 @define
-class DilatedWormhole(object):
+class DilatedWormhole:
     """
     Represents actions available once a wormhole has been successfully dilated.
 
@@ -108,7 +108,7 @@ class DilatedWormhole(object):
 
 
 @attrs
-class Once(object):
+class Once:
     _errtype = attrib()
 
     def __attrs_post_init__(self):
@@ -190,7 +190,7 @@ def _find_shared_versions(my_versions, their_versions): # -> Option[list]:
 
 
 @attrs(eq=False)
-class TrafficTimer(object):
+class TrafficTimer:
     """
     Tracks when timers have expired versus when traffic (usually
     Pongs) has been seen.
@@ -305,9 +305,9 @@ class TrafficTimer(object):
 
 @attrs(eq=False)
 @implementer(IDilationManager)
-class Manager(object):
+class Manager:
     _S = attrib(validator=provides(ISend), repr=False)
-    _my_side = attrib(validator=instance_of(type("")))
+    _my_side = attrib(validator=instance_of(str))
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _reactor = attrib(repr=False)
     _eventual_queue = attrib(repr=False)
@@ -943,7 +943,7 @@ class Manager(object):
 
 @attrs
 @implementer(IDilator)
-class Dilator(object):
+class Dilator:
     """I launch the dilation process.
 
     I am created with every Wormhole (regardless of whether .dilate()

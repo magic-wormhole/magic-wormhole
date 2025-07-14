@@ -8,7 +8,7 @@ from . import _interfaces
 
 @attrs
 @implementer(_interfaces.IMailbox)
-class Mailbox(object):
+class Mailbox:
     _side = attrib(validator=instance_of(str))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

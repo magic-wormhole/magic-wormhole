@@ -18,7 +18,7 @@ from ..cli import cli
 from ..transit import allocate_tcp_port
 
 
-class MyInternetService(service.Service, object):
+class MyInternetService(service.Service):
     # like StreamServerEndpointService, but you can retrieve the port
     def __init__(self, endpoint, factory):
         self.endpoint = endpoint
@@ -27,7 +27,7 @@ class MyInternetService(service.Service, object):
         self._lp = None
 
     def startService(self):
-        super(MyInternetService, self).startService()
+        super().startService()
         d = self.endpoint.listen(self.factory)
 
         def good(lp):

@@ -217,7 +217,7 @@ def test_pause():
 
     o.subchannel_registerProducer(sc3, p3, True)
     assert p3.mock_calls == [mock.call.pauseProducing()]
-    assert o._paused_producers == set([p1, p2, p3])
+    assert o._paused_producers == {p1, p2, p3}
     assert list(o._all_producers) == [p1, p2, p3]
     clear_mock_calls(p3)
 

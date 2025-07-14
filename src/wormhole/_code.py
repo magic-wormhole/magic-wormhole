@@ -20,7 +20,7 @@ def first(outputs):
 
 @attrs
 @implementer(_interfaces.ICode)
-class Code(object):
+class Code:
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

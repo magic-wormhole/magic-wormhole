@@ -82,9 +82,9 @@ Persistent Routes:
   None
 """
 
-UNIX_TEST_ADDRESSES = set(["127.0.0.1", "192.168.0.6", "192.168.0.2"])
-WINDOWS_TEST_ADDRESSES = set(["127.0.0.1", "10.0.2.15"])
-CYGWIN_TEST_ADDRESSES = set(["127.0.0.1"])
+UNIX_TEST_ADDRESSES = {"127.0.0.1", "192.168.0.6", "192.168.0.2"}
+WINDOWS_TEST_ADDRESSES = {"127.0.0.1", "10.0.2.15"}
+CYGWIN_TEST_ADDRESSES = {"127.0.0.1"}
 
 
 class FakeProcess:

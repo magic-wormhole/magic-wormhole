@@ -15,7 +15,7 @@ except ImportError:
 
 
 @attrs
-class SocksOnlyTor(object):
+class SocksOnlyTor:
     _reactor = attrib()
 
     def stream_via(self, host, port, tls=False):

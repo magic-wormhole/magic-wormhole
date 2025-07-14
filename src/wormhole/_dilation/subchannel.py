@@ -51,13 +51,13 @@ class HalfCloseUsedOnNonHalfCloseable(Exception):
 
 
 @implementer(IAddress)
-class _WormholeAddress(object):
+class _WormholeAddress:
     pass
 
 
 @implementer(IAddress)
 @attrs
-class SubchannelAddress(object):
+class SubchannelAddress:
     """
     All subchannels have a named sub-protocol (as sent by our peer in
     the OPEN call).
@@ -73,7 +73,7 @@ class SubchannelAddress(object):
 @implementer(IProducer)
 @implementer(IConsumer)
 @implementer(ISubChannel)
-class SubChannel(object):
+class SubChannel:
     _scid = attrib(validator=instance_of(int))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
@@ -310,7 +310,7 @@ class SubChannel(object):
 
 @implementer(IStreamClientEndpoint)
 @attrs
-class SubchannelConnectorEndpoint(object):
+class SubchannelConnectorEndpoint:
     _subprotocol = attrib(validator=instance_of(str))
     _manager = attrib(validator=provides(IDilationManager))
     _host_addr = attrib(validator=instance_of(_WormholeAddress))
@@ -414,7 +414,7 @@ class SubchannelDemultiplex:
 
 @implementer(IListeningPort)
 @attrs
-class SubchannelListeningPort(object):
+class SubchannelListeningPort:
     _host_addr = attrib(validator=provides(IAddress))
 
     def startListening(self):
