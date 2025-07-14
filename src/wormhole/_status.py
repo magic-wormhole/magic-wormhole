@@ -1,5 +1,5 @@
 from attrs import frozen, Factory
-from typing import List
+from typing import Set
 
 
 @frozen
@@ -172,4 +172,4 @@ class DilationStatus(object):
     peer_connection: PeerConnection = NoPeer()
 
     # available methods to get to peer
-    hints: List[DilationHint] = Factory(list)
+    hints: Set[DilationHint] = Factory(set)
