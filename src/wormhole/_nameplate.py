@@ -16,7 +16,7 @@ def validate_nameplate(nameplate):
 
 
 @implementer(_interfaces.INameplate)
-class Nameplate(object):
+class Nameplate:
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover

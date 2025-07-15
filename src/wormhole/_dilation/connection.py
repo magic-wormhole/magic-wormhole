@@ -84,7 +84,7 @@ Frame = namedtuple("Frame", ["frame"])
 
 @attrs
 @implementer(IFramer)
-class _Framer(object):
+class _Framer:
     _transport = attrib(validator=provides(ITransport))
     _outbound_prologue = attrib(validator=instance_of(bytes))
     _inbound_prologue = attrib(validator=instance_of(bytes))
@@ -331,7 +331,7 @@ def _is_role(_record, _attr, value):
 
 @attrs
 @implementer(IRecord)
-class _Record(object):
+class _Record:
     _framer = attrib(validator=provides(IFramer))
     _noise = attrib()
 
@@ -487,7 +487,7 @@ class _Record(object):
 
 
 @attrs(eq=False)
-class DilatedConnectionProtocol(Protocol, object):
+class DilatedConnectionProtocol(Protocol):
     """I manage an L2 connection.
 
     When a new L2 connection is needed (as determined by the Leader),

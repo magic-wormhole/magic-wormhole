@@ -375,7 +375,7 @@ def test_one_leader():
     c._start_listener = start_listener
     c._schedule_connection = mock.Mock()
     c.start()
-    assert c._listeners == set([lp])
+    assert c._listeners == {lp}
 
     p1 = mock.Mock()  # DilatedConnectionProtocol instance
     c.add_candidate(p1)
@@ -397,7 +397,7 @@ def test_one_follower():
     c._start_listener = start_listener
     c._schedule_connection = mock.Mock()
     c.start()
-    assert c._listeners == set([lp])
+    assert c._listeners == {lp}
 
     p1 = mock.Mock()  # DilatedConnectionProtocol instance
     c.add_candidate(p1)

@@ -1,4 +1,4 @@
-class _Role(object):
+class _Role:
     def __init__(self, which):
         self._which = which
 

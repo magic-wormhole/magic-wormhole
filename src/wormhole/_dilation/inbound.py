@@ -20,7 +20,7 @@ class CloseForMissingSubchannelError(Exception):
 
 @attrs
 @implementer(IInbound)
-class Inbound(object):
+class Inbound:
     # Inbound flow control: TCP delivers data to Connection.dataReceived,
     # Connection delivers to our handle_data, we deliver to
     # SubChannel.remote_data, subchannel delivers to proto.dataReceived

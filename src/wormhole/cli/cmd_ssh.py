@@ -46,13 +46,13 @@ def find_public_key(hint=None):
                     ans = None
                 else:
                     got_key = True
-                    with open(join(hint, pubkeys[ans]), 'r') as f:
+                    with open(join(hint, pubkeys[ans])) as f:
                         pubkey = f.read()
 
             except Exception:
                 got_key = False
     else:
-        with open(join(hint, pubkeys[0]), 'r') as f:
+        with open(join(hint, pubkeys[0])) as f:
             pubkey = f.read()
     parts = pubkey.strip().split(maxsplit=2)
     kind = parts[0]

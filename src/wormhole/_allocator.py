@@ -8,7 +8,7 @@ from . import _interfaces
 
 @attrs
 @implementer(_interfaces.IAllocator)
-class Allocator(object):
+class Allocator:
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

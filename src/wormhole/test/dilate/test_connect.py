@@ -16,7 +16,7 @@ from ..._dilation._noise import NoiseConnection
 
 
 @implementer(_interfaces.ISend)
-class MySend(object):
+class MySend:
     def __init__(self, side):
         self.rx_phase = 0
         self.side = side
@@ -34,7 +34,7 @@ class MySend(object):
 
 
 @implementer(ITerminator)
-class FakeTerminator(object):
+class FakeTerminator:
     def __init__(self):
         self.d = Deferred()
 

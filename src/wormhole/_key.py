@@ -62,7 +62,7 @@ def encrypt_data(key, plaintext):
 
 @attrs
 @implementer(_interfaces.IKey)
-class Key(object):
+class Key:
     _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(str))
@@ -128,7 +128,7 @@ class Key(object):
 
 
 @attrs
-class _SortedKey(object):
+class _SortedKey:
     _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(str))

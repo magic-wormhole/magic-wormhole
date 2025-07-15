@@ -21,7 +21,7 @@ from ..timing import DebugTiming  # noqa: E402
 top_import_finish = time.time()
 
 
-class Config(object):
+class Config:
     """
     Union of config options that we pass down to (sub) commands.
     """

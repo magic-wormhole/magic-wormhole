@@ -1,5 +1,4 @@
 from attrs import frozen, Factory
-from typing import List
 
 
 @frozen
@@ -126,7 +125,7 @@ PeerConnection = NoPeer | ConnectingPeer | ConnectedPeer | ReconnectingPeer | St
 
 
 @frozen
-class WormholeStatus(object):
+class WormholeStatus:
     """
     Represents the current status of a wormhole for use by the outside
     """
@@ -153,7 +152,7 @@ class DilationHint:
 
 
 @frozen
-class DilationStatus(object):
+class DilationStatus:
     """
     Represents the current status of a Dilated wormhole
 
@@ -172,4 +171,4 @@ class DilationStatus(object):
     peer_connection: PeerConnection = NoPeer()
 
     # available methods to get to peer
-    hints: List[DilationHint] = Factory(list)
+    hints: list[DilationHint] = Factory(list)

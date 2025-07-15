@@ -1,6 +1,3 @@
-from __future__ import unicode_literals
-
-
 class WormholeError(Exception):
     """Parent class for all wormhole-related errors"""
 
