@@ -19,7 +19,7 @@ def first(outputs):
 
 @attrs
 @implementer(_interfaces.IInput)
-class Input(object):
+class Input:
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
@@ -303,7 +303,7 @@ class Input(object):
 # we only expose the Helper to application code, not _Input
 @attrs
 @implementer(_interfaces.IInputHelper)
-class Helper(object):
+class Helper:
     _input = attrib()
 
     def __attrs_post_init__(self):

@@ -10,7 +10,7 @@ from .util import provides
 
 @attrs
 @implementer(_interfaces.IReceive)
-class Receive(object):
+class Receive:
     _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()

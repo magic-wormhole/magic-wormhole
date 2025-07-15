@@ -21,7 +21,7 @@ def update_my_state():
     raise NotImplementedError
 
 
-class State(object):
+class State:
     @classmethod
     def create_empty(klass):
         self = klass()

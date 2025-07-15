@@ -45,7 +45,7 @@ def test_comparable():
     r3 = RelayV1Hint(tuple(sorted([h1b, h2])))
     assert r1 == r2
     assert r2 == r3
-    assert len(set([r1, r2, r3])) == 1
+    assert len({r1, r2, r3}) == 1
 
 def test_parse_tcp_v1_hint():
     p = parse_tcp_v1_hint

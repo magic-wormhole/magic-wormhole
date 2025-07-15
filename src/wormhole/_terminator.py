@@ -5,7 +5,7 @@ from . import _interfaces
 
 
 @implementer(_interfaces.ITerminator)
-class Terminator(object):
+class Terminator:
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover

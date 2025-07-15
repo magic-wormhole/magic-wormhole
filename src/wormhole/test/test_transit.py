@@ -32,7 +32,7 @@ async def test_one_winner():
     assert not d.called
     contenders[2].callback("yay")
     assert await d == "yay"
-    assert cancelled == set([3, 4])
+    assert cancelled == {3, 4}
 
 
 @ensureDeferred
@@ -83,7 +83,7 @@ async def test_cancel_after_one_failure():
     d.cancel()
     with pytest.raises(ValueError):
         await d
-    assert cancelled == set([1, 2, 3])
+    assert cancelled == {1, 2, 3}
 
 
 @pytest.fixture()
@@ -776,7 +776,7 @@ async def test_relay_handshake_bad():
 
     with pytest.raises(transit.BadHandshake) as f:
         await d
-    assert str(f.value) == "got %r want %r" % (b"not ok\n", b"ok\n")
+    assert str(f.value) == "got {!r} want {!r}".format(b"not ok\n", b"ok\n")
 
 
 @ensureDeferred
@@ -837,7 +837,7 @@ async def test_receiver_rejected_politely():
     assert c.state == "hung up"
     with pytest.raises(transit.BadHandshake) as f:
         await d
-    assert str(f.value) == "got %r want %r" % (b"nevermind\n", b"go\n")
+    assert str(f.value) == "got {!r} want {!r}".format(b"nevermind\n", b"go\n")
 
 
 @ensureDeferred

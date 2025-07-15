@@ -715,7 +715,7 @@ async def _do_test(
         assert "Received file written to " in receive_stderr
         fn = os.path.join(receive_dir, receive_filename)
         assert os.path.exists(fn)
-        with open(fn, "r") as f:
+        with open(fn) as f:
             assert f.read() == message
     elif mode == "directory":
         assert receive_stdout == ""
@@ -727,7 +727,7 @@ async def _do_test(
         assert os.path.exists(fn), fn
         for i in range(5):
             fn = os.path.join(receive_dir, receive_dirname, str(i))
-            with open(fn, "r") as f:
+            with open(fn) as f:
                 assert f.read() == message(i)
             assert modes[i] == stat.S_IMODE(
                 os.stat(fn).st_mode)
@@ -932,7 +932,7 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
     if failmode == "noclobber":
         fn = os.path.join(receive_dir, receive_name)
         assert os.path.exists(fn)
-        with open(fn, "r") as f:
+        with open(fn) as f:
             assert f.read() == PRESERVE
 
 

@@ -61,10 +61,10 @@ class WSFactory(websocket.WebSocketClientFactory):
 
 @attrs
 @implementer(_interfaces.IRendezvousConnector)
-class RendezvousConnector(object):
-    _url = attrib(validator=instance_of(type("")))
-    _appid = attrib(validator=instance_of(type("")))
-    _side = attrib(validator=instance_of(type("")))
+class RendezvousConnector:
+    _url = attrib(validator=instance_of(str))
+    _appid = attrib(validator=instance_of(str))
+    _side = attrib(validator=instance_of(str))
     _reactor = attrib()
     _journal = attrib(validator=provides(_interfaces.IJournal))
     _tor = attrib(validator=optional(provides(_interfaces.ITorManager)))
@@ -209,7 +209,7 @@ class RendezvousConnector(object):
     def ws_message(self, payload):
         msg = bytes_to_dict(payload)
         if msg["type"] != "ack":
-            self._debug("R.rx(%s %s%s)" % (
+            self._debug("R.rx({} {}{})".format(
                 msg["type"],
                 msg.get("phase", ""),
                 "[mine]" if msg.get("side", "") == self._side else "",

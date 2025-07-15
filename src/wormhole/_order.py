@@ -9,7 +9,7 @@ from .util import provides
 
 @attrs
 @implementer(_interfaces.IOrder)
-class Order(object):
+class Order:
     _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()

@@ -39,7 +39,7 @@ class DebugTiming:
         return ev
 
     def write(self, fn, stderr):
-        with open(fn, "wt") as f:
+        with open(fn, "w") as f:
             data = [
                 dict(
                     name=e._name,

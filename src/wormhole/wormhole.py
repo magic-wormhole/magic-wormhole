@@ -46,7 +46,7 @@ del get_versions
 
 @attrs
 @implementer(IWormhole)
-class _DelegatedWormhole(object):
+class _DelegatedWormhole:
     _delegate = attrib()
 
     def __attrs_post_init__(self):
@@ -122,7 +122,7 @@ class _DelegatedWormhole(object):
 
 
 @implementer(IWormhole, IDeferredWormhole)
-class _DeferredWormhole(object):
+class _DeferredWormhole:
     def __init__(self, reactor, eq, _enable_dilate=False):
         self._reactor = reactor
         self._welcome_observer = OneShotObserver(eq)

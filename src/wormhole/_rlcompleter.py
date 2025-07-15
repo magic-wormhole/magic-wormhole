@@ -24,7 +24,7 @@ def debug(*args, **kwargs):  # pragma: no cover
 
 
 @attrs
-class CodeInputter(object):
+class CodeInputter:
     _input_helper = attrib()
     _reactor = attrib()
 

@@ -29,7 +29,7 @@ from .util import bytes_to_dict, provides
 
 @attrs
 @implementer(_interfaces.IBoss)
-class Boss(object):
+class Boss:
     _W = attrib()
     _side = attrib(validator=instance_of(str))
     _url = attrib(validator=instance_of(str))

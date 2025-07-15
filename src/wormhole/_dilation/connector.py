@@ -47,7 +47,7 @@ def build_noise():
 
 @attrs(eq=False)
 @implementer(IDilationConnector)
-class Connector(object):
+class Connector:
     """I manage a single generation of connection.
 
     The Manager creates one of me at a time, whenever it wants a connection
@@ -76,14 +76,14 @@ class Connector(object):
     """
 
     _dilation_key = attrib(validator=instance_of(bytes))
-    _transit_relay_location = attrib(validator=optional(instance_of(type(""))))
+    _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _manager = attrib(validator=provides(IDilationManager))
     _reactor = attrib()
     _eventual_queue = attrib()
     _no_listen = attrib(validator=instance_of(bool))
     _tor = attrib()
     _timing = attrib()
-    _side = attrib(validator=instance_of(type("")))
+    _side = attrib(validator=instance_of(str))
     # was self._side = bytes_to_hexstr(os.urandom(8)) # unicode
     _role = attrib()
 
@@ -406,7 +406,7 @@ class Connector(object):
 
 
 @attrs(repr=False)
-class OutboundConnectionFactory(ClientFactory, object):
+class OutboundConnectionFactory(ClientFactory):
     _connector = attrib(validator=provides(IDilationConnector))
     _relay_handshake = attrib(validator=optional(instance_of(bytes)))
     _description = attrib()
@@ -433,7 +433,7 @@ def describe_inbound(addr):
 
 
 @attrs(repr=False)
-class InboundConnectionFactory(ServerFactory, object):
+class InboundConnectionFactory(ServerFactory):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def __repr__(self):
