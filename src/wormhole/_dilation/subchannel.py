@@ -375,12 +375,13 @@ class SubchannelDemultiplex:
     """
     def __init__(self):
         self._factories = dict()  # name -> IProtocolFactory
-        self._pending_opens = defaultdict(list)  # name -> Sequence[[transport, address]]
+        self._pending_opens = defaultdict(deque)  # name -> deque[tuple[transport, address]]
 
     # from manager (actually Inbound)
     # t is Subchannel (transport) instance
     # peer_addr is a SubchannelAddress
     def _got_open(self, t, peer_addr):
+        # t is "ITransport"?
         name = peer_addr.subprotocol
         if name in self._factories:
             self._connect(self._factories[name], t, peer_addr)
@@ -405,7 +406,7 @@ class SubchannelDemultiplex:
         try:
             pending = self._pending_opens.pop(subprotocol_name)
         except KeyError:
-            pending = []
+            pending = deque()
 
         while pending:
             (t, peer_addr) = pending.popleft()
