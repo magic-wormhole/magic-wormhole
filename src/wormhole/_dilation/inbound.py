@@ -74,7 +74,15 @@ class Inbound:
         peer_addr = SubchannelAddress(subprotocol)
         sc = SubChannel(scid, self._manager, self._host_addr, peer_addr)
         self._open_subchannels[scid] = sc
-        self._manager._subprotocol_factories._got_open(sc, peer_addr)
+        # this can produce a (synchronous) UnexpectedSubprotocol if
+        # the user specified "expected subprotocols" but this one
+        # isn't in the list.
+        try:
+            # maybe this should be in Manager?
+            self._manager._subprotocol_factories._got_open(sc, peer_addr)
+        except UnexpectedSubprotocol as e:
+            self._manager.send_close(scid)
+            del self._open_subchannels[scid]
 
     def handle_data(self, scid, data):
         log.msg("inbound.handle_data", scid, len(data))
