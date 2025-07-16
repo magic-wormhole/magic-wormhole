@@ -245,31 +245,44 @@ def test_halfcloseable_remote_close():
     assert p.mock_calls == [mock.call.writeConnectionLost()]
 
 
+# these fakes (used by the below tests) should be expanded for use
+# elsewhere if required -- or perhaps we can make the "real" objects
+# easier to construct for tests.
+
+
+@implementer(IDilationManager)
+class FakeManager:
+    pass
+
+
+@implementer(IProtocol)
+class FakeProtocol:
+    transport = None
+    def makeConnection(self, transport):
+        self.transport = transport
+
+
+class FakeFactory:
+    def __init__(self):
+        self.builds = []
+
+    def buildProtocol(self, addr):
+        self.builds.append(addr)
+        return FakeProtocol()
+
+
 def test_demultiplex():
+    """
+    Confirm we hold multiple open calls until a listener appears
+    """
     demult = SubchannelDemultiplex()
 
-    @implementer(IDilationManager)
-    class FakeManager:
-        pass
     fake_manager = FakeManager()
     hostaddr = _WormholeAddress()
-
-    @implementer(IProtocol)
-    class FakeProtocol:
-        transport = None
-        def makeConnection(self, transport):
-            self.transport = transport
 
     addr = SubchannelAddress("subproto")
     t0 = SubChannel(0, fake_manager, hostaddr, addr)
     t1 = SubChannel(1, fake_manager, hostaddr, addr)
-
-    class FakeFactory:
-        builds = []
-
-        def buildProtocol(self, addr):
-            self.builds.append(addr)
-            return FakeProtocol()
 
     factory = FakeFactory()
 
@@ -282,3 +295,31 @@ def test_demultiplex():
     # now we should have gotten two protocol builds (i.e. after we
     # "listen" with our factory)
     assert factory.builds == [addr, addr]
+
+
+def test_demultiplex_multiple_protocols():
+    demult = SubchannelDemultiplex()
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+
+    addr_zero = SubchannelAddress("zero")
+    addr_one = SubchannelAddress("one")
+    t0 = SubChannel(0, fake_manager, hostaddr, addr_zero)
+    t1 = SubChannel(1, fake_manager, hostaddr, addr_one)
+    t2 = SubChannel(2, fake_manager, hostaddr, addr_one)
+    t3 = SubChannel(3, fake_manager, hostaddr, addr_zero)
+
+    demult._got_open(t0, addr_zero)
+    demult._got_open(t1, addr_one)
+    demult._got_open(t2, addr_one)
+    demult._got_open(t3, addr_zero)
+
+    # once we listen, each kind of subprotocol should have represented
+    # twice
+    factory_zero = FakeFactory()
+    factory_one = FakeFactory()
+    demult.register("zero", factory_zero)
+    demult.register("one", factory_one)
+
+    assert factory_one.builds == [addr_one, addr_one]
+    assert factory_zero.builds == [addr_zero, addr_zero]
