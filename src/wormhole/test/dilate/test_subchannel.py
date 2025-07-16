@@ -1,11 +1,13 @@
 from unittest import mock
-from zope.interface import directlyProvides
-from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol
+from zope.interface import directlyProvides, implementer
+from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol, IProtocol
 from twisted.internet.error import ConnectionDone
+from ..._interfaces import IDilationManager
 from ..._dilation.subchannel import (SubChannel,
                                      _WormholeAddress, SubchannelAddress,
                                      AlreadyClosedError,
-                                     NormalCloseUsedOnHalfCloseable)
+                                     NormalCloseUsedOnHalfCloseable,
+                                     SubchannelDemultiplex)
 from ..._dilation.manager import Once
 from .common import mock_manager
 import pytest
@@ -241,3 +243,42 @@ def test_halfcloseable_remote_close():
     assert m.mock_calls == [mock.call.send_close(scid),
                                     mock.call.subchannel_closed(scid, sc)]
     assert p.mock_calls == [mock.call.writeConnectionLost()]
+
+
+def test_demultiplex():
+    demult = SubchannelDemultiplex()
+
+    @implementer(IDilationManager)
+    class FakeManager:
+        pass
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+
+    @implementer(IProtocol)
+    class FakeProtocol:
+        transport = None
+        def makeConnection(self, transport):
+            self.transport = transport
+
+    addr = SubchannelAddress("subproto")
+    t0 = SubChannel(0, fake_manager, hostaddr, addr)
+    t1 = SubChannel(1, fake_manager, hostaddr, addr)
+
+    class FakeFactory:
+        builds = []
+
+        def buildProtocol(self, addr):
+            self.builds.append(addr)
+            return FakeProtocol()
+
+    factory = FakeFactory()
+
+    demult._got_open(t0, addr)
+    demult._got_open(t1, addr)
+
+    # nothing listening yet, so we should have accumulated two opens
+    demult.register("subproto", factory)
+
+    # now we should have gotten two protocol builds (i.e. after we
+    # "listen" with our factory)
+    assert factory.builds == [addr, addr]
