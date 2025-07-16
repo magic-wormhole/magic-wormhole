@@ -7,7 +7,8 @@ from ..._dilation.subchannel import (SubChannel,
                                      _WormholeAddress, SubchannelAddress,
                                      AlreadyClosedError,
                                      NormalCloseUsedOnHalfCloseable,
-                                     SubchannelDemultiplex)
+                                     SubchannelDemultiplex,
+                                     UnexpectedSubprotocol)
 from ..._dilation.manager import Once
 from .common import mock_manager
 import pytest
@@ -323,3 +324,14 @@ def test_demultiplex_multiple_protocols():
 
     assert factory_one.builds == [addr_one, addr_one]
     assert factory_zero.builds == [addr_zero, addr_zero]
+
+
+def test_unexpected_protocol():
+    demult = SubchannelDemultiplex(expected_subprotocols=["foo"])
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+
+    addr = SubchannelAddress("subproto")
+    t0 = SubChannel(0, fake_manager, hostaddr, addr)
+    with pytest.raises(UnexpectedSubprotocol):
+        demult._got_open(t0, addr)
