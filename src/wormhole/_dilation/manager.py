@@ -450,7 +450,7 @@ class Manager:
         self._maybe_send_status(
             evolve(
                 self._latest_status,
-                hints=hints,
+                hints=set(hints).union(self._latest_status.hints),
             )
         )
 

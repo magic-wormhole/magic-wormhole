@@ -185,19 +185,40 @@ LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
 
 
-class ReactorOnlyTime:
+class FakeHost:
+    def __init__(self, port):
+        self.port = port
+
+
+class FakePort:
+    def __init__(self, port):
+        self.port = port
+
+    def getHost(self):
+        return FakeHost(self.port)
+
+
+class ReactorFake:
     """
-    Provide a reactor-like mock that at least has seconds()
+    Provide a reactor-like mock
     """
-    # not ideal, but prior to this the "reactor" below was literally
-    # just "object()"
+    # not ideal, but prior to this the "reactor" in these tests was
+    # literally just "object()"
+
+    def __init__(self):
+        self.listens = []
 
     def seconds(self):
         return 42
 
-    def callLater(self, interval, callable):
+    def callLater(self, interval, callable, *args):
         # should return a DelayedCall
         return mock.Mock()
+
+    def listenTCP(self, *args, **kw):
+        # returns an IListenPort
+        self.listens.append((args, kw))
+        return FakePort(1234)
 
 
 def make_manager(leader=True):
@@ -210,7 +231,7 @@ def make_manager(leader=True):
         side = FOLLOWER
     h.key = b"\x00" * 32
     h.relay = None
-    h.reactor = ReactorOnlyTime()
+    h.reactor = ReactorFake()
     h.clock = Clock()
     h.eq = EventualQueue(h.clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
@@ -654,5 +675,47 @@ def test_unknown_message(observe_errors):
 
     m.received_dilation_message(dict_to_bytes(dict(type="unknown")))
     observe_errors.flush(UnknownDilationMessageType)
+
+
+def test_status_hints():
+    """
+    Rudimentary test proving that sending two different hint updates
+    results in a final update with both hints
+    """
+    m, h = make_manager()
+
+    # better if we could use Dilator -> dilate() -> etc
+    updates = []
+    def status_update(st):
+        updates.append(st)
+    m._status = status_update
+
+    m.start()
+    m.rx_PLEASE({"side": "fake side"})
+    m.rx_HINTS({"hints": [
+        {
+            "type": "direct-tcp-v1",
+            "hostname": "fake.host",
+            "port": 1,
+        }
+    ]})
+    m.rx_HINTS({"hints": [
+        {
+            "type": "direct-tcp-v1",
+            "hostname": "fake.host",
+            "port": 2,
+        }
+    ]})
+
+    # we've done two (separate!) hint updates, our last status update
+    # should show both of them
+
+    last_hints = [
+        hint.url
+        for hint in updates[-1].hints
+    ]
+    assert "fake.host:1" in last_hints
+    assert "fake.host:2" in last_hints
+
 
 # TODO: test transit relay is used
