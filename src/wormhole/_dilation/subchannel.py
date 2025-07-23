@@ -394,7 +394,7 @@ class SubchannelDemultiplex:
     # t is Subchannel (transport) instance
     # peer_addr is a SubchannelAddress
     def _got_open(self, t, peer_addr):
-        # t is "ITransport"?
+        # t is "ITransport"
         name = peer_addr.subprotocol
         if name in self._factories:
             self._connect(self._factories[name], t, peer_addr)
