@@ -15,6 +15,7 @@ User-visible changes in "magic-wormhole":
   support it (also removes the generic "control" subchannel) (@meejah @shapr)
 * Improve ping-timeouts on Mailbox connection (#646 @meejah)
 * Update old syntax (#658 @sblondon)
+* Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
 
 
 ## Release 0.19.2 (30-May-2025)
