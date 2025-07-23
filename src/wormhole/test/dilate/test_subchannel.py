@@ -314,7 +314,6 @@ def test_demultiplex_multiple_protocols(protocols):
     # Hypothesis is giving us a list of subchannel names to open
     # protocols with. It would be best if we had lots of repeats, but
     # trying to _force_ that with assume() makes Hypothesis grumpy
-    has_repeat = len(protocols) != len(set(protocols))
     demult = SubchannelDemultiplex()
     fake_manager = FakeManager()
     hostaddr = _WormholeAddress()

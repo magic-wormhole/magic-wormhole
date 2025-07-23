@@ -3,7 +3,7 @@ from zope.interface import implementer
 from twisted.python import log
 from .._interfaces import IDilationManager, IInbound, ISubChannel
 from ..util import provides
-from .subchannel import (SubChannel, SubchannelAddress)
+from .subchannel import (SubChannel, SubchannelAddress, UnexpectedSubprotocol)
 
 
 class DuplicateOpenError(Exception):
@@ -80,7 +80,7 @@ class Inbound:
         try:
             # maybe this should be in Manager?
             self._manager._subprotocol_factories._got_open(sc, peer_addr)
-        except UnexpectedSubprotocol as e:
+        except UnexpectedSubprotocol:
             self._manager.send_close(scid)
             del self._open_subchannels[scid]
 
