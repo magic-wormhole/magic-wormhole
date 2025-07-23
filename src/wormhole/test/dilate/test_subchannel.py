@@ -12,6 +12,8 @@ from ..._dilation.subchannel import (SubChannel,
 from ..._dilation.manager import Once
 from .common import mock_manager
 import pytest
+from hypothesis import given
+from hypothesis.strategies import text, lists
 
 
 def make_sc(set_protocol=True, half_closeable=False):
@@ -298,35 +300,58 @@ def test_demultiplex():
     assert factory.builds == [addr, addr]
 
 
-def test_demultiplex_multiple_protocols():
+@given(
+    lists(
+        text(min_size=1),
+        min_size=1
+    )
+)
+def test_demultiplex_multiple_protocols(protocols):
+    """
+    Interleave two separate subprotocols and confirm we hold them open
+    until a following listen
+    """
+    # Hypothesis is giving us a list of subchannel names to open
+    # protocols with. It would be best if we had lots of repeats, but
+    # trying to _force_ that with assume() makes Hypothesis grumpy
+    has_repeat = len(protocols) != len(set(protocols))
     demult = SubchannelDemultiplex()
     fake_manager = FakeManager()
     hostaddr = _WormholeAddress()
+    unique_protocols = set(protocols)
 
-    addr_zero = SubchannelAddress("zero")
-    addr_one = SubchannelAddress("one")
-    t0 = SubChannel(0, fake_manager, hostaddr, addr_zero)
-    t1 = SubChannel(1, fake_manager, hostaddr, addr_one)
-    t2 = SubChannel(2, fake_manager, hostaddr, addr_one)
-    t3 = SubChannel(3, fake_manager, hostaddr, addr_zero)
+    addresses = {
+        nm: SubchannelAddress(nm)
+        for nm in unique_protocols
+    }
+    subchannels = [
+        SubChannel(i, fake_manager, hostaddr, addresses[nm])
+        for i, nm in enumerate(protocols)
+    ]
 
-    demult._got_open(t0, addr_zero)
-    demult._got_open(t1, addr_one)
-    demult._got_open(t2, addr_one)
-    demult._got_open(t3, addr_zero)
+    for nm, sub in zip(protocols, subchannels):
+        demult._got_open(sub, addresses[nm])
 
     # once we listen, each kind of subprotocol should have represented
     # twice
-    factory_zero = FakeFactory()
-    factory_one = FakeFactory()
-    demult.register("zero", factory_zero)
-    demult.register("one", factory_one)
+    factories = {
+        nm: FakeFactory()
+        for nm in unique_protocols
+    }
+    for nm, factory in factories.items():
+        demult.register(nm, factory)
 
-    assert factory_one.builds == [addr_one, addr_one]
-    assert factory_zero.builds == [addr_zero, addr_zero]
+    # each factory should have had buildProtocol invoked once for each
+    # incoming open we had for that name
+    for nm, factory in factories.items():
+        assert factory.builds == [addresses[nm]] * protocols.count(nm)
 
 
 def test_unexpected_protocol():
+    """
+    An incoming subprotocol produces an error if we specify a set of
+    expected protocols (and the incoming one is not on the list)
+    """
     demult = SubchannelDemultiplex(expected_subprotocols=["foo"])
     fake_manager = FakeManager()
     hostaddr = _WormholeAddress()
