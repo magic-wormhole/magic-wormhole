@@ -375,7 +375,7 @@ class SubchannelDemultiplex:
     """
     def __init__(self):
         self._factories = dict()  # name -> IProtocolFactory
-        self._pending_opens = defaultdict(list)  # name -> Sequence[[transport, address]]
+        self._pending_opens = defaultdict(deque)  # name -> Sequence[[transport, address]]
 
     # from manager (actually Inbound)
     # t is Subchannel (transport) instance
