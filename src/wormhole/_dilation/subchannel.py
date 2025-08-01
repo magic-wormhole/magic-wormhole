@@ -50,6 +50,13 @@ class HalfCloseUsedOnNonHalfCloseable(Exception):
     pass
 
 
+class UnexpectedSubprotocol(Exception):
+    """
+    The peer sends an OPEN for a subprotocol name application code
+    indicates will never exist
+    """
+
+
 @implementer(IAddress)
 class _WormholeAddress:
     pass
@@ -372,19 +379,28 @@ class SubchannelDemultiplex:
     """
     Helper for Inbound to await factories for particular subprotocols,
     and deliver pending and future OPEN messages to them.
+
+    If expected_subprotocols is `None` (the default) then all incoming
+    OPENs are held pending a future listen. Otherwise,
+    `expected_subprotocols` is a collection of str, where any OPEN not
+    in the list produces an error.
     """
-    def __init__(self):
+    def __init__(self, expected_subprotocols=None):
         self._factories = dict()  # name -> IProtocolFactory
-        self._pending_opens = defaultdict(deque)  # name -> Sequence[[transport, address]]
+        self._pending_opens = defaultdict(deque)  # name -> deque[tuple[transport, address]]
+        self._expected = expected_subprotocols
 
     # from manager (actually Inbound)
     # t is Subchannel (transport) instance
     # peer_addr is a SubchannelAddress
     def _got_open(self, t, peer_addr):
+        # t is "ITransport"
         name = peer_addr.subprotocol
         if name in self._factories:
             self._connect(self._factories[name], t, peer_addr)
         else:
+            if self._expected is not None and name not in self._expected:
+                raise UnexpectedSubprotocol()
             self._pending_opens[name].append((t, peer_addr))
 
     def _connect(self, factory, t, peer_addr):
@@ -405,7 +421,7 @@ class SubchannelDemultiplex:
         try:
             pending = self._pending_opens.pop(subprotocol_name)
         except KeyError:
-            pending = []
+            pending = deque()
 
         while pending:
             (t, peer_addr) = pending.popleft()
