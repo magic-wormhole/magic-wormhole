@@ -3,6 +3,9 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+
+## Release 0.20.0 (30-Jul-2025)
+
 * Update minimal Python version in README.md (#634 @sblondon)
 * Remove 'u' prefix to strings (#636 @sblondon)
 * Use classes directly instead of type() calls (#637 @sblondon)
@@ -17,6 +20,7 @@ User-visible changes in "magic-wormhole":
 * Update old syntax (#658 @sblondon)
 * Fix bare pytest (#656 @Hugo-C)
 * Add magic-wormhole CLI command (#640 @nils-werner)
+
 
 ## Release 0.19.2 (30-May-2025)
 
