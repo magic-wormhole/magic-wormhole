@@ -8,7 +8,10 @@ How to Prepare a Release
    wormhole_complete.\* ; git commit -m “completions”
    (this step requires installed bash, zsh, and fish)
 
--  Update NEWS.md (copy-edit, add missing credits, etc)
+-  Update NEWS.md
+  - copy-edit
+  - add missing credits
+  - change title for "Upcoming Release" to correct version, date
 
 -  make release
    (this step requires having libgpgme installed, and will GPG sign the package )
