@@ -5,6 +5,7 @@ User-visible changes in "magic-wormhole":
 * (add release-notes here when making PRs)
 * Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
 
+
 ## Release 0.20.0 (30-Jul-2025)
 
 * Update minimal Python version in README.md (#634 @sblondon)
@@ -19,7 +20,6 @@ User-visible changes in "magic-wormhole":
   support it (also removes the generic "control" subchannel) (@meejah @shapr)
 * Improve ping-timeouts on Mailbox connection (#646 @meejah)
 * Update old syntax (#658 @sblondon)
-
 * Fix bare pytest (#656 @Hugo-C)
 * Add magic-wormhole CLI command (#640 @nils-werner)
 
