@@ -1,0 +1,17 @@
+diff --git a/wormhole_complete.bash b/wormhole_complete.bash
+index 8a327d5..0b4c2ee 100644
+--- a/wormhole_complete.bash
++++ b/wormhole_complete.bash
+@@ -22,7 +22,11 @@ _wormhole_completion() {
+ }
+ 
+ _wormhole_completion_setup() {
+-    complete -o nosort -F _wormhole_completion wormhole
++    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
++        complete -F _wormhole_completion wormhole
++    else
++        complete -o nosort -F _wormhole_completion wormhole
++    fi
+ }
+ 
+ _wormhole_completion_setup;
