@@ -17,6 +17,8 @@ User-visible changes in "magic-wormhole":
 * Update old syntax (#658 @sblondon)
 * Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
 
+* Fix bare pytest (#656 @Hugo-C)
+* Add magic-wormhole CLI command (#640 @nils-werner)
 
 ## Release 0.19.2 (30-May-2025)
 

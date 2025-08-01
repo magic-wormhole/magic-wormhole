@@ -2,8 +2,8 @@
 # ---------------------
 #
 # This file answers the question "how to make a release" hopefully
-# better than a document does (only meejah and warner may currently do
-# the "upload to PyPI" part anyway)
+# better than a document does (only meejah and warner and shapr may
+# currently do the "upload to PyPI" part anyway)
 #
 
 default:
@@ -41,20 +41,20 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Is GPG Agent running, and has key?"
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign NEWS.md
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --clear-sign NEWS.md
 
 	@echo "Bump version and create tag"
-#	python3 update-version.py
-	python3 update-version.py --patch  # for bugfix release
+	python3 update-version.py
+#       python3 update-version.py --patch  # for bugfix release
 
 	@echo "Build and sign wheel"
 	python3 setup.py bdist_wheel
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	ls dist/*`git describe --abbrev=0`*
 
 	@echo "Build and sign source-dist"
 	python3 setup.py sdist
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`.tar.gz
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`.tar.gz
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
@@ -72,7 +72,7 @@ release-test:
 	rm -rf testmf_venv
 
 release-sign-announce:
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign docs/releases/release-announce-`git describe --abbrev=0`
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --clear-sign docs/releases/release-announce-`git describe --abbrev=0`
 
 release-upload:
 	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_wormhole-`git describe --abbrev=0`.tar.gz dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc

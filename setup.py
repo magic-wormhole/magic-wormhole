@@ -42,6 +42,7 @@ setup(name="magic-wormhole",
           "console_scripts":
           [
               "wormhole = wormhole.cli.cli:wormhole",
+              "magic-wormhole = wormhole.cli.cli:wormhole", # it's advantageous to have an entry point that matches the package name, for things like `uv tool run`
           ]
       },
       install_requires=[

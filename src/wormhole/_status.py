@@ -171,4 +171,4 @@ class DilationStatus:
     peer_connection: PeerConnection = NoPeer()
 
     # available methods to get to peer
-    hints: list[DilationHint] = Factory(list)
+    hints: set[DilationHint] = Factory(set)
