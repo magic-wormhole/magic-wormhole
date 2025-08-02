@@ -22,11 +22,12 @@ from .roles import LEADER
 from .._hints import (DirectTCPV1Hint, TorTCPV1Hint, RelayV1Hint,
                       parse_hint_argv, describe_hint_obj, endpoint_from_hint_obj,
                       encode_hint)
+from .._status import DilationHint
 from ._noise import NoiseConnection
 
 
 def build_sided_relay_handshake(key, side):
-    assert isinstance(side, type(u""))
+    assert isinstance(side, str)
     # magic-wormhole-transit-relay expects a specific layout for the
     # handshake message: "please relay {64} for side {16}\n"
     assert len(side) == 8 * 2, side
@@ -46,7 +47,7 @@ def build_noise():
 
 @attrs(eq=False)
 @implementer(IDilationConnector)
-class Connector(object):
+class Connector:
     """I manage a single generation of connection.
 
     The Manager creates one of me at a time, whenever it wants a connection
@@ -74,15 +75,15 @@ class Connector(object):
     or not.
     """
 
-    _dilation_key = attrib(validator=instance_of(type(b"")))
-    _transit_relay_location = attrib(validator=optional(instance_of(type(u""))))
+    _dilation_key = attrib(validator=instance_of(bytes))
+    _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _manager = attrib(validator=provides(IDilationManager))
     _reactor = attrib()
     _eventual_queue = attrib()
     _no_listen = attrib(validator=instance_of(bool))
     _tor = attrib()
     _timing = attrib()
-    _side = attrib(validator=instance_of(type(u"")))
+    _side = attrib(validator=instance_of(str))
     # was self._side = bytes_to_hexstr(os.urandom(8)) # unicode
     _role = attrib()
 
@@ -317,6 +318,7 @@ class Connector(object):
         # first, pull out all the relays, we'll connect to them later
         relays = []
         direct = defaultdict(list)
+        hint_status = []
         for h in hints:
             if isinstance(h, RelayV1Hint):
                 relays.append(h)
@@ -329,6 +331,7 @@ class Connector(object):
             for h in direct[p]:
                 if isinstance(h, TorTCPV1Hint) and not self._tor:
                     continue
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", True))
                 self._schedule_connection(delay, h, is_relay=False)
                 made_direct = True
                 # Make all direct connections immediately. Later, we'll change
@@ -360,6 +363,9 @@ class Connector(object):
         for r in relays:
             for h in r.hints:
                 self._schedule_connection(delay, h, is_relay=True)
+                hint_status.append(DilationHint(f"{h.hostname}:{h.port}", False))
+
+        self._manager._hint_status(hint_status)
         # TODO:
         # if not contenders:
         #    raise TransitError("No contenders for connection")
@@ -400,13 +406,13 @@ class Connector(object):
 
 
 @attrs(repr=False)
-class OutboundConnectionFactory(ClientFactory, object):
+class OutboundConnectionFactory(ClientFactory):
     _connector = attrib(validator=provides(IDilationConnector))
     _relay_handshake = attrib(validator=optional(instance_of(bytes)))
     _description = attrib()
 
     def __repr__(self):
-        return "OutboundConnectionFactory(%s %s)" % (self._connector._role, self._description)
+        return f"OutboundConnectionFactory({self._connector._role} {self._description})"
 
     def buildProtocol(self, addr):
         p = self._connector.build_protocol(addr, self._description)
@@ -423,15 +429,15 @@ def describe_inbound(addr):
         return "<-tcp:%s:%d" % (addr.host, addr.port)
     elif isinstance(addr, IPv6Address):
         return "<-tcp:[%s]:%d" % (addr.host, addr.port)
-    return "<-%r" % addr
+    return f"<-{addr!r}"
 
 
 @attrs(repr=False)
-class InboundConnectionFactory(ServerFactory, object):
+class InboundConnectionFactory(ServerFactory):
     _connector = attrib(validator=provides(IDilationConnector))
 
     def __repr__(self):
-        return "InboundConnectionFactory(%s)" % (self._connector._role)
+        return f"InboundConnectionFactory({self._connector._role})"
 
     def buildProtocol(self, addr):
         description = describe_inbound(addr)

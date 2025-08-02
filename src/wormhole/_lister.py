@@ -8,7 +8,7 @@ from .util import provides
 
 @attrs
 @implementer(_interfaces.ILister)
-class Lister(object):
+class Lister:
     _timing = attrib(validator=provides(_interfaces.ITiming))
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace",

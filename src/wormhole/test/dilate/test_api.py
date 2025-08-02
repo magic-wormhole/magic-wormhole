@@ -1,167 +1,195 @@
-from twisted.internet import reactor
-from twisted.trial import unittest
-from twisted.internet.defer import inlineCallbacks
+import typing
+
+import pytest
+import pytest_twisted
+from zope.interface import implementer
 from twisted.internet.task import deferLater
-from attrs import evolve
+from twisted.internet.protocol import Factory
+from twisted.internet.interfaces import IProtocolFactory
 
-
-from ...wormhole import create
+from ... import create
 from ...errors import LonelyError
 from ...eventual import EventualQueue
 from ..._dilation._noise import NoiseConnection
-from ..._status import Connecting, Connected, Disconnected, WormholeStatus, NoKey, AllegedSharedKey, ConfirmedKey, DilationStatus, NoPeer, ConnectedPeer, ConnectingPeer
+from ..._status import (
+    Disconnected, ConnectedPeer, Closed, ConnectionStatus, PeerSharedKey,
+    CodeStatus, PeerConnection
+)
 
-from ..common import ServerBase
+
+def _union_sort_order(union_klass):
+    """
+    Convert a Union type into a dict mapping its members to a number
+    representing their order in the original type
+    """
+    # note: we want these to be in the same order as in the _status
+    # Union-type declarations
+    return {
+        klass: idx
+        for idx, klass in enumerate(typing.get_args(union_klass))
+    }
 
 
-class API(ServerBase, unittest.TestCase):
+def assert_mailbox_status_order(status_messages):
+    """
+    Confirm the given status messages have the correct properties.
 
-    @inlineCallbacks
-    def test_on_status_error(self):
-        """
-        Our user code raises an exception during status processing
-        """
-        eq = EventualQueue(reactor)
+    Here we want to assert that individual status items "go the right
+    way": that is, for most of these things we know that you can't go
+    back to "AllegedSharedKey" after seeing a "ConfirmedKey" (for
+    example).
 
-        class FakeError(Exception):
-            pass
+    So what we do is make a sort-order for each status field, sort the
+    messages by that, and assert that this sorted order is the same as
+    the raw message order.
+    """
+    code_sorting = _union_sort_order(CodeStatus)
+    key_sorting = _union_sort_order(PeerSharedKey)
+    mailbox_sorting = _union_sort_order(ConnectionStatus)
 
-        def on_status(_):
-            raise FakeError()
-        with self.assertRaises(FakeError):
-            w = create(
-                "appid", self.relayurl,
-                reactor,
-                versions={"fun": "quux"},
-                _eventual_queue=eq,
-                _enable_dilate=True,
-                on_status_update=on_status,
-            )
-            yield w.allocate_code()
-            code = yield w.get_code()
-            print(code)
-            try:
-                yield w.close()
-            except LonelyError:
-                pass
+    code_messages = [st.code for st in status_messages]
+    acceptable_order = sorted(code_messages, key=lambda code: code_sorting[type(code)])
+    assert acceptable_order == code_messages, "'code' status came in an illegal order"
 
-    @inlineCallbacks
-    def test_dilation_status(self):
-        if not NoiseConnection:
-            raise unittest.SkipTest("noiseprotocol unavailable")
+    key_messages = [st.peer_key for st in status_messages]
+    assert sorted(key_messages, key=lambda k: key_sorting[type(k)]) == key_messages
 
-        eq = EventualQueue(reactor)
+    # "in general" we can go from Connected back to Connecting,
+    # but for this particular test we don't actually do that
+    mailbox_messages = [st.mailbox_connection for st in status_messages]
+    assert sorted(mailbox_messages, key=lambda k: mailbox_sorting[type(k)]) == mailbox_messages
+    # initial and terminal status must be correct
+    assert isinstance(mailbox_messages[0], Disconnected)
+    assert isinstance(mailbox_messages[-1], Closed)
 
-        status0 = []
-        status1 = []
 
-        wormhole_status0 = []
-        wormhole_status1 = []
+def assert_dilation_status_order(status_messages):
+    """
+    for "Dilation"-specific messages, we only analyze the non-wormhole
+    status parts and use a similar trick to the above.
+    """
+    generations = [msg.generation for msg in status_messages]
+    # generations must always increase ("sorted" is a stable-sort .. right??)
+    assert sorted(generations) == generations, "generation number went backwards"
 
-        w0 = create(
-            "appid", self.relayurl,
+    # "In general" the peer_connection can go ConnectedPeer back to
+    # ConnectingPeer multiple times, but we don't actually do that in
+    # this particular test.
+    #
+    # shapr points out we could fix this by setting ConnectedPeer and
+    # ReconnectingPeer to the same number -- then they should
+    # stable-sort to the right thing (however, we do not yet have a
+    # test that actually re-connects a peer). e.g.:
+    #     peer_sorting[ReconnectingPeer] = peer_sorting[ConnectedPeer]
+    peer_sorting = _union_sort_order(PeerConnection)
+    peers = [msg.peer_connection for msg in status_messages]
+    assert sorted(peers, key=lambda k: peer_sorting[type(k)]) == peers, "peer status went backwards"
+
+
+@pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test_on_status_error(reactor, mailbox):
+    """
+    Our user code raises an exception during status processing
+    """
+    eq = EventualQueue(reactor)
+
+    class FakeError(Exception):
+        pass
+
+    def on_status(_):
+        raise FakeError()
+    with pytest.raises(FakeError):
+        w = create(
+            "appid", mailbox.url,
             reactor,
             versions={"fun": "quux"},
             _eventual_queue=eq,
-            _enable_dilate=True,
-            on_status_update=wormhole_status0.append,
+            dilation=True,
+            on_status_update=on_status,
         )
+        await w.allocate_code()
+        code = await w.get_code()
+        print(code)
+        try:
+            await w.close()
+        except LonelyError:
+            pass
 
-        w1 = create(
-            "appid", self.relayurl,
-            reactor,
-            versions={"bar": "baz"},
-            _eventual_queue=eq,
-            _enable_dilate=True,
-            on_status_update=wormhole_status1.append,
-        )
 
-        yield w0.allocate_code()
-        code = yield w0.get_code()
+@implementer(IProtocolFactory)
+class SubFac(Factory):
+    subprotocol = "jemison"
 
-        yield w1.set_code(code)
 
-        yield w0.dilate(on_status_update=status0.append)
-        yield w1.dilate(on_status_update=status1.append)
+@pytest_twisted.ensureDeferred()
+@pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
+async def test_dilation_status(reactor, mailbox):
+    eq = EventualQueue(reactor)
 
-        # we should see the _other side's_ app-versions
-        v0 = yield w1.get_versions()
-        v1 = yield w0.get_versions()
-        self.assertEqual(v0, {"fun": "quux"})
-        self.assertEqual(v1, {"bar": "baz"})
+    status0 = []
+    status1 = []
 
-        @inlineCallbacks
-        def wait_for_peer():
-            while True:
-                yield deferLater(reactor, 0.001, lambda: None)
-                peers = [
-                    st
-                    for st in status0
-                    if isinstance(st.peer_connection, ConnectedPeer)
-                ]
-                if peers:
-                    return
-        yield wait_for_peer()
+    wormhole_status0 = []
+    wormhole_status1 = []
 
-        # we don't actually do anything, just disconnect after we have
-        # our peer
-        yield w0.close()
-        yield w1.close()
+    w0 = create(
+        "appid", mailbox.url,
+        reactor,
+        versions={"fun": "quux"},
+        _eventual_queue=eq,
+        dilation=True,
+        on_status_update=wormhole_status0.append,
+    )
 
-        # check that the wormhole status messages are what we expect
-        def normalize_timestamp(status):
-            if isinstance(status.mailbox_connection, Connecting):
-                return evolve(
-                    status,
-                    mailbox_connection=evolve(status.mailbox_connection, last_attempt=1),
-                )
-            return status
+    w1 = create(
+        "appid", mailbox.url,
+        reactor,
+        versions={"bar": "baz"},
+        _eventual_queue=eq,
+        dilation=True,
+        on_status_update=wormhole_status1.append,
+    )
 
-        processed = [
-            normalize_timestamp(status)
-            for status in wormhole_status0
-        ]
+    w0.allocate_code()
+    code = await w0.get_code()
 
-        self.assertEqual(
-            processed,
-            [
-                WormholeStatus(Connecting(self.relayurl, 1), NoKey()),
-                WormholeStatus(Connected(self.relayurl), NoKey()),
-                WormholeStatus(Connected(self.relayurl), AllegedSharedKey()),
-                WormholeStatus(Connected(self.relayurl), ConfirmedKey()),
-                WormholeStatus(Disconnected(), NoKey()),
+    w1.set_code(code)
+
+    w0.dilate(on_status_update=status0.append)
+    w1.dilate(on_status_update=status1.append)
+
+    # we should see the _other side's_ app-versions
+    v0 = await w1.get_versions()
+    v1 = await w0.get_versions()
+    assert v0 == {"fun": "quux"}
+    assert v1 == {"bar": "baz"}
+
+    @pytest_twisted.ensureDeferred()
+    async def wait_for_peer():
+        while True:
+            await deferLater(reactor, 0.001, lambda: None)
+            peers = [
+                st
+                for st in status0
+                if isinstance(st.peer_connection, ConnectedPeer)
             ]
-        )
+            if peers:
+                return
+    await wait_for_peer()
 
-        # we are "normalizing" all the timestamps to be "0" because we
-        # are using the real reactor and therefore it is difficult to
-        # predict what they'll be. Removing the "real reactor" is
-        # itself kind of a deep problem due to the "eventually()"
-        # usage (among some other reasons).
+    # we don't actually do anything, just disconnect after we have
+    # our peer
+    await w0.close()
+    await w1.close()
 
-        def normalize_peer(st):
-            typ = type(st.peer_connection)
-            peer = st.peer_connection
-            if typ == ConnectingPeer:
-                peer = evolve(peer, last_attempt=0)
-            elif typ == ConnectedPeer:
-                peer = evolve(peer, connected_at=0, expires_at=0, hint_description="hint")
-            return evolve(st, peer_connection=peer)
+    # analyze the message orders
 
-        normalized = [normalize_peer(st) for st in status0]
+    assert_mailbox_status_order(wormhole_status0)
+    assert_mailbox_status_order(wormhole_status1)
 
-        # for n in normalized: print(n)
+    assert_dilation_status_order(status0)
+    assert_dilation_status_order(status1)
 
-        # check that the Dilation status messages are correct
-        self.assertEqual(
-            normalized,
-            [
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), AllegedSharedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, NoPeer()),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectingPeer(0)),
-                DilationStatus(WormholeStatus(Connected(self.relayurl), ConfirmedKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, ConnectedPeer(0, 0, hint_description="hint")),
-                DilationStatus(WormholeStatus(Disconnected(), NoKey()), 0, NoPeer()),
-            ]
-        )
+    # todo: we could expand these to timestamps: we know they
+    # should never go backwards

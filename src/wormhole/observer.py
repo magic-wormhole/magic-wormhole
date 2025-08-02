@@ -4,7 +4,7 @@ from twisted.python.failure import Failure
 NoResult = object()
 
 
-class OneShotObserver(object):
+class OneShotObserver:
     def __init__(self, eventual_queue):
         self._eq = eventual_queue
         self._result = NoResult
@@ -39,7 +39,7 @@ class OneShotObserver(object):
             self.fire(result)
 
 
-class SequenceObserver(object):
+class SequenceObserver:
     def __init__(self, eventual_queue):
         self._eq = eventual_queue
         self._error = None
@@ -76,7 +76,7 @@ class EmptyableSet(set):
 
     def __init__(self, *args, **kwargs):
         self._eq = kwargs.pop("_eventual_queue")  # required
-        super(EmptyableSet, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._observer = None
 
     def when_next_empty(self):
@@ -85,7 +85,7 @@ class EmptyableSet(set):
         return self._observer.when_fired()
 
     def discard(self, o):
-        super(EmptyableSet, self).discard(o)
+        super().discard(o)
         if self._observer and not self:
             self._observer.fire(None)
             self._observer = None

@@ -2,10 +2,56 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* Add a "status" feedback API for Dilation (#591, @meejah)
-* Drop support for Python 3.9, upgrade github-actions (#596)
-* add support for Ping/Pong timeouts in Dilation, improving re-connection speed
 * (add release-notes here when making PRs)
+* Correct types in Dilation subprotocols (#665 @mjoerg)
+* Support Bash < 4.0 completions for MacOS (#524 @meejah @niu541412)
+
+
+## Release 0.20.0 (30-Jul-2025)
+
+* Update minimal Python version in README.md (#634 @sblondon)
+* Remove 'u' prefix to strings (#636 @sblondon)
+* Use classes directly instead of type() calls (#637 @sblondon)
+* Doc: remove details about python2 types (#638 @sblondon)
+* Add 'hints' information to Dilation status updates (@meejah)
+* Replace formatted strings to f-strings (#642 @sblondon)
+* Properly display QR codes on dark-mode displays (#651 @kisst)
+* INCOMPAT: the Dilation extension now enables composition of
+  subchannels, giving each a named subprotocol along with a new API to
+  support it (also removes the generic "control" subchannel) (@meejah @shapr)
+* Improve ping-timeouts on Mailbox connection (#646 @meejah)
+* Update old syntax (#658 @sblondon)
+* Fix bare pytest (#656 @Hugo-C)
+* Add magic-wormhole CLI command (#640 @nils-werner)
+
+
+## Release 0.19.2 (30-May-2025)
+
+* Properly update all meta-data + docs regarding 3.9 drop (#592, @hmaarrfk)
+* Un-pin "magic-wormhole-mailbox-server" and "magic-wormhole-transit-relay"
+  in the "dev" extra (#630, @mgorny)
+
+
+## Release 0.19.1 (29-May-2025)
+
+* Run tests from sdist release
+* Report correct version in test Wormhole server (#625, @mgorny)
+
+
+## Release 0.19.0 (28-May-2025)
+
+* Add a "status" feedback API for Dilation (#591, @meejah)
+* use new Status API to notify a sending user when a code is consumed (#575, @shapr + @meejah)
+* add support for Ping/Pong timeouts in Dilation, improving re-connection speed (#590 @meejah)
+* documentation improvements (#614, #615 @shapr + @meejah)
+* improve Dilation version negotiation (#606, #611 @shapr + @meejah)
+* convert test-suite to pytest (#603, #610 @shapr + @meejah)
+* resize progress bar properly (#622 @shapr)
+* Drop support for Python 3.9, upgrade github-actions (#596 @meejah)
+* add a contribution guide (#597 @meejah)
+* INCOMPAT: "sdist" files move to an underscore, so the source-package name is
+  now "magic_wormhole-0.19.0.tar.gz" (the wheel files always had an underscore).
+  This is because setuptools v69.3.0 in 2024 implemented PEP 625 from 2020.
 
 
 ## Release 0.18.0 (11-Mar-2025)

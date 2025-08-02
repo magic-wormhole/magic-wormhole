@@ -39,7 +39,7 @@ class DebugTiming:
         return ev
 
     def write(self, fn, stderr):
-        with open(fn, "wt") as f:
+        with open(fn, "w") as f:
             data = [
                 dict(
                     name=e._name,
@@ -50,4 +50,4 @@ class DebugTiming:
             ]
             json.dump(data, f, indent=1)
             f.write("\n")
-        print("Timing data written to %s" % fn, file=stderr)
+        print(f"Timing data written to {fn}", file=stderr)

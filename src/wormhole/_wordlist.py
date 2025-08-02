@@ -272,11 +272,11 @@ raw_words = {
     'FF': ['Zulu', 'Yucatan']
 }
 
-byte_to_even_word = dict([(unhexlify(k.encode("ascii")), both_words[0])
-                          for k, both_words in raw_words.items()])
+byte_to_even_word = {unhexlify(k.encode("ascii")): both_words[0]
+                          for k, both_words in raw_words.items()}
 
-byte_to_odd_word = dict([(unhexlify(k.encode("ascii")), both_words[1])
-                         for k, both_words in raw_words.items()])
+byte_to_odd_word = {unhexlify(k.encode("ascii")): both_words[1]
+                         for k, both_words in raw_words.items()}
 
 even_words_lowercase, odd_words_lowercase = set(), set()
 
@@ -287,7 +287,7 @@ for k, both_words in raw_words.items():
 
 
 @implementer(IWordlist)
-class PGPWordList(object):
+class PGPWordList:
     def get_completions(self, prefix, num_words=2):
         # start with the odd words
         count = prefix.count("-")

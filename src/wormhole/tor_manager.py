@@ -15,7 +15,7 @@ except ImportError:
 
 
 @attrs
-class SocksOnlyTor(object):
+class SocksOnlyTor:
     _reactor = attrib()
 
     def stream_via(self, host, port, tls=False):
@@ -69,7 +69,7 @@ def get_tor(reactor,
 
     if not isinstance(launch_tor, bool):  # note: False is int
         raise TypeError("launch_tor= must be boolean")
-    if not isinstance(tor_control_port, (type(""), type(None))):
+    if not isinstance(tor_control_port, (str, type(None))):
         raise TypeError("tor_control_port= must be str or None")
     assert tor_control_port != ""
     if launch_tor and tor_control_port is not None:
@@ -95,7 +95,7 @@ def get_tor(reactor,
             control_ep = clientFromString(reactor, tor_control_port)
             tor = yield txtorcon.connect(reactor, control_ep)  # might raise
             print(
-                " using Tor via control port at %s" % tor_control_port,
+                f" using Tor via control port at {tor_control_port}",
                 file=stderr)
     else:
         # Let txtorcon look through a list of usual places. If that fails,

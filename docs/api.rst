@@ -131,8 +131,8 @@ several optional arguments:
 -  ``delegate``: provide a Delegate object to enable “delegated mode”,
    or pass None (the default) to get “deferred mode”
 -  ``journal``: provide a Journal object to enable journaled mode. See
-   journal.md for details. Note that journals only work with delegated
-   mode, not with deferred mode.
+   :doc:`the journal docs <journal>` for details. Note that journals
+   only work with delegated mode, not with deferred mode.
 -  ``tor_manager``: to enable Tor support, create a
    ``wormhole.TorManager`` instance and pass it here. This will hide the
    client’s IP address by proxying all connections (mailbox and transit)
@@ -509,8 +509,8 @@ clients to ask for greater capacity when they connect (probably by
 passing additional “mailbox attribute” parameters with the
 ``allocate``/``claim``/``open`` messages).
 
-For bulk data transfer, see “transit.md”, or the “Dilation” section
-below.
+For bulk data transfer, see :doc:`the transit docs <transit>` ,
+or the “Dilation” section below.
 
 Closing
 -------
@@ -565,7 +565,7 @@ point at functions, which cannot be serialized easily). It also only
 works for “non-dilated” wormholes (see below).
 
 To ensure correct behavior, serialization should probably only be done
-in “journaled mode”. See journal.md for details.
+in “journaled mode”. See :doc:`the journal docs <journal>` for details.
 
 If you use serialization, be careful to never use the same partial
 wormhole object twice.
@@ -723,15 +723,14 @@ subchannel.
 Bytes, Strings, Unicode, and Python 3
 -------------------------------------
 
-All cryptographically-sensitive parameters are passed as bytes (“str” in
-python2, “bytes” in python3):
+All cryptographically-sensitive parameters are passed as bytes (“bytes” in
+python3):
 
 -  verifier string
 -  data in/out
 -  transit records in/out
 
-Other (human-facing) values are always unicode (“unicode” in python2,
-“str” in python3):
+Other (human-facing) values are always unicode (“str” in python3):
 
 -  wormhole code
 -  relay URL

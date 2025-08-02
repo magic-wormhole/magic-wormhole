@@ -57,5 +57,5 @@ The ``wormhole`` API
 --------------------
 
 Application use the ``wormhole`` library to establish wormhole
-connections and exchange data through them. Please see ``api.md`` for a
-complete description of this interface.
+connections and exchange data through them. Please see :doc:`the API
+docs <api>` for a complete description of this interface.

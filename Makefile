@@ -2,8 +2,8 @@
 # ---------------------
 #
 # This file answers the question "how to make a release" hopefully
-# better than a document does (only meejah and warner may currently do
-# the "upload to PyPI" part anyway)
+# better than a document does (only meejah and warner and shapr may
+# currently do the "upload to PyPI" part anyway)
 #
 
 default:
@@ -12,12 +12,17 @@ default:
 lint:
 	tox -e flake8less
 
+test:
+	python -m pytest
+
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
 	zsh -c '_WORMHOLE_COMPLETE=zsh_source wormhole > wormhole_complete.zsh'
 	fish -c '_WORMHOLE_COMPLETE=fish_source wormhole > wormhole_complete.fish'
+# see Issue 524 for more; support bash < 4.4 for MacOS
+	patch -p1 < bash-completions-version-4.patch
 
-release-clean:
+release-undo-last-tag:
 	@echo "Cleanup stale release: " `python newest-version.py`
 	-rm NEWS.md.asc
 	rm dist/magic[_-]wormhole-`python newest-version.py`.tar.gz*
@@ -38,39 +43,44 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Is GPG Agent running, and has key?"
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --clear-sign NEWS.md
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --clear-sign NEWS.md
 
 	@echo "Bump version and create tag"
-	python3 update-version.py --patch 1
-#	python3 update-version.py --patch  # for bugfix release
+	python3 update-version.py
+#       python3 update-version.py --patch  # for bugfix release
 
 	@echo "Build and sign wheel"
 	python3 setup.py bdist_wheel
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	ls dist/*`git describe --abbrev=0`*
 
 	@echo "Build and sign source-dist"
 	python3 setup.py sdist
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic-wormhole-`git describe --abbrev=0`.tar.gz
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --detach-sign dist/magic_wormhole-`git describe --abbrev=0`.tar.gz
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
-	gpg --verify dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
+	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	python -m venv testmf_venv
 	testmf_venv/bin/pip install --upgrade pip
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version
 	testmf_venv/bin/pip uninstall -y magic_wormhole
-	testmf_venv/bin/pip install dist/magic-wormhole-`git describe --abbrev=0`.tar.gz
+	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`.tar.gz[dev,dilate]
 	testmf_venv/bin/wormhole --version
+	echo "see also Issue 625: running tests inside unpacked sdist"
+	PATH=`pwd`/testmf_venv/bin:${PATH} pytest ./testmf_venv/lib/python*/site-packages/wormhole/test/
 	rm -rf testmf_venv
 
+release-sign-announce:
+	gpg --pinentry=loopback -u ${MAINTAINER} --armor --clear-sign docs/releases/release-announce-`git describe --abbrev=0`
+
 release-upload:
-	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-wormhole-`git describe --abbrev=0`.tar.gz dist/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
+	twine upload --username __token__ --password `cat PRIVATE-release-token` dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_wormhole-`git describe --abbrev=0`.tar.gz dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
 	mv dist/*-`git describe --abbrev=0`.tar.gz.asc signatures/
 	mv dist/*-`git describe --abbrev=0`-py3-none-any.whl.asc signatures/
-	git add signatures/magic-wormhole-`git describe --abbrev=0`.tar.gz.asc
+	git add signatures/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
 	git add signatures/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
 	git commit -m "signatures for release"
 	git push origin-push `git describe --abbrev=0`

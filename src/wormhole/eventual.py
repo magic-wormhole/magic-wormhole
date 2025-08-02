@@ -6,7 +6,7 @@ from twisted.internet.interfaces import IReactorTime
 from twisted.python import log
 
 
-class EventualQueue(object):
+class EventualQueue:
     def __init__(self, clock):
         # pass clock=reactor unless you're testing
         self._clock = IReactorTime(clock)

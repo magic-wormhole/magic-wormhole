@@ -7,9 +7,7 @@ commands = versioneer.get_cmdclass()
 trove_classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -23,13 +21,14 @@ trove_classifiers = [
 setup(name="magic-wormhole",
       version=versioneer.get_version(),
       description="Securely transfer data between computers",
-      long_description=open('README.md', 'r').read(),
+      long_description=open('README.md').read(),
       long_description_content_type='text/markdown',
       author="Brian Warner",
       author_email="warner-magic-wormhole@lothar.com",
       license="MIT",
       url="https://github.com/warner/magic-wormhole",
       classifiers=trove_classifiers,
+      python_requires=">=3.10",
 
       package_dir={"": "src"},
       packages=["wormhole",
@@ -43,6 +42,7 @@ setup(name="magic-wormhole",
           "console_scripts":
           [
               "wormhole = wormhole.cli.cli:wormhole",
+              "magic-wormhole = wormhole.cli.cli:wormhole", # it's advantageous to have an entry point that matches the package name, for things like `uv tool run`
           ]
       },
       install_requires=[
@@ -62,9 +62,14 @@ setup(name="magic-wormhole",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
-          "dev": ["tox", "pyflakes",
-                  "magic-wormhole-transit-relay==0.3.1",
-                  "magic-wormhole-mailbox-server==0.3.1"],
+          "dev": [
+              "tox",
+              "pyflakes",
+              "magic-wormhole-transit-relay",
+              "magic-wormhole-mailbox-server",
+              "pytest",
+              "pytest_twisted",
+          ],
           "dilate": ["noiseprotocol", "msgpack"],
           "build": ["twine", "dulwich", "readme_renderer", "gpg", "wheel"],
       },

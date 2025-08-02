@@ -3,14 +3,14 @@ def handle_welcome(welcome, relay_url, my_version, stderr):
         motd_lines = welcome["motd"].splitlines()
         motd_formatted = "\n ".join(motd_lines)
         print(
-            "Server (at %s) says:\n %s" % (relay_url, motd_formatted),
+            f"Server (at {relay_url}) says:\n {motd_formatted}",
             file=stderr)
 
     # Only warn if we're running a release version (e.g. 0.0.6, not
     # 0.0.6+DISTANCE.gHASH). Only warn once.
-    if (("current_cli_version" in welcome and
+    if ("current_cli_version" in welcome and
          "+" not in my_version and
-         welcome["current_cli_version"] != my_version)):
+         welcome["current_cli_version"] != my_version):
         print(
             ("Warning: errors may occur unless both sides are running the"
              " same version"),

@@ -154,7 +154,7 @@ from .connection import KCM, Ping, Pong, Ack
 
 @attrs
 @implementer(IOutbound, IPushProducer)
-class Outbound(object):
+class Outbound:
     # Manage outbound data: subchannel writes to us, we write to transport
     _manager = attrib(validator=provides(IDilationManager))
     _cooperator = attrib()
@@ -340,7 +340,7 @@ class Outbound(object):
 # configurable Cooperator, a pause-immediately argument to startStreaming()
 @implementer(IPushProducer)
 @attrs(eq=False)
-class PullToPush(object):
+class PullToPush:
     _producer = attrib(validator=provides(IPullProducer))
     _unregister = attrib(validator=lambda _a, _b, v: callable(v))
     _cooperator = attrib()

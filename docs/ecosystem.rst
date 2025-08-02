@@ -4,7 +4,7 @@ The Magic-Wormhole Ecosystem
 This page attempts to summarize the current state of various codebases that implement or extend the Magic Wormhole protocols.
 If you feel something is missing, please open an Issue or (better yet) a Pull Request at https://github.com/magic-wormhole/magic-wormhole
 
-This document represents our best knowledge as of September, 2023.
+This document represents our best knowledge as of April, 2025.
 
 
 Documentation
@@ -140,6 +140,16 @@ GUIs for Desktop, Mobile, Web
 * `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
 
 
+Non-File-Transfer Uses
+~~~~~~~~~~~~~~~~~~~~~~
+
+We can use Wormhole (especially with Dilation) for all kinds of peer protocols.
+
+* `git-withme <https://sr.ht/~meejah/git-withme>`_: use Git directly between two peers, no GitLab or similar host required;
+* `Pear On <https://sr.ht/~meejah/pear-on/>`_: share a terminal with one or more peers (``tty-share`` without a central server);
+* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fowl <https://github.com/meejah/fowl>`_ (foward-over-wormhole, locally).
+
+
 Integrations
 ------------
 
@@ -149,13 +159,11 @@ These use the basic file-transfer functionality of the protocol, but build it in
 * `termshark <https://github.com/gcla/termshark/>`_ integrates ``wormhole-william`` (the Go implementation) to facilitate transfer of ``.pcap`` files (see the `termshark User Guide <https://github.com/gcla/termshark/blob/master/docs/UserGuide.md#transfer-a-pcap-file>`_
 
 
-Other Uses
-~~~~~~~~~~
+Mailbox-Only Uses
+~~~~~~~~~~~~~~~~~
 
-Some other interesting uses of Magic Wormhole that don't directly use the file-transfer protocol.
-If you know of others, please send them along!
-
-* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fow <https://github.com/meejah/fowl>`_ (foward-over-wormhole).
+It's possible to do interesting things without ever gaining a direct peer connection.
+Here are some we know of:
 
 * Invite / key-exchange: `Magic Folder <https://magic-folder.readthedocs.io/en/latest/invites.html>`_ implements a custom protocol to do "introduction" / key-exchange.
 
