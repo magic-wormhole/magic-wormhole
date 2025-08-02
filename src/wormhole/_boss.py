@@ -230,6 +230,9 @@ class Boss:
         self._did_start_code = True
         self._C.set_code(code)
 
+    # XXX we always have a Dilator (self._D) and so if that grew a
+    # "async def can_dilate" then we could decide things based on
+    # "supports dilation, or not"
     def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
         # returns DilatedWormhole instance; see wormhole.dilate() docs
         return self._D.dilate(

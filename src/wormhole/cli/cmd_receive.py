@@ -8,15 +8,17 @@ import zipfile
 from humanize import naturalsize
 from tqdm import tqdm
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks
-from twisted.python import log
-from wormhole import __version__, create, input_with_completion
+from twisted.internet.defer import inlineCallbacks, Deferred
+from twisted.internet.stdio import StandardIO
+from twisted.python.filepath import FilePath
+from wormhole import create, input_with_completion
 
 from ..errors import TransferError
+from ..eventual import EventualQueue
 from ..transit import TransitReceiver
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     estimate_free_space)
-from .welcome import handle_welcome
+from ..dilatedfile import Message
 
 APPID = "lothar.com/wormhole/text-or-file-xfer"
 
@@ -81,6 +83,13 @@ class Receiver:
             self._reactor,
             tor=self._tor,
             timing=self.args.timing,
+            dilation=True,
+            versions={
+                "transfer": {
+                    "mode": "receive",
+                    "features": {},
+                }
+            },
         )
         if self.args.debug_state:
             w.debug_set_trace("recv", which=" ".join(self.args.debug_state), file=self.args.stdout)
@@ -121,29 +130,43 @@ class Receiver:
 
     @inlineCallbacks
     def _go(self, w):
-        welcome = yield w.get_welcome()
-        handle_welcome(welcome, self.args.relay_url, __version__,
-                       self.args.stderr)
+        assert self.args.code, "need a code"
+        def on_error(f):
+            print("ERR: {}".format(f))
 
-        yield self._handle_code(w)
+        def on_message(msg):
+            if isinstance(msg, Message):
+                print("<<< {}".format(msg.message))
+            else:
+                print("Unknown control-channel message: {}".format(type(msg)))
 
+        if self.args.stdin:
+            from .cmd_send import LocalLineReader  # XXX FIXME
+            line_reader = LocalLineReader(EventualQueue(reactor))
+            _ = StandardIO(line_reader)  # noqa
+            next_message = line_reader.next_line
+        else:
+            next_message = None
         def on_slow_key():
             print("Waiting for sender...", file=self.args.stderr)
 
-        notify = self._reactor.callLater(KEY_TIMER, on_slow_key)
-        try:
-            # We wait here until we connect to the server and see the senders
-            # PAKE message. If we used set_code() in the "human-selected
-            # offline codes" mode, then the sender might not have even
-            # started yet, so we might be sitting here for a while. Because
-            # of that possibility, it's probably not appropriate to give up
-            # automatically after some timeout. The user can express their
-            # impatience by quitting the program with control-C.
-            yield w.get_unverified_key()
-        finally:
-            if not notify.called:
-                notify.cancel()
+        from wormhole.transfer_v2 import deferred_transfer
+        yield Deferred.fromCoroutine(
+            deferred_transfer(
+                self._reactor,
+                w,
+                on_error,
+                on_message,
+                transit=self.args.transit_helper,
+                code=self.args.code,
+                # this can be None, but that's handled inside
+                receive_directory=FilePath("." if self.args.output_file is None else self.args.output_file),
+                next_message=next_message,
+            )
+        )
+        return
 
+    """
         def on_slow_verification():
             print(
                 "Key established, waiting for confirmation...",
@@ -190,6 +213,7 @@ class Receiver:
                 return None
             if not recognized:
                 log.msg(f"unrecognized message {them_d!r}")
+    """
 
     def _send_data(self, data, w):
         data_bytes = dict_to_bytes(data)

@@ -279,6 +279,7 @@ class RendezvousConnector:
         kwargs["type"] = mtype
         self._debug(f"R.tx({mtype.upper()} {kwargs.get('phase', '')})")
         payload = dict_to_bytes(kwargs)
+        ##print(f"TX: {payload}")
         self._timing.add("ws_send", _side=self._side, **kwargs)
         self._ws.sendMessage(payload, False)
         # might be nice to have a "debug" hook here to track all
