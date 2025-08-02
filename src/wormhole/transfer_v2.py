@@ -127,7 +127,7 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
     boss = DilatedFileTransfer()
     boss.got_peer_versions(transfer)
 
-    endpoints = wormhole.dilate(transit)
+    dilated = wormhole.dilate(transit)
 
     recv_factory = Factory.forProtocol(Receiver)
     recv_factory.boss = boss
@@ -139,7 +139,8 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
         reactor.callLater(0, receiver.accept_offer, offer, the_file)
     recv_factory.accept_or_reject_p = accept_always
 
-    await endpoints.listen.listen(recv_factory)  # returns "port"
+    listen_ep = dilated.listener_for("transfer")
+    await listen_ep.listen(recv_factory)  # returns "port"
 
     class Control(Protocol):
         def __init__(self, *args, **kw):
@@ -157,33 +158,16 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
         def connectionLost(self, reason):
             self._closed.fire(None)
 
-    control_proto = await endpoints.control.connect(Factory.forProtocol(Control))
+    # XXX shutdown still "exercise to the reader" :/
+    when_done = Deferred()
+    connect_ep = dilated.connector_for("transfer")
 
     if offers:
         # could send in parallel ...
         for offer in offers:
-            await send_file_offer(endpoints.connect, wormhole, boss, offer)
-        # close control channel (we're done)
-        control_proto.transport.loseConnection()
+            await send_file_offer(connect_ep, wormhole, boss, offer)
 
-    # if we have next_message, wait for one of those .. or just for
-    # control channel to close
-    control_closed_d = control_proto.when_closed()
-    while True:
-        got_message_d = Deferred() if next_message is None else maybeDeferred(next_message)
-        result, index = await DeferredList(
-            [control_closed_d, got_message_d],
-            fireOnOneCallback=True,
-            fireOnOneErrback=True,
-        )
-        if index == 0:  # "control_closed_d" fired
-            break
-        offer_text = await got_message_d
-        msg = Message(offer_text)
-        encoded = msgpack.dumps(msg.marshal())
-        control_proto.transport.write(encoded)
-        print(">>> sent {} bytes".format(len(encoded)))
-
+    await when_done  # never fires; need shutdown path implemented
     await wormhole.close()
 
 

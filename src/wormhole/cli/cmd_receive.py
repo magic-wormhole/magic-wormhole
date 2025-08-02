@@ -83,7 +83,7 @@ class Receiver:
             self._reactor,
             tor=self._tor,
             timing=self.args.timing,
-            dilatione=True,
+            dilation=True,
             versions={
                 "transfer": {
                     "mode": "receive",

@@ -92,7 +92,7 @@ class Sender:
             self._reactor,
             tor=self._tor,
             timing=self._timing,
-            _enable_dilate=True,
+            dilation=True,
             versions={
                 "transfer": {
                     "mode": "send",
