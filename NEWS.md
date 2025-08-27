@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
 * Correct types in Dilation subprotocols (#665 @mjoerg)
 * Support Bash < 4.0 completions for MacOS (#524 @meejah @niu541412)
 
