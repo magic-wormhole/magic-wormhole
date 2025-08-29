@@ -9,7 +9,7 @@ from twisted.internet.defer import DeferredList, CancelledError
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
-from twisted.internet.error import ConnectingCancelledError, ConnectionRefusedError, DNSLookupError
+from twisted.internet.error import ConnectingCancelledError, ConnectionRefusedError, DNSLookupError, ConnectError
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
 from .._interfaces import IDilationConnector, IDilationManager
@@ -304,6 +304,7 @@ class Connector:
         d = deferLater(self._reactor, delay,
                        self._connect, ep, desc, is_relay)
         d.addErrback(lambda f: f.trap(ConnectingCancelledError,
+                                      ConnectError,
                                       ConnectionRefusedError,
                                       CancelledError,
                                       ))
