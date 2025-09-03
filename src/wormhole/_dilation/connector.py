@@ -303,10 +303,14 @@ class Connector:
         desc = describe_hint_obj(h, is_relay, self._tor)
         d = deferLater(self._reactor, delay,
                        self._connect, ep, desc, is_relay)
+
+        # "ConnectError" is a base-class in Twisted, but can be raised
+        # directly when the "errno to class" mapping doesn't have an
+        # error-number mapped
         d.addErrback(lambda f: f.trap(ConnectingCancelledError,
-                                      ConnectError,
                                       ConnectionRefusedError,
                                       CancelledError,
+                                      ConnectError,
                                       ))
         # TODO: HostnameEndpoint.connect catches CancelledError and replaces
         # it with DNSLookupError. Remove this workaround when
