@@ -316,7 +316,9 @@ def go(f, cfg):
     "-o",
     metavar="FILENAME|DIRNAME",
     help=("The file or directory to create, overriding the name suggested"
-          " by the sender."),
+          " by the sender. If the directory exists already, the incoming transfer"
+          " will be put inside the specified directory."
+    ),
 )
 @click.option(
     "--allocate",

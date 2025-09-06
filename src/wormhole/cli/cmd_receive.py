@@ -359,16 +359,34 @@ class Receiver:
         return f
 
     def _decide_destname(self, mode, destname):
+        """
+        Resolve any user options (--output-file) and convert to an
+        absolute destination path.
+        """
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
         destname = os.path.basename(destname)
+        overwrite_allowed = False
         if self.args.output_file:
-            destname = self.args.output_file  # override
+            if os.path.exists(self.args.output_file):
+                if os.path.isdir(self.args.output_file):
+                    # '--output-file' is an existing directory so put
+                    # the incoming file _inside_ of it (i.e.. don't
+                    # delete + overwrite whole tree)
+                    destname = os.path.join(self.args.output_file, destname)
+                else:
+                    # the user specified an existing _file_, so we can
+                    # overwrite it
+                    overwrite_allowed = True
+                    destname = self.args.output_file  # override
+            else:
+                # the user specified a non-existing file
+                destname = self.args.output_file  # override
         abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
-            if self.args.output_file:  # overwrite is intentional
+            if overwrite_allowed:  # overwrite is intentional
                 self._msg(f"Overwriting {repr(destname)}")
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
@@ -382,7 +400,8 @@ class Receiver:
         if os.path.isfile(path):
             os.remove(path)
         if os.path.isdir(path):
-            shutil.rmtree(path)
+            self._msg(f"Not deleting existing directory: {path}")
+            raise TransferRejectedError()
 
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
