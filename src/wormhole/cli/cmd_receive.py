@@ -457,7 +457,7 @@ class Receiver:
         tmp_name = f.name
         f.close()
         os.rename(tmp_name, self.abs_destname)
-        self._msg(f"Received file written to {os.path.basename(self.abs_destname)}")
+        self._msg(f"Received file written to: {self.abs_destname}")
 
     def _extract_file(self, zf, info, extract_dir):
         """
@@ -478,15 +478,13 @@ class Receiver:
         os.chmod(out_path, perm)
 
     def _write_directory(self, f):
-
         self._msg("Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg("Received files written to %s/" % repr(os.path.basename(
-                self.abs_destname)))
+            self._msg(f"Received files written to: {self.abs_destname}")
             f.close()
 
     @inlineCallbacks
