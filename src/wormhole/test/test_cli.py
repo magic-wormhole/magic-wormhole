@@ -4,6 +4,7 @@ import os
 import re
 import stat
 import sys
+import tempfile
 import zipfile
 from functools import partial
 from textwrap import dedent, fill
@@ -1204,6 +1205,27 @@ def test_filenames(tmpdir_factory):
     with pytest.raises(ValueError) as e:
         ef(zf, zi, extract_dir)
     assert "malicious zipfile" in str(e.value)
+
+
+def test_existing_destdir(tmpdir_factory):
+    """
+    We should preserve user data when they specify an existing
+    destination _directory_ via --output-file (whereas we overwrite
+    files if exlicitly specified like this)
+    """
+    args = mock.Mock()
+    args.relay_url = ""
+    tmpdir = tempfile.mkdtemp()
+    args.cwd = os.getcwd()
+    args.output_file = tmpdir
+    # 1. create tempdir
+    # 2. specify ^ as --output-file
+    # 3. call "_decide_destname"
+    cmd = cmd_receive.Receiver(args)
+
+    dst = cmd._decide_destname(None, "destination_file")
+    expected = os.path.join(tmpdir, "destination_file")
+    assert dst == os.path.abspath(expected)
 
 
 @pytest_twisted.ensureDeferred
