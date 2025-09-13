@@ -1,6 +1,5 @@
 import hashlib
 import os
-import shutil
 import sys
 import tempfile
 import zipfile
@@ -365,24 +364,25 @@ class Receiver:
         """
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
-        destname = os.path.basename(destname)
+        if self.args.output_file:
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, self.args.output_file))
+        else:
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
         overwrite_allowed = False
         if self.args.output_file:
-            if os.path.exists(self.args.output_file):
-                if os.path.isdir(self.args.output_file):
+             if os.path.exists(abs_destname):
+                if os.path.isdir(abs_destname):
                     # '--output-file' is an existing directory so put
                     # the incoming file _inside_ of it (i.e.. don't
                     # delete + overwrite whole tree)
-                    destname = os.path.join(self.args.output_file, destname)
+                    abs_destname = os.path.abspath(
+                        os.path.join(self.args.cwd, self.args.output_file, destname)
+                    )
+                    overwrite_allowed = True
                 else:
                     # the user specified an existing _file_, so we can
                     # overwrite it
                     overwrite_allowed = True
-                    destname = self.args.output_file  # override
-            else:
-                # the user specified a non-existing file
-                destname = self.args.output_file  # override
-        abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
