@@ -1208,9 +1208,6 @@ def test_existing_destdir(tmpdir_factory):
     tmpdir = tempfile.mkdtemp()
     args.cwd = os.getcwd()
     args.output_file = tmpdir
-    # 1. create tempdir
-    # 2. specify ^ as --output-file
-    # 3. call "_decide_destname"
     cmd = cmd_receive.Receiver(args)
 
     s = cmd._decide_destname(None, "destination_file")
