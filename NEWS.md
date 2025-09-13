@@ -6,6 +6,7 @@ User-visible changes in "magic-wormhole":
 * Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
 * Correct types in Dilation subprotocols (#665 @mjoerg)
 * Support Bash < 4.0 completions for MacOS (#524 @meejah @niu541412)
+* Do not overwrite local directory specified with --output-file (#667 @dslemusp @meejah)
 
 
 ## Release 0.20.0 (30-Jul-2025)
