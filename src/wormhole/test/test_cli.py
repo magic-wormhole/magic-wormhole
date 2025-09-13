@@ -1217,6 +1217,20 @@ def test_existing_destdir(tmpdir_factory):
     assert s == os.path.join(tmpdir, "destination_file")
 
 
+def test_not_remove_existing_destdir(tmpdir_factory):
+    """
+    Do not remove an entire existing directory.
+    """
+    args = mock.Mock()
+    args.relay_url = ""
+    tmpdir = tempfile.mkdtemp()
+    args.cwd = os.getcwd()
+    args.output_file = tmpdir
+    cmd = cmd_receive.Receiver(args)
+    with pytest.raises(cmd_receive.TransferRejectedError):
+        cmd._remove_existing(tmpdir)
+
+
 @pytest_twisted.ensureDeferred
 async def test_override(request, reactor):
     # note: we do not use the "mailbox" fixture because that is
