@@ -1201,7 +1201,7 @@ def test_existing_destdir(tmpdir_factory):
     """
     We should preserve user data when they specify an existing
     destination _directory_ via --output-file (whereas we overwrite
-    files if exlicitly specified like this)
+    files if explicitly specified like this)
     """
     args = mock.Mock()
     args.relay_url = ""
