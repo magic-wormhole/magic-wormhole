@@ -387,7 +387,7 @@ class Receiver:
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
             if overwrite_allowed:  # overwrite is intentional
-                self._msg(f"Overwriting {repr(destname)}")
+                self._msg(f"Overwriting {repr(self.args.output_file)}")
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
