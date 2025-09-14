@@ -1,14 +1,19 @@
 from unittest import mock
-from zope.interface import directlyProvides
-from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol
+from zope.interface import directlyProvides, implementer
+from twisted.internet.interfaces import ITransport, IHalfCloseableProtocol, IProtocol
 from twisted.internet.error import ConnectionDone
+from ..._interfaces import IDilationManager
 from ..._dilation.subchannel import (SubChannel,
                                      _WormholeAddress, SubchannelAddress,
                                      AlreadyClosedError,
-                                     NormalCloseUsedOnHalfCloseable)
+                                     NormalCloseUsedOnHalfCloseable,
+                                     SubchannelDemultiplex,
+                                     UnexpectedSubprotocol)
 from ..._dilation.manager import Once
 from .common import mock_manager
 import pytest
+from hypothesis import given
+from hypothesis.strategies import text, lists
 
 
 def make_sc(set_protocol=True, half_closeable=False):
@@ -241,3 +246,116 @@ def test_halfcloseable_remote_close():
     assert m.mock_calls == [mock.call.send_close(scid),
                                     mock.call.subchannel_closed(scid, sc)]
     assert p.mock_calls == [mock.call.writeConnectionLost()]
+
+
+# these fakes (used by the below tests) should be expanded for use
+# elsewhere if required -- or perhaps we can make the "real" objects
+# easier to construct for tests.
+
+
+@implementer(IDilationManager)
+class FakeManager:
+    pass
+
+
+@implementer(IProtocol)
+class FakeProtocol:
+    transport = None
+    def makeConnection(self, transport):
+        self.transport = transport
+
+
+class FakeFactory:
+    def __init__(self):
+        self.builds = []
+
+    def buildProtocol(self, addr):
+        self.builds.append(addr)
+        return FakeProtocol()
+
+
+def test_demultiplex():
+    """
+    Confirm we hold multiple open calls until a listener appears
+    """
+    demult = SubchannelDemultiplex()
+
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+
+    addr = SubchannelAddress("subproto")
+    t0 = SubChannel(0, fake_manager, hostaddr, addr)
+    t1 = SubChannel(1, fake_manager, hostaddr, addr)
+
+    factory = FakeFactory()
+
+    demult._got_open(t0, addr)
+    demult._got_open(t1, addr)
+
+    # nothing listening yet, so we should have accumulated two opens
+    demult.register("subproto", factory)
+
+    # now we should have gotten two protocol builds (i.e. after we
+    # "listen" with our factory)
+    assert factory.builds == [addr, addr]
+
+
+@given(
+    lists(
+        text(min_size=1),
+        min_size=1
+    )
+)
+def test_demultiplex_multiple_protocols(protocols):
+    """
+    Interleave two separate subprotocols and confirm we hold them open
+    until a following listen
+    """
+    # Hypothesis is giving us a list of subchannel names to open
+    # protocols with. It would be best if we had lots of repeats, but
+    # trying to _force_ that with assume() makes Hypothesis grumpy
+    demult = SubchannelDemultiplex()
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+    unique_protocols = set(protocols)
+
+    addresses = {
+        nm: SubchannelAddress(nm)
+        for nm in unique_protocols
+    }
+    subchannels = [
+        SubChannel(i, fake_manager, hostaddr, addresses[nm])
+        for i, nm in enumerate(protocols)
+    ]
+
+    for nm, sub in zip(protocols, subchannels):
+        demult._got_open(sub, addresses[nm])
+
+    # once we listen, each kind of subprotocol should have represented
+    # twice
+    factories = {
+        nm: FakeFactory()
+        for nm in unique_protocols
+    }
+    for nm, factory in factories.items():
+        demult.register(nm, factory)
+
+    # each factory should have had buildProtocol invoked once for each
+    # incoming open we had for that name
+    for nm, factory in factories.items():
+        assert factory.builds == [addresses[nm]] * protocols.count(nm)
+
+
+def test_unexpected_protocol():
+    """
+    An incoming subprotocol produces an error if we specify a set of
+    expected protocols (and the incoming one is not on the list)
+    """
+    demult = SubchannelDemultiplex(expected_subprotocols=["foo"])
+    fake_manager = FakeManager()
+    hostaddr = _WormholeAddress()
+
+    addr = SubchannelAddress("subproto")
+    t0 = SubChannel(0, fake_manager, hostaddr, addr)
+    with pytest.raises(UnexpectedSubprotocol):
+        demult._got_open(t0, addr)
