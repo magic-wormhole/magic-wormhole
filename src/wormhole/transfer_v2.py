@@ -4,7 +4,7 @@ import struct
 
 from zope.interface import implementer
 
-from twisted.internet.defer import Deferred, maybeDeferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, Factory
 from twisted.python.filepath import FilePath
 
@@ -165,7 +165,11 @@ async def deferred_transfer(reactor, wormhole, on_error, on_message=None, transi
     if offers:
         # could send in parallel ...
         for offer in offers:
-            await send_file_offer(connect_ep, wormhole, boss, offer)
+            print(f"OFFER: {offer}")
+            if offer.is_file():
+                await send_file_offer(connect_ep, wormhole, boss, offer)
+            else:
+                await send_directory_offer(connect_ep, wormhole, boss, offer)
 
     await when_done  # never fires; need shutdown path implemented
     await wormhole.close()
@@ -301,6 +305,43 @@ async def send_file_offer(connect_ep, wormhole, boss, fpath):
 
     # XXX need a whole different state-machine for directories i think..
     assert fpath.is_file(), "file must exist and be a file"
+    offer = FileOffer(fpath.name, fpath.stat().st_mtime, fpath.stat().st_size)
+    file_data_streamer = FileDataSource(fpath.open("rb"))
+
+    def send_message(msg):
+        proto.transport.write(encode_message(msg))
+
+    def start_streaming():
+        print("ready to send data...")
+        file_data_streamer.start(proto.transport, sender)
+        print("started")
+        d = file_data_streamer.when_done()
+        d.addCallbacks(
+            lambda _: sender.data_finished(),
+            lambda _: sender.error(),
+        )
+
+    def finished():
+        print("finished")
+        proto.transport.loseConnection()
+
+
+    proto._sender = sender = boss.make_offer(send_message, start_streaming, finished)
+
+    print("sending offer")
+    sender.send_offer(offer)
+
+    await proto.when_closed()
+    print("done")
+
+
+async def send_directory_offer(connect_ep, wormhole, boss, fpath):
+    proto = await connect_ep.connect(Factory.forProtocol(Sender))
+    print("proto", proto)
+    await proto.when_connected()
+
+    # XXX need a whole different state-machine for directories i think..
+    assert fpath.is_dir(), "file must exist and be a file"
     offer = FileOffer(fpath.name, fpath.stat().st_mtime, fpath.stat().st_size)
     file_data_streamer = FileDataSource(fpath.open("rb"))
 
