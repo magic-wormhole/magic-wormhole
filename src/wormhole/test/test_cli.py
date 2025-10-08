@@ -4,6 +4,7 @@ import os
 import re
 import stat
 import sys
+import tempfile
 import zipfile
 from functools import partial
 from textwrap import dedent, fill
@@ -500,7 +501,9 @@ async def _do_test(
             recv_cfg.output_file = receive_dirname = "outdir"
         if overwrite:
             recv_cfg.output_file = receive_dirname
-            os.mkdir(os.path.join(receive_dir, receive_dirname))
+            existing_file = os.path.join(receive_dir, receive_dirname)
+            with open(existing_file, 'w') as f:
+                f.write('pls overwrite me')
 
     if as_subprocess:
         if send_cfg.text:
@@ -712,7 +715,7 @@ async def _do_test(
             name=receive_filename,
         )
         assert want in receive_stderr
-        assert "Received file written to " in receive_stderr
+        assert "Received file written to:" in receive_stderr
         fn = os.path.join(receive_dir, receive_filename)
         assert os.path.exists(fn)
         with open(fn) as f:
@@ -722,7 +725,8 @@ async def _do_test(
         want = (r"Receiving directory \(\d+ \w+\) into: {name!r}/"
                 .format(name=receive_dirname))
         assert re.search(want, receive_stderr), (want, receive_stderr)
-        assert f"Received files written to {receive_dirname!r}" in receive_stderr
+        assert "Received files written to" in receive_stderr
+        assert f"{receive_dirname!r}" in receive_stderr
         fn = os.path.join(receive_dir, receive_dirname)
         assert os.path.exists(fn), fn
         for i in range(5):
@@ -786,19 +790,6 @@ async def test_directory_override(wormhole_executable, scripts_env, mailbox, tra
 
 async def test_directory_overwrite(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory, mode="directory", overwrite=True)
-
-
-async def test_directory_overwrite_mock_accept(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
-    await _do_test(
-        wormhole_executable,
-        scripts_env,
-        mailbox,
-        transit_relay,
-        tmpdir_factory,
-        mode="directory",
-        overwrite=True,
-        mock_accept=True,
-    )
 
 
 async def test_slow_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
@@ -910,13 +901,13 @@ async def _do_test_fail(wormhole_executable, scripts_env, relayurl, tmpdir_facto
 
     # check receiver
     if mode == "file":
-        assert "Received file written to " not in receive_stderr
+        assert "Received file written to:" not in receive_stderr
         if failmode == "noclobber":
             assert f"Error: refusing to overwrite existing 'testfile'{NL}" in receive_stderr
         else:
             assert f"Error: insufficient free space (0B) for file ({size:d}B){NL}" in receive_stderr
     elif mode == "directory":
-        assert f"Received files written to {receive_name!r}" not in receive_stderr
+        assert "Received files written to" not in receive_stderr
         # want = (r"Receiving directory \(\d+ \w+\) into: {name}/"
         #        .format(name=receive_name))
         # self.failUnless(re.search(want, receive_stderr),
@@ -1204,6 +1195,37 @@ def test_filenames(tmpdir_factory):
     with pytest.raises(ValueError) as e:
         ef(zf, zi, extract_dir)
     assert "malicious zipfile" in str(e.value)
+
+
+def test_existing_destdir(tmpdir_factory):
+    """
+    We should preserve user data when they specify an existing
+    destination _directory_ via --output-file (whereas we overwrite
+    files if explicitly specified like this)
+    """
+    args = mock.Mock()
+    args.relay_url = ""
+    tmpdir = tempfile.mkdtemp()
+    args.cwd = os.getcwd()
+    args.output_file = tmpdir
+    cmd = cmd_receive.Receiver(args)
+
+    s = cmd._decide_destname(None, "destination_file")
+    assert s == os.path.join(tmpdir, "destination_file")
+
+
+def test_not_remove_existing_destdir(tmpdir_factory):
+    """
+    Do not remove an entire existing directory.
+    """
+    args = mock.Mock()
+    args.relay_url = ""
+    tmpdir = tempfile.mkdtemp()
+    args.cwd = os.getcwd()
+    args.output_file = tmpdir
+    cmd = cmd_receive.Receiver(args)
+    with pytest.raises(cmd_receive.TransferRejectedError):
+        cmd._remove_existing(tmpdir)
 
 
 @pytest_twisted.ensureDeferred

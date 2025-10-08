@@ -1,6 +1,5 @@
 import hashlib
 import os
-import shutil
 import sys
 import tempfile
 import zipfile
@@ -359,17 +358,36 @@ class Receiver:
         return f
 
     def _decide_destname(self, mode, destname):
+        """
+        Resolve any user options (--output-file) and convert to an
+        absolute destination path.
+        """
         # the basename() is intended to protect us against
         # "~/.ssh/authorized_keys" and other attacks
-        destname = os.path.basename(destname)
         if self.args.output_file:
-            destname = self.args.output_file  # override
-        abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, self.args.output_file))
+        else:
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
+        overwrite_allowed = False
+        if self.args.output_file:
+             if os.path.exists(abs_destname):
+                if os.path.isdir(abs_destname):
+                    # '--output-file' is an existing directory so put
+                    # the incoming file _inside_ of it (i.e.. don't
+                    # delete + overwrite whole tree)
+                    abs_destname = os.path.abspath(
+                        os.path.join(self.args.cwd, self.args.output_file, destname)
+                    )
+                    overwrite_allowed = True
+                else:
+                    # the user specified an existing _file_, so we can
+                    # overwrite it
+                    overwrite_allowed = True
 
         # get confirmation from the user before writing to the local directory
         if os.path.exists(abs_destname):
-            if self.args.output_file:  # overwrite is intentional
-                self._msg(f"Overwriting {repr(destname)}")
+            if overwrite_allowed:  # overwrite is intentional
+                self._msg(f"Overwriting {repr(self.args.output_file)}")
                 if self.args.accept_file:
                     self._remove_existing(abs_destname)
             else:
@@ -382,7 +400,8 @@ class Receiver:
         if os.path.isfile(path):
             os.remove(path)
         if os.path.isdir(path):
-            shutil.rmtree(path)
+            self._msg(f"Not deleting existing directory: {path}")
+            raise TransferRejectedError()
 
     def _ask_permission(self):
         with self.args.timing.add("permission", waiting="user") as t:
@@ -438,7 +457,7 @@ class Receiver:
         tmp_name = f.name
         f.close()
         os.rename(tmp_name, self.abs_destname)
-        self._msg(f"Received file written to {os.path.basename(self.abs_destname)}")
+        self._msg(f"Received file written to: {self.abs_destname}")
 
     def _extract_file(self, zf, info, extract_dir):
         """
@@ -459,15 +478,13 @@ class Receiver:
         os.chmod(out_path, perm)
 
     def _write_directory(self, f):
-
         self._msg("Unpacking zipfile..")
         with self.args.timing.add("unpack zip"):
             with zipfile.ZipFile(f, "r") as zf:
                 for info in zf.infolist():
                     self._extract_file(zf, info, self.abs_destname)
 
-            self._msg("Received files written to %s/" % repr(os.path.basename(
-                self.abs_destname)))
+            self._msg(f"Received files written to: {self.abs_destname}")
             f.close()
 
     @inlineCallbacks
