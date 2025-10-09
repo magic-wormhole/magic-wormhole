@@ -1,8 +1,11 @@
+import gc
 from unittest import mock
 from zope.interface import alsoProvides
+import twisted.logger
 from twisted.internet.task import Clock
 from twisted.internet.defer import Deferred
 from twisted.internet.address import IPv4Address, IPv6Address, HostnameAddress
+from twisted.internet.error import ConnectError
 import pytest
 
 from ...eventual import EventualQueue
@@ -21,6 +24,43 @@ from ..._dilation.connector import (Connector,
                                     )
 from ..._status import DilationHint
 from .common import clear_mock_calls
+
+
+class Observer:
+    """
+    from: https://github.com/pytest-dev/pytest-twisted/issues/4
+    with a few tweaks for Twisted changes over time
+    """
+    def __init__(self):
+        self.failures = []
+
+    def __call__(self, event_dict):
+        is_error = event_dict.get('isError')
+        s = 'Unhandled Error'.casefold()
+        is_unhandled = s in event_dict.get('log_text', '').casefold()
+
+        if is_error and is_unhandled:
+            self.failures.append(event_dict)
+
+    def assert_empty(self):
+        assert [] == self.failures
+
+
+@pytest.fixture
+def assert_no_unhandled_errbacks():
+    """
+    A fixture which will fail the test if Observer believes that
+    any unhandled errors were logged by Twisted.
+    """
+    observer = Observer()
+    twisted.logger.globalLogPublisher.addObserver(observer)
+
+    yield
+
+    gc.collect()
+    twisted.logger.globalLogPublisher.removeObserver(observer)
+
+    observer.assert_empty()
 
 
 def test_build():
@@ -186,6 +226,34 @@ def test_basic():
     assert c._schedule_connection.mock_calls == \
                      [mock.call(0.0, DirectTCPV1Hint("foo", 55, 0.0),
                                 is_relay=False)]
+
+
+def test_connection_error(assert_no_unhandled_errbacks):
+    """
+    An error is triggered on our connection attempt
+    """
+    c, h = make_connector(listen=False, relay=None, role=roles.LEADER)
+    # _schedule_connection does a delayed call on _connect()
+    d_error = Deferred()
+    d_error.errback(ConnectError("no good reason"))
+    c._connect = mock.Mock(return_value=d_error)
+    c.start()
+    # no relays, so it publishes no hints
+    assert h.manager.mock_calls == []
+
+    hint = DirectTCPV1Hint("foo", 55, 0.0)
+    c.got_hints([hint])
+
+    # received hints don't get published
+    assert h.manager.mock_calls == [mock.call._hint_status([DilationHint(url='foo:55', is_direct=True)])]
+    # the "_connect()" call is delayed, almost certainly by "0.0"
+    # seconds in this case, but we need to trigger a reactor turn
+    h.clock.advance(1)
+    assert len(c._connect.mock_calls) == 1
+    # without the fix in
+    # https://github.com/magic-wormhole/magic-wormhole/pull/670 the
+    # "no_unhandled_errors" fixture will assert
+
 
 def test_listen_addresses():
     c, h = make_connector(listen=True, role=roles.LEADER)
