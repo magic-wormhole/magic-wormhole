@@ -30,7 +30,7 @@ def test_send_appid():
 
 def test_send_file():
     cfg = config("send", "fn")
-    assert cfg.what == "fn"
+    assert cfg.what == ("fn", )
     assert cfg.text is None
 
 def test_send_text():
