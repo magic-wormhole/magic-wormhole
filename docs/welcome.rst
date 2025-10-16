@@ -47,7 +47,7 @@ Regardless, in the end a connection is established to pass end-to-end encrypted 
 Safely
 ------
 
-Magic Wormhole exists (at least partly) so more software can use a cryptographic construct called "Password Authenticated Key Exchange" (PAKE), currently using the `SPAKE2 <https://datatracker.ietf.org/doc/rfc9383/>`_ variant.
+Magic Wormhole exists (at least partly) so more software can use a cryptographic construct called "Password Authenticated Key Exchange" (PAKE), currently using the `SPAKE2 <https://datatracker.ietf.org/doc/rfc9382/>`_ variant.
 
 This construct allows for human-sized codes to be used while still maintaining high security.
 Each code is **one-time use only**, so attackers (e.g. a malicious Mailbox server) get only a single guess when attempting to subvert a connection.
