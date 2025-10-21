@@ -16,7 +16,7 @@ How to Prepare a Release
   - change title for "Upcoming Release" to correct version, date
 
 -  make release
-   (this step requires having libgpgme installed, and will GPG sign the package )
+   (this step requires having PySequoia installed, and will OpenPGP sign the package )
    then
    - push your branch to the repo!
    - make a pull request to the repo from that branch!

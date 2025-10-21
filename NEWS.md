@@ -11,7 +11,7 @@ User-visible changes in "magic-wormhole":
 * Correct types in Dilation subprotocols (#665 @mjoerg)
 * Support Bash < 4.0 completions for MacOS (#524 @meejah @niu541412)
 * Do not overwrite local directory specified with --output-file (#667 @dslemusp @meejah)
-* Remove autobahn==24.9.1 since it can crash Python (#676 @meejah)
+* Reject autobahn 24.9.1 and 25.10.1 (#676 @meejah)
 
 
 ## Release 0.20.0 (30-Jul-2025)
