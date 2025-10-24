@@ -8,6 +8,8 @@
 
 import sys
 import time
+import subprocess
+import pysequoia
 from datetime import datetime
 
 from dulwich.repo import Repo
@@ -79,6 +81,14 @@ async def main(reactor):
             ))
         )
     )
+
+    keyid = "9D5A2BD5688ECB889DEBCD3FC2602803128069A7"
+    args = ["sq", "key", "export", "--cert", keyid]
+    certdata = subprocess.check_output(args)
+    cert = pysequoia.Cert.from_bytes(certdata)
+    passphrase = input("passphrase:")
+    signer = cert.secrets.signer(passphrase)
+
     tag_create(
         repo=git,
         tag=v.encode("utf8"),
@@ -86,7 +96,7 @@ async def main(reactor):
         message=f"release magic-wormhole-{v}".encode("utf8"),
         annotated=True,
         objectish=b"HEAD",
-        sign=author.encode("utf8"),
+        sign=signer,
         tag_time=ts,
         tag_timezone=0,
     )

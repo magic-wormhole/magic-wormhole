@@ -49,7 +49,7 @@ setup(name="magic-wormhole",
           "spake2==0.9", "pynacl",
           "attrs >= 19.2.0", # 19.2.0 replaces cmp parameter with eq/order
           "twisted[tls] >= 17.5.0", # 17.5.0 adds failAfterFailures=
-          "autobahn[twisted] >= 0.14.1, != 25.9.1",
+          "autobahn[twisted] >= 0.14.1, != 25.9.1, != 25.10.1",
           "automat",
           "cryptography",
           "tqdm >= 4.13.0", # 4.13.0 fixes crash on NetBSD
@@ -72,7 +72,7 @@ setup(name="magic-wormhole",
               "hypothesis",
           ],
           "dilate": ["noiseprotocol"],
-          "build": ["twine", "dulwich", "readme_renderer", "gpg", "wheel"],
+          "build": ["twine", "dulwich", "readme_renderer", "pysequoia", "wheel"],
       },
       test_suite="wormhole.test",
       cmdclass=commands,
