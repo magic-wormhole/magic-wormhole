@@ -193,10 +193,6 @@ def _dispatch_command(reactor, cfg, command):
         msg += str(e)
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
-    except ValueError as e:
-        msg = fill(f"ERROR: {e}")
-        print(msg, file=cfg.stderr)
-        raise SystemExit(1)
     except Exception as e:
         # this prints a proper traceback, whereas
         # traceback.print_exc() just prints a TB to the "yield"
