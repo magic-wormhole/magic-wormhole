@@ -3,6 +3,8 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* Support --http-proxy option along with "HTTP_PROXY" and "http_proxy"
+  environment variables (#457 @meejah @ysig @vu3rdd)
 
 
 ## Release 0.21.0 (23-Oct-2025)
