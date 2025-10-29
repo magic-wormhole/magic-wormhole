@@ -80,6 +80,7 @@ class Receiver:
             self._reactor,
             tor=self._tor,
             timing=self.args.timing,
+            http_proxy=self.args.http_proxy,
         )
         if self.args.debug_state:
             w.debug_set_trace("recv", which=" ".join(self.args.debug_state), file=self.args.stdout)
