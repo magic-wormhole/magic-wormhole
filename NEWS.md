@@ -5,6 +5,11 @@ User-visible changes in "magic-wormhole":
 * (add release-notes here when making PRs)
 
 
+## Release 0.21.1 (30-Oct-2025)
+
+* Exclude autobahn 25.10.2 due to Windows breakage (#680 @jan-Sanku @meejah)
+
+
 ## Release 0.21.0 (23-Oct-2025)
 
 * Produce errors for unwanted incoming subprotocols when user code asks (#660 @meejah, @shapr)
