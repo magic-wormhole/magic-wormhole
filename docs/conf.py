@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-#
+
 # Magic-Wormhole documentation build configuration file, created by
 # sphinx-quickstart on Sun Nov 12 10:24:09 2017.
 #
@@ -29,7 +28,10 @@
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = []
+extensions = ['sphinxcontrib.seqdiag']
+
+seqdiag_antialias = True
+seqdiag_html_image_format = "SVG"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -43,9 +45,9 @@ source_suffix = ['.rst']
 master_doc = 'index'
 
 # General information about the project.
-project = u'Magic-Wormhole'
-copyright = u'2017, Brian Warner'
-author = u'Brian Warner'
+project = 'Magic-Wormhole'
+copyright = '2017, Brian Warner'
+author = 'Brian Warner'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -157,8 +159,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Magic-Wormhole.tex', u'Magic-Wormhole Documentation',
-     u'Brian Warner', 'manual'),
+    (master_doc, 'Magic-Wormhole.tex', 'Magic-Wormhole Documentation',
+     'Brian Warner', 'manual'),
 ]
 
 
@@ -167,7 +169,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'magic-wormhole', u'Magic-Wormhole Documentation',
+    (master_doc, 'magic-wormhole', 'Magic-Wormhole Documentation',
      [author], 1)
 ]
 
@@ -178,7 +180,12 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Magic-Wormhole', u'Magic-Wormhole Documentation',
+    (master_doc, 'Magic-Wormhole', 'Magic-Wormhole Documentation',
      author, 'Magic-Wormhole', 'One line description of project.',
      'Miscellaneous'),
 ]
+
+# -- Options for linkcheck ------------------------------------------------
+
+# Skip checking validity of #anchors in links.
+linkcheck_anchors = False

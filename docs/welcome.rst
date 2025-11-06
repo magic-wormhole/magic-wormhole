@@ -1,7 +1,85 @@
+
 Welcome
 =======
 
-Get things from one computer to another, safely.
+Get **things** from **one computer to another**, **safely**.
+
+
+- **things**: are files, but can also be TCP or other network streams;
+- **one computer to another**: is usually via a P2P connection, but can use a TURN-like relay depending on network conditions;
+- **safely**: uses a PAKE construction to ensure high-security, end-to-end encryption with human-sized codes
+
+We realize that some of that might sound like Magic, so let's examine each piece a little more closely.
+
+
+Get Things
+----------
+
+`Traditionally <https://xkcd.com/949/>`_ transferring files is hard, even in 2025.
+The first and most popular "Thing" is a file or directory.
+For more on this, see the :doc:`file-transfer-protocol`
+
+Magic Wormhole can send any sort of message, though, including messages making up streams -- for example, `Fowl <https://github.com/meejah/fowl>`_ does exactly this.
+``fowl`` is built on a feature called "Dilation"; see :doc:`dilation-protocol` for more detail.
+
+
+From One Computer to Another
+----------------------------
+
+Magic Wormhole has several methods to connect peers.
+A peer uses network "hints" to suggest these ways to the other peer.
+This allows considerable flexibility and can succeed in many different network conditions.
+
+Initial and relatively small messages are sent via the "Mailbox" server.
+This lets the two peers contact a well-known resource, and send the initial PAKE messages.
+After establishing this shared key, the peers bootstrap via further messages over the Mailbox.
+See :doc:`client-protocol` for more details.
+
+For file-transfer, Mailbox messages contain the above-mentioned "hints" to establish a peer-to-peer connection.
+
+If the peers are on the same LAN, they will communicate directly over the local network.
+When one peer has a routable, public IP address they will also communicate directly.
+In case both peers are behind a NAT (or otherwise can only make outbound connections) the "Transit Relay" server is used to relay messages (which are all encrypted) between the peers.
+
+Regardless, in the end a connection is established to pass end-to-end encrypted messages between two peers (and only two peers).
+
+
+Safely
+------
+
+Magic Wormhole exists (at least partly) so more software can use a cryptographic construct called "Password Authenticated Key Exchange" (PAKE), currently using the `SPAKE2 <https://datatracker.ietf.org/doc/rfc9382/>`_ variant.
+
+This construct allows for human-sized codes to be used while still maintaining high security.
+Each code is **one-time use only**, so attackers (e.g. a malicious Mailbox server) get only a single guess when attempting to subvert a connection.
+
+If such a guess is successful, one of the two intended peers will notice: their connection will fail, typically with a "crowded" or "scary" error.
+
+Early in the protocol a shared secret is established, after which all peer-to-peer traffic is encrypted with keys derived directly from the shared PAKE secret.
+The section :doc:`attacks` has more details about failure modes.
+
+
+Motivational Use-Cases
+======================
+
+.. raw:: html
+
+    <script src="https://asciinema.org/a/6YLCEhZ2dGDhzr3u55OlhViZU.js" id="asciicast-6YLCEhZ2dGDhzr3u55OlhViZU" async="true"></script>
+
+.. note::
+
+    Unfortunately, asciinema doesn't work with screen-readers -- such users should see the Example below for a screen-reader friendly version
+
+
+* ``wormhole send`` + ``wormhole receive`` (as demonstrated above) are provided by this package and allow transfer of arbitrary files and directories;
+* `Warp <https://gitlab.gnome.org/World/warp>`_ is a Gnome GUI application to transfer files and directories (works with the CLI);
+* `Wormhole <https://gitlab.com/lukas-heiligenbrunner/wormhole>`_: phone application for Android;
+* `git withme <https://git.sr.ht/~meejah/git-withme>`_ allows two peers to directly use Git together (without any hosting service like GitLab or `gitolite <https://gitolite.com/gitolite/>`_);
+* `Pear On <https://git.sr.ht/~meejah/pear-on>`_ allows two peers to use `tty-share; <https://github.com/elisescu/tty-share>`_ directly, without running or using a centralized server;
+* See :doc:`ecosystem` for more implementations and applications
+
+
+Detailed Overview of Magic Wormhole
+===================================
 
 This package provides a library and a command-line tool named
 ``wormhole``, which makes it possible to get arbitrary-sized files and
@@ -20,7 +98,11 @@ Wormhole codes are single-use and do not need to be memorized.
    `Video <https://www.youtube.com/watch?v=oFrTqQw0_3c>`__
 
 As of now (2023) the magic-wormhole protocol has several client
-implementations; see the “Ecosystem” section.
+implementations; see :doc:`ecosystem`
+
+Code: `github.com/magic-wormhole/magic-wormhole <https://github.com/magic-wormhole/magic-wormhole>`_
+Documentation: `magic-wormhole.readthedocs.io <https://magic-wormhole.readthedocs.io/en/latest/>`_
+
 
 Example
 -------
@@ -144,7 +226,7 @@ find it on your ``$PATH``.
 
 You probably *don’t* want to use ``sudo`` when you run ``pip``. This
 tends to create
-`conflicts <https://github.com/warner/magic-wormhole/issues/336>`__ with
+`conflicts <https://github.com/magic-wormhole/magic-wormhole/issues/336>`__ with
 the system python libraries.
 
 On OS X, you may need to pre-install ``pip``, and run
@@ -237,6 +319,10 @@ clients must be left running until the transfer has finished.
 Relays
 ------
 
+There are two servers involved, one of which you may never use.
+- the "Mailbox Server";
+- and a "Transit Relay"
+
 The wormhole library requires a “Mailbox Server” (also known as the
 “Rendezvous Server”): a simple WebSocket-based relay that delivers
 messages from one client to another. This allows the wormhole codes to
@@ -247,7 +333,7 @@ desire more reliability can easily run their own relay and configure
 their clients to use it instead. Code for the Mailbox Server is in a
 separate package named ``magic-wormhole-mailbox-server`` and has
 documentation
-`here <https://github.com/warner/magic-wormhole-mailbox-server/blob/master/docs/welcome.md>`__.
+`here <https://github.com/magic-wormhole/magic-wormhole-mailbox-server/blob/master/docs/welcome.md>`__.
 Both clients must use the same mailbox server. The default can be
 overridden with the ``--relay-url`` option.
 
@@ -261,7 +347,7 @@ using the transit relay. As before, the host/port of a public server is
 baked into the library, and should be sufficient to handle moderate
 traffic. Code for the Transit Relay is provided a separate package named
 ``magic-wormhole-transit-relay`` with instructions
-`here <https://github.com/warner/magic-wormhole-transit-relay/blob/master/docs/running.md>`__.
+`here <https://github.com/magic-wormhole/magic-wormhole-transit-relay/blob/master/docs/running.md>`__.
 The clients exchange transit relay information during connection
 negotiation, so they can be configured to use different ones without
 problems. Use the ``--transit-helper`` option to override the default.
@@ -293,7 +379,7 @@ If you desire shell tab-completion on sub-commands, we include generated
 files `from
 Click <https://click.palletsprojects.com/en/8.1.x/shell-completion/>`__
 for Bash, Zsh and Fish shells in
-`wormhole_completion.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_completion.bash>`__
+`wormhole_completion.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_complete.bash>`__
 (or ``.zsh``, ``.fish``). Put this file in your favourite location and
 add a line like ``source ~/wormhole_completion.bash`` to ``~/.bashrc``
 (or similar for ``zsh`` and ``fish`` shells).
@@ -304,7 +390,7 @@ Library
 The ``wormhole`` module makes it possible for other applications to use
 these code-protected channels. This includes Twisted support, and (in
 the future) will include blocking/synchronous support too. See
-docs/api.md for details.
+:doc:`the API docs <api>` for details.
 
 The file-transfer tools use a second module named ``wormhole.transit``,
 which provides an encrypted record-pipe. It knows how to use the Transit
@@ -318,7 +404,7 @@ Development
 -----------
 
 -  Bugs and patches at the `GitHub project
-   page <https://github.com/warner/magic-wormhole>`__.
+   page <https://github.com/magic-wormhole/magic-wormhole>`__.
 -  Chat via `IRC <irc://irc.libera.chat/#magic-wormhole>`__:
    #magic-wormhole on irc.libera.chat
 -  Chat via `Matrix <https://matrix.to/#/#magic-wormhole:matrix.org>`__:
@@ -371,8 +457,8 @@ specify it instead via Python’s standard dotted import notation, e.g.:
    trial wormhole.test.test_cli.PregeneratedCode.test_file_tor
 
 Developers can also just clone the source tree and run ``tox`` to run
-the unit tests on all supported (and installed) versions of python: 2.7,
-3.7 and 3.8.
+the unit tests on all supported (and installed) versions of
+python: 3.10, 3.11, 3.12, 3.13.
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -396,7 +482,7 @@ License, Compatibility
 
 This library is released under the MIT license, see LICENSE for details.
 
-This library is compatible with python2.7, 3.7 and 3.8 .
+This library is compatible with Python 3.10, 3.11, 3.12, 3.13.
 
 .. raw:: html
 

@@ -25,18 +25,7 @@ class Event:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        if exc_type:
-            # inlineCallbacks uses a special exception (defer._DefGen_Return)
-            # to deliver returnValue(), so if returnValue is used inside our
-            # with: block, we'll mistakenly think it means something broke.
-            # I've moved all returnValue() calls outside the 'with
-            # timing.add()' blocks to avoid this, but if a new one
-            # accidentally pops up, it'll get marked as an error. I used to
-            # catch-and-release _DefGen_Return to avoid this, but removed it
-            # because it requires referencing defer.py's private class
-            self.finish(exception=str(exc_type))
-        else:
-            self.finish()
+        self.finish()
 
 
 @implementer(ITiming)
@@ -50,7 +39,7 @@ class DebugTiming:
         return ev
 
     def write(self, fn, stderr):
-        with open(fn, "wt") as f:
+        with open(fn, "w") as f:
             data = [
                 dict(
                     name=e._name,
@@ -61,4 +50,4 @@ class DebugTiming:
             ]
             json.dump(data, f, indent=1)
             f.write("\n")
-        print("Timing data written to %s" % fn, file=stderr)
+        print(f"Timing data written to {fn}", file=stderr)

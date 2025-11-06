@@ -1,16 +1,20 @@
 from unittest import mock
 from zope.interface import alsoProvides
-from twisted.trial import unittest
 from twisted.internet.task import Clock
 from twisted.python.failure import Failure
-from ..._interfaces import ISubChannel
+from twisted.internet.interfaces import IProtocolFactory
+from twisted.internet.protocol import Protocol, Factory
+import pytest
+import pytest_twisted
+
 from ...eventual import EventualQueue
-from ..._dilation.subchannel import (ControlEndpoint,
-                                     SubchannelConnectorEndpoint,
+from ...observer import OneShotObserver
+from ..._dilation.subchannel import (SubchannelConnectorEndpoint,
                                      SubchannelListenerEndpoint,
                                      SubchannelListeningPort,
-                                     _WormholeAddress, _SubchannelAddress,
-                                     SingleUseEndpointError)
+                                     SubchannelDemultiplex,
+                                     SubChannel,
+                                     _WormholeAddress, SubchannelAddress)
 from .common import mock_manager
 
 
@@ -18,349 +22,314 @@ class CannotDilateError(Exception):
     pass
 
 
-class Control(unittest.TestCase):
-    def test_early_succeed(self):
-        # ep.connect() is called before dilation can proceed
-        scid0 = 0
-        peeraddr = _SubchannelAddress(scid0)
-        sc0 = mock.Mock()
-        alsoProvides(sc0, ISubChannel)
-        eq = EventualQueue(Clock())
-        ep = ControlEndpoint(peeraddr, sc0, eq)
+def OFFassert_makeConnection(mock_calls):
+    assert len(mock_calls) == 1
+    assert mock_calls[0][0] == "makeConnection"
+    assert len(mock_calls[0][1]) == 1
+    return mock_calls[0][1][0]
 
-        f = mock.Mock()
-        p = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        d = ep.connect(f)
-        self.assertNoResult(d)
 
-        ep._main_channel_ready()
-        eq.flush_sync()
+@pytest_twisted.ensureDeferred
+async def test_connector_early_succeed():
+    """
+    Call 'connect' on a subchannel client-style endpoint before the
+    Dilation channel has been established (and then fake Dilation
+    establishment)
+    """
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
 
-        self.assertIdentical(self.successResultOf(d), p)
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p),
-                                          mock.call._deliver_queued_data()])
-        self.assertEqual(p.mock_calls, [mock.call.makeConnection(sc0)])
+    class Simple(Protocol):
+        pass
 
-        d = ep.connect(f)
-        self.failureResultOf(d, SingleUseEndpointError)
-
-    def test_early_fail(self):
-        # ep.connect() is called before dilation is abandoned
-        scid0 = 0
-        peeraddr = _SubchannelAddress(scid0)
-        sc0 = mock.Mock()
-        alsoProvides(sc0, ISubChannel)
-        eq = EventualQueue(Clock())
-        ep = ControlEndpoint(peeraddr, sc0, eq)
-
-        f = mock.Mock()
-        p = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        d = ep.connect(f)
-        self.assertNoResult(d)
-
-        ep._main_channel_failed(Failure(CannotDilateError()))
-        eq.flush_sync()
-
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-        self.assertEqual(sc0.mock_calls, [])
-
-        d = ep.connect(f)
-        self.failureResultOf(d, SingleUseEndpointError)
-
-    def test_late_succeed(self):
-        # dilation can proceed, then ep.connect() is called
-        scid0 = 0
-        peeraddr = _SubchannelAddress(scid0)
-        sc0 = mock.Mock()
-        alsoProvides(sc0, ISubChannel)
-        eq = EventualQueue(Clock())
-        ep = ControlEndpoint(peeraddr, sc0, eq)
-
-        ep._main_channel_ready()
-
-        f = mock.Mock()
-        p = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
+    f = Factory.forProtocol(Simple)
+    with mock.patch("wormhole._dilation.subchannel.SubChannel",
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
-        self.assertIdentical(self.successResultOf(d), p)
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc0.mock_calls, [mock.call._set_protocol(p),
-                                          mock.call._deliver_queued_data()])
-        self.assertEqual(p.mock_calls, [mock.call.makeConnection(sc0)])
+        # the Dilation channel has NOT become available yet, so we
+        # should not have actually succeeded to connect our protocol
+        # until it does
+        assert not d.called
 
+    # make the Dilation connection available
+    m._main_channel.fire(None)
+    eq.flush_sync()
+
+    proto = await d
+    assert isinstance(proto, Simple)
+
+
+@pytest_twisted.ensureDeferred
+async def test_connector_early_fail():
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
+
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
+    with mock.patch("wormhole._dilation.subchannel.SubChannel",
+                    return_value=t):
         d = ep.connect(f)
-        self.failureResultOf(d, SingleUseEndpointError)
+        eq.flush_sync()
+        # the Dilation channel has NOT become available yet, so we
+        # should not have actually succeeded to connect our protocol
+        # until it does
+        assert not d.called
 
-    def test_late_fail(self):
-        # dilation is abandoned, then ep.connect() is called
-        scid0 = 0
-        peeraddr = _SubchannelAddress(scid0)
-        sc0 = mock.Mock()
-        alsoProvides(sc0, ISubChannel)
-        eq = EventualQueue(Clock())
-        ep = ControlEndpoint(peeraddr, sc0, eq)
+    # there has been some kind of error establishing the Dilation
+    # channel, and so it has failed.
+    m._main_channel.error(Failure(CannotDilateError()))
+    eq.flush_sync()
 
-        ep._main_channel_failed(Failure(CannotDilateError()))
+    with pytest.raises(CannotDilateError):
+        await d
 
-        f = mock.Mock()
-        p = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
+
+@pytest_twisted.ensureDeferred
+async def test_connector_late_succeed():
+    """
+    Same as test_connector_early_succeed except the Dilation channel
+    is already available before we call .connect()
+    """
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
+    # make the Dilation connection available
+    m._main_channel.fire(None)
+
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
+    with mock.patch("wormhole._dilation.subchannel.SubChannel",
+                    return_value=t):
         d = ep.connect(f)
         eq.flush_sync()
 
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-        self.assertEqual(sc0.mock_calls, [])
+    proto = await d
+    assert isinstance(proto, Simple)
 
+
+@pytest_twisted.ensureDeferred
+async def test_connector_late_fail():
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    hostaddr = _WormholeAddress()
+    peeraddr = SubchannelAddress("proto")
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelConnectorEndpoint("proto", m, hostaddr, eq)
+    t = SubChannel(123, m, hostaddr, peeraddr)
+    # there has been some kind of error establishing the Dilation
+    # channel, and so it has failed.
+    m._main_channel.error(Failure(CannotDilateError()))
+
+    class Simple(Protocol):
+        pass
+
+    f = Factory.forProtocol(Simple)
+    with mock.patch("wormhole._dilation.subchannel.SubChannel",
+                    return_value=t):
         d = ep.connect(f)
-        self.failureResultOf(d, SingleUseEndpointError)
-
-
-class Endpoints(unittest.TestCase):
-    def OFFassert_makeConnection(self, mock_calls):
-        self.assertEqual(len(mock_calls), 1)
-        self.assertEqual(mock_calls[0][0], "makeConnection")
-        self.assertEqual(len(mock_calls[0][1]), 1)
-        return mock_calls[0][1][0]
-
-
-class Connector(unittest.TestCase):
-    def test_early_succeed(self):
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        peeraddr = _SubchannelAddress(0)
-        eq = EventualQueue(Clock())
-        ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-
-        f = mock.Mock()
-        p = mock.Mock()
-        t = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                        return_value=t) as sc:
-            d = ep.connect(f)
-            eq.flush_sync()
-            self.assertNoResult(d)
-            ep._main_channel_ready()
-            eq.flush_sync()
-
-        self.assertIdentical(self.successResultOf(d), p)
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc.mock_calls, [mock.call(0, m, hostaddr, peeraddr)])
-        self.assertEqual(t.mock_calls, [mock.call._set_protocol(p)])
-        self.assertEqual(p.mock_calls, [mock.call.makeConnection(t)])
-
-    def test_early_fail(self):
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-
-        f = mock.Mock()
-        p = mock.Mock()
-        t = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                        return_value=t) as sc:
-            d = ep.connect(f)
-            eq.flush_sync()
-            self.assertNoResult(d)
-            ep._main_channel_failed(Failure(CannotDilateError()))
-            eq.flush_sync()
-
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-        self.assertEqual(sc.mock_calls, [])
-        self.assertEqual(t.mock_calls, [])
-
-    def test_late_succeed(self):
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        peeraddr = _SubchannelAddress(0)
-        eq = EventualQueue(Clock())
-        ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-        ep._main_channel_ready()
-
-        f = mock.Mock()
-        p = mock.Mock()
-        t = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                        return_value=t) as sc:
-            d = ep.connect(f)
-            eq.flush_sync()
-
-        self.assertIdentical(self.successResultOf(d), p)
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr)])
-        self.assertEqual(sc.mock_calls, [mock.call(0, m, hostaddr, peeraddr)])
-        self.assertEqual(t.mock_calls, [mock.call._set_protocol(p)])
-        self.assertEqual(p.mock_calls, [mock.call.makeConnection(t)])
-
-    def test_late_fail(self):
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelConnectorEndpoint(m, hostaddr, eq)
-        ep._main_channel_failed(Failure(CannotDilateError()))
-
-        f = mock.Mock()
-        p = mock.Mock()
-        t = mock.Mock()
-        f.buildProtocol = mock.Mock(return_value=p)
-        with mock.patch("wormhole._dilation.subchannel.SubChannel",
-                        return_value=t) as sc:
-            d = ep.connect(f)
-            eq.flush_sync()
-
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-        self.assertEqual(sc.mock_calls, [])
-        self.assertEqual(t.mock_calls, [])
-
-
-class Listener(unittest.TestCase):
-    def test_early_succeed(self):
-        # listen, main_channel_ready, got_open, got_open
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-
-        f = mock.Mock()
-        p1 = mock.Mock()
-        p2 = mock.Mock()
-        f.buildProtocol = mock.Mock(side_effect=[p1, p2])
-
-        d = ep.listen(f)
-        eq.flush_sync()
-        self.assertNoResult(d)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-
-        ep._main_channel_ready()
-        eq.flush_sync()
-        lp = self.successResultOf(d)
-        self.assertIsInstance(lp, SubchannelListeningPort)
-
-        self.assertEqual(lp.getHost(), hostaddr)
-        # TODO: IListeningPort says we must provide this, but I don't know
-        # that anyone would ever call it.
-        lp.startListening()
-
-        t1 = mock.Mock()
-        peeraddr1 = _SubchannelAddress(1)
-        ep._got_open(t1, peeraddr1)
-
-        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1),
-                                         mock.call._deliver_queued_data()])
-        self.assertEqual(p1.mock_calls, [mock.call.makeConnection(t1)])
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1)])
-
-        t2 = mock.Mock()
-        peeraddr2 = _SubchannelAddress(2)
-        ep._got_open(t2, peeraddr2)
-
-        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2),
-                                         mock.call._deliver_queued_data()])
-        self.assertEqual(p2.mock_calls, [mock.call.makeConnection(t2)])
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1),
-                                                      mock.call(peeraddr2)])
-
-        lp.stopListening()  # TODO: should this do more?
-
-    def test_early_fail(self):
-        # listen, main_channel_fail
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-
-        f = mock.Mock()
-        p1 = mock.Mock()
-        p2 = mock.Mock()
-        f.buildProtocol = mock.Mock(side_effect=[p1, p2])
-
-        d = ep.listen(f)
-        eq.flush_sync()
-        self.assertNoResult(d)
-
-        ep._main_channel_failed(Failure(CannotDilateError()))
-        eq.flush_sync()
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
-
-    def test_late_succeed(self):
-        # main_channel_ready, got_open, listen, got_open
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-        ep._main_channel_ready()
-
-        f = mock.Mock()
-        p1 = mock.Mock()
-        p2 = mock.Mock()
-        f.buildProtocol = mock.Mock(side_effect=[p1, p2])
-
-        t1 = mock.Mock()
-        peeraddr1 = _SubchannelAddress(1)
-        ep._got_open(t1, peeraddr1)
         eq.flush_sync()
 
-        self.assertEqual(t1.mock_calls, [])
-        self.assertEqual(p1.mock_calls, [])
+    eq.flush_sync()
 
-        d = ep.listen(f)
-        eq.flush_sync()
-        lp = self.successResultOf(d)
-        self.assertIsInstance(lp, SubchannelListeningPort)
-        self.assertEqual(lp.getHost(), hostaddr)
-        lp.startListening()
+    with pytest.raises(CannotDilateError):
+        await d
 
-        # TODO: assert makeConnection is called *before* _deliver_queued_data
-        self.assertEqual(t1.mock_calls, [mock.call._set_protocol(p1),
-                                         mock.call._deliver_queued_data()])
-        self.assertEqual(p1.mock_calls, [mock.call.makeConnection(t1)])
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1)])
 
-        t2 = mock.Mock()
-        peeraddr2 = _SubchannelAddress(2)
-        ep._got_open(t2, peeraddr2)
+# refactor code could make more testable? Demultiplex thing...
+@pytest_twisted.ensureDeferred
+async def test_listener_early_succeed():
+    # listen, main_channel_ready, got_open, got_open
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    m._host_addr = hostaddr = _WormholeAddress()
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    demux = SubchannelDemultiplex()
+    m._subprotocol_Factories = demux
+    ep = SubchannelListenerEndpoint("proto", m)
 
-        self.assertEqual(t2.mock_calls, [mock.call._set_protocol(p2),
-                                         mock.call._deliver_queued_data()])
-        self.assertEqual(p2.mock_calls, [mock.call.makeConnection(t2)])
-        self.assertEqual(f.buildProtocol.mock_calls, [mock.call(peeraddr1),
-                                                      mock.call(peeraddr2)])
+    class Simple(Protocol):
+        pass
 
-        lp.stopListening()  # TODO: should this do more?
+    class CollectBuilds(Factory):
+        protocols = []
 
-    def test_late_fail(self):
-        # main_channel_fail, listen
-        m = mock_manager()
-        m.allocate_subchannel_id = mock.Mock(return_value=0)
-        hostaddr = _WormholeAddress()
-        eq = EventualQueue(Clock())
-        ep = SubchannelListenerEndpoint(m, hostaddr, eq)
-        ep._main_channel_failed(Failure(CannotDilateError()))
+        def buildProtocol(self, addr):
+            p = Factory.buildProtocol(self, addr)
+            self.protocols.append(p)
+            return p
 
-        f = mock.Mock()
-        p1 = mock.Mock()
-        p2 = mock.Mock()
-        f.buildProtocol = mock.Mock(side_effect=[p1, p2])
+    f = CollectBuilds()
+    f.protocol = Simple
+    demux.register("proto", f)
 
-        d = ep.listen(f)
-        eq.flush_sync()
-        self.failureResultOf(d).check(CannotDilateError)
-        self.assertEqual(f.buildProtocol.mock_calls, [])
+    d = ep.listen(f)
+    eq.flush_sync()
+    assert not d.called
+
+    m._main_channel.fire(None)
+    eq.flush_sync()
+    lp = await d
+    assert isinstance(lp, SubchannelListeningPort)
+
+    assert lp.getHost() == hostaddr
+    # TODO: IListeningPort says we must provide this, but I don't know
+    # that anyone would ever call it.
+    lp.startListening()
+
+    peeraddr1 = SubchannelAddress("proto")
+    t1 = SubChannel(1234, m, hostaddr, peeraddr1)
+    demux._got_open(t1, peeraddr1)
+
+    # prior asserts here all about mocks -- basically just testing
+    # that the buildProtocol was called. So now we collect that
+    # ourselves, but anything else interesting we might check? Can a
+    # Twisted API get the protocol from somewhere?
+    assert len(CollectBuilds.protocols) == 1, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
+
+    peeraddr2 = SubchannelAddress("proto")
+    t2 = SubChannel(5678, m, hostaddr, peeraddr2)
+    demux._got_open(t2, peeraddr2)
+
+    # as above, anything else interesting we should assert?
+    assert len(CollectBuilds.protocols) == 2, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
+
+    lp.stopListening()  # TODO: should this do more?
+
+
+@pytest_twisted.ensureDeferred
+async def test_listener_early_fail():
+    # listen, main_channel_fail
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelListenerEndpoint("proto", m)
+
+    f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
+    p1 = mock.Mock()
+    p2 = mock.Mock()
+    f.buildProtocol = mock.Mock(side_effect=[p1, p2])
+
+    d = ep.listen(f)
+    eq.flush_sync()
+    assert not d.called
+
+    m._main_channel.error(Failure(CannotDilateError()))
+    eq.flush_sync()
+    with pytest.raises(CannotDilateError):
+        await d
+    assert f.buildProtocol.mock_calls == []
+
+
+@pytest_twisted.ensureDeferred
+async def test_listener_late_succeed():
+    # listen, main_channel_ready, got_open, got_open
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    m._host_addr = hostaddr = _WormholeAddress()
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    demux = SubchannelDemultiplex()
+    m._subprotocol_Factories = demux
+    ep = SubchannelListenerEndpoint("proto", m)
+    # XXX only real difference between "early" / "late" tests is when we call this -- use a test-variant instead?
+    m._main_channel.fire(None)
+
+    class Simple(Protocol):
+        pass
+
+    class CollectBuilds(Factory):
+        protocols = []
+
+        def buildProtocol(self, addr):
+            p = Factory.buildProtocol(self, addr)
+            self.protocols.append(p)
+            return p
+
+    f = CollectBuilds()
+    f.protocol = Simple
+    demux.register("proto", f)
+
+    d = ep.listen(f)
+    eq.flush_sync()
+    lp = await d
+    assert isinstance(lp, SubchannelListeningPort)
+
+    assert lp.getHost() == hostaddr
+    # TODO: IListeningPort says we must provide this, but I don't know
+    # that anyone would ever call it.
+    lp.startListening()
+
+    peeraddr1 = SubchannelAddress("proto")
+    t1 = SubChannel(1234, m, hostaddr, peeraddr1)
+    demux._got_open(t1, peeraddr1)
+
+    # prior asserts here all about mocks -- basically just testing
+    # that the buildProtocol was called. So now we collect that
+    # ourselves, but anything else interesting we might check? Can a
+    # Twisted API get the protocol from somewhere?
+    assert len(CollectBuilds.protocols) == 1, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
+
+    peeraddr2 = SubchannelAddress("proto")
+    t2 = SubChannel(5678, m, hostaddr, peeraddr2)
+    demux._got_open(t2, peeraddr2)
+
+    # as above, anything else interesting we should assert?
+    assert len(CollectBuilds.protocols) == 2, "expected precisely one listener protocol"
+    assert all(isinstance(p, Simple) for p in CollectBuilds.protocols)
+
+    lp.stopListening()  # TODO: should this do more?
+
+
+@pytest_twisted.ensureDeferred
+async def test_listener_late_fail():
+    # main_channel_fail, listen
+    m = mock_manager()
+    m.allocate_subchannel_id = mock.Mock(return_value=0)
+    m._host_addr = _WormholeAddress()
+    eq = EventualQueue(Clock())
+    m._main_channel = OneShotObserver(eq)
+    ep = SubchannelListenerEndpoint("proto", m)
+    m._main_channel.error(Failure(CannotDilateError()))
+
+    f = mock.Mock()
+    f.subprotocol = "proto"
+    alsoProvides(f, IProtocolFactory)
+    p1 = mock.Mock()
+    p2 = mock.Mock()
+    f.buildProtocol = mock.Mock(side_effect=[p1, p2])
+
+    d = ep.listen(f)
+    eq.flush_sync()
+    with pytest.raises(CannotDilateError):
+        await d
+    assert f.buildProtocol.mock_calls == []

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=64.0.0", "wheel", "versioneer"]
+build-backend = "setuptools.build_meta"
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "src/wormhole/_version.py"
+versionfile_build = "wormhole/_version.py"
+tag_prefix = ""
+parentdir_prefix = "magic-wormhole-"
+[tool.pytest.ini_options]
+addopts = "-W ignore::DeprecationWarning -r w -v"
+testpaths = [
+    "src/wormhole/test",
+]

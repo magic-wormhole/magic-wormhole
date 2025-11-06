@@ -21,7 +21,7 @@ def update_my_state():
     raise NotImplementedError
 
 
-class State(object):
+class State:
     @classmethod
     def create_empty(klass):
         self = klass()
@@ -280,5 +280,5 @@ if __name__ == "__main__":
     elif command == "run":
         task.react(run, (basedir,))
     else:
-        print("Unrecognized subcommand '%s'" % command)
+        print(f"Unrecognized subcommand '{command}'")
         sys.exit(1)

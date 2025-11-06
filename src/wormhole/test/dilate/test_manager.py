@@ -1,19 +1,21 @@
 from zope.interface import alsoProvides
-from twisted.trial import unittest
 from twisted.internet.task import Clock, Cooperator
 from twisted.internet.interfaces import IStreamServerEndpoint
 from unittest import mock
+import pytest
+import pytest_twisted
+
 from ...eventual import EventualQueue
 from ..._interfaces import ISend, ITerminator, ISubChannel
 from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.manager import (Dilator, Manager, make_side,
                                   OldPeerCannotDilateError,
+                                  CanOnlyDilateOnceError,
                                   UnknownDilationMessageType,
                                   UnexpectedKCM,
-                                  UnknownMessageType)
+                                  UnknownMessageType, DILATION_VERSIONS)
 from ..._dilation.connection import Open, Data, Close, Ack, KCM, Ping, Pong
-from ..._dilation.subchannel import _SubchannelAddress
 from .common import clear_mock_calls
 
 
@@ -34,145 +36,189 @@ def make_dilator():
                         scheduler=h.eq.eventually)
     h.send = mock.Mock()
     alsoProvides(h.send, ISend)
-    dil = Dilator(h.reactor, h.eq, h.coop)
+    dil = Dilator(h.reactor, h.eq, h.coop, DILATION_VERSIONS)
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
     dil.wire(h.send, h.terminator)
     return dil, h
 
 
-class TestDilator(unittest.TestCase):
-    # we should test the interleavings between:
-    # * application calls w.dilate() and gets back endpoints
-    # * wormhole gets: dilation key, VERSION, 0-n dilation messages
+# we should test the interleavings between:
+# * application calls w.dilate() and gets back endpoints
+# * wormhole gets: dilation key, VERSION, 0-n dilation messages
 
-    def test_dilate_first(self):
-        (dil, h) = make_dilator()
-        side = object()
-        m = mock.Mock()
-        eps = object()
-        m.get_endpoints = mock.Mock(return_value=eps)
-        mm = mock.Mock(side_effect=[m])
-        with mock.patch("wormhole._dilation.manager.Manager", mm), \
-             mock.patch("wormhole._dilation.manager.make_side",
-                        return_value=side):
-            eps1 = dil.dilate()
-            eps2 = dil.dilate()
-        self.assertIdentical(eps1, eps)
-        self.assertIdentical(eps1, eps2)
-        self.assertEqual(mm.mock_calls, [mock.call(h.send, side, None,
-                                                   h.reactor, h.eq, h.coop, False)])
 
-        self.assertEqual(m.mock_calls, [mock.call.get_endpoints(),
-                                        mock.call.get_endpoints()])
-        clear_mock_calls(m)
-
-        key = b"key"
-        transit_key = object()
-        with mock.patch("wormhole._dilation.manager.derive_key",
-                        return_value=transit_key) as dk:
-            dil.got_key(key)
-        self.assertEqual(dk.mock_calls, [mock.call(key, b"dilation-v1", 32)])
-        self.assertEqual(m.mock_calls, [mock.call.got_dilation_key(transit_key)])
-        clear_mock_calls(m)
-
-        wv = object()
-        dil.got_wormhole_versions(wv)
-        self.assertEqual(m.mock_calls, [mock.call.got_wormhole_versions(wv)])
-        clear_mock_calls(m)
-
-        dm1 = object()
-        dm2 = object()
-        dil.received_dilate(dm1)
-        dil.received_dilate(dm2)
-        self.assertEqual(m.mock_calls, [mock.call.received_dilation_message(dm1),
-                                        mock.call.received_dilation_message(dm2),
-                                        ])
-        clear_mock_calls(m)
-
-        stopped_d = mock.Mock()
-        m.when_stopped = mock.Mock(return_value=stopped_d)
-        dil.stop()
-        self.assertEqual(m.mock_calls, [mock.call.stop(),
-                                        mock.call.when_stopped(),
-                                        ])
-
-    def test_dilate_later(self):
-        (dil, h) = make_dilator()
-        m = mock.Mock()
-        mm = mock.Mock(side_effect=[m])
-
-        key = b"key"
-        transit_key = object()
-        with mock.patch("wormhole._dilation.manager.derive_key",
-                        return_value=transit_key) as dk:
-            dil.got_key(key)
-        self.assertEqual(dk.mock_calls, [mock.call(key, b"dilation-v1", 32)])
-
-        wv = object()
-        dil.got_wormhole_versions(wv)
-
-        dm1 = object()
-        dil.received_dilate(dm1)
-
-        self.assertEqual(mm.mock_calls, [])
-
-        with mock.patch("wormhole._dilation.manager.Manager", mm):
+def test_dilate_first():
+    (dil, h) = make_dilator()
+    side = object()
+    m = mock.Mock()
+    m._api = eps = object()
+    mm = mock.Mock(side_effect=[m])
+    with mock.patch("wormhole._dilation.manager.Manager", mm), \
+         mock.patch("wormhole._dilation.manager.make_side",
+                    return_value=side):
+        eps1 = dil.dilate()
+        with pytest.raises(CanOnlyDilateOnceError):
             dil.dilate()
-        self.assertEqual(m.mock_calls, [mock.call.got_dilation_key(transit_key),
-                                        mock.call.got_wormhole_versions(wv),
-                                        mock.call.received_dilation_message(dm1),
-                                        mock.call.get_endpoints(),
-                                        ])
-        clear_mock_calls(m)
+    assert eps1 is eps
+    assert mm.mock_calls == [mock.call(h.send, side, None,
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
+                                       False, None, initial_mailbox_status=None)]
 
-        dm2 = object()
-        dil.received_dilate(dm2)
-        self.assertEqual(m.mock_calls, [mock.call.received_dilation_message(dm2),
-                                        ])
+    assert m.mock_calls == []
 
-    def test_stop_early(self):
-        (dil, h) = make_dilator()
-        # we stop before w.dilate(), so there is no Manager to stop
-        dil.stop()
-        self.assertEqual(h.terminator.mock_calls, [mock.call.stoppedD()])
+    key = b"key"
+    transit_key = object()
+    with mock.patch("wormhole._dilation.manager.derive_key",
+                    return_value=transit_key) as dk:
+        dil.got_key(key)
+    assert dk.mock_calls == [mock.call(key, b"dilation-v1", 32)]
+    assert m.mock_calls == [mock.call.got_dilation_key(transit_key)]
+    clear_mock_calls(m)
 
-    def test_peer_cannot_dilate(self):
-        (dil, h) = make_dilator()
-        eps = dil.dilate()
+    wv = object()
+    dil.got_wormhole_versions(wv)
+    assert m.mock_calls == [mock.call.got_wormhole_versions(wv)]
+    clear_mock_calls(m)
 
-        dil.got_key(b"\x01" * 32)
-        dil.got_wormhole_versions({})  # missing "can-dilate"
-        d = eps.connect.connect(None)
-        h.eq.flush_sync()
-        self.failureResultOf(d).check(OldPeerCannotDilateError)
+    dm1 = object()
+    dm2 = object()
+    dil.received_dilate(dm1)
+    dil.received_dilate(dm2)
+    assert m.mock_calls == [mock.call.received_dilation_message(dm1),
+                                    mock.call.received_dilation_message(dm2),
+                                    ]
+    clear_mock_calls(m)
 
-    def test_disjoint_versions(self):
-        (dil, h) = make_dilator()
-        eps = dil.dilate()
+    stopped_d = mock.Mock()
+    m.when_stopped = mock.Mock(return_value=stopped_d)
+    dil.stop()
+    assert m.mock_calls == [mock.call.stop(),
+                                    mock.call.when_stopped(),
+                                    ]
 
-        dil.got_key(b"\x01" * 32)
-        dil.got_wormhole_versions({"can-dilate": ["-1"]})
-        d = eps.connect.connect(None)
-        h.eq.flush_sync()
-        self.failureResultOf(d).check(OldPeerCannotDilateError)
 
-    def test_transit_relay(self):
-        (dil, h) = make_dilator()
-        transit_relay_location = object()
-        side = object()
-        m = mock.Mock()
-        mm = mock.Mock(side_effect=[m])
-        with mock.patch("wormhole._dilation.manager.Manager", mm), \
-             mock.patch("wormhole._dilation.manager.make_side",
-                        return_value=side):
-            dil.dilate(transit_relay_location)
-        self.assertEqual(mm.mock_calls, [mock.call(h.send, side, transit_relay_location,
-                                                   h.reactor, h.eq, h.coop, False)])
+def test_dilate_later():
+    (dil, h) = make_dilator()
+    m = mock.Mock()
+    mm = mock.Mock(side_effect=[m])
+
+    key = b"key"
+    transit_key = object()
+    with mock.patch("wormhole._dilation.manager.derive_key",
+                    return_value=transit_key) as dk:
+        dil.got_key(key)
+    assert dk.mock_calls == [mock.call(key, b"dilation-v1", 32)]
+
+    wv = object()
+    dil.got_wormhole_versions(wv)
+
+    dm1 = object()
+    dil.received_dilate(dm1)
+
+    assert mm.mock_calls == []
+
+    with mock.patch("wormhole._dilation.manager.Manager", mm):
+        dil.dilate()
+    assert m.mock_calls == [mock.call.got_dilation_key(transit_key),
+                                    mock.call.got_wormhole_versions(wv),
+                                    mock.call.received_dilation_message(dm1),
+                                    ]
+    clear_mock_calls(m)
+
+    dm2 = object()
+    dil.received_dilate(dm2)
+    assert m.mock_calls == [mock.call.received_dilation_message(dm2),
+                                    ]
+
+def test_stop_early():
+    (dil, h) = make_dilator()
+    # we stop before w.dilate(), so there is no Manager to stop
+    dil.stop()
+    assert h.terminator.mock_calls == [mock.call.stoppedD()]
+
+
+@pytest_twisted.ensureDeferred
+async def test_peer_cannot_dilate():
+    (dil, h) = make_dilator()
+    eps = dil.dilate()
+
+    dil.got_key(b"\x01" * 32)
+    dil.got_wormhole_versions({})  # missing "can-dilate"
+    f = mock.Mock()
+    d = eps.connector_for("proto").connect(f)
+    h.eq.flush_sync()
+    with pytest.raises(OldPeerCannotDilateError):
+        await d
+
+
+@pytest_twisted.ensureDeferred
+async def test_disjoint_versions():
+    (dil, h) = make_dilator()
+    eps = dil.dilate()
+
+    dil.got_key(b"\x01" * 32)
+    dil.got_wormhole_versions({"can-dilate": ["-1"]})
+    f = mock.Mock()
+    d = eps.connector_for("proto").connect(f)
+    h.eq.flush_sync()
+    with pytest.raises(OldPeerCannotDilateError):
+        await d
+
+
+def test_transit_relay():
+    (dil, h) = make_dilator()
+    transit_relay_location = object()
+    side = object()
+    m = mock.Mock()
+    mm = mock.Mock(side_effect=[m])
+    with mock.patch("wormhole._dilation.manager.Manager", mm), \
+         mock.patch("wormhole._dilation.manager.make_side",
+                    return_value=side):
+        dil.dilate(transit_relay_location)
+    assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
+                                       h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
+                                       False, None, initial_mailbox_status=None)]
 
 
 LEADER = "ff3456abcdef"
 FOLLOWER = "123456abcdef"
+
+
+class FakeHost:
+    def __init__(self, port):
+        self.port = port
+
+
+class FakePort:
+    def __init__(self, port):
+        self.port = port
+
+    def getHost(self):
+        return FakeHost(self.port)
+
+
+class ReactorFake:
+    """
+    Provide a reactor-like mock
+    """
+    # not ideal, but prior to this the "reactor" in these tests was
+    # literally just "object()"
+
+    def __init__(self):
+        self.listens = []
+
+    def seconds(self):
+        return 42
+
+    def callLater(self, interval, callable, *args):
+        # should return a DelayedCall
+        return mock.Mock()
+
+    def listenTCP(self, *args, **kw):
+        # returns an IListenPort
+        self.listens.append((args, kw))
+        return FakePort(1234)
 
 
 def make_manager(leader=True):
@@ -185,7 +231,7 @@ def make_manager(leader=True):
         side = FOLLOWER
     h.key = b"\x00" * 32
     h.relay = None
-    h.reactor = object()
+    h.reactor = ReactorFake()
     h.clock = Clock()
     h.eq = EventualQueue(h.clock)
     term = mock.Mock(side_effect=lambda: True)  # one write per Eventual tick
@@ -205,424 +251,471 @@ def make_manager(leader=True):
     alsoProvides(h.listen_ep, IStreamServerEndpoint)
     with mock.patch("wormhole._dilation.manager.Inbound", h.Inbound), \
          mock.patch("wormhole._dilation.manager.Outbound", h.Outbound), \
-         mock.patch("wormhole._dilation.manager.SubChannel", h.SubChannel), \
+         mock.patch("wormhole._dilation.subchannel.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop)
+        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
 
 
-class TestManager(unittest.TestCase):
-    def test_make_side(self):
-        side = make_side()
-        self.assertEqual(type(side), type(u""))
-        self.assertEqual(len(side), 2 * 8)
+def test_make_side():
+    side = make_side()
+    assert type(side) is str
+    assert len(side) == 2 * 8
 
-    def test_create(self):
-        m, h = make_manager()
 
-    def test_leader(self):
-        m, h = make_manager(leader=True)
-        self.assertEqual(h.send.mock_calls, [])
-        self.assertEqual(h.Inbound.mock_calls, [mock.call(m, h.hostaddr)])
-        self.assertEqual(h.Outbound.mock_calls, [mock.call(m, h.coop)])
-        scid0 = 0
-        sc0_peer_addr = _SubchannelAddress(scid0)
-        self.assertEqual(h.SubChannel.mock_calls, [
-            mock.call(scid0, m, m._host_addr, sc0_peer_addr),
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.set_subchannel_zero(scid0, h.sc0),
-            mock.call.set_listener_endpoint(h.listen_ep)
-            ])
-        clear_mock_calls(h.inbound)
+def test_create():
+    m, h = make_manager()
 
-        eps = m.get_endpoints()
-        self.assertTrue(hasattr(eps, "control"))
-        self.assertTrue(hasattr(eps, "connect"))
-        self.assertEqual(eps.listen, h.listen_ep)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
-        self.assertEqual(h.send.mock_calls, [
-            mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": LEADER, "use-version": "1"}))
-            ])
-        clear_mock_calls(h.send)
+def test_leader():
+    m, h = make_manager(leader=True)
+    assert h.send.mock_calls == []
+    assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
+    assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
+    assert h.SubChannel.mock_calls == []
+    assert h.inbound.mock_calls == []
+    clear_mock_calls(h.inbound)
 
-        # ignore early hints
-        m.rx_HINTS({})
-        self.assertEqual(h.send.mock_calls, [])
+    m.got_wormhole_versions({"can-dilate": ["ged"]})
+    assert h.send.mock_calls == [
+        mock.call.send("dilate-0",
+                       dict_to_bytes({"type": "please", "side": LEADER, "use-version": "ged"}))
+        ]
+    clear_mock_calls(h.send)
 
-        c = mock.Mock()
-        connector = mock.Mock(return_value=c)
-        with mock.patch("wormhole._dilation.manager.Connector", connector):
-            # receiving this PLEASE triggers creation of the Connector
-            m.rx_PLEASE({"side": FOLLOWER})
-        self.assertEqual(h.send.mock_calls, [])
-        self.assertEqual(connector.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      LEADER, roles.LEADER),
-            ])
-        self.assertEqual(c.mock_calls, [mock.call.start()])
-        clear_mock_calls(connector, c)
+    # ignore early hints
+    m.rx_HINTS({})
+    assert h.send.mock_calls == []
 
-        # now any inbound hints should get passed to our Connector
-        with mock.patch("wormhole._dilation.manager.parse_hint",
-                        side_effect=["p1", None, "p3"]) as ph:
-            m.rx_HINTS({"hints": [1, 2, 3]})
-        self.assertEqual(ph.mock_calls, [mock.call(1), mock.call(2), mock.call(3)])
-        self.assertEqual(c.mock_calls, [mock.call.got_hints(["p1", "p3"])])
-        clear_mock_calls(ph, c)
+    c = mock.Mock()
+    connector = mock.Mock(return_value=c)
+    with mock.patch("wormhole._dilation.manager.Connector", connector):
+        # receiving this PLEASE triggers creation of the Connector
+        m.rx_PLEASE({"side": FOLLOWER})
+    assert h.send.mock_calls == []
+    assert connector.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  LEADER, roles.LEADER),
+        ]
+    assert c.mock_calls == [mock.call.start()]
+    clear_mock_calls(connector, c)
 
-        # and we send out any (listening) hints from our Connector
-        m.send_hints([1, 2])
-        self.assertEqual(h.send.mock_calls, [
-            mock.call.send("dilate-1",
-                           dict_to_bytes({"type": "connection-hints",
-                                          "hints": [1, 2]}))
-            ])
-        clear_mock_calls(h.send)
+    # now any inbound hints should get passed to our Connector
+    with mock.patch("wormhole._dilation.manager.parse_hint",
+                    side_effect=["p1", None, "p3"]) as ph:
+        m.rx_HINTS({"hints": [1, 2, 3]})
+    assert ph.mock_calls == [mock.call(1), mock.call(2), mock.call(3)]
+    assert c.mock_calls == [mock.call.got_hints(["p1", "p3"])]
+    clear_mock_calls(ph, c)
 
-        # the first successful connection fires when_first_connected(), so
-        # the endpoints can activate
-        c1 = mock.Mock()
-        m.connector_connection_made(c1)
+    # and we send out any (listening) hints from our Connector
+    m.send_hints([1, 2])
+    assert h.send.mock_calls == [
+        mock.call.send("dilate-1",
+                       dict_to_bytes({"type": "connection-hints",
+                                      "hints": [1, 2]}))
+        ]
+    clear_mock_calls(h.send)
 
-        self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c1)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c1)])
-        clear_mock_calls(h.inbound, h.outbound)
+    # the first successful connection fires when_first_connected(), so
+    # the endpoints can activate
+    c1 = mock.Mock()
+    m.connector_connection_made(c1)
 
-        # the Leader making a new outbound channel should get scid=1
-        scid1 = 1
-        self.assertEqual(m.allocate_subchannel_id(), scid1)
-        r1 = Open(10, scid1)  # seqnum=10
-        h.outbound.build_record = mock.Mock(return_value=r1)
-        m.send_open(scid1)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.build_record(Open, scid1),
-            mock.call.queue_and_send_record(r1),
-            ])
-        clear_mock_calls(h.outbound)
+    assert h.inbound.mock_calls == [mock.call.use_connection(c1)]
+    assert h.outbound.mock_calls[1:] == [mock.call.use_connection(c1)]
+    clear_mock_calls(h.inbound, h.outbound)
 
-        r2 = Data(11, scid1, b"data")
-        h.outbound.build_record = mock.Mock(return_value=r2)
-        m.send_data(scid1, b"data")
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.build_record(Data, scid1, b"data"),
-            mock.call.queue_and_send_record(r2),
-            ])
-        clear_mock_calls(h.outbound)
+    # the Leader making a new outbound channel should get scid=1
+    scid1 = 1
+    assert m.allocate_subchannel_id() == scid1
+    r1 = Open(10, scid1, "proto")  # seqnum=10
+    h.outbound.build_record = mock.Mock(return_value=r1)
+    m.send_open(scid1, "proto")
+    assert h.outbound.mock_calls == [
+        mock.call.build_record(Open, scid1, "proto"),
+        mock.call.queue_and_send_record(r1),
+        ]
+    clear_mock_calls(h.outbound)
 
-        r3 = Close(12, scid1)
-        h.outbound.build_record = mock.Mock(return_value=r3)
-        m.send_close(scid1)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.build_record(Close, scid1),
-            mock.call.queue_and_send_record(r3),
-            ])
-        clear_mock_calls(h.outbound)
+    r2 = Data(11, scid1, b"data")
+    h.outbound.build_record = mock.Mock(return_value=r2)
+    m.send_data(scid1, b"data")
+    assert h.outbound.mock_calls == [
+        mock.call.build_record(Data, scid1, b"data"),
+        mock.call.queue_and_send_record(r2),
+        ]
+    clear_mock_calls(h.outbound)
 
-        # ack the OPEN
-        m.got_record(Ack(10))
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.handle_ack(10)
-            ])
-        clear_mock_calls(h.outbound)
+    r3 = Close(12, scid1)
+    h.outbound.build_record = mock.Mock(return_value=r3)
+    m.send_close(scid1)
+    assert h.outbound.mock_calls == [
+        mock.call.build_record(Close, scid1),
+        mock.call.queue_and_send_record(r3),
+        ]
+    clear_mock_calls(h.outbound)
 
-        # test that inbound records get acked and routed to Inbound
-        h.inbound.is_record_old = mock.Mock(return_value=False)
-        scid2 = 2
-        o200 = Open(200, scid2)
-        m.got_record(o200)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.send_if_connected(Ack(200))
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.is_record_old(o200),
-            mock.call.update_ack_watermark(200),
-            mock.call.handle_open(scid2),
-            ])
-        clear_mock_calls(h.outbound, h.inbound)
+    # ack the OPEN
+    m.got_record(Ack(10))
+    assert h.outbound.mock_calls == [
+        mock.call.handle_ack(10)
+        ]
+    clear_mock_calls(h.outbound)
 
-        # old (duplicate) records should provoke new Acks, but not get
-        # forwarded
-        h.inbound.is_record_old = mock.Mock(return_value=True)
-        m.got_record(o200)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.send_if_connected(Ack(200))
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.is_record_old(o200),
-            ])
-        clear_mock_calls(h.outbound, h.inbound)
+    # test that inbound records get acked and routed to Inbound
+    h.inbound.is_record_old = mock.Mock(return_value=False)
+    scid2 = 2
+    o200 = Open(200, scid2, "proto")
+    m.got_record(o200)
+    assert h.outbound.mock_calls == [
+        mock.call.send_if_connected(Ack(200))
+        ]
+    assert h.inbound.mock_calls == [
+        mock.call.is_record_old(o200),
+        mock.call.update_ack_watermark(200),
+        mock.call.handle_open(scid2, "proto"),
+        ]
+    clear_mock_calls(h.outbound, h.inbound)
 
-        # check Data and Close too
-        h.inbound.is_record_old = mock.Mock(return_value=False)
-        d201 = Data(201, scid2, b"data")
-        m.got_record(d201)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.send_if_connected(Ack(201))
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.is_record_old(d201),
-            mock.call.update_ack_watermark(201),
-            mock.call.handle_data(scid2, b"data"),
-            ])
-        clear_mock_calls(h.outbound, h.inbound)
+    # old (duplicate) records should provoke new Acks, but not get
+    # forwarded
+    h.inbound.is_record_old = mock.Mock(return_value=True)
+    m.got_record(o200)
+    assert h.outbound.mock_calls == [
+        mock.call.send_if_connected(Ack(200))
+        ]
+    assert h.inbound.mock_calls == [
+        mock.call.is_record_old(o200),
+        ]
+    clear_mock_calls(h.outbound, h.inbound)
 
-        c202 = Close(202, scid2)
-        m.got_record(c202)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.send_if_connected(Ack(202))
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.is_record_old(c202),
-            mock.call.update_ack_watermark(202),
-            mock.call.handle_close(scid2),
-            ])
-        clear_mock_calls(h.outbound, h.inbound)
+    # check Data and Close too
+    h.inbound.is_record_old = mock.Mock(return_value=False)
+    d201 = Data(201, scid2, b"data")
+    m.got_record(d201)
+    assert h.outbound.mock_calls == [
+        mock.call.send_if_connected(Ack(201))
+        ]
+    assert h.inbound.mock_calls == [
+        mock.call.is_record_old(d201),
+        mock.call.update_ack_watermark(201),
+        mock.call.handle_data(scid2, b"data"),
+        ]
+    clear_mock_calls(h.outbound, h.inbound)
 
-        # Now we lose the connection. The Leader should tell the other side
-        # that we're reconnecting.
+    c202 = Close(202, scid2)
+    m.got_record(c202)
+    assert h.outbound.mock_calls == [
+        mock.call.send_if_connected(Ack(202))
+        ]
+    assert h.inbound.mock_calls == [
+        mock.call.is_record_old(c202),
+        mock.call.update_ack_watermark(202),
+        mock.call.handle_close(scid2),
+        ]
+    clear_mock_calls(h.outbound, h.inbound)
 
-        m.connector_connection_lost()
-        self.assertEqual(h.send.mock_calls, [
-            mock.call.send("dilate-2",
-                           dict_to_bytes({"type": "reconnect"}))
-            ])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.stop_using_connection()
-            ])
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.stop_using_connection()
-            ])
-        clear_mock_calls(h.send, h.inbound, h.outbound)
+    # Now we lose the connection. The Leader should tell the other side
+    # that we're reconnecting.
 
-        # leader does nothing (stays in FLUSHING) until the follower acks by
-        # sending RECONNECTING
+    m.connector_connection_lost()
+    assert h.send.mock_calls == [
+        mock.call.send("dilate-2",
+                       dict_to_bytes({"type": "reconnect"}))
+        ]
+    assert h.inbound.mock_calls == [
+        mock.call.stop_using_connection()
+        ]
+    assert h.outbound.mock_calls == [
+        mock.call.stop_using_connection()
+        ]
+    clear_mock_calls(h.send, h.inbound, h.outbound)
 
-        # inbound hints should be ignored during FLUSHING
-        with mock.patch("wormhole._dilation.manager.parse_hint",
-                        return_value=None) as ph:
-            m.rx_HINTS({"hints": [1, 2, 3]})
-        self.assertEqual(ph.mock_calls, [])  # ignored
+    # leader does nothing (stays in FLUSHING) until the follower acks by
+    # sending RECONNECTING
 
-        c2 = mock.Mock()
-        connector2 = mock.Mock(return_value=c2)
-        with mock.patch("wormhole._dilation.manager.Connector", connector2):
-            # this triggers creation of a new Connector
-            m.rx_RECONNECTING()
-        self.assertEqual(h.send.mock_calls, [])
-        self.assertEqual(connector2.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      LEADER, roles.LEADER),
-            ])
-        self.assertEqual(c2.mock_calls, [mock.call.start()])
-        clear_mock_calls(connector2, c2)
+    # inbound hints should be ignored during FLUSHING
+    with mock.patch("wormhole._dilation.manager.parse_hint",
+                    return_value=None) as ph:
+        m.rx_HINTS({"hints": [1, 2, 3]})
+    assert ph.mock_calls == []  # ignored
 
-        self.assertEqual(h.inbound.mock_calls, [])
-        self.assertEqual(h.outbound.mock_calls, [])
+    c2 = mock.Mock()
+    connector2 = mock.Mock(return_value=c2)
+    with mock.patch("wormhole._dilation.manager.Connector", connector2):
+        # this triggers creation of a new Connector
+        m.rx_RECONNECTING()
+    assert h.send.mock_calls == []
+    assert connector2.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  LEADER, roles.LEADER),
+        ]
+    assert c2.mock_calls == [mock.call.start()]
+    clear_mock_calls(connector2, c2)
 
-        # and a new connection should re-register with Inbound/Outbound,
-        # which are responsible for re-sending unacked queued messages
-        c3 = mock.Mock()
-        m.connector_connection_made(c3)
+    assert h.inbound.mock_calls == []
+    assert h.outbound.mock_calls == []
 
-        self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c3)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c3)])
-        clear_mock_calls(h.inbound, h.outbound)
+    # and a new connection should re-register with Inbound/Outbound,
+    # which are responsible for re-sending unacked queued messages
+    c3 = mock.Mock()
+    m.connector_connection_made(c3)
 
-    def test_follower(self):
-        m, h = make_manager(leader=False)
+    assert h.inbound.mock_calls == [mock.call.use_connection(c3)]
+    assert h.outbound.mock_calls[1:] == [mock.call.use_connection(c3)]
+    clear_mock_calls(h.inbound, h.outbound)
 
-        m.got_wormhole_versions({"can-dilate": ["1"]})
-        self.assertEqual(h.send.mock_calls, [
-            mock.call.send("dilate-0",
-                           dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "1"}))
-            ])
-        clear_mock_calls(h.send)
-        clear_mock_calls(h.inbound)
 
-        c = mock.Mock()
-        connector = mock.Mock(return_value=c)
-        with mock.patch("wormhole._dilation.manager.Connector", connector):
-            # receiving this PLEASE triggers creation of the Connector
-            m.rx_PLEASE({"side": LEADER})
-        self.assertEqual(h.send.mock_calls, [])
-        self.assertEqual(connector.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      FOLLOWER, roles.FOLLOWER),
-            ])
-        self.assertEqual(c.mock_calls, [mock.call.start()])
-        clear_mock_calls(connector, c)
+def test_follower():
+    m, h = make_manager(leader=False)
 
-        # get connected, then lose the connection
-        c1 = mock.Mock()
-        m.connector_connection_made(c1)
-        self.assertEqual(h.inbound.mock_calls, [mock.call.use_connection(c1)])
-        self.assertEqual(h.outbound.mock_calls, [mock.call.use_connection(c1)])
-        clear_mock_calls(h.inbound, h.outbound)
+    m.got_wormhole_versions({"can-dilate": ["ged"]})
+    assert h.send.mock_calls == [
+        mock.call.send("dilate-0",
+                       dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "ged"}))
+        ]
+    clear_mock_calls(h.send)
+    clear_mock_calls(h.inbound)
 
-        # now lose the connection. As the follower, we don't notify the
-        # leader, we just wait for them to notice
-        m.connector_connection_lost()
-        self.assertEqual(h.send.mock_calls, [])
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.stop_using_connection()
-            ])
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.stop_using_connection()
-            ])
-        clear_mock_calls(h.send, h.inbound, h.outbound)
+    c = mock.Mock()
+    connector = mock.Mock(return_value=c)
+    with mock.patch("wormhole._dilation.manager.Connector", connector):
+        # receiving this PLEASE triggers creation of the Connector
+        m.rx_PLEASE({"side": LEADER})
+    assert h.send.mock_calls == []
+    assert connector.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  FOLLOWER, roles.FOLLOWER),
+        ]
+    assert c.mock_calls == [mock.call.start()]
+    clear_mock_calls(connector, c)
 
-        # now we get a RECONNECT: we should send RECONNECTING
-        c2 = mock.Mock()
-        connector2 = mock.Mock(return_value=c2)
-        with mock.patch("wormhole._dilation.manager.Connector", connector2):
-            m.rx_RECONNECT()
-        self.assertEqual(h.send.mock_calls, [
-            mock.call.send("dilate-1",
-                           dict_to_bytes({"type": "reconnecting"}))
-            ])
-        self.assertEqual(connector2.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      FOLLOWER, roles.FOLLOWER),
-            ])
-        self.assertEqual(c2.mock_calls, [mock.call.start()])
-        clear_mock_calls(connector2, c2)
+    # get connected, then lose the connection
+    c1 = mock.Mock()
+    m.connector_connection_made(c1)
+    assert h.inbound.mock_calls == [mock.call.use_connection(c1)]
+    assert h.outbound.mock_calls == [mock.call.use_connection(c1)]
+    clear_mock_calls(h.inbound, h.outbound)
 
-        # while we're trying to connect, we get told to stop again, so we
-        # should abandon the connection attempt and start another
-        c3 = mock.Mock()
-        connector3 = mock.Mock(return_value=c3)
-        with mock.patch("wormhole._dilation.manager.Connector", connector3):
-            m.rx_RECONNECT()
-        self.assertEqual(c2.mock_calls, [mock.call.stop()])
-        self.assertEqual(connector3.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      FOLLOWER, roles.FOLLOWER),
-            ])
-        self.assertEqual(c3.mock_calls, [mock.call.start()])
-        clear_mock_calls(c2, connector3, c3)
+    # now lose the connection. As the follower, we don't notify the
+    # leader, we just wait for them to notice
+    m.connector_connection_lost()
+    assert h.send.mock_calls == []
+    assert h.inbound.mock_calls == [
+        mock.call.stop_using_connection()
+        ]
+    assert h.outbound.mock_calls == [
+        mock.call.stop_using_connection()
+        ]
+    clear_mock_calls(h.send, h.inbound, h.outbound)
 
-        m.connector_connection_made(c3)
-        # finally if we're already connected, rx_RECONNECT means we should
-        # abandon this connection (even though it still looks ok to us), then
-        # when the attempt is finished stopping, we should start another
-
+    # now we get a RECONNECT: we should send RECONNECTING
+    c2 = mock.Mock()
+    connector2 = mock.Mock(return_value=c2)
+    with mock.patch("wormhole._dilation.manager.Connector", connector2):
         m.rx_RECONNECT()
+    assert h.send.mock_calls == [
+        mock.call.send("dilate-1",
+                       dict_to_bytes({"type": "reconnecting"}))
+        ]
+    assert connector2.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  FOLLOWER, roles.FOLLOWER),
+        ]
+    assert c2.mock_calls == [mock.call.start()]
+    clear_mock_calls(connector2, c2)
 
-        c4 = mock.Mock()
-        connector4 = mock.Mock(return_value=c4)
-        with mock.patch("wormhole._dilation.manager.Connector", connector4):
-            m.connector_connection_lost()
-        self.assertEqual(c3.mock_calls, [mock.call.disconnect()])
-        self.assertEqual(connector4.mock_calls, [
-            mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
-                      False,  # no_listen
-                      None,  # tor
-                      None,  # timing
-                      FOLLOWER, roles.FOLLOWER),
-            ])
-        self.assertEqual(c4.mock_calls, [mock.call.start()])
-        clear_mock_calls(c3, connector4, c4)
+    # while we're trying to connect, we get told to stop again, so we
+    # should abandon the connection attempt and start another
+    c3 = mock.Mock()
+    connector3 = mock.Mock(return_value=c3)
+    with mock.patch("wormhole._dilation.manager.Connector", connector3):
+        m.rx_RECONNECT()
+    assert c2.mock_calls == [mock.call.stop()]
+    assert connector3.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  FOLLOWER, roles.FOLLOWER),
+        ]
+    assert c3.mock_calls == [mock.call.start()]
+    clear_mock_calls(c2, connector3, c3)
 
-    def test_mirror(self):
-        # receive a PLEASE with the same side as us: shouldn't happen
-        m, h = make_manager(leader=True)
+    m.connector_connection_made(c3)
+    # finally if we're already connected, rx_RECONNECT means we should
+    # abandon this connection (even though it still looks ok to us), then
+    # when the attempt is finished stopping, we should start another
 
-        m.start()
-        clear_mock_calls(h.send)
-        e = self.assertRaises(ValueError, m.rx_PLEASE, {"side": LEADER})
-        self.assertEqual(str(e), "their side shouldn't be equal: reflection?")
+    m.rx_RECONNECT()
 
-    def test_ping_pong(self):
-        m, h = make_manager(leader=False)
+    c4 = mock.Mock()
+    connector4 = mock.Mock(return_value=c4)
+    with mock.patch("wormhole._dilation.manager.Connector", connector4):
+        m.connector_connection_lost()
+    assert c3.mock_calls == [mock.call.disconnect()]
+    assert connector4.mock_calls == [
+        mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
+                  False,  # no_listen
+                  None,  # tor
+                  None,  # timing
+                  FOLLOWER, roles.FOLLOWER),
+        ]
+    assert c4.mock_calls == [mock.call.start()]
+    clear_mock_calls(c3, connector4, c4)
 
-        m.got_record(KCM())
-        self.flushLoggedErrors(UnexpectedKCM)
 
-        m.got_record(Ping(1))
-        self.assertEqual(h.outbound.mock_calls,
-                         [mock.call.send_if_connected(Pong(1))])
-        clear_mock_calls(h.outbound)
+def test_mirror():
+    # receive a PLEASE with the same side as us: shouldn't happen
+    m, h = make_manager(leader=True)
 
-        m.got_record(Pong(2))
-        # currently ignored, will eventually update a timer
+    m.start()
+    clear_mock_calls(h.send)
+    with pytest.raises(ValueError) as f:
+        m.rx_PLEASE({"side": LEADER})
+    assert str(f.value) == "their side shouldn't be equal: reflection?"
 
-        m.got_record("not recognized")
-        e = self.flushLoggedErrors(UnknownMessageType)
-        self.assertEqual(len(e), 1)
-        self.assertEqual(str(e[0].value), "not recognized")
 
-        m.send_ping(3)
-        self.assertEqual(h.outbound.mock_calls,
-                         [mock.call.send_if_connected(Pong(3))])
-        clear_mock_calls(h.outbound)
+def test_ping_pong(observe_errors):
+    m, h = make_manager(leader=False)
 
-    def test_subchannel(self):
-        m, h = make_manager(leader=True)
-        clear_mock_calls(h.inbound)
-        sc = object()
+    m.got_record(KCM())
+    observe_errors.flush(UnexpectedKCM)
 
-        m.subchannel_pauseProducing(sc)
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.subchannel_pauseProducing(sc)])
-        clear_mock_calls(h.inbound)
+    m.got_record(Ping(1))
+    assert h.outbound.mock_calls == \
+                     [mock.call.send_if_connected(Pong(1))]
+    clear_mock_calls(h.outbound)
 
-        m.subchannel_resumeProducing(sc)
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.subchannel_resumeProducing(sc)])
-        clear_mock_calls(h.inbound)
+    m.got_record("not recognized")
+    e = observe_errors.flush(UnknownMessageType)
+    assert len(e) == 1
+    assert str(e[0].value) == "not recognized"
 
-        m.subchannel_stopProducing(sc)
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.subchannel_stopProducing(sc)])
-        clear_mock_calls(h.inbound)
+    m.send_ping(2, lambda _: None)
+    assert h.outbound.mock_calls == \
+                     [mock.call.send_if_connected(Pong(2))]
+    clear_mock_calls(h.outbound)
 
-        p = object()
-        streaming = object()
+    # sort of low-level; what does this look like to API user?
+    class FakeError(Exception):
+        pass
 
-        m.subchannel_registerProducer(sc, p, streaming)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.subchannel_registerProducer(sc, p, streaming)])
-        clear_mock_calls(h.outbound)
+    def cause_error(_):
+        raise FakeError()
+    m.send_ping(3, cause_error)
+    assert h.outbound.mock_calls == \
+                     [mock.call.send_if_connected(Pong(3))]
+    clear_mock_calls(h.outbound)
+    with pytest.raises(FakeError):
+        m.got_record(Pong(3))
 
-        m.subchannel_unregisterProducer(sc)
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.subchannel_unregisterProducer(sc)])
-        clear_mock_calls(h.outbound)
 
-        m.subchannel_closed(4, sc)
-        self.assertEqual(h.inbound.mock_calls, [
-            mock.call.subchannel_closed(4, sc)])
-        self.assertEqual(h.outbound.mock_calls, [
-            mock.call.subchannel_closed(4, sc)])
-        clear_mock_calls(h.inbound, h.outbound)
+def test_subchannel():
+    m, h = make_manager(leader=True)
+    clear_mock_calls(h.inbound)
+    sc = object()
 
-    def test_unknown_message(self):
-        # receive a PLEASE with the same side as us: shouldn't happen
-        m, h = make_manager(leader=True)
-        m.start()
+    m.subchannel_pauseProducing(sc)
+    assert h.inbound.mock_calls == [
+        mock.call.subchannel_pauseProducing(sc)]
+    clear_mock_calls(h.inbound)
 
-        m.received_dilation_message(dict_to_bytes(dict(type="unknown")))
-        self.flushLoggedErrors(UnknownDilationMessageType)
+    m.subchannel_resumeProducing(sc)
+    assert h.inbound.mock_calls == [
+        mock.call.subchannel_resumeProducing(sc)]
+    clear_mock_calls(h.inbound)
 
-    # TODO: test transit relay is used
+    m.subchannel_stopProducing(sc)
+    assert h.inbound.mock_calls == [
+        mock.call.subchannel_stopProducing(sc)]
+    clear_mock_calls(h.inbound)
+
+    p = object()
+    streaming = object()
+
+    m.subchannel_registerProducer(sc, p, streaming)
+    assert h.outbound.mock_calls == [
+        mock.call.subchannel_registerProducer(sc, p, streaming)]
+    clear_mock_calls(h.outbound)
+
+    m.subchannel_unregisterProducer(sc)
+    assert h.outbound.mock_calls == [
+        mock.call.subchannel_unregisterProducer(sc)]
+    clear_mock_calls(h.outbound)
+
+    m.subchannel_closed(4, sc)
+    assert h.inbound.mock_calls == [
+        mock.call.subchannel_closed(4, sc)]
+    assert h.outbound.mock_calls == [
+        mock.call.subchannel_closed(4, sc)]
+    clear_mock_calls(h.inbound, h.outbound)
+
+
+def test_unknown_message(observe_errors):
+    # receive a PLEASE with the same side as us: shouldn't happen
+    m, h = make_manager(leader=True)
+    m.start()
+
+    m.received_dilation_message(dict_to_bytes(dict(type="unknown")))
+    observe_errors.flush(UnknownDilationMessageType)
+
+
+def test_status_hints():
+    """
+    Rudimentary test proving that sending two different hint updates
+    results in a final update with both hints
+    """
+    m, h = make_manager()
+
+    # better if we could use Dilator -> dilate() -> etc
+    updates = []
+    def status_update(st):
+        updates.append(st)
+    m._status = status_update
+
+    m.start()
+    m.rx_PLEASE({"side": "fake side"})
+    m.rx_HINTS({"hints": [
+        {
+            "type": "direct-tcp-v1",
+            "hostname": "fake.host",
+            "port": 1,
+        }
+    ]})
+    m.rx_HINTS({"hints": [
+        {
+            "type": "direct-tcp-v1",
+            "hostname": "fake.host",
+            "port": 2,
+        }
+    ]})
+
+    # we've done two (separate!) hint updates, our last status update
+    # should show both of them
+
+    last_hints = [
+        hint.url
+        for hint in updates[-1].hints
+    ]
+    assert "fake.host:1" in last_hints
+    assert "fake.host:2" in last_hints
+
+
+# TODO: test transit relay is used

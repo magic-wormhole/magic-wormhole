@@ -8,7 +8,7 @@ from collections import deque
 from nacl.secret import SecretBox
 from twisted.internet import (address, defer, endpoints, error, interfaces,
                               protocol, task)
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.protocols import policies
 from twisted.python import log
 from twisted.python.runtime import platformType
@@ -81,7 +81,7 @@ def build_sender_handshake(key):
 
 
 def build_sided_relay_handshake(key, side):
-    assert isinstance(side, type(u""))
+    assert isinstance(side, str)
     assert len(side) == 8 * 2
     token = HKDF(key, 32, CTXinfo=b"transit_relay_token")
     return b"please relay " + hexlify(token) + b" for side " + side.encode(
@@ -146,7 +146,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
     def _check_and_remove(self, expected):
         # any divergence is a handshake error
         if not self.buf.startswith(expected[:len(self.buf)]):
-            raise BadHandshake("got %r want %r" % (self.buf, expected))
+            raise BadHandshake(f"got {self.buf!r} want {expected!r}")
         if len(self.buf) < len(expected):
             return False  # keep waiting
         self.buf = self.buf[len(expected):]
@@ -197,7 +197,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
             return
         if isinstance(self.state, Exception):  # for tests
             raise self.state
-        raise ValueError("internal error: unknown state %s" % (self.state, ))
+        raise ValueError(f"internal error: unknown state {self.state}")
 
     def _negotiationSuccessful(self):
         self.state = "records"
@@ -238,15 +238,15 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
         return self._description
 
     def send_record(self, record):
-        if not isinstance(record, type(b"")):
+        if not isinstance(record, bytes):
             raise InternalError
         assert SecretBox.NONCE_SIZE == 24
         assert self.send_nonce < 2**(8 * 24)
         assert len(record) < 2**(8 * 4)
-        nonce = unhexlify("%048x" % self.send_nonce)  # big-endian
+        nonce = unhexlify(f"{self.send_nonce:048x}")  # big-endian
         self.send_nonce += 1
         encrypted = self.send_box.encrypt(record, nonce)
-        length = unhexlify("%08x" % len(encrypted))  # always 4 bytes long
+        length = unhexlify(f"{len(encrypted):08x}")  # always 4 bytes long
         self.transport.write(length)
         self.transport.write(encrypted)
 
@@ -341,7 +341,7 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
         if self._consumer:
             raise RuntimeError(
-                "A consumer is already attached: %r" % self._consumer)
+                f"A consumer is already attached: {self._consumer!r}")
 
         # be aware of an ordering hazard: when we call the consumer's
         # .registerProducer method, they are likely to immediately call
@@ -442,7 +442,7 @@ class InboundConnectionFactory(protocol.ClientFactory):
             return "<-%s:%d" % (addr.hostname, addr.port)
         elif isinstance(addr, (address.IPv4Address, address.IPv6Address)):
             return "<-%s:%d" % (addr.host, addr.port)
-        return "<-%r" % addr
+        return f"<-{addr!r}"
 
     def buildProtocol(self, addr):
         p = self.protocol(self.owner, None, self.start,
@@ -560,7 +560,7 @@ class Common:
                  punched_hint=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
-            if not isinstance(transit_relay, type(u"")):
+            if not isinstance(transit_relay, str):
                 raise InternalError
             # TODO: allow multiple hints for a single relay
             relay_hint = parse_hint_argv(transit_relay)
@@ -603,10 +603,10 @@ class Common:
     def get_connection_abilities(self):
         return [
             {
-                u"type": u"direct-tcp-v1"
+                "type": "direct-tcp-v1"
             },
             {
-                u"type": u"relay-v1"
+                "type": "relay-v1"
             },
         ]
 
@@ -616,10 +616,10 @@ class Common:
         direct_hints = yield self._get_direct_hints()
         for dh in direct_hints:
             hints.append({
-                u"type": u"direct-tcp-v1",
-                u"priority": dh.priority,
-                u"hostname": dh.hostname,
-                u"port": dh.port,  # integer
+                "type": "direct-tcp-v1",
+                "priority": dh.priority,
+                "hostname": dh.hostname,
+                "port": dh.port,  # integer
             })
         if self._punched_hint:
             # We want hole-punched hints to have a lower priority than "local"
@@ -642,16 +642,16 @@ class Common:
                 u"port": punched_port,  # integer
             })
         for relay in self._transit_relays:
-            rhint = {u"type": u"relay-v1", u"hints": []}
+            rhint = {"type": "relay-v1", "hints": []}
             for rh in relay.hints:
-                rhint[u"hints"].append({
-                    u"type": u"direct-tcp-v1",
-                    u"priority": rh.priority,
-                    u"hostname": rh.hostname,
-                    u"port": rh.port
+                rhint["hints"].append({
+                    "type": "direct-tcp-v1",
+                    "priority": rh.priority,
+                    "hostname": rh.hostname,
+                    "port": rh.port
                 })
             hints.append(rhint)
-        returnValue(hints)
+        return hints
 
     def _get_direct_hints(self):
         if self._listener:
@@ -700,18 +700,18 @@ class Common:
 
     def add_connection_hints(self, hints):
         for h in hints:  # hint structs
-            hint_type = h.get(u"type", u"")
-            if hint_type in [u"direct-tcp-v1", u"tor-tcp-v1"]:
+            hint_type = h.get("type", "")
+            if hint_type in ["direct-tcp-v1", "tor-tcp-v1"]:
                 dh = parse_tcp_v1_hint(h)
                 if dh:
                     self._their_direct_hints.append(dh)  # hint_obj
-            elif hint_type == u"relay-v1":
+            elif hint_type == "relay-v1":
                 # TODO: each relay-v1 clause describes a different relay,
                 # with a set of equally-valid ways to connect to it. Treat
                 # them as separate relays, instead of merging them all
                 # together like this.
                 relay_hints = []
-                for rhs in h.get(u"hints", []):
+                for rhs in h.get("hints", []):
                     h = parse_tcp_v1_hint(rhs)
                     if h:
                         relay_hints.append(h)
@@ -719,7 +719,7 @@ class Common:
                     rh = RelayV1Hint(hints=tuple(sorted(relay_hints)))
                     self._our_relay_hints.add(rh)
             else:
-                log.msg("unknown hint type: %r" % (h, ))
+                log.msg(f"unknown hint type: {h!r}")
 
     def _send_this(self):
         assert self._transit_key
@@ -762,7 +762,7 @@ class Common:
                 CTXinfo=b"transit_record_sender_key")
 
     def set_transit_key(self, key):
-        assert isinstance(key, type(b"")), type(key)
+        assert isinstance(key, bytes), type(key)
         # We use pubsub to protect against the race where the sender knows
         # the hints and the key, and connects to the receiver's transit
         # socket before the receiver gets the relay message (and thus the
@@ -791,7 +791,7 @@ class Common:
             # connections, so those connections will know what to say when
             # they connect
             winner = yield self._connect()
-        returnValue(winner)
+        return winner
 
     def _connect(self):
         # It might be nice to wire this so that a failure in the direct hints

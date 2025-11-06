@@ -8,6 +8,8 @@
 
 import sys
 import time
+import subprocess
+import pysequoia
 from datetime import datetime
 
 from dulwich.repo import Repo
@@ -39,9 +41,9 @@ def create_new_version(git, only_patch):
     versions = existing_tags(git)
     major, minor, patch = sorted(versions)[-1]
     if only_patch:
-        next_version = "{}.{}.{}".format(major, minor, patch + 1)
+        next_version = f"{major}.{minor}.{patch + 1}"
     else:
-        next_version = "{}.{}.{}".format(major, minor + 1, 0)
+        next_version = f"{major}.{minor + 1}.{0}"
     return next_version
 
 
@@ -57,7 +59,7 @@ async def main(reactor):
 
     for arg in sys.argv[1:]:
         if arg not in ("--no-tag", "--patch"):
-            print("unknown arg: {}".format(arg))
+            print(f"unknown arg: {arg}")
             raise SystemExit(2)
 
     v = create_new_version(git, "--patch" in sys.argv)
@@ -66,7 +68,7 @@ async def main(reactor):
         return
 
     print("Latest version: {}.{}.{}".format(*sorted(existing_tags(git))[-1]))
-    print("New tag will be {}".format(v))
+    print(f"New tag will be {v}")
 
     # the "tag time" is seconds from the epoch .. we quantize these to
     # the start of the day in question, in UTC.
@@ -79,21 +81,29 @@ async def main(reactor):
             ))
         )
     )
+
+    keyid = "9D5A2BD5688ECB889DEBCD3FC2602803128069A7"
+    args = ["sq", "key", "export", "--cert", keyid]
+    certdata = subprocess.check_output(args)
+    cert = pysequoia.Cert.from_bytes(certdata)
+    passphrase = input("passphrase:")
+    signer = cert.secrets.signer(passphrase)
+
     tag_create(
         repo=git,
         tag=v.encode("utf8"),
         author=author.encode("utf8"),
-        message="release magic-wormhole-{}".format(v).encode("utf8"),
+        message=f"release magic-wormhole-{v}".encode("utf8"),
         annotated=True,
         objectish=b"HEAD",
-        sign=author.encode("utf8"),
+        sign=signer,
         tag_time=ts,
         tag_timezone=0,
     )
 
     print("Tag created locally, it is not pushed")
     print("To push it run something like:")
-    print("   git push origin {}".format(v))
+    print(f"   git push origin {v}")
 
 
 if __name__ == "__main__":

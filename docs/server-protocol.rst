@@ -1,19 +1,41 @@
 Mailbox Server Protocol
 =======================
 
-Concepts
+Overview
 --------
 
-The Mailbox Server provides queued delivery of binary messages from one
-client to a second, and vice versa. Each message contains a “phase” (a
-string) and a body (bytestring). These messages are queued in a
-“Mailbox” until the other side connects and retrieves them, but are
+A method for two computers on the Internet to communicate securely.
+
+Two peer computers use the Mailbox Server (e.g. the one running at ``relay.magic-wormhole.io``) to negotiate a shared secret and a shared Mailbox.
+This Mailbox mirrors encrypted messages between two peers, allowing these two computers to communicate.
+These peer messages are encrypted with a shared secret the server doesn't know.
+
+This document describes the concrete protocol spoken between a peer and the Mailbox Server.
+
+
+Concepts and Analogy
+--------------------
+
+Naming of this server centers around the concept of a North American post-office, which typically consisted of rows and rows of identical locked doors, behind which letters for a particular recipient would be placed.
+
+.. image:: _static/hilbert-post-office.jpeg
+    :width: 1211
+    :height: 184
+    :alt: rows of identical locked boxes with different numbers on them
+
+Our Mailboxes are identified by a large random string; we have an effectively infinite number of them.
+("`Hilbert's <https://en.wikipedia.org/wiki/Hilbert's_paradox_of_the_Grand_Hotel>`_ post office"?)
+Similar to the numbers on a physical post office's mailbox doors, “Nameplates” have short numeric identities.
+These short numbers map to a particular, random Mailbox.
+
+For example, in a wormhole code like “4-purple-sausages”, the “4” is the nameplate.
+
+The Mailbox Server provides, via each Mailbox, queued delivery of binary messages from one client to a second, and vice versa.
+Each message contains a “phase” (a string) and a body (bytestring).
+These messages are queued in a “Mailbox” until the other side connects and retrieves them, but are
 delivered immediately if both sides are connected to the server at the
 same time.
-
-Mailboxes are identified by a large random string. “Nameplates”, in
-contrast, have short numeric identities: in a wormhole code like
-“4-purple-sausages”, the “4” is the nameplate.
+Except for "pake" setup, all of these messages are encrypted so the server cannot read the contents.
 
 Each client has a randomly-generated “side”, a short hex string, used to
 differentiate between echoes of a client’s own message, and real
@@ -22,10 +44,10 @@ messages from the other client.
 Application IDs
 ---------------
 
-The server isolates each application from the others. Each client
+The server isolates each application from any others. Each client
 provides an “App Id” when it first connects (via the “BIND” message),
 and all subsequent commands are scoped to this application. This means
-that nameplates (described below) and mailboxes can be re-used between
+that nameplates (described below) and mailboxes can be reused between
 different apps. The AppID is a unicode string. Both sides of the
 wormhole must use the same AppID, of course, or they’ll never see each
 other. The server keeps track of which applications are in use for
@@ -35,8 +57,11 @@ Each application should use a unique AppID. Developers are encouraged to
 use “DNSNAME/APPNAME” to obtain a unique one: e.g. the ``bin/wormhole``
 file-transfer tool uses ``lothar.com/wormhole/text-or-file-xfer``.
 
-WebSocket Transport
--------------------
+Each "App Id" could be on an entirely different server and everything will work the same as if two separate "App Ids" are hosted on the same server.
+
+
+WebSocket Transport & Message Encoding
+--------------------------------------
 
 At the lowest level, each client establishes (and maintains) a WebSocket
 connection to the Mailbox Server. If the connection is lost (which could
@@ -48,50 +73,59 @@ exponentially-growing) delay. The Python implementation waits about 1
 second after the first connection loss, growing by 50% each time, capped
 at 1 minute.
 
-Each message to the server is a dictionary, with at least a ``type``
-key, and other keys that depend upon the particular message type.
-Messages from server to client follow the same format.
+Messages are encoded as a dictionary.
+All encodings must include a ``"type"`` key which says what kind of message this is; all other keys depend on the message type.
 
-``misc/dump-timing.py`` is a debug tool which renders timing data
-gathered from the server and both clients, to identify protocol
-slowdowns and guide optimization efforts. To support this, the
-client/server messages include additional keys. Client->Server messages
-include a random ``id`` key, which is copied into the ``ack`` that is
-immediately sent back to the client for all commands (logged for the
-timing tool but otherwise ignored). Some client->server messages
-(``list``, ``allocate``, ``claim``, ``release``, ``close``, ``ping``)
-provoke a direct response by the server: for these, ``id`` is copied
-into the response. This helps the tool correlate the command and
-response. All server->client messages have a ``server_tx`` timestamp
-(seconds since epoch, as a float), which records when the message left
-the server. Direct responses include a ``server_rx`` timestamp, to
-record when the client’s command was received. The tool combines these
-with local timestamps (recorded by the client and not shared with the
-server) to build a full picture of network delays and round-trip times.
+All messages are serialized as JSON and encoded to UTF-8; these resulting bytes are sent as a single “binary-mode” WebSocket payload.
 
-All messages are serialized as JSON, encoded to UTF-8, and the resulting
-bytes sent as a single “binary-mode” WebSocket payload.
 
-Servers can signal ``error`` for any message type it does not recognize.
-Clients and Servers must ignore unrecognized keys in
-otherwise-recognized messages. Clients must ignore unrecognized message
-types from the Server.
+.. hint::
+
+    Debugging is aided by the addition of information to most messages.
+    ``misc/dump-timing.py`` is a debug tool which renders timing data
+    gathered from the server and both clients, to identify protocol
+    slowdowns and guide optimization efforts. To support this, the
+    client/server messages include additional keys. Client->Server messages
+    include a random ``id`` key, which is copied into the ``ack`` that is
+    immediately sent back to the client for all commands (logged for the
+    timing tool but otherwise ignored). Some client->server messages
+    (``list``, ``allocate``, ``claim``, ``release``, ``close``, ``ping``)
+    provoke a direct response by the server: for these, ``id`` is copied
+    into the response. This helps the tool correlate the command and
+    response. All server->client messages have a ``server_tx`` timestamp
+    (seconds since epoch, as a float), which records when the message left
+    the server. Direct responses include a ``server_rx`` timestamp, to
+    record when the client’s command was received. The tool combines these
+    with local timestamps (recorded by the client and not shared with the
+    server) to build a full picture of network delays and round-trip times.
+
+The server can signal ``error`` for any message type it does not recognize.
+Clients and Servers must ignore unrecognized keys in otherwise-recognized messages.
+Clients must ignore unrecognized message types from the Server.
+
 
 Connection-Specific (Client-to-Server) Messages
 -----------------------------------------------
 
+.. seqdiag::
+
+    seqdiag {
+        peer -> server [label = "type=bind\nappid=demo\nside=b491c"];
+    }
+
+
 The first thing each client sends to the server, immediately after the
 WebSocket connection is established, is a ``bind`` message. This
 specifies the AppID and side (in keys ``appid`` and ``side``,
-respectively) that all subsequent messages will be scoped to. While
-technically each message could be independent (with its own ``appid``
-and ``side``), I thought it would be less confusing to use exactly one
-WebSocket per logical wormhole connection.
+respectively) that all subsequent messages will be scoped to.
 
-The first thing the server sends to each client is the ``welcome``
-message. This is intended to deliver important status information to the
-client that might influence its operation. The Python client currently
-reacts to the following keys (and ignores all others):
+.. note::
+
+    Technically each message could be independent (with its own ``appid`` and ``side``) but it is simpler and less confusing to force one WebSocket per logical wormhole connection.
+
+The first thing the server sends to each client is the ``welcome`` message.
+This is intended to deliver important status information to the client that might influence its operation.
+The Python client currently reacts to the following keys (and ignores all others):
 
 -  ``current_cli_version``: prompts the user to upgrade if the server’s
    advertised version is greater than the client’s version (as derived
@@ -105,22 +139,26 @@ reacts to the following keys (and ignores all others):
    (explaining the requirement) if it does not see this ticket arrive
    before the ``bind``.
 
-A ``ping`` will provoke a ``pong``: these are only used by unit tests
-for synchronization purposes (to detect when a batch of messages have
-been fully processed by the server). NAT-binding refresh messages are
-handled by the WebSocket layer (by asking Autobahn to send a keepalive
-messages every 60 seconds), and do not use ``ping``.
+.. seqdiag::
 
-If any client->server command is invalid (e.g. it lacks a necessary key,
+    seqdiag {
+        peer <- server [label = "type=welcome\nmotd=Hello World"];
+    }
+
+A ``ping`` will provoke a ``pong``: these are used by unit tests for synchronization purposes (to detect when a batch of messages have been fully processed by the server).
+NAT-binding refresh messages are handled by the WebSocket layer (by asking Autobahn to send a keepalive messages every 60 seconds), and do not use ``ping``.
+
+If any client->server command is invalid (e.g. it lacks a necessary key,
 or was sent in the wrong order), an ``error`` response will be sent,
 This response will include the error string in the ``error`` key, and a
 full copy of the original message dictionary in ``orig``.
 
+
 Nameplates
 ----------
 
-Wormhole codes look like ``4-purple-sausages``, consisting of a number
-followed by some random words. This number is called a “Nameplate”.
+Wormhole codes look like ``4-purple-sausages``, consisting of a number followed by some random words.
+This number is called a “Nameplate” (``4`` in this example).
 
 On the Mailbox Server, the Nameplate contains a pointer to a Mailbox.
 Clients can “claim” a nameplate, and then later “release” it. Each claim
@@ -198,8 +236,8 @@ mailbox.
 When clients use the ``add`` command to add a client-to-client message,
 they will put the body (a bytestring) into the command as a hex-encoded
 string in the ``body`` key. They will also put the message’s “phase”, as
-a string, into the ``phase`` key. See client-protocol.md for details
-about how different phases are used.
+a string, into the ``phase`` key. See  :doc:`the client protocol
+docs <client-protocol>`  for details about how different phases are used.
 
 When a client sends ``open``, it will get back a ``message`` response
 for every message in the mailbox. It will also get a real-time
@@ -257,4 +295,14 @@ Clients which terminate entirely between messages (e.g. a secure chat
 application, which requires multiple wormhole messages to exchange
 address-book entries, and which must function even if the two apps are
 never both running at the same time) can use “Journal Mode” to ensure
-forward progress is made: see “journal.md” for details.
+forward progress is made: see :doc:`the journal docs <journal>` for details.
+
+
+Diagram of Normal Interaction
+-----------------------------
+
+Two normal clients connect and successfully establish Mailbox-based communications.
+
+.. seqdiag:: server.seqdiag
+    :alt: a sequence-style diagram showing Alice and Bob succsesfully using the Mailbox
+    :scale: 120%
