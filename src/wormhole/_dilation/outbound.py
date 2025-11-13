@@ -150,7 +150,7 @@ from .connection import KCM, Ping, Pong, Ack
 #   in self._subchannels_with_producers)'. Pros: fewer subchannel->producer
 #   mappings lying around to disagree with one another. Cons: exposes a bit
 #   too much of the Subchannel internals
-
+#
 
 @attrs
 @implementer(IOutbound, IPushProducer)
@@ -274,7 +274,7 @@ class Outbound:
         self._queued_unsent.clear()
         self.pauseProducing()
         # TODO: I expect this will call pauseProducing twice: the first time
-        # when we get stopProducing (since we're registere with the
+        # when we get stopProducing (since we're registered with the
         # underlying connection as the producer), and again when the manager
         # notices the connectionLost and calls our _stop_using_connection
 
