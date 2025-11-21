@@ -675,6 +675,16 @@ class Common:
         f = InboundConnectionFactory(self)
         self._listener_f = f  # for tests # XX move to __init__ ?
         self._listener_d = f.whenDone()
+
+        # for tcp-punching attempts, we try to listen on the same port
+        # as we've connected to the Mailbox server on. Usually, this
+        # should work -- but it may fail.
+        #
+        # For reasons I hvae yet to understand, this fails in the
+        # tests. We are running a Mailbox on the same machine as the
+        # two clients -- but in manual testing this works fine
+        # (without having to retry).
+
         d = self._listener.listen(f)
 
         def _listening(lp):
@@ -687,7 +697,20 @@ class Common:
             self._listener_d.addBoth(_stop_listening)
             return self._my_direct_hints
 
+        def _failed(_):
+            # likely it happens that our nat-punching messed up -- we
+            # can't actually listen on the specified port, so instead
+            # we'll try again with what we would have done before that
+            # -- which is to use no port at all and let the OS choose.
+            self._portnum = None
+            self._my_direct_hints, self._listener = self._build_listener()
+            d = self._listener.listen(f)
+            d.addCallback(_listening)
+            # if this fails _again_ then we'll just fail period, which is fine
+            return d
+
         d.addCallback(_listening)
+        d.addErrback(_failed)
         return d
 
     def _stop_listening(self):
