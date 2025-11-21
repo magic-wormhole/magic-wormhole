@@ -41,6 +41,22 @@ Each client has a randomly-generated “side”, a short hex string, used to
 differentiate between echoes of a client’s own message, and real
 messages from the other client.
 
+
+Protocol Versioning
+-------------------
+
+Different versions of the Mailbox protocol are indicated by the WebSocket URI used to access the service.
+For example, ``ws://relay.magic-wormhole.io:4000/v1`` is the default (public) Mailbox server.
+The version is indicated by the ``/v1`` path; "version 2" would be at ``ws://relay.magic-wormhole.io:4000/v2``.
+
+A server may offer multiple different versions.
+
+The following versions exist:
+
+- ``/v1/``: the first published version
+- ``/v2/``: introduces a ``"you"`` key in the ``"welcome"`` message. ``"you"`` points at a ``dict`` containing an integer ``"port"`` number, and either an ``"ipv4"`` or ``"ipv6"`` containing a string representation of the IPv4 or IPv6 address that you are visible to the server as.
+
+
 Application IDs
 ---------------
 
