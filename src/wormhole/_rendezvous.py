@@ -71,6 +71,7 @@ class RendezvousConnector:
     _timing = attrib(validator=provides(_interfaces.ITiming))
     _client_version = attrib(validator=instance_of(tuple))
     _evolve_status = attrib()  # callable taking kwargs to change aspects of the status
+    _http_proxy = attrib(default=None)
 
     def __attrs_post_init__(self):
         self._have_made_a_successful_connection = False
@@ -78,7 +79,9 @@ class RendezvousConnector:
 
         self._trace = None
         self._ws = None
-        f = WSFactory(self, self._url)
+        # proxy= can be None for "no proxy" or {"host": "", "port", 0} dict
+        f = WSFactory(self, self._url, proxy=self._http_proxy)
+
         # kind-of match what Dilation does for peer connections;
         # there, we send a ping every 30s and give up on the
         # connection if two fail in a row -- autobahn doesn't give us
