@@ -680,7 +680,7 @@ class Common:
         # as we've connected to the Mailbox server on. Usually, this
         # should work -- but it may fail.
         #
-        # For reasons I hvae yet to understand, this fails in the
+        # For reasons I have yet to understand, this fails in the
         # tests. We are running a Mailbox on the same machine as the
         # two clients -- but in manual testing this works fine
         # (without having to retry).
