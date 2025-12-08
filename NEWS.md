@@ -4,6 +4,8 @@ User-visible changes in "magic-wormhole":
 
 * (add release-notes here when making PRs)
 * Errback pending receive_record() calls on connection loss (#686 @bramhaag)
+* Display / suppress QR code with ``WORMHOLE_QR=0`` (@meejah)
+
 
 ## Release 0.21.1 (30-Oct-2025)
 
