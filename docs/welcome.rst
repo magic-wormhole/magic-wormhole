@@ -133,6 +133,8 @@ Receiver:
    100%|===========================| 7.92K/7.92K [00:00<00:00, 120KB/s]
    Received file written to README.md
 
+.. _installation:
+
 Installation
 ------------
 
