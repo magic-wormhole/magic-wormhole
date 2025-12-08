@@ -1119,8 +1119,10 @@ async def test_receive_queue():
 
 @ensureDeferred
 async def test_receive_queue_connectionLost():
-    # Test that pending receive_record() calls are errback'd when the
-    # connection is lost from the remote side
+    """
+    Test that pending receive_record() calls are errback'd when the
+    connection is lost from the remote side
+    """
     c = transit.Connection(None, None, None, "description")
     c.transport = FakeTransport(c, None)
     c.transport.signalConnectionLost = False
