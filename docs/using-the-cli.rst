@@ -12,7 +12,7 @@ We assume you've already gotten the software via the :ref:`installation` instruc
 
 In general, the ``wormhole`` command and its sub-commands all expect a human user and do not attempt to keep the output machine-readable or even necessarily predictable between releases.
 
-If you are new to Magic Wormhole, start with the :ref:`cli_tool` examples.
+If you are new to Magic Wormhole, start with the :ref:`cli_overview` examples.
 
 
 Environment Variables
