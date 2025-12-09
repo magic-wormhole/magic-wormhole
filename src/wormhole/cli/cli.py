@@ -273,7 +273,9 @@ def help(context, **kwargs):
 @click.option(
     "--qr/--no-qr",
     default=True,
-    help="Generate and show ASCII-based QR code.")
+    help="Generate and show ASCII-based QR code.",
+    envvar="WORMHOLE_QR",
+)
 @click.argument("what", required=False, type=click.Path(path_type=str))
 @click.pass_obj
 def send(cfg, **kwargs):
