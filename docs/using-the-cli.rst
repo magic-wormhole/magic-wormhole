@@ -1,4 +1,6 @@
 
+.. _cli_details:
+
 Using the CLI
 =============
 
@@ -9,6 +11,8 @@ This document exists as a supplement to the CLI documentation.
 We assume you've already gotten the software via the :ref:`installation` instructions.
 
 In general, the ``wormhole`` command and its sub-commands all expect a human user and do not attempt to keep the output machine-readable or even necessarily predictable between releases.
+
+If you are new to Magic Wormhole, start with the :ref:`cli_tool` examples.
 
 
 Environment Variables
