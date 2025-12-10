@@ -138,6 +138,7 @@ GUIs for Desktop, Mobile, Web
 * `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy
 * `Wormhole William Mobile <https://github.com/psanford/wormhole-william-mobile>`_ for Android and iOS.
 * `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
+* `Wyrmhole <https://github.com/ClaytonWas/wyrmhole>`_, is a cross-platform GUI using Tauri designed for managing many bulk file transfers simultaneously based on the Rust implementation.
 
 
 Non-File-Transfer Uses
