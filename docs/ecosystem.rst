@@ -134,7 +134,7 @@ GUIs for Desktop, Mobile, Web
 * `Warp <https://apps.gnome.org/Warp/>`_ is a GNOME GUI written in Rust
 * `Winden <https://winden.app/>`_ is a Web client and deployment (using the Go implementation via WASM)
 * `Destiny <https://f-droid.org/packages/com.leastauthority.destiny/>`_ is an Android (and iOS) app using Flutter (with the Go implementation for wormhole). Also on proprietary app stores.
-* `Wormhole <https://gitlab.com/lukas-heiligenbrunner/wormhole>`_ for Android. Based on the Rust implementation.
+* `Wormhole <https://github.com/wormhole-app/wormhole>`_ for Android. Based on the Rust implementation.
 * `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy
 * `Wormhole William Mobile <https://github.com/psanford/wormhole-william-mobile>`_ for Android and iOS.
 * `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
