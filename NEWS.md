@@ -3,9 +3,16 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+
+
+## Release 0.22.0 (30-Dec-2025)
+
 * Errback pending receive_record() calls on connection loss (#686 @bramhaag)
 * Display / suppress QR code with ``WORMHOLE_QR=0`` (@meejah)
 * Document the CLI more completely (#609 @meejah)
+* Update Ecosystem documents (@leoheitmannruiz @ClaytonWas)
+* Fix spelling (@tinyfoolish)
+* Exclude Autobahn 25.11.1 and 25.12.1 (@meejah)
 
 
 ## Release 0.21.1 (30-Oct-2025)
