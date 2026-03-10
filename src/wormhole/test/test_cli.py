@@ -1158,6 +1158,7 @@ async def test_text_wrong_password(mailbox):
 def test_filenames(tmpdir_factory):
     args = mock.Mock()
     args.relay_url = ""
+    args.output_file = None
     ef = cmd_receive.Receiver(args)._extract_file
     extract_dir = os.path.abspath(tmpdir_factory.mktemp("filenames"))
 
@@ -1195,6 +1196,13 @@ def test_filenames(tmpdir_factory):
     with pytest.raises(ValueError) as e:
         ef(zf, zi, extract_dir)
     assert "malicious zipfile" in str(e.value)
+
+
+    expected = os.path.join(extract_dir, "evil.txt")
+    receiver = cmd_receive.Receiver(args)
+    receiver.args.cwd = extract_dir
+    result = receiver._decide_destname("file", "../../evil.txt")  # basename strips path traversal
+    assert expected == result
 
 
 def test_existing_destdir(tmpdir_factory):
