@@ -367,7 +367,7 @@ class Receiver:
         if self.args.output_file:
             abs_destname = os.path.abspath(os.path.join(self.args.cwd, self.args.output_file))
         else:
-            abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, os.path.basename(destname)))
         overwrite_allowed = False
         if self.args.output_file:
              if os.path.exists(abs_destname):
