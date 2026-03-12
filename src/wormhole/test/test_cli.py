@@ -1161,6 +1161,7 @@ def test_filenames(tmpdir_factory):
     args.output_file = None
     ef = cmd_receive.Receiver(args)._extract_file
     extract_dir = os.path.abspath(tmpdir_factory.mktemp("filenames"))
+    extract_base = os.path.basename(extract_dir)
 
     zf = mock.Mock()
     zi = mock.Mock()
@@ -1172,6 +1173,21 @@ def test_filenames(tmpdir_factory):
         assert zf.extract.mock_calls == [mock.call(zi.filename, path=extract_dir)]
         assert chmod.mock_calls == [mock.call(expected, 5)]
 
+    # these test that the receiver prevents "Zip Slip", where zipfile
+    # members contain ".." or path-resetting extra slashes, to escape
+    # the target directory. The zipfile module already strips
+    # leading-slash, double-slash, ".", and "..", making the output safe
+    # against those, but we go further and throw an error if we see them
+
+    # basic reach-for-root attack
+    zf = mock.Mock()
+    zi = mock.Mock()
+    zi.filename = "/etc/passwd"
+    with pytest.raises(ValueError) as e:
+        ef(zf, zi, extract_dir)
+    assert "malicious zipfile" in str(e.value)
+
+    # basic climb-the-tree attack
     zf = mock.Mock()
     zi = mock.Mock()
     zi.filename = "../haha"
@@ -1179,23 +1195,32 @@ def test_filenames(tmpdir_factory):
         ef(zf, zi, extract_dir)
         assert "malicious zipfile" in str(e)
 
+    # sneaky form that reaches for a sibling of the starting directory
+    # whose name is an extension of our own, like using
+    # "../target2/foo.txt" to escape a "target" directory. If the check
+    # in cmd_receive.py uses .startswith() *without* an extra / or
+    # os.sep, it won't catch this, and zipfile won't either.
     zf = mock.Mock()
     zi = mock.Mock()
-    zi.filename = "haha//root"  # abspath squashes this, hopefully zipfile
-    # does too
+    zi.filename = "../{}-plus-hyphen/haha".format(extract_base)
+    zi.external_attr = 0o600 << 16
+    with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+        with pytest.raises(ValueError) as e:
+            ef(zf, zi, extract_dir)
+        assert "malicious zipfile" in str(e)
+
+    # this form uses an internal extra slash to attempt access to the
+    # filesystem root, we rely on zipfile's handling (no error)
+    zf = mock.Mock()
+    zi = mock.Mock()
+    # abspath squashes this, hopefully zipfile does too
+    zi.filename = "haha//root"
     zi.external_attr = 5 << 16
     expected = os.path.join(extract_dir, "haha", "root")
-    with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+    with mock.patch("os.chmod") as chmod:
         ef(zf, zi, extract_dir)
         assert zf.extract.mock_calls, [mock.call(zi.filename, path=extract_dir)]
         assert chmod.mock_calls == [mock.call(expected, 5)]
-
-    zf = mock.Mock()
-    zi = mock.Mock()
-    zi.filename = "/etc/passwd"
-    with pytest.raises(ValueError) as e:
-        ef(zf, zi, extract_dir)
-    assert "malicious zipfile" in str(e.value)
 
 
     expected = os.path.join(extract_dir, "evil.txt")

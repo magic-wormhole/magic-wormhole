@@ -466,7 +466,7 @@ class Receiver:
         """
         out_path = os.path.join(extract_dir, info.filename)
         out_path = os.path.abspath(out_path)
-        if not out_path.startswith(extract_dir):
+        if not out_path.startswith(extract_dir + os.sep):
             raise ValueError(
                 "malicious zipfile, %s outside of extract_dir %s" %
                 (info.filename, extract_dir))
