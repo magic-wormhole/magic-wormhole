@@ -99,7 +99,7 @@ Other Stuff That's Confusing
 
 
 ``eventually()`` and ``EventualQueue``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``````````````````````````````````````
 
 This pattern ensures that an async thing happens only after at least one "reactor turn".
 
@@ -110,7 +110,7 @@ Reasons for this include: not having to think as much about stack-depths; work a
 
 
 global reactor
-~~~~~~~~~~~~~~
+``````````````
 
 It is ideal if things that use a reactor get it passed to them (instead of relying on importing "the global reactor" in Twisted).
 Although many things do already accept a reactor parameter, not everything does.
@@ -119,6 +119,6 @@ New code should be written to accept a reactor argument.
 
 
 Other Confusing Things
-~~~~~~~~~~~~~~~~~~~~~~~
+``````````````````````
 
 Are you confused about a thing? Please: **reach out and ask us!**
