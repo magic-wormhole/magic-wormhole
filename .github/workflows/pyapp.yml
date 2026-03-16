@@ -52,8 +52,8 @@ jobs:
 
     - name: Build Wormhole sdist
       run: |
-	python setup.py sdist
-	python setup.py bdist_wheel
+        python setup.py sdist
+        python setup.py bdist_wheel
 
     - name: Install PyApp
       run: |
