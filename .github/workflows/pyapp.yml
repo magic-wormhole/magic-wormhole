@@ -1,0 +1,81 @@
+name: Build PyApp magic-wormhole
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  pyapp:
+    strategy:
+      matrix:
+        include:
+           - os: macos-latest
+             python-version: "3.13"
+
+# counter-intuitively, we want the *oldest* linux runner so that we
+# get the oldest GLIBC version for wider compatibility (since we can't
+# actually statically-link rust)
+
+           - os: ubuntu-22.04
+             python-version: "3.13"
+
+           - os: windows-latest
+             python-version: "3.13"
+    runs-on: ${{ matrix.os }}
+    # fixme: figure out version automatically? can we "run-on" tags only?
+    env:
+      PYAPP_EXEC_SPEC: wormhole.cli.cli:wormhole
+      PYAPP_PROJECT_NAME: magic_wormhole
+      PYAPP_PROJECT_PATH: ../dist/magic_wormhole-0.23.0.tar.gz
+    steps:
+    - name: Check out source code
+      uses: actions/checkout@v2
+      with:
+        # Get enough history for the tags we get next to be meaningful.  0
+        # means all history.
+        fetch-depth: "0"
+        # Checkout head of the branch of the PR, or the exact revision
+        # specified for non-PR builds.
+        ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --editable .[dev]
+
+    - name: Build Wormhole sdist
+      run: |
+	python setup.py sdist
+	python setup.py bdist_wheel
+
+    - name: Install PyApp
+      run: |
+        curl https://github.com/ofek/pyapp/releases/latest/download/source.tar.gz -Lo pyapp-source.tar.gz
+        tar -xzf pyapp-source.tar.gz
+        mv pyapp-v* pyapp-latest
+        cd pyapp-latest
+
+    - name: Build wormhole via PyApp
+      run: |
+        cd pyapp-latest && cargo build --release
+
+    - name: Upload the Artifact (unix)
+      if: ${{ !contains(matrix.os, 'windows') }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: wormhole-${{ matrix.os }}
+        path: pyapp-latest/target/release/pyapp
+
+    - name: Upload the Artifact (exe)
+      if: ${{ contains(matrix.os, 'windows') }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: wormhole-${{ matrix.os }}
+        path: pyapp-latest/target/release/pyapp.exe
