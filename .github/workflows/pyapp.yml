@@ -28,7 +28,7 @@ jobs:
     env:
       PYAPP_EXEC_SPEC: wormhole.cli.cli:wormhole
       PYAPP_PROJECT_NAME: magic_wormhole
-      PYAPP_PROJECT_PATH: ../dist/magic_wormhole-0.23.0.tar.gz
+      PYAPP_PROJECT_PATH: ../dist/magic-wormhole-0.23.0*.tar.gz
     steps:
     - name: Check out source code
       uses: actions/checkout@v6
