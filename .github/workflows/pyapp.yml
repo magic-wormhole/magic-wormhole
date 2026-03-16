@@ -43,14 +43,14 @@ jobs:
 
     - name: Upload the Artifact (unix)
       if: ${{ !contains(matrix.os, 'windows') }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: wormhole-${{ matrix.os }}
         path: pyapp-latest/target/release/pyapp
 
     - name: Upload the Artifact (exe)
       if: ${{ contains(matrix.os, 'windows') }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: wormhole-${{ matrix.os }}
         path: pyapp-latest/target/release/pyapp.exe
