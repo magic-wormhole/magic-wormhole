@@ -31,7 +31,7 @@ jobs:
       PYAPP_PROJECT_PATH: ../dist/magic_wormhole-0.23.0.tar.gz
     steps:
     - name: Check out source code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v6
       with:
         # Get enough history for the tags we get next to be meaningful.  0
         # means all history.
@@ -41,7 +41,7 @@ jobs:
         ref: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
