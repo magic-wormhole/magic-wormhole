@@ -28,33 +28,8 @@ jobs:
     env:
       PYAPP_EXEC_SPEC: wormhole.cli.cli:wormhole
       PYAPP_PROJECT_NAME: magic_wormhole
-      PYAPP_PROJECT_PATH: ../dist/magic-wormhole-0.23.0*.tar.gz
+      PYAPP_PROJECT_VERSION: 0.23.0
     steps:
-    - name: Check out source code
-      uses: actions/checkout@v6
-      with:
-        # Get enough history for the tags we get next to be meaningful.  0
-        # means all history.
-        fetch-depth: "0"
-        # Checkout head of the branch of the PR, or the exact revision
-        # specified for non-PR builds.
-        ref: "${{ github.event.pull_request.head.sha || github.sha }}"
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install --editable .[dev]
-
-    - name: Build Wormhole sdist
-      run: |
-        python setup.py sdist
-        python setup.py bdist_wheel
-
     - name: Install PyApp
       run: |
         curl https://github.com/ofek/pyapp/releases/latest/download/source.tar.gz -Lo pyapp-source.tar.gz
