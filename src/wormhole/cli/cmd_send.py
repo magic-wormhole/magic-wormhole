@@ -72,6 +72,7 @@ class Sender:
             tor=self._tor,
             timing=self._timing,
             on_status_update=self._on_status,
+            http_proxy=self._args.http_proxy,
         )
         if self._args.debug_state:
             w.debug_set_trace("send", which=" ".join(self._args.debug_state), file=self._args.stdout)
