@@ -27,7 +27,7 @@ import pytest_twisted
 from .. import __version__
 from .._interfaces import ITorManager
 from ..cli import cli, cmd_receive, cmd_send, welcome
-from ..errors import (ServerConnectionError, TransferError,
+from ..errors import (ServerConnectionError, ServerError, TransferError,
                       UnsendableFileError, WelcomeError, WrongPasswordError)
 from .common import config, setup_mailbox
 
@@ -1337,6 +1337,35 @@ async def test_success(mailbox):
     await cli._dispatch_command(reactor, cfg, fake)
     assert called == [1]
     assert cfg.stderr.getvalue() == ""
+
+
+@pytest_twisted.ensureDeferred
+async def test_server_error_crowded_is_translated_for_humans(mailbox):
+    cfg = create_named_config("send", mailbox.url)
+    cfg.stderr = io.StringIO()
+
+    def fake():
+        raise ServerError("crowded")
+
+    with pytest.raises(SystemExit):
+        await cli._dispatch_command(reactor, cfg, fake)
+    stderr = cfg.stderr.getvalue()
+    assert "crowded" not in stderr
+    assert "Too many peers" in stderr
+    assert "brand-new code" in stderr
+
+
+@pytest_twisted.ensureDeferred
+async def test_server_error_other_codes_are_passed_through(mailbox):
+    cfg = create_named_config("send", mailbox.url)
+    cfg.stderr = io.StringIO()
+
+    def fake():
+        raise ServerError("server-error-msg")
+
+    with pytest.raises(SystemExit):
+        await cli._dispatch_command(reactor, cfg, fake)
+    assert "server error: server-error-msg" in cfg.stderr.getvalue()
 
 
 @pytest_twisted.ensureDeferred
