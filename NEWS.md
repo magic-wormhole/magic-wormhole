@@ -7,6 +7,7 @@ User-visible changes in "magic-wormhole":
 
 ## Release 0.23.0 (10-Mar-2026)
 * **SECURITY**: Ian McKenzie @ikmckenz noticed a regression that deleted "basename()" usage, exposing receivers to path-name traversal attacks. Ian provided a patch and unit-test. Versions 0.21 and 0.22 are affected. This has been fixed and released (thanks, Ian!), users should upgrade.
+* Nicer user guidance on "crowded" errors (#708 by @mvanhorn)
 
 
 ## Release 0.22.0 (30-Dec-2025)
