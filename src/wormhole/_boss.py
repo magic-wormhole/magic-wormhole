@@ -366,16 +366,7 @@ class Boss:
 
     @m.output()
     def close_error(self, errmsg, orig):
-        if errmsg == "crowded":
-            self._result = ServerError(
-                "Too many peers have attempted to connect to this"
-                " mailbox. Try again with your intended peer, making"
-                " sure you get a brand-new code and that it is"
-                " transcribed correctly. If this keeps happening, it"
-                " may be due to an attack."
-            )
-        else:
-            self._result = ServerError(errmsg)
+        self._result = ServerError(errmsg)
         self._T.close("errory")
 
     @m.output()

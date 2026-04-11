@@ -13,7 +13,7 @@ from twisted.python.failure import Failure  # noqa: E402
 from . import public_relay  # noqa: E402
 from .. import __version__  # noqa: E402
 from ..errors import (KeyFormatError, NoTorError,  # noqa: E402
-                      ServerConnectionError,
+                      ServerConnectionError, ServerError,
                       TransferError, UnsendableFileError, WelcomeError,
                       WrongPasswordError)
 from ..timing import DebugTiming  # noqa: E402
@@ -160,6 +160,20 @@ def _dispatch_command(reactor, cfg, command):
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
         msg += f"(relay URL was {e.url})\n"
         msg += str(e)
+        print(msg, file=cfg.stderr)
+        raise SystemExit(1)
+    except ServerError as e:
+        code = str(e) if e.args else ""
+        if code == "crowded":
+            msg = fill(
+                "ERROR: Too many peers have attempted to connect to this"
+                " mailbox. Try again with your intended peer, making sure"
+                " you get a brand-new code and that it is transcribed"
+                " correctly. If this keeps happening, it may be due to an"
+                " attack."
+            )
+        else:
+            msg = f"ERROR: server error: {code}"
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:

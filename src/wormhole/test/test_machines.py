@@ -1414,23 +1414,6 @@ def test_server_error():
     assert isinstance(events[0][1], errors.ServerError)
     assert events[0][1].args[0] == "server-error-msg"
 
-def test_server_error_crowded():
-    b, events = build_boss()
-    b.set_code("1-code")
-    events[:] = []
-
-    orig = {}
-    b.rx_error("crowded", orig)
-    assert events == [("t.close", "errory")]
-    events[:] = []
-
-    b.closed()
-    assert len(events) == 1, events
-    assert events[0][0] == "w.closed"
-    assert isinstance(events[0][1], errors.ServerError)
-    assert "crowded" not in events[0][1].args[0]
-    assert "Too many peers" in events[0][1].args[0]
-
 def test_internal_error():
     b, events = build_boss()
     b.set_code("1-code")
