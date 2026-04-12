@@ -1,5 +1,7 @@
 import builtins
+import datetime
 import io
+import json
 import os
 import re
 import stat
@@ -26,7 +28,7 @@ import pytest_twisted
 
 from .. import __version__
 from .._interfaces import ITorManager
-from ..cli import cli, cmd_receive, cmd_send, welcome
+from ..cli import cli, cmd_receive, cmd_send, update_reminder, welcome
 from ..errors import (ServerConnectionError, ServerError, TransferError,
                       UnsendableFileError, WelcomeError, WrongPasswordError)
 from .common import config, setup_mailbox
@@ -1323,6 +1325,119 @@ def test_version_unreleased():
 def test_motd():
     stderr = _welcome_test({"motd": "hello"})
     assert stderr == "Server (at url) says:\n hello\n"
+
+
+def _reminder_test(
+        tmp_path,
+        *,
+        my_version="2.0",
+        now=datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc),
+        environ=None,
+        release_date="2026-03-01T00:00:00+00:00"):
+    stderr = io.StringIO()
+    state_path = tmp_path / "pyapp-update-reminder.json"
+    update_reminder.maybe_remind_about_pyapp_update(
+        my_version,
+        stderr,
+        now=now,
+        environ={} if environ is None else environ,
+        state_path=state_path,
+        release_date=release_date,
+    )
+    return stderr.getvalue(), state_path
+
+
+def test_pyapp_update_reminder_ignores_non_pyapp(tmp_path):
+    stderr, state_path = _reminder_test(tmp_path)
+    assert stderr == ""
+    assert not state_path.exists()
+
+
+def test_pyapp_update_reminder_ignores_unreleased_versions(tmp_path):
+    stderr, state_path = _reminder_test(
+        tmp_path,
+        my_version="2.0+middle.something",
+        environ={"PYAPP": "1"},
+    )
+    assert stderr == ""
+    assert not state_path.exists()
+
+
+def test_pyapp_update_reminder_ignores_recent_releases(tmp_path):
+    stderr, state_path = _reminder_test(
+        tmp_path,
+        now=datetime.datetime(2026, 4, 1, tzinfo=datetime.timezone.utc),
+        environ={"PYAPP": "1"},
+    )
+    assert stderr == ""
+    assert not state_path.exists()
+
+
+def test_pyapp_update_reminder_warns_for_old_releases(tmp_path):
+    stderr, state_path = _reminder_test(tmp_path, environ={"PYAPP": "1"})
+    expected = (
+        "This Magic Wormhole release is more than six months old. "
+        "To check for a newer PyApp build, run: wormhole self update\n"
+    )
+    assert stderr == expected
+    assert json.loads(state_path.read_text()) == {
+        "last_reminder": "2026-10-01",
+    }
+
+
+def test_pyapp_update_reminder_honors_command_name(tmp_path):
+    stderr, state_path = _reminder_test(
+        tmp_path,
+        environ={
+            "PYAPP": "1",
+            "PYAPP_COMMAND_NAME": "manage",
+        },
+    )
+    expected = (
+        "This Magic Wormhole release is more than six months old. "
+        "To check for a newer PyApp build, run: wormhole manage update\n"
+    )
+    assert stderr == expected
+    assert state_path.exists()
+
+
+def test_pyapp_update_reminder_suppresses_recent_reminders(tmp_path):
+    state_path = tmp_path / "pyapp-update-reminder.json"
+    state_path.write_text('{"last_reminder": "2026-09-15"}\n')
+    stderr, _ = _reminder_test(tmp_path, environ={"PYAPP": "1"})
+    assert stderr == ""
+    assert json.loads(state_path.read_text()) == {
+        "last_reminder": "2026-09-15",
+    }
+
+
+def test_pyapp_update_reminder_repeats_after_thirty_days(tmp_path):
+    state_path = tmp_path / "pyapp-update-reminder.json"
+    state_path.write_text('{"last_reminder": "2026-08-31"}\n')
+    stderr, _ = _reminder_test(tmp_path, environ={"PYAPP": "1"})
+    expected = (
+        "This Magic Wormhole release is more than six months old. "
+        "To check for a newer PyApp build, run: wormhole self update\n"
+    )
+    assert stderr == expected
+    assert json.loads(state_path.read_text()) == {
+        "last_reminder": "2026-10-01",
+    }
+
+
+def test_pyapp_update_reminder_ignores_state_failures(tmp_path):
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory")
+    stderr = io.StringIO()
+    update_reminder.maybe_remind_about_pyapp_update(
+        "2.0",
+        stderr,
+        now=datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc),
+        environ={"PYAPP": "1"},
+        state_path=blocked / "pyapp-update-reminder.json",
+        release_date="2026-03-01T00:00:00+00:00",
+    )
+    assert stderr.getvalue() == ""
 
 
 @pytest_twisted.ensureDeferred

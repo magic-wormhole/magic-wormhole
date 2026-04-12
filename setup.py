@@ -59,6 +59,7 @@ setup(name="magic-wormhole",
           "zipstream-ng >= 1.7.1, <2.0.0",
           "iterable-io >= 1.0.0, <2.0.0",
           "qrcode >= 8.0",
+          "platformdirs >= 4.0",
       ],
       extras_require={
           ':sys_platform=="win32"': ["pywin32"],
