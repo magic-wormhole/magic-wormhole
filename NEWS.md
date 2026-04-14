@@ -2,7 +2,8 @@ User-visible changes in "magic-wormhole":
 
 ## Upcoming Release
 
-* (add release-notes here when making PRs)
+* Remind PyApp users to run ``wormhole self update`` when their installed
+  release is more than six months old (#707)
 
 
 ## Release 0.23.0 (10-Mar-2026)
