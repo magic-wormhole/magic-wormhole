@@ -148,6 +148,41 @@ The Python client currently reacts to the following keys (and ignores all others
 A ``ping`` will provoke a ``pong``: these are used by unit tests for synchronization purposes (to detect when a batch of messages have been fully processed by the server).
 NAT-binding refresh messages are handled by the WebSocket layer (by asking Autobahn to send a keepalive messages every 60 seconds), and do not use ``ping``.
 
+Newer servers (after version 0.6.0) are able to delete messages.
+A client should acknowledge receipt of any message from the other side that it has "durably" processed.
+Here "durably" means that the client can recover successfully without ever seeing that message from the server again (for example, upon re-connect).
+A client sends a ``message-ack`` containing ``their-phase`` and ``their-side`` keys referencing the message that has been durably processed (the server will then delete this message).
+If both clients are new enough, a mailbox will reach a "steady-state" and contain no messages at all.
+(Note that a client must still handle a repeated message that it previously sent a ``message-ack`` for, and should issue another ``message-ack`` for it)
+
+.. seqdiag::
+
+    seqdiag {
+        peer0 -> server [label = "ADD phase='pake_v1', side='0'"];
+	peer0 <- server [label = "MESSAGE phase='pake_v1', side='0'"];
+	peer1 <- server [label = "MESSAGE phase='pake_v1', side='0'"];
+
+	peer1 -> server [label = "MESSAGE phase='pake_v1', side='1'"];
+	peer0 <- server [label = "MESSAGE phase='pake_v1', side='1'"];
+	peer1 <- server [label = "MESSAGE phase='pake_v1', side='1'"];
+
+	peer0 -> server [label = "MESSAGE phase='version', side='0'"];
+	peer1 -> server [label = "MESSAGE phase='version', side='1'"];
+	peer0 <- server [label = "MESSAGE phase='version', side='0'"];
+	peer0 <- server [label = "MESSAGE phase='version', side='1'"];
+	peer1 <- server [label = "MESSAGE phase='version', side='0'"];
+	peer1 <- server [label = "MESSAGE phase='version', side='1'"];
+
+	peer0 -> server [label = "DELETE their-phase='pake_v1' their-side='1'"];
+	peer0 -> server [label = "DELETE their-phase='version' their-side='1'"];
+	peer1 -> server [label = "DELETE their-phase='pake_v1' their-side='0'"];
+	peer1 -> server [label = "DELETE their-phase='version' their-side='0'"];
+    }
+
+After the above interactions, both sides have done a valid SPAKE2 transaction, and confirmed that with the encrypted key-confirmation message (KCM) that "version" doubles as.
+With these "DELETE" messages included, the server now has zero messages in this Mailbox.
+Note that there are many other ways to order the "DELETE" messages into the above diagram; they could be sent by a client at any point after that peer has been sent a particular message.
+
 If any client->server command is invalid (e.g. it lacks a necessary key,
 or was sent in the wrong order), an ``error`` response will be sent,
 This response will include the error string in the ``error`` key, and a
