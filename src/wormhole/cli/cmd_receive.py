@@ -175,7 +175,7 @@ class Receiver:
             recognized = False
             if "transit" in them_d:
                 recognized = True
-                yield self._parse_transit(them_d["transit"], w)
+                yield self._parse_transit(them_d["transit"], w, welcome)
             if "offer" in them_d:
                 recognized = True
                 if not want_offer:
@@ -235,21 +235,32 @@ class Receiver:
             self._msg(f"Verifier {verifier_hex}.")
 
     @inlineCallbacks
-    def _parse_transit(self, sender_transit, w):
+    def _parse_transit(self, sender_transit, w, welcome):
         if self._transit_receiver:
             # TODO: accept multiple messages, add the additional hints to the
             # existing TransitReceiver
             return
-        yield self._build_transit(w, sender_transit)
+        yield self._build_transit(w, sender_transit, welcome)
 
     @inlineCallbacks
-    def _build_transit(self, w, sender_transit):
+    def _build_transit(self, w, sender_transit, welcome):
+        portnum = w.get_client_port()
+        punched_hint = None
+        if "you" in welcome:
+            punched_port = welcome["you"].get("port")
+            punched_ipv4 = welcome["you"].get("ipv4")
+            punched_ipv6 = welcome["you"].get("ipv6")
+            punched_addr = punched_ipv6 or punched_ipv4
+            if type(punched_port) == int and type(punched_addr) == str:
+                punched_hint = (punched_addr, punched_port)
         tr = TransitReceiver(
             self.args.transit_helper,
             no_listen=(not self.args.listen),
             tor=self._tor,
             reactor=self._reactor,
-            timing=self.args.timing)
+            timing=self.args.timing,
+            portnum=portnum,
+            punched_hint=punched_hint)
         self._transit_receiver = tr
         # When I made it possible to override APPID with a CLI argument
         # (issue #113), I forgot to also change this w.derive_key() (issue
