@@ -36,6 +36,7 @@ class Config:
         self.stderr = stderr
         self.tor = False  # XXX?
         self._debug_state = None
+        self.http_proxy = None
 
     @property
     def debug_state(self):
@@ -110,12 +111,19 @@ class AliasedGroup(click.Group):
     metavar="FILE.json",
     help="(debug) write timing data to file",
 )
+@click.option(
+    "--http-proxy",
+    type=str,
+    default=None,
+    metavar="HOST:PORT",
+    help="Use the specified HTTP proxy",
+)
 @click.version_option(
     message="magic-wormhole %(version)s",
     version=__version__,
 )
 @click.pass_context
-def wormhole(context, dump_timing, transit_helper, relay_url, appid):
+def wormhole(context, http_proxy, dump_timing, transit_helper, relay_url, appid):
     """
     Create a Magic Wormhole and communicate through it.
 
@@ -128,6 +136,31 @@ def wormhole(context, dump_timing, transit_helper, relay_url, appid):
     cfg.relay_url = relay_url
     cfg.transit_helper = transit_helper
     cfg.dump_timing = dump_timing
+    if http_proxy is not None:
+        addr, port = http_proxy.split(":", 1)
+        http_proxy = {
+            "host": addr,
+            "port": int(port),
+        }
+    else:
+        env_http_url = os.environ.get(
+            "http_proxy",
+            os.environ.get("HTTP_PROXY", None)
+        )
+        if env_http_url:
+            from urllib.parse import urlparse
+            proxy = urlparse(env_http_url)
+            if ":" in proxy.netloc:
+                addr, port = proxy.netloc.strip().split(":", 1)
+                port = int(port)
+            else:
+                addr = proxy.netloc.strip()
+                port = 80 if proxy.scheme.lower() == "http" else 443
+            http_proxy = {
+                "host": addr,
+                "port": int(port),
+            }
+    cfg.http_proxy = http_proxy
 
 
 @inlineCallbacks
