@@ -133,6 +133,8 @@ Receiver:
    100%|===========================| 7.92K/7.92K [00:00<00:00, 120KB/s]
    Received file written to README.md
 
+.. _installation:
+
 Installation
 ------------
 
@@ -356,6 +358,9 @@ The protocol includes provisions to deliver notices and error messages
 to clients: if either relay must be shut down, these channels will be
 used to provide information about alternatives.
 
+
+.. _cli_overview:
+
 CLI tool
 --------
 
@@ -369,6 +374,9 @@ Both commands accept additional arguments to influence their behavior:
 -  ``--code-length WORDS``: use more or fewer than 2 words for the code
 -  ``--verify`` : print (and ask user to compare) extra verification
    string
+
+For more details, see :ref:`cli_details`
+
 
 Tab-Completion
 ~~~~~~~~~~~~~~

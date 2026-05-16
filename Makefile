@@ -13,7 +13,7 @@ lint:
 	tox -e flake8less
 
 test:
-	python -m pytest
+	python3 -m pytest
 
 completions:
 	bash -c '_WORMHOLE_COMPLETE=bash_source wormhole > wormhole_complete.bash'
@@ -23,11 +23,11 @@ completions:
 	patch -p1 < bash-completions-version-4.patch
 
 release-undo-last-tag:
-	@echo "Cleanup stale release: " `python newest-version.py`
+	@echo "Cleanup stale release: " `python3 newest-version.py`
 	-rm NEWS.md.asc
-	rm dist/magic[_-]wormhole-`python newest-version.py`.tar.gz*
-	rm dist/magic_wormhole-`python newest-version.py`-py3-none-any.whl*
-	git tag -d `python newest-version.py`
+	rm dist/magic[_-]wormhole-`python3 newest-version.py`.tar.gz*
+	rm dist/magic_wormhole-`python3 newest-version.py`-py3-none-any.whl*
+	git tag -d `python3 newest-version.py`
 
 # create a branch, like: git checkout -b prepare-release-0.16.0
 # then run these, so CI can run on the release
@@ -62,7 +62,7 @@ release:
 release-test:
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl.asc
-	python -m venv testmf_venv
+	python3 -m venv testmf_venv
 	testmf_venv/bin/pip install --upgrade pip
 	testmf_venv/bin/pip install dist/magic_wormhole-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/wormhole --version

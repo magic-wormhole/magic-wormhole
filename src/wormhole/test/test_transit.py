@@ -1117,6 +1117,30 @@ async def test_receive_queue():
         await d5
 
 
+@ensureDeferred
+async def test_receive_queue_connectionLost():
+    """
+    Test that pending receive_record() calls are errback'd when the
+    connection is lost from the remote side
+    """
+    c = transit.Connection(None, None, None, "description")
+    c.transport = FakeTransport(c, None)
+    c.transport.signalConnectionLost = False
+    c._negotiation_d.addErrback(lambda err: None)  # eat negotiation error
+
+    d1 = c.receive_record()
+    d2 = c.receive_record()
+    assert not d1.called
+    assert not d2.called
+
+    c.connectionLost()
+
+    with pytest.raises(error.ConnectionClosed):
+        await d1
+    with pytest.raises(error.ConnectionClosed):
+        await d2
+
+
 def test_producer():
     # a Transit object (receiving data from the remote peer) produces
     # data and writes it into a local Consumer

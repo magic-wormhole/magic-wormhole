@@ -37,7 +37,11 @@ setup(name="magic-wormhole",
                 "wormhole.test",
                 "wormhole.test.dilate",
                 ],
-      data_files=[(".", ["wormhole_complete.bash", "wormhole_complete.zsh", "wormhole_complete.fish"])],
+      data_files=[
+          ("share/bash-completion/completions", ["wormhole_complete.bash"]),
+          ("share/zsh/site-functions", ["wormhole_complete.zsh"]),
+          ("share/fish/vendor_completions.d", ["wormhole_complete.fish"]),
+      ],
       entry_points={
           "console_scripts":
           [
@@ -49,7 +53,7 @@ setup(name="magic-wormhole",
           "spake2==0.9", "pynacl",
           "attrs >= 19.2.0", # 19.2.0 replaces cmp parameter with eq/order
           "twisted[tls] >= 17.5.0", # 17.5.0 adds failAfterFailures=
-          "autobahn[twisted] >= 0.14.1, != 25.9.1, != 25.10.1, != 25.10.2",
+          "autobahn[twisted] >= 0.14.1, != 25.9.1, != 25.10.1, != 25.10.2, != 25.11.1, != 25.12.1",
           "automat",
           "cryptography",
           "tqdm >= 4.13.0", # 4.13.0 fixes crash on NetBSD

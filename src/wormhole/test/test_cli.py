@@ -9,6 +9,7 @@ import tempfile
 import zipfile
 from functools import partial
 from textwrap import dedent, fill
+from pathlib import Path
 
 from click import UsageError
 from click.testing import CliRunner
@@ -25,10 +26,13 @@ from unittest import mock
 import pytest
 import pytest_twisted
 
+from hypothesis import given
+from hypothesis import strategies as st
+
 from .. import __version__
 from .._interfaces import ITorManager
 from ..cli import cli, cmd_receive, cmd_send, welcome
-from ..errors import (ServerConnectionError, TransferError,
+from ..errors import (ServerConnectionError, ServerError, TransferError,
                       UnsendableFileError, WelcomeError, WrongPasswordError)
 from .common import config, setup_mailbox
 
@@ -1159,8 +1163,10 @@ async def test_text_wrong_password(mailbox):
 def test_filenames(tmpdir_factory):
     args = mock.Mock()
     args.relay_url = ""
+    args.output_file = None
     ef = cmd_receive.Receiver(args)._extract_file
     extract_dir = os.path.abspath(tmpdir_factory.mktemp("filenames"))
+    extract_base = os.path.basename(extract_dir)
 
     zf = mock.Mock()
     zi = mock.Mock()
@@ -1172,6 +1178,21 @@ def test_filenames(tmpdir_factory):
         assert zf.extract.mock_calls == [mock.call(zi.filename, path=extract_dir)]
         assert chmod.mock_calls == [mock.call(expected, 5)]
 
+    # these test that the receiver prevents "Zip Slip", where zipfile
+    # members contain ".." or path-resetting extra slashes, to escape
+    # the target directory. The zipfile module already strips
+    # leading-slash, double-slash, ".", and "..", making the output safe
+    # against those, but we go further and throw an error if we see them
+
+    # basic reach-for-root attack
+    zf = mock.Mock()
+    zi = mock.Mock()
+    zi.filename = "/etc/passwd"
+    with pytest.raises(ValueError) as e:
+        ef(zf, zi, extract_dir)
+    assert "malicious zipfile" in str(e.value)
+
+    # basic climb-the-tree attack
     zf = mock.Mock()
     zi = mock.Mock()
     zi.filename = "../haha"
@@ -1179,23 +1200,39 @@ def test_filenames(tmpdir_factory):
         ef(zf, zi, extract_dir)
         assert "malicious zipfile" in str(e)
 
+    # sneaky form that reaches for a sibling of the starting directory
+    # whose name is an extension of our own, like using
+    # "../target2/foo.txt" to escape a "target" directory. If the check
+    # in cmd_receive.py uses .startswith() *without* an extra / or
+    # os.sep, it won't catch this, and zipfile won't either.
     zf = mock.Mock()
     zi = mock.Mock()
-    zi.filename = "haha//root"  # abspath squashes this, hopefully zipfile
-    # does too
+    zi.filename = "../{}-plus-hyphen/haha".format(extract_base)
+    zi.external_attr = 0o600 << 16
+    with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+        with pytest.raises(ValueError) as e:
+            ef(zf, zi, extract_dir)
+        assert "malicious zipfile" in str(e)
+
+    # this form uses an internal extra slash to attempt access to the
+    # filesystem root, we rely on zipfile's handling (no error)
+    zf = mock.Mock()
+    zi = mock.Mock()
+    # abspath squashes this, hopefully zipfile does too
+    zi.filename = "haha//root"
     zi.external_attr = 5 << 16
     expected = os.path.join(extract_dir, "haha", "root")
-    with mock.patch.object(cmd_receive.os, "chmod") as chmod:
+    with mock.patch("os.chmod") as chmod:
         ef(zf, zi, extract_dir)
         assert zf.extract.mock_calls, [mock.call(zi.filename, path=extract_dir)]
         assert chmod.mock_calls == [mock.call(expected, 5)]
 
-    zf = mock.Mock()
-    zi = mock.Mock()
-    zi.filename = "/etc/passwd"
-    with pytest.raises(ValueError) as e:
-        ef(zf, zi, extract_dir)
-    assert "malicious zipfile" in str(e.value)
+
+    expected = os.path.join(extract_dir, "evil.txt")
+    receiver = cmd_receive.Receiver(args)
+    receiver.args.cwd = extract_dir
+    result = receiver._decide_destname("file", "../../evil.txt")  # basename strips path traversal
+    assert expected == result
 
 
 def test_existing_destdir(tmpdir_factory):
@@ -1213,6 +1250,65 @@ def test_existing_destdir(tmpdir_factory):
 
     s = cmd._decide_destname(None, "destination_file")
     assert s == os.path.join(tmpdir, "destination_file")
+
+
+def test_existing_destdir_malicious(tmpdir_factory):
+    """
+    Test that our attempts to preserve an existing output
+    directory correctly work even if a zip contains a (possibly)
+    malicious path pointing outside of the destdir (e.g. via ../ and
+    similar)
+    """
+    args = mock.Mock()
+    args.relay_url = ""
+    tmpdir = tempfile.mkdtemp()
+    args.cwd = os.getcwd()
+    args.output_file = tmpdir
+    cmd = cmd_receive.Receiver(args)
+
+    s = cmd._decide_destname(None, "../../../destination_file")
+    assert s == os.path.join(tmpdir, "destination_file")
+
+
+@given(
+    st.lists(
+        st.one_of(
+            st.just(".."),
+            st.text(),
+        )
+    ),
+    st.one_of([st.just("file"), st.just("directory")]),
+    st.booleans(),
+)
+def test_destdir_traversal(tmpdir_factory, segments, mode, outdir):
+    """
+    Let Hypothesis explore the space of directories, and ensure we
+    can't traverse outside of our base.
+
+    segments: random path segments, including ".."'s
+    mode: "file" or "directory" (currently unused by _decide_destname)
+    outdir: whether to include an arg for pre-existing output directory
+    """
+    base = tmpdir_factory.mktemp("base")
+    args = mock.Mock()
+    args.relay_url = ""
+    if outdir:
+        args.output_file = base
+    else:
+        args.output_file = None
+
+    receiver = cmd_receive.Receiver(args)
+    receiver.args.cwd = base
+
+    try:
+        result = receiver._decide_destname(mode, "/".join(segments))
+    except cmd_receive.TransferRejectedError:
+        # in this case, we wouldn't even have tried to write to the
+        # path, so whatever happened to get here (path-wise) is fine
+        return
+    rpath = Path(result)
+    bpath = Path(base)
+    assert rpath.is_relative_to(bpath), "_decide_destname must always decide a subpath"
 
 
 def test_not_remove_existing_destdir(tmpdir_factory):
@@ -1316,6 +1412,35 @@ async def test_success(mailbox):
     await cli._dispatch_command(reactor, cfg, fake)
     assert called == [1]
     assert cfg.stderr.getvalue() == ""
+
+
+@pytest_twisted.ensureDeferred
+async def test_server_error_crowded_is_translated_for_humans(mailbox):
+    cfg = create_named_config("send", mailbox.url)
+    cfg.stderr = io.StringIO()
+
+    def fake():
+        raise ServerError("crowded")
+
+    with pytest.raises(SystemExit):
+        await cli._dispatch_command(reactor, cfg, fake)
+    stderr = cfg.stderr.getvalue()
+    assert "crowded" not in stderr
+    assert "Too many peers" in stderr
+    assert "brand-new code" in stderr
+
+
+@pytest_twisted.ensureDeferred
+async def test_server_error_other_codes_are_passed_through(mailbox):
+    cfg = create_named_config("send", mailbox.url)
+    cfg.stderr = io.StringIO()
+
+    def fake():
+        raise ServerError("server-error-msg")
+
+    with pytest.raises(SystemExit):
+        await cli._dispatch_command(reactor, cfg, fake)
+    assert "server error: server-error-msg" in cfg.stderr.getvalue()
 
 
 @pytest_twisted.ensureDeferred

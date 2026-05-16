@@ -1,9 +1,5 @@
 function _wormhole_completion;
-    set -l response;
-
-    for value in (env _WORMHOLE_COMPLETE=fish_complete COMP_WORDS=(commandline -cp) COMP_CWORD=(commandline -t) wormhole);
-        set response $response $value;
-    end;
+    set -l response (env _WORMHOLE_COMPLETE=fish_complete COMP_WORDS=(commandline -cp) COMP_CWORD=(commandline -t) wormhole);
 
     for completion in $response;
         set -l metadata (string split "," $completion);

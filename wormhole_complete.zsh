@@ -31,5 +31,11 @@ _wormhole_completion() {
     fi
 }
 
-compdef _wormhole_completion wormhole;
+if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
+    # autoload from fpath, call function directly
+    _wormhole_completion "$@"
+else
+    # eval/source/. command, register function for later
+    compdef _wormhole_completion wormhole
+fi
 

@@ -309,7 +309,7 @@ class Receiver:
     def _handle_text(self, them_d, w):
         # we're receiving a text message
         self.args.timing.add("print")
-        print(them_d["message"], file=self.args.stdout)
+        print(repr(them_d["message"])[1:-1], file=self.args.stdout)
         self._send_data({"answer": {"message_ack": "ok"}}, w)
 
     def _handle_file(self, them_d):
@@ -378,7 +378,7 @@ class Receiver:
         if self.args.output_file:
             abs_destname = os.path.abspath(os.path.join(self.args.cwd, self.args.output_file))
         else:
-            abs_destname = os.path.abspath(os.path.join(self.args.cwd, destname))
+            abs_destname = os.path.abspath(os.path.join(self.args.cwd, os.path.basename(destname)))
         overwrite_allowed = False
         if self.args.output_file:
              if os.path.exists(abs_destname):
@@ -387,7 +387,7 @@ class Receiver:
                     # the incoming file _inside_ of it (i.e.. don't
                     # delete + overwrite whole tree)
                     abs_destname = os.path.abspath(
-                        os.path.join(self.args.cwd, self.args.output_file, destname)
+                        os.path.join(self.args.cwd, self.args.output_file, os.path.basename(destname))
                     )
                     overwrite_allowed = True
                 else:
@@ -477,7 +477,7 @@ class Receiver:
         """
         out_path = os.path.join(extract_dir, info.filename)
         out_path = os.path.abspath(out_path)
-        if not out_path.startswith(extract_dir):
+        if not out_path.startswith(extract_dir + os.sep):
             raise ValueError(
                 "malicious zipfile, %s outside of extract_dir %s" %
                 (info.filename, extract_dir))

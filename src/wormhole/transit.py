@@ -281,6 +281,10 @@ class Connection(protocol.Protocol, policies.TimeoutMixin):
 
     def connectionLost(self, reason=None):
         self.setTimeout(None)
+        while self._waiting_reads:
+            d = self._waiting_reads.popleft()
+            d.errback(error.ConnectionClosed())
+
         d, self._negotiation_d = self._negotiation_d, None
         # the Deferred is only relevant until negotiation finishes, so skip
         # this if it's already been fired

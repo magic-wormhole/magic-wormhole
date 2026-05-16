@@ -5,6 +5,25 @@ User-visible changes in "magic-wormhole":
 * (add release-notes here when making PRs)
 
 
+## Release 0.24.0 (5-May-2026)
+* **SECURITY**: @marduc812 noticed that there is also a missing "basename()" when a receiving user specifies an output directory (via "--output") that already exists. Users on past releases can mitigate this bug by ensuring that any specified "--output" filename is not an already-existing directory. CVE-2026-42448
+
+
+## Release 0.23.0 (10-Mar-2026)
+* **SECURITY**: Ian McKenzie @ikmckenz noticed a regression that deleted "basename()" usage, exposing receivers to path-name traversal attacks. Ian provided a patch and unit-test. Versions 0.21 and 0.22 are affected. This has been fixed and released (thanks, Ian!), users should upgrade.
+* Nicer user guidance on "crowded" errors (#708 by @mvanhorn)
+
+
+## Release 0.22.0 (30-Dec-2025)
+
+* Errback pending receive_record() calls on connection loss (#686 @bramhaag)
+* Display / suppress QR code with ``WORMHOLE_QR=0`` (@meejah)
+* Document the CLI more completely (#609 @meejah)
+* Update Ecosystem documents (@leoheitmannruiz @ClaytonWas)
+* Fix spelling (@tinyfoolish)
+* Exclude Autobahn 25.11.1 and 25.12.1 (@meejah)
+
+
 ## Release 0.21.1 (30-Oct-2025)
 
 * Exclude autobahn 25.10.2 due to Windows breakage (#680 @jan-Sanku @meejah)

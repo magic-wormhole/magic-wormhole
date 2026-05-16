@@ -13,7 +13,7 @@ from twisted.python.failure import Failure  # noqa: E402
 from . import public_relay  # noqa: E402
 from .. import __version__  # noqa: E402
 from ..errors import (KeyFormatError, NoTorError,  # noqa: E402
-                      ServerConnectionError,
+                      ServerConnectionError, ServerError,
                       TransferError, UnsendableFileError, WelcomeError,
                       WrongPasswordError)
 from ..timing import DebugTiming  # noqa: E402
@@ -91,6 +91,7 @@ class AliasedGroup(click.Group):
     "--relay-url",
     default=public_relay.RENDEZVOUS_RELAY,
     envvar='WORMHOLE_RELAY_URL',
+    show_envvar=True,
     metavar="URL",
     help="rendezvous relay to use",
 )
@@ -98,6 +99,7 @@ class AliasedGroup(click.Group):
     "--transit-helper",
     default=public_relay.TRANSIT_RELAY,
     envvar='WORMHOLE_TRANSIT_HELPER',
+    show_envvar=True,
     metavar="tcp:HOST:PORT",
     help="transit relay to use",
 )
@@ -166,6 +168,20 @@ def _dispatch_command(reactor, cfg, command):
         msg = fill("ERROR: " + dedent(e.__doc__)) + "\n"
         msg += f"(relay URL was {e.url})\n"
         msg += str(e)
+        print(msg, file=cfg.stderr)
+        raise SystemExit(1)
+    except ServerError as e:
+        code = str(e) if e.args else ""
+        if code == "crowded":
+            msg = fill(
+                "ERROR: Too many peers have attempted to connect to this"
+                " mailbox. Try again with your intended peer, making sure"
+                " you get a brand-new code and that it is transcribed"
+                " correctly. If this keeps happening, it may be due to an"
+                " attack."
+            )
+        else:
+            msg = f"ERROR: server error: {code}"
         print(msg, file=cfg.stderr)
         raise SystemExit(1)
     except Exception as e:
@@ -281,7 +297,10 @@ def help(context, **kwargs):
 @click.option(
     "--qr/--no-qr",
     default=True,
-    help="Generate and show ASCII-based QR code.")
+    help="Generate and show ASCII-based QR code.",
+    envvar="WORMHOLE_QR",
+    show_envvar=True,
+)
 @click.argument("what", required=False, type=click.Path(path_type=str))
 @click.pass_obj
 def send(cfg, **kwargs):
@@ -317,6 +336,7 @@ def go(f, cfg):
     "--accept-file",
     is_flag=True,
     envvar="WORMHOLE_ACCEPT_FILE",
+    show_envvar=True,
     help="accept file transfer without asking for confirmation",
 )
 @click.option(
