@@ -201,10 +201,10 @@ class Sender:
         if self._fd_to_send:
             portnum = w.get_client_port()
             punched_hint = None
-            if "you" in welcome:
-                punched_port = welcome["you"].get("port")
-                punched_ipv4 = welcome["you"].get("ipv4")
-                punched_ipv6 = welcome["you"].get("ipv6")
+            if "your-address" in welcome:
+                punched_port = welcome["your-address"].get("port")
+                punched_ipv4 = welcome["your-address"].get("ipv4")
+                punched_ipv6 = welcome["your-address"].get("ipv6")
                 punched_addr = punched_ipv6 or punched_ipv4
                 if type(punched_port) == int and type(punched_addr) == str:
                     punched_hint = (punched_addr, punched_port)
