@@ -21,6 +21,7 @@ jobs:
 
     steps:
       - name: Checkout
+        # this is v4.2.2
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Annotate locations with typos
         uses: codespell-project/codespell-problem-matcher@v1
