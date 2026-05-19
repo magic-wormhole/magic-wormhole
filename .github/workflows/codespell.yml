@@ -2,6 +2,9 @@
 ---
 name: Codespell
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [master]
@@ -18,7 +21,8 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        # this is v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Annotate locations with typos
         uses: codespell-project/codespell-problem-matcher@v1
       - name: Codespell

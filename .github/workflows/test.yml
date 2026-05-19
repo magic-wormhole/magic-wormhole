@@ -1,5 +1,8 @@
 name: Tests
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ master ]
@@ -15,7 +18,8 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
-    - uses: actions/checkout@v4
+    # this is v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         # without fetch-depth, we do not get "origin/master" or "master"
         # branch -- seems like there should be a less "heavyweight"
@@ -23,9 +27,11 @@ jobs:
         #  origin/master..HEAD" below works for coverage display
         fetch-depth: "0"
         ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+        persist-credentials: false
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      # this is v4.9.1
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -47,10 +53,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    # this is v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        persist-credentials: false
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      # this is v4.9.1
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
 
     - name: Install dependencies
       run: |
@@ -65,10 +75,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    # this is v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        persist-credentials: false
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      # this is v4.9.1
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
 
     - name: Install dependencies
       run: |
