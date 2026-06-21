@@ -559,7 +559,9 @@ class Common:
                  no_listen=False,
                  tor=None,
                  reactor=None,
-                 timing=None):
+                 timing=None,
+                 portnum=None,
+                 punched_hint=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
             if not isinstance(transit_relay, str):
@@ -583,11 +585,13 @@ class Common:
         self._reactor = reactor
         self._timing = timing or DebugTiming()
         self._timing.add("transit")
+        self._portnum = portnum
+        self._punched_hint = punched_hint
 
     def _build_listener(self):
         if self._no_listen or self._tor:
             return ([], None)
-        portnum = allocate_tcp_port()
+        portnum = self._portnum or allocate_tcp_port()
         addresses = ipaddrs.find_addresses()
         non_loopback_addresses = [a for a in addresses if a != "127.0.0.1"]
         if non_loopback_addresses:
@@ -620,6 +624,26 @@ class Common:
                 "priority": dh.priority,
                 "hostname": dh.hostname,
                 "port": dh.port,  # integer
+            })
+        if self._punched_hint:
+            # We want hole-punched hints to have a lower priority than "local"
+            # direct hints, so when both sides are inside the same NAT, we
+            # prefer a direct connection over a hairpin-routed path (out
+            # through the NAT and then right back in again), if the NAT/router
+            # supports that). But note that _connect() only pays attention to
+            # priority for relay hints, not direct hints. We publish the
+            # priority in the hopes that some day the other side can benefit
+            # from it. Also note that relay hints have priority=0.0 by default,
+            # so that future mechanism needs to stack all relay hints *lower*
+            # than the lowest-priority direct hint.
+
+            punched_hostname, punched_port = self._punched_hint
+            punched_priority = -1.0 # lower than direct, higher than relay
+            hints.append({
+                u"type": u"direct-tcp-v1",
+                u"priority": punched_priority,
+                u"hostname": punched_hostname,
+                u"port": punched_port,  # integer
             })
         for relay in self._transit_relays:
             rhint = {"type": "relay-v1", "hints": []}
@@ -655,6 +679,16 @@ class Common:
         f = InboundConnectionFactory(self)
         self._listener_f = f  # for tests # XX move to __init__ ?
         self._listener_d = f.whenDone()
+
+        # for tcp-punching attempts, we try to listen on the same port
+        # as we've connected to the Mailbox server on. Usually, this
+        # should work -- but it may fail.
+        #
+        # For reasons I have yet to understand, this fails in the
+        # tests. We are running a Mailbox on the same machine as the
+        # two clients -- but in manual testing this works fine
+        # (without having to retry).
+
         d = self._listener.listen(f)
 
         def _listening(lp):
@@ -667,7 +701,20 @@ class Common:
             self._listener_d.addBoth(_stop_listening)
             return self._my_direct_hints
 
+        def _failed(_):
+            # likely it happens that our nat-punching messed up -- we
+            # can't actually listen on the specified port, so instead
+            # we'll try again with what we would have done before that
+            # -- which is to use no port at all and let the OS choose.
+            self._portnum = None
+            self._my_direct_hints, self._listener = self._build_listener()
+            d = self._listener.listen(f)
+            d.addCallback(_listening)
+            # if this fails _again_ then we'll just fail period, which is fine
+            return d
+
         d.addCallback(_listening)
+        d.addErrback(_failed)
         return d
 
     def _stop_listening(self):
@@ -788,7 +835,30 @@ class Common:
             # Check the hint type to see if we can support it (e.g. skip
             # onion hints on a non-Tor client). Do not increase relay_delay
             # unless we have at least one viable hint.
-            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor)
+            ep = endpoint_from_hint_obj(hint_obj, self._tor, self._reactor,
+                                        self._portnum)
+
+            # TODO: we only really need the bindAddress (self._portnum) for the
+            # peer's punched hint. If they could deliver that to us in a
+            # separate place (perhaps a new hint type), we could use random
+            # local ports for all the direct hints, and only bind the local
+            # port for the one we try to punch with.
+            #
+            # I'm not sure if that helps with anything. Binding might fail (if
+            # our version of Twisted lacks control over SO_REUSEPORT), but we
+            # should probably react to that by trying again without the
+            # bindAddress. When the two sides *can* make a direct connection,
+            # binding the local ports means those connections will be identical
+            # (same full 4-tuple), so we'll hit the TCP "simultaneous open"
+            # corner case more often, which will look weird in tcpdump, and
+            # will have both sides show a "received" indicator on their
+            # connection, but maybe not harmful.
+            #
+            # Making it a new hint type means an older client can't use it. But
+            # older clients also don't know to bind the local port correctly,
+            # so it's not like presenting it as a direct hint would be
+            # sufficient on its own.
+
             if not ep:
                 continue
             d = self._start_connector(ep,
