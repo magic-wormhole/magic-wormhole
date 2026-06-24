@@ -120,9 +120,11 @@ def invite(cfg, reactor=reactor):
     kind = parts[0]
     keyid = 'unknown' if len(parts) <= 2 else parts[2]
 
-    if not exists(auth_key_path):
-        if not exists(ssh_path):
-            os.mkdir(ssh_path, mode=0o700)
-    with open(auth_key_path, 'a', 0o600) as f:
+    if not exists(ssh_path):
+        os.mkdir(ssh_path, mode=0o700)
+
+    auth_key_path_fd = os.open(auth_key_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    with os.fdopen(auth_key_path_fd, 'a') as f:
         f.write(f'{pubkey.strip()}\n')
+
     print(f"Appended key type='{kind}' id='{keyid}' to '{auth_key_path}'")
