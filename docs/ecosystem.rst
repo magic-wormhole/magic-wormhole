@@ -137,6 +137,7 @@ GUIs for Desktop, Mobile, Web
 * `Wormhole <https://github.com/wormhole-app/wormhole>`_ for Android, iOS, macOS, Linux and Windows. Based on the Rust implementation.
 * `Mobile Wormhole <https://github.com/pavelsof/mobile-wormhole>`_ for Android (also `on f-droid <https://github.com/pavelsof/mobile-wormhole>`_. Based on the Python implementation, using Kivy
 * `Wormhole William Mobile <https://github.com/psanford/wormhole-william-mobile>`_ for Android and iOS.
+* `iyox-Wormhole <https://github.com/iyox-studios/iyox-Wormhole/>`_ is an Android app with Material You design. Based on the Rust implementation of magic-wormhole
 * `Rymdport <https://github.com/Jacalz/rymdport>`_ is a cross-platform graphical desktop application based on wormhole-william.
 * `Wyrmhole <https://github.com/ClaytonWas/wyrmhole>`_, is a cross-platform GUI using Tauri designed for managing many bulk file transfers simultaneously based on the Rust implementation.
 * `wormhole.page <https://wormhole.page>`_ is a Web client (using wormhole-rs via WASM)
