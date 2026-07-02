@@ -190,15 +190,22 @@ a third-party package (published by the “snapcrafters” group):
 Windows
 ~~~~~~~
 
+The binaries for Windows are provided by this project:
+https://github.com/aquacash5/magic-wormhole-exe
+
+Winget
+^^^^^^
+
+::
+
+   $ winget install -e --id magic-wormhole.magic-wormhole
+
 Chocolatey
 ^^^^^^^^^^
 
 ::
 
    $ choco install magic-wormhole
-
-The binaries for Windows are provided from this project:
-https://github.com/aquacash5/magic-wormhole-exe
 
 Install from Source
 ~~~~~~~~~~~~~~~~~~~
