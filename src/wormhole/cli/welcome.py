@@ -1,3 +1,6 @@
+from .update_reminder import maybe_remind_about_pyapp_update
+
+
 def handle_welcome(welcome, relay_url, my_version, stderr):
     if "motd" in welcome:
         motd_lines = welcome["motd"].splitlines()
@@ -19,3 +22,5 @@ def handle_welcome(welcome, relay_url, my_version, stderr):
             "Server claims %s is current, but ours is %s" %
             (welcome["current_cli_version"], my_version),
             file=stderr)
+
+    maybe_remind_about_pyapp_update(my_version, stderr)
