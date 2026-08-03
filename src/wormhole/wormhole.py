@@ -263,6 +263,23 @@ class _DeferredWormhole:
         self._received_observer.fire(f)
 
 
+def _validate_http_proxy(http_proxy):
+    """
+    Raises ValueError if any of the options in http_proxy are
+    invalid.
+    """
+    if http_proxy is None:
+        return
+    if "host" not in http_proxy:
+        raise ValueError("http_proxy requires 'host'")
+    if "port" not in http_proxy:
+        raise ValueError("http_proxy requires 'port'")
+    if not isinstance(http_proxy["port"], int) \
+       or http_proxy["port"] < 1 \
+       or http_proxy["port"] > 65535:
+        raise ValueError("http_proxy requires valid port")
+
+
 def create(
         appid,
         relay_url,
@@ -275,12 +292,16 @@ def create(
         stderr=sys.stderr,
         dilation=None,
         _eventual_queue=None,
-        on_status_update=None):
+        on_status_update=None,
+        http_proxy=None):
     timing = timing or DebugTiming()
     side = bytes_to_hexstr(os.urandom(5))
     journal = journal or ImmediateJournal()
     eq = _eventual_queue or EventualQueue(reactor)
     cooperator = Cooperator(scheduler=eq.eventually)
+
+    # raises ValueError on any incorrect arguments
+    _validate_http_proxy(http_proxy)
 
     if delegate:
         w = _DelegatedWormhole(delegate)
@@ -300,7 +321,8 @@ def create(
         v = v.decode("utf-8", errors="replace")
     client_version = ("python", v)
     b = Boss(w, side, relay_url, appid, wormhole_versions, client_version,
-             reactor, eq, cooperator, journal, tor, timing, on_status_update)
+             reactor, eq, cooperator, journal, tor, timing, on_status_update,
+             http_proxy=http_proxy)
     w._set_boss(b)
     b.start()
     return w
