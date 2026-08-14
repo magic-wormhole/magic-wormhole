@@ -17,11 +17,11 @@ class Order:
                         lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
-        self._key = None
+        self._encryption = None
         self._queue = []
 
-    def wire(self, key, receive):
-        self._K = _interfaces.IEncryption(key)
+    def wire(self, encryption, receive):
+        self._E = _interfaces.IEncryption(encryption)
         self._R = _interfaces.IReceive(receive)
 
     @m.state(initial=True)
@@ -58,8 +58,8 @@ class Order:
         self._queue.append((side, phase, body))
 
     @m.output()
-    def notify_key(self, side, phase, body):
-        self._K.got_pake(body)
+    def notify_encryption(self, side, phase, body):
+        self._E.got_pake(body)
 
     @m.output()
     def drain(self, side, phase, body):
@@ -77,5 +77,5 @@ class Order:
         self._R.got_message(side, phase, body)
 
     S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
-    S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_key, drain])
+    S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_encryption, drain])
     S1_yes_pake.upon(got_non_pake, enter=S1_yes_pake, outputs=[deliver])
