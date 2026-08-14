@@ -14,7 +14,7 @@ from .util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                    hexstr_to_bytes, to_bytes, HKDF, provides)
 
 CryptoError
-__all__ = ["derive_key", "derive_phase_key", "CryptoError", "Key"]
+__all__ = ["derive_key", "derive_phase_key", "CryptoError", "Encryption"]
 
 
 def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
@@ -55,14 +55,14 @@ def encrypt_data(key, plaintext):
     return box.encrypt(plaintext, nonce)
 
 
-# the Key we expose to callers (Boss, Ordering) is responsible for sorting
+# the Encryption we expose to callers (Boss, Ordering) is responsible for sorting
 # the two messages (got_code and got_pake), then delivering them to
-# _SortedKey in the right order.
+# _SortedEncryption in the right order.
 
 
 @attrs
-@implementer(_interfaces.IKey)
-class Key:
+@implementer(_interfaces.IEncryption)
+class Encryption:
     _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(str))
@@ -72,8 +72,8 @@ class Key:
                         lambda self, f: None)  # pragma: no cover
 
     def __attrs_post_init__(self):
-        self._SK = _SortedKey(self._appid, self._versions, self._side,
-                              self._timing)
+        self._SK = _SortedEncryption(self._appid, self._versions, self._side,
+                                     self._timing)
         self._debug_pake_stashed = False  # for tests
 
     def wire(self, boss, mailbox, receive):
@@ -128,7 +128,7 @@ class Key:
 
 
 @attrs
-class _SortedKey:
+class _SortedEncryption:
     _appid = attrib(validator=instance_of(str))
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(str))
