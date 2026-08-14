@@ -64,7 +64,7 @@ class Boss:
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
-        self._K = Encryption(self._appid, self._versions, self._side, self._timing)
+        self._E = Encryption(self._appid, self._versions, self._side, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
@@ -84,14 +84,14 @@ class Boss:
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self, self._N, self._RC, self._O, self._T)
         self._S.wire(self._M)
-        self._O.wire(self._K, self._R)
-        self._K.wire(self, self._M, self._R)
+        self._O.wire(self._E, self._R)
+        self._E.wire(self, self._M, self._R)
         self._R.wire(self, self._S)
         self._RC.wire(self, self._N, self._M, self._A, self._L, self._T)
         self._L.wire(self._RC, self._I)
         self._A.wire(self._RC, self._C)
         self._I.wire(self._C, self._L)
-        self._C.wire(self, self._A, self._N, self._K, self._I)
+        self._C.wire(self, self._A, self._N, self._E, self._I)
         self._T.wire(self, self._RC, self._N, self._M, self._D)
         self._D.wire(self._S, self._T)
 
@@ -151,8 +151,8 @@ class Boss:
             "M": self._M,
             "S": self._S,
             "O": self._O,
-            "K": self._K,
-            "SK": self._K._SK,
+            "E": self._E,
+            "SE": self._E._SE,
             "R": self._R,
             "RC": self._RC,
             "L": self._L,

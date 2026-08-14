@@ -113,26 +113,26 @@ def test_key_first():
 def build_order():
     events = []
     o = _order.Order("side", timing.DebugTiming())
-    k = Dummy("k", events, IEncryption, "got_pake")
+    e = Dummy("e", events, IEncryption, "got_pake")
     r = Dummy("r", events, IReceive, "got_message")
-    o.wire(k, r)
-    return o, k, r, events
+    o.wire(e, r)
+    return o, e, r, events
 
 
 def test_in_order():
-    o, k, r, events = build_order()
+    o, e, r, events = build_order()
     o.got_message("side", "pake", b"body")
-    assert events == [("k.got_pake", b"body")]  # right away
+    assert events == [("e.got_pake", b"body")]  # right away
     o.got_message("side", "version", b"body")
     o.got_message("side", "1", b"body")
     assert events == [
-        ("k.got_pake", b"body"),
+        ("e.got_pake", b"body"),
         ("r.got_message", "side", "version", b"body"),
         ("r.got_message", "side", "1", b"body"),
     ]
 
 def test_out_of_order():
-    o, k, r, events = build_order()
+    o, e, r, events = build_order()
     o.got_message("side", "version", b"body")
     assert events == []  # nothing yet
     o.got_message("side", "1", b"body")
@@ -140,7 +140,7 @@ def test_out_of_order():
     o.got_message("side", "pake", b"body")
     # got_pake is delivered first
     assert events == [
-        ("k.got_pake", b"body"),
+        ("e.got_pake", b"body"),
         ("r.got_message", "side", "version", b"body"),
         ("r.got_message", "side", "1", b"body"),
     ]
@@ -245,20 +245,20 @@ def test_late_bad():
     ]
 
 
-def build_key():
+def build_encryption():
     events = []
-    k = _key.Encryption("appid", {}, "side", timing.DebugTiming())
+    e = _key.Encryption("appid", {}, "side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "scared", "got_key")
     m = Dummy("m", events, IMailbox, "add_message")
     r = Dummy("r", events, IReceive, "got_key")
-    k.wire(b, m, r)
-    return k, b, m, r, events
+    e.wire(b, m, r)
+    return e, b, m, r, events
 
 
 def test_good_key():
-    k, b, m, r, events = build_key()
+    e, b, m, r, events = build_encryption()
     code = "1-foo"
-    k.got_code(code)
+    e.got_code(code)
     assert len(events) == 1
     assert events[0][:2] == ("m.add_message", "pake")
     msg1_json = events[0][2].decode("utf-8")
@@ -269,16 +269,16 @@ def test_good_key():
     msg2_bytes = sp.start()
     key2 = sp.finish(msg1_bytes)
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    k.got_pake(msg2)
+    e.got_pake(msg2)
     assert len(events) == 3, events
     assert events[0] == ("b.got_key", key2)
     assert events[1][:2] == ("m.add_message", "version")
     assert events[2] == ("r.got_key", key2)
 
 def test_bad():
-    k, b, m, r, events = build_key()
+    e, b, m, r, events = build_encryption()
     code = "1-foo"
-    k.got_code(code)
+    e.got_code(code)
     assert len(events) == 1
     assert events[0][:2] == ("m.add_message", "pake")
     pake_1_json = events[0][2].decode("utf-8")
@@ -287,7 +287,7 @@ def test_bad():
                      ["pake_v1"]  # value is PAKE stuff
     events[:] = []
     bad_pake_d = {"not_pake_v1": "stuff"}
-    k.got_pake(dict_to_bytes(bad_pake_d))
+    e.got_pake(dict_to_bytes(bad_pake_d))
     assert events == [("b.scared", )]
 
 def test_reversed():
@@ -297,16 +297,16 @@ def test_reversed():
     # arrive before the code has been set. Encryption() is supposed to stash the
     # PAKE message until the code is set (allowing the PAKE computation
     # to finish). This test exercises that PAKE-then-code sequence.
-    k, b, m, r, events = build_key()
+    e, b, m, r, events = build_encryption()
     code = "1-foo"
 
     sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
     msg2_bytes = sp.start()
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    k.got_pake(msg2)
+    e.got_pake(msg2)
     assert len(events) == 0
 
-    k.got_code(code)
+    e.got_code(code)
     assert len(events) == 4
     assert events[0][:2] == ("m.add_message", "pake")
     msg1_json = events[0][2].decode("utf-8")
@@ -324,23 +324,23 @@ def build_code():
     b = Dummy("b", events, IBoss, "got_code")
     a = Dummy("a", events, IAllocator, "allocate")
     n = Dummy("n", events, INameplate, "set_nameplate")
-    k = Dummy("k", events, IEncryption, "got_code")
+    e = Dummy("e", events, IEncryption, "got_code")
     i = Dummy("i", events, IInput, "start")
-    c.wire(b, a, n, k, i)
-    return c, b, a, n, k, i, events
+    c.wire(b, a, n, e, i)
+    return c, b, a, n, e, i, events
 
 
 def test_set_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     c.set_code("1-code")
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_set_code_invalid():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     with pytest.raises(errors.KeyFormatError) as e:
         c.set_code("1-code ")
     assert str(e.value) == "Code '1-code ' contains spaces."
@@ -357,11 +357,11 @@ def test_set_code_invalid():
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_allocate_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     wl = FakeWordList()
     c.allocate_code(2, wl)
     assert events == [("a.allocate", 2, wl)]
@@ -370,11 +370,11 @@ def test_allocate_code():
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_input_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     c.input_code()
     assert events == [("i.start", )]
     events[:] = []
@@ -386,7 +386,7 @@ def test_input_code():
     c.finished_input("1-code")
     assert events == [
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 
