@@ -30,7 +30,7 @@ class Code:
         self._B = _interfaces.IBoss(boss)
         self._A = _interfaces.IAllocator(allocator)
         self._N = _interfaces.INameplate(nameplate)
-        self._K = _interfaces.IKey(key)
+        self._K = _interfaces.IEncryption(key)
         self._I = _interfaces.IInput(input)
 
     @m.state(initial=True)

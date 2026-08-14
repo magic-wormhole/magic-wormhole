@@ -62,7 +62,7 @@ class Receive:
     def got_message_bad(self):
         pass
 
-    # from Key
+    # from Encryption
     @m.input()
     def got_key(self, key):
         pass

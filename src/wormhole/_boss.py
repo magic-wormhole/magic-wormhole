@@ -11,7 +11,7 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._key import Key
+from ._key import Encryption
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
@@ -64,7 +64,7 @@ class Boss:
         self._M = Mailbox(self._side)
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
-        self._K = Key(self._appid, self._versions, self._side, self._timing)
+        self._K = Encryption(self._appid, self._versions, self._side, self._timing)
         self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
@@ -288,7 +288,7 @@ class Boss:
     def got_code(self, code):
         pass
 
-    # Key sends (got_key, scared)
+    # Encryption sends (got_key, scared)
     # Receive sends (got_message, happy, got_verifier, scared)
     # Mailbox sends (crowded)
     @m.input()

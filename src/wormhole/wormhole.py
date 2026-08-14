@@ -307,7 +307,7 @@ def create(
 #     assert serialized["serialized_wormhole_version"] == 1
 #     timing = timing or DebugTiming()
 #     w = _DelegatedWormhole(delegate)
-#     # now unpack state machines, including the SPAKE2 in Key
+#     # now unpack state machines, including the SPAKE2 in Encryption
 #     b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
 #     w._set_boss(b)
 #     b.start() # ??

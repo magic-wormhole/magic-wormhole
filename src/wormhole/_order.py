@@ -21,7 +21,7 @@ class Order:
         self._queue = []
 
     def wire(self, key, receive):
-        self._K = _interfaces.IKey(key)
+        self._K = _interfaces.IEncryption(key)
         self._R = _interfaces.IReceive(receive)
 
     @m.state(initial=True)

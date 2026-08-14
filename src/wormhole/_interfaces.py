@@ -118,7 +118,7 @@ class IOrder(Interface):
     pass
 
 
-class IKey(Interface):
+class IEncryption(Interface):
     pass
 
 

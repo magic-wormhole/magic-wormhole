@@ -122,7 +122,7 @@ class Mailbox:
     def rx_closed(self):
         pass
 
-    # from Send or Key
+    # from Send or Encryption
     @m.input()
     def add_message(self, phase, body):
         pass

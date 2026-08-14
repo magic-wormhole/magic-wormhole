@@ -319,7 +319,7 @@ async def test_input_code(reactor, mailbox):
     # Pause to allow some messages to get delivered. Specifically we want
     # to wait until w2 claims the nameplate, opens the mailbox, and
     # receives the PAKE message, to exercise the PAKE-before-CODE path in
-    # Key.
+    # Encryption.
     await poll_until(lambda: w2._boss._K._debug_pake_stashed)
     h.choose_words("purple-elephant")
 

@@ -9,7 +9,7 @@ from unittest import mock
 from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
                 _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
                 _terminator, errors, timing)
-from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
+from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
                            IRendezvousConnector, ISend, ITerminator, IWordlist,
                            ITorManager)
@@ -113,7 +113,7 @@ def test_key_first():
 def build_order():
     events = []
     o = _order.Order("side", timing.DebugTiming())
-    k = Dummy("k", events, IKey, "got_pake")
+    k = Dummy("k", events, IEncryption, "got_pake")
     r = Dummy("r", events, IReceive, "got_message")
     o.wire(k, r)
     return o, k, r, events
@@ -247,7 +247,7 @@ def test_late_bad():
 
 def build_key():
     events = []
-    k = _key.Key("appid", {}, "side", timing.DebugTiming())
+    k = _key.Encryption("appid", {}, "side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "scared", "got_key")
     m = Dummy("m", events, IMailbox, "add_message")
     r = Dummy("r", events, IReceive, "got_key")
@@ -294,7 +294,7 @@ def test_reversed():
     # A receiver using input_code() will choose the nameplate first, then
     # the rest of the code. Once the nameplate is selected, we'll claim
     # it and open the mailbox, which will cause the senders PAKE to
-    # arrive before the code has been set. Key() is supposed to stash the
+    # arrive before the code has been set. Encryption() is supposed to stash the
     # PAKE message until the code is set (allowing the PAKE computation
     # to finish). This test exercises that PAKE-then-code sequence.
     k, b, m, r, events = build_key()
@@ -324,7 +324,7 @@ def build_code():
     b = Dummy("b", events, IBoss, "got_code")
     a = Dummy("a", events, IAllocator, "allocate")
     n = Dummy("n", events, INameplate, "set_nameplate")
-    k = Dummy("k", events, IKey, "got_code")
+    k = Dummy("k", events, IEncryption, "got_code")
     i = Dummy("i", events, IInput, "start")
     c.wire(b, a, n, k, i)
     return c, b, a, n, k, i, events
