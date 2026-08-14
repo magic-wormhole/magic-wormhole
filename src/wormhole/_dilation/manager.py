@@ -9,7 +9,7 @@ from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
-from .._key import derive_key
+from .._encryption import derive_key
 from .subchannel import (_WormholeAddress,
                          SubchannelConnectorEndpoint,
                          SubchannelDemultiplex,

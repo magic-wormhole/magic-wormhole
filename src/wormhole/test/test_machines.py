@@ -6,14 +6,14 @@ from zope.interface import directlyProvides, implementer
 
 from unittest import mock
 
-from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
+from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lister,
                 _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
                            IRendezvousConnector, ISend, ITerminator, IWordlist,
                            ITorManager)
-from .._key import derive_key, derive_phase_key, encrypt_data
+from .._encryption import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
 from .._status import WormholeStatus
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
@@ -247,7 +247,7 @@ def test_late_bad():
 
 def build_encryption():
     events = []
-    e = _key.Encryption("appid", {}, "side", timing.DebugTiming())
+    e = _encryption.Encryption("appid", {}, "side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "scared", "got_key")
     m = Dummy("m", events, IMailbox, "add_message")
     r = Dummy("r", events, IReceive, "got_key")
