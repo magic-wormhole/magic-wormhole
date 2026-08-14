@@ -4,7 +4,7 @@ from automat import MethodicalMachine
 from zope.interface import implementer
 
 from . import _interfaces
-from ._key import derive_phase_key, encrypt_data
+from ._encryption import derive_phase_key, encrypt_data
 from .util import provides
 
 

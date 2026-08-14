@@ -10,7 +10,7 @@ from ._boss import Boss
 from ._dilation.manager import DILATION_VERSIONS
 from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
-from ._key import derive_key
+from ._encryption import derive_key
 from .errors import NoKeyError, WormholeClosed
 from .eventual import EventualQueue
 from .journal import ImmediateJournal

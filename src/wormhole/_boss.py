@@ -11,7 +11,7 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._key import Encryption
+from ._encryption import Encryption
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
