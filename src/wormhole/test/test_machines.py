@@ -7,7 +7,7 @@ from zope.interface import directlyProvides, implementer
 from unittest import mock
 
 from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lister,
-                _mailbox, _nameplate, _order, _rendezvous, _send,
+                _mailbox, _nameplate, _order, _rendezvous,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
@@ -54,7 +54,7 @@ class Dummy:
 
 def build_send():
     events = []
-    s = _send.Send("side", timing.DebugTiming())
+    s = _encryption.Send("side", timing.DebugTiming())
     m = Dummy("m", events, IMailbox, "add_message")
     s.wire(m)
     return s, m, events
