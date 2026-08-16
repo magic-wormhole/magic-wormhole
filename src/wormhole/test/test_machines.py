@@ -7,7 +7,7 @@ from zope.interface import directlyProvides, implementer
 from unittest import mock
 
 from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lister,
-                _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
+                _mailbox, _nameplate, _order, _rendezvous, _send,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
@@ -148,7 +148,7 @@ def test_out_of_order():
 
 def build_receive():
     events = []
-    r = _receive.Receive("side", timing.DebugTiming())
+    r = _encryption.Receive("side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "happy", "scared", "got_verifier",
               "got_message")
     s = Dummy("s", events, ISend, "got_verified_key")
