@@ -1451,7 +1451,7 @@ def test_debug_state_invalid_machine():
 @pytest_twisted.ensureDeferred
 async def test_debug_state_send(mailbox):
     args = create_named_config("send", mailbox.url)
-    args.debug_state = "B,N,M,S,O,E,SE,R,RC,L,C,T"
+    args.debug_state = "B,N,M,S,O,E,R,RC,L,C,T"
     args.stdout = io.StringIO()
     s = cmd_send.Sender(args, reactor)
     d = s.go()
@@ -1469,7 +1469,7 @@ async def test_debug_state_send(mailbox):
 @pytest_twisted.ensureDeferred
 async def test_debug_state_receive(mailbox):
     args = create_named_config("receive", mailbox.url)
-    args.debug_state = "B,N,M,S,O,E,SE,R,RC,L,C,T"
+    args.debug_state = "B,N,M,S,O,E,R,RC,L,C,T"
     args.stdout = io.StringIO()
     s = cmd_receive.Receiver(args, reactor)
     d = s.go()
