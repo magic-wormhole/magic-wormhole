@@ -377,3 +377,76 @@ class Send:
     S0_no_key.upon(
         got_verified_key, enter=S1_verified_key, outputs=[record_key, drain])
     S1_verified_key.upon(send, enter=S1_verified_key, outputs=[deliver])
+
+@attrs
+@implementer(_interfaces.IOrder)
+class Order:
+    _side = attrib(validator=instance_of(str))
+    _timing = attrib(validator=provides(_interfaces.ITiming))
+    m = MethodicalMachine()
+    set_trace = getattr(m, "_setTrace",
+                        lambda self, f: None)  # pragma: no cover
+
+    def __attrs_post_init__(self):
+        self._encryption = None
+        self._queue = []
+
+    def wire(self, encryption, receive):
+        self._E = _interfaces.IEncryption(encryption)
+        self._R = _interfaces.IReceive(receive)
+
+    @m.state(initial=True)
+    def S0_no_pake(self):
+        pass  # pragma: no cover
+
+    @m.state(terminal=True)
+    def S1_yes_pake(self):
+        pass  # pragma: no cover
+
+    def got_message(self, side, phase, body):
+        # print("ORDER[%s].got_message(%s)" % (self._side, phase))
+        assert isinstance(side, str), type(phase)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
+        if phase == "pake":
+            self.got_pake(side, phase, body)
+        else:
+            self.got_non_pake(side, phase, body)
+
+    @m.input()
+    def got_pake(self, side, phase, body):
+        pass
+
+    @m.input()
+    def got_non_pake(self, side, phase, body):
+        pass
+
+    @m.output()
+    def queue(self, side, phase, body):
+        assert isinstance(side, str), type(phase)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
+        self._queue.append((side, phase, body))
+
+    @m.output()
+    def notify_encryption(self, side, phase, body):
+        self._E.got_pake(body)
+
+    @m.output()
+    def drain(self, side, phase, body):
+        del phase
+        del body
+        for (side, phase, body) in self._queue:
+            self._deliver(side, phase, body)
+        self._queue[:] = []
+
+    @m.output()
+    def deliver(self, side, phase, body):
+        self._deliver(side, phase, body)
+
+    def _deliver(self, side, phase, body):
+        self._R.got_message(side, phase, body)
+
+    S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
+    S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_encryption, drain])
+    S1_yes_pake.upon(got_non_pake, enter=S1_yes_pake, outputs=[deliver])
