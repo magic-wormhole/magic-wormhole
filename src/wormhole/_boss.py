@@ -11,11 +11,10 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._encryption import Encryption, Receive, Send
+from ._encryption import Encryption, Receive, Send, Order
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
-from ._order import Order
 from ._rendezvous import RendezvousConnector
 from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey, Closed
 from ._terminator import Terminator

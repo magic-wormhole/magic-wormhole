@@ -7,7 +7,7 @@ from zope.interface import directlyProvides, implementer
 from unittest import mock
 
 from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lister,
-                _mailbox, _nameplate, _order, _rendezvous,
+                _mailbox, _nameplate, _rendezvous,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder, IReceive,
@@ -112,7 +112,7 @@ def test_key_first():
 
 def build_order():
     events = []
-    o = _order.Order("side", timing.DebugTiming())
+    o = _encryption.Order("side", timing.DebugTiming())
     e = Dummy("e", events, IEncryption, "got_pake")
     r = Dummy("r", events, IReceive, "got_message")
     o.wire(e, r)
