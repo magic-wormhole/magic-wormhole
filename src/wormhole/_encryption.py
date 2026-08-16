@@ -55,11 +55,6 @@ def encrypt_data(key, plaintext):
     return box.encrypt(plaintext, nonce)
 
 
-# the Encryption we expose to callers (Boss, Ordering) is responsible for sorting
-# the two messages (got_code and got_pake), then delivering them to
-# _SortedEncryption in the right order.
-
-
 @attrs
 @implementer(_interfaces.IEncryption)
 class Encryption:
@@ -67,150 +62,69 @@ class Encryption:
     _versions = attrib(validator=instance_of(dict))
     _side = attrib(validator=instance_of(str))
     _timing = attrib(validator=provides(_interfaces.ITiming))
-    m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace",
-                        lambda self, f: None)  # pragma: no cover
-
-    def __attrs_post_init__(self):
-        self._SE = _SortedEncryption(self._appid, self._versions, self._side,
-                                     self._timing)
-        self._debug_pake_stashed = False  # for tests
-
-    def wire(self, boss, mailbox, receive):
-        self._SE.wire(boss, mailbox, receive)
-
-    @m.state(initial=True)
-    def S00(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S01(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S10(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S11(self):
-        pass  # pragma: no cover
-
-    @m.input()
-    def got_code(self, code):
-        pass
-
-    @m.input()
-    def got_pake(self, body):
-        pass
-
-    @m.output()
-    def stash_pake(self, body):
-        self._pake = body
-        self._debug_pake_stashed = True
-
-    @m.output()
-    def deliver_code(self, code):
-        self._SE.got_code(code)
-
-    @m.output()
-    def deliver_pake(self, body):
-        self._SE.got_pake(body)
-
-    @m.output()
-    def deliver_code_and_stashed_pake(self, code):
-        self._SE.got_code(code)
-        self._SE.got_pake(self._pake)
-
-    S00.upon(got_code, enter=S10, outputs=[deliver_code])
-    S10.upon(got_pake, enter=S11, outputs=[deliver_pake])
-    S00.upon(got_pake, enter=S01, outputs=[stash_pake])
-    S01.upon(got_code, enter=S11, outputs=[deliver_code_and_stashed_pake])
-
-
-@attrs
-class _SortedEncryption:
-    _appid = attrib(validator=instance_of(str))
-    _versions = attrib(validator=instance_of(dict))
-    _side = attrib(validator=instance_of(str))
-    _timing = attrib(validator=provides(_interfaces.ITiming))
-    m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace",
-                        lambda self, f: None)  # pragma: no cover
+    _have_code = None # or the code
+    _have_pake = None # or the PAKE message
+    _key = None # or the session key
+    _scared = False # or True
 
     def wire(self, boss, mailbox, receive):
         self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
         self._R = _interfaces.IReceive(receive)
 
-    @m.state(initial=True)
-    def S0_know_nothing(self):
-        pass  # pragma: no cover
+    def set_trace(self, _tracer):
+        pass # unimplemented on non-Automat machines for now
 
-    @m.state()
-    def S1_know_code(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S2_know_key(self):
-        pass  # pragma: no cover
-
-    @m.state(terminal=True)
-    def S3_scared(self):
-        pass  # pragma: no cover
-
-    # from Boss
-    @m.input()
+    # input from Boss
     def got_code(self, code):
-        pass
+        assert not self._have_code
+        self._have_code = code
+        self._build_pake(code)
+        if self._have_pake:
+            self._process_pake()
 
-    # from Ordering
+    # input from Order
     def got_pake(self, body):
         assert isinstance(body, bytes), type(body)
-        payload = bytes_to_dict(body)
+        assert not self._have_pake
+        self._have_pake = body
+        if self._have_code:
+            self._process_pake()
+
+    def _be_scared(self):
+        self._scared = True
+        self._B.scared()
+
+    def _process_pake(self):
+        assert not self._key
+        payload = bytes_to_dict(self._have_pake)
         if "pake_v1" in payload:
-            self.got_pake_good(hexstr_to_bytes(payload["pake_v1"]))
+            self._compute_key(hexstr_to_bytes(payload["pake_v1"]))
         else:
-            self.got_pake_bad()
+            self._be_scared()
 
-    @m.input()
-    def got_pake_good(self, msg2):
-        pass
-
-    @m.input()
-    def got_pake_bad(self):
-        pass
-
-    @m.output()
-    def build_pake(self, code):
+    def _build_pake(self, code):
         with self._timing.add("pake1", waiting="crypto"):
             self._sp = SPAKE2_Symmetric(
                 to_bytes(code), idSymmetric=to_bytes(self._appid))
             msg1 = self._sp.start()
         body = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg1)})
-        self._M.add_message("pake", body)
+        self._M.add_message("pake", body) # PAKE
 
-    @m.output()
-    def scared(self):
-        self._B.scared()
-
-    @m.output()
-    def compute_key(self, msg2):
+    def _compute_key(self, msg2):
         assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
+        self._key = key
         self._B.got_key(key) # unverified
         phase = "version"
         data_key = derive_phase_key(key, self._side, phase)
         plaintext = dict_to_bytes(self._versions)
         encrypted = encrypt_data(data_key, plaintext)
-        self._M.add_message(phase, encrypted)
+        self._M.add_message(phase, encrypted) # VERSION
         # TODO: R.got_key() needs to be eventual-send too, as it can trigger
         # app-level got_verifier() and got_message() Deferreds.
         self._R.got_key(key)
-
-    S0_know_nothing.upon(got_code, enter=S1_know_code, outputs=[build_pake])
-    S1_know_code.upon(got_pake_good, enter=S2_know_key, outputs=[compute_key])
-    S1_know_code.upon(got_pake_bad, enter=S3_scared, outputs=[scared])
 
 @attrs
 @implementer(_interfaces.IReceive)

@@ -149,7 +149,6 @@ class Boss:
             "S": self._S,
             "O": self._O,
             "E": self._E,
-            "SE": self._E._SE,
             "R": self._R,
             "RC": self._RC,
             "L": self._L,

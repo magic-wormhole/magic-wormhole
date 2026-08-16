@@ -93,7 +93,7 @@ class _DelegatedWormhole:
 
     def debug_set_trace(self,
                         client_name,
-                        which="B N M S O E SE R RC L C T",
+                        which="B N M S O E R RC L C T",
                         file=sys.stderr):
         self._boss._set_trace(client_name, which, file)
 
@@ -213,7 +213,7 @@ class _DeferredWormhole:
 
     def debug_set_trace(self,
                         client_name,
-                        which="B N M S O E SE R RC L A I C T",
+                        which="B N M S O E R RC L A I C T",
                         file=sys.stderr):
         self._boss._set_trace(client_name, which, file)
 
