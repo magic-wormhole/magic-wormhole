@@ -116,7 +116,7 @@ End User / Client Applications
 ------------------------------
 
 Based on the above libraries, there are several end-user applications targeting different platforms.
-Unless otherwise noted, these "inherit" any limitations of their langauge's library implementation from the above table.
+Unless otherwise noted, these "inherit" any limitations of their language's library implementation from the above table.
 
 Library and CLI
 ~~~~~~~~~~~~~~~
