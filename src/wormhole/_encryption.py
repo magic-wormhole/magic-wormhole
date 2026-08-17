@@ -65,12 +65,13 @@ class Encryption:
     _have_code = None # or the code
     _have_pake = None # or the PAKE message
     _key = None # or the session key
+    _key_is_verified = False # or True
     _scared = False # or True
 
-    def wire(self, boss, mailbox, receive):
+    def wire(self, boss, mailbox, send):
         self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
-        self._R = _interfaces.IReceive(receive)
+        self._S = _interfaces.ISend(send)
 
     def set_trace(self, _tracer):
         pass # unimplemented on non-Automat machines for now
@@ -99,7 +100,8 @@ class Encryption:
         assert not self._key
         payload = bytes_to_dict(self._have_pake)
         if "pake_v1" in payload:
-            self._compute_key(hexstr_to_bytes(payload["pake_v1"]))
+            key = self._compute_key(hexstr_to_bytes(payload["pake_v1"]))
+            self._got_key(key)
         else:
             self._be_scared()
 
@@ -115,51 +117,25 @@ class Encryption:
         assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
-        self._key = key
+        return key
+
+    # this is also called by tests
+    def _got_key(self, key):
+        self._key = key # not yet verified
+        # TODO: make B.got_key() an eventual send, since it will fire the
+        # user/application-layer get_unverified_key() Deferred, and if that
+        # calls back into other wormhole APIs, bad things will happen
         self._B.got_key(key) # unverified
         phase = "version"
         data_key = derive_phase_key(key, self._side, phase)
         plaintext = dict_to_bytes(self._versions)
         encrypted = encrypt_data(data_key, plaintext)
         self._M.add_message(phase, encrypted) # VERSION
-        # TODO: R.got_key() needs to be eventual-send too, as it can trigger
-        # app-level got_verifier() and got_message() Deferreds.
-        self._R.got_key(key)
 
-@attrs
-@implementer(_interfaces.IReceive)
-class Receive:
-    _side = attrib(validator=instance_of(str))
-    _timing = attrib(validator=provides(_interfaces.ITiming))
-    m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace",
-                        lambda self, f: None)  # pragma: no cover
-
-    def __attrs_post_init__(self):
-        self._key = None
-
-    def wire(self, boss, send):
-        self._B = _interfaces.IBoss(boss)
-        self._S = _interfaces.ISend(send)
-
-    @m.state(initial=True)
-    def S0_unknown_key(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S1_unverified_key(self):
-        pass  # pragma: no cover
-
-    @m.state()
-    def S2_verified_key(self):
-        pass  # pragma: no cover
-
-    @m.state(terminal=True)
-    def S3_scared(self):
-        pass  # pragma: no cover
-
-    # from Ordering
-    def got_message(self, side, phase, body):
+    # input from Order, these are encrypted messages
+    def got_encrypted(self, side, phase, body):
+        if self._scared:
+            return # ignore message
         assert isinstance(side, str), type(phase)
         assert isinstance(phase, str), type(phase)
         assert isinstance(body, bytes), type(body)
@@ -168,62 +144,14 @@ class Receive:
         try:
             plaintext = decrypt_data(data_key, body)
         except CryptoError:
-            self.got_message_bad()
+            self._be_scared()
             return
-        self.got_message_good(phase, plaintext)
-
-    @m.input()
-    def got_message_good(self, phase, plaintext):
-        pass
-
-    @m.input()
-    def got_message_bad(self):
-        pass
-
-    # from Encryption
-    @m.input()
-    def got_key(self, key):
-        pass
-
-    @m.output()
-    def record_key(self, key):
-        self._key = key
-
-    @m.output()
-    def S_got_verified_key(self, phase, plaintext):
-        assert self._key
-        self._S.got_verified_key(self._key)
-
-    @m.output()
-    def W_happy(self, phase, plaintext):
-        self._B.happy()
-
-    @m.output()
-    def W_got_verifier(self, phase, plaintext):
-        self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
-
-    @m.output()
-    def W_got_message(self, phase, plaintext):
-        assert isinstance(phase, str), type(phase)
-        assert isinstance(plaintext, bytes), type(plaintext)
+        if not self._key_is_verified:
+            self._key_is_verified = True
+            self._S.got_verified_key(self._key)
+            self._B.happy()
+            self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
         self._B.got_message(phase, plaintext)
-
-    @m.output()
-    def W_scared(self):
-        self._B.scared()
-
-    S0_unknown_key.upon(got_key, enter=S1_unverified_key, outputs=[record_key])
-    S1_unverified_key.upon(
-        got_message_good,
-        enter=S2_verified_key,
-        outputs=[S_got_verified_key, W_happy, W_got_verifier, W_got_message])
-    S1_unverified_key.upon(
-        got_message_bad, enter=S3_scared, outputs=[W_scared])
-    S2_verified_key.upon(got_message_bad, enter=S3_scared, outputs=[W_scared])
-    S2_verified_key.upon(
-        got_message_good, enter=S2_verified_key, outputs=[W_got_message])
-    S3_scared.upon(got_message_good, enter=S3_scared, outputs=[])
-    S3_scared.upon(got_message_bad, enter=S3_scared, outputs=[])
 
 @attrs
 @implementer(_interfaces.ISend)
@@ -305,9 +233,8 @@ class Order:
         self._encryption = None
         self._queue = []
 
-    def wire(self, encryption, receive):
+    def wire(self, encryption):
         self._E = _interfaces.IEncryption(encryption)
-        self._R = _interfaces.IReceive(receive)
 
     @m.state(initial=True)
     def S0_no_pake(self):
@@ -359,7 +286,7 @@ class Order:
         self._deliver(side, phase, body)
 
     def _deliver(self, side, phase, body):
-        self._R.got_message(side, phase, body)
+        self._E.got_encrypted(side, phase, body)
 
     S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
     S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_encryption, drain])

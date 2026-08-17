@@ -10,7 +10,7 @@ from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lis
                 _mailbox, _nameplate, _rendezvous,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
-                           ILister, IMailbox, INameplate, IOrder, IReceive,
+                           ILister, IMailbox, INameplate, IOrder,
                            IRendezvousConnector, ISend, ITerminator, IWordlist,
                            ITorManager)
 from .._encryption import derive_key, derive_phase_key, encrypt_data
@@ -113,26 +113,25 @@ def test_key_first():
 def build_order():
     events = []
     o = _encryption.Order("side", timing.DebugTiming())
-    e = Dummy("e", events, IEncryption, "got_pake")
-    r = Dummy("r", events, IReceive, "got_message")
-    o.wire(e, r)
-    return o, e, r, events
+    e = Dummy("e", events, IEncryption, "got_pake", "got_encrypted")
+    o.wire(e)
+    return o, e, events
 
 
 def test_in_order():
-    o, e, r, events = build_order()
+    o, e, events = build_order()
     o.got_message("side", "pake", b"body")
     assert events == [("e.got_pake", b"body")]  # right away
     o.got_message("side", "version", b"body")
     o.got_message("side", "1", b"body")
     assert events == [
         ("e.got_pake", b"body"),
-        ("r.got_message", "side", "version", b"body"),
-        ("r.got_message", "side", "1", b"body"),
+        ("e.got_encrypted", "side", "version", b"body"),
+        ("e.got_encrypted", "side", "1", b"body"),
     ]
 
 def test_out_of_order():
-    o, e, r, events = build_order()
+    o, e, events = build_order()
     o.got_message("side", "version", b"body")
     assert events == []  # nothing yet
     o.got_message("side", "1", b"body")
@@ -141,122 +140,25 @@ def test_out_of_order():
     # got_pake is delivered first
     assert events == [
         ("e.got_pake", b"body"),
-        ("r.got_message", "side", "version", b"body"),
-        ("r.got_message", "side", "1", b"body"),
+        ("e.got_encrypted", "side", "version", b"body"),
+        ("e.got_encrypted", "side", "1", b"body"),
     ]
 
 
-def build_receive():
-    events = []
-    r = _encryption.Receive("side", timing.DebugTiming())
-    b = Dummy("b", events, IBoss, "happy", "scared", "got_verifier",
-              "got_message")
-    s = Dummy("s", events, ISend, "got_verified_key")
-    r.wire(b, s)
-    return r, b, s, events
-
-
-def test_good_receive():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, "side", "phase1")
-    data1 = b"data1"
-    good_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "phase2")
-    data2 = b"data2"
-    good_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.got_message", "phase2", data2),
-    ]
-
-def test_early_bad():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    phase1_key = derive_phase_key(key, "side", "bad")
-    data1 = b"data1"
-    bad_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", bad_body)
-    assert events == [
-        ("b.scared", ),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "phase2")
-    data2 = b"data2"
-    good_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", good_body)
-    assert events == [
-        ("b.scared", ),
-    ]
-
-def test_late_bad():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, "side", "phase1")
-    data1 = b"data1"
-    good_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "bad")
-    data2 = b"data2"
-    bad_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", bad_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.scared", ),
-    ]
-    r.got_message("side", "phase1", good_body)
-    r.got_message("side", "phase2", bad_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.scared", ),
-    ]
 
 
 def build_encryption():
     events = []
     e = _encryption.Encryption("appid", {}, "side", timing.DebugTiming())
-    b = Dummy("b", events, IBoss, "scared", "got_key")
+    b = Dummy("b", events, IBoss, "scared", "got_key", "happy", "got_verifier", "got_message")
     m = Dummy("m", events, IMailbox, "add_message")
-    r = Dummy("r", events, IReceive, "got_key")
-    e.wire(b, m, r)
-    return e, b, m, r, events
+    s = Dummy("s", events, ISend, "got_verified_key")
+    e.wire(b, m, s)
+    return e, b, m, s, events
 
 
 def test_good_key():
-    e, b, m, r, events = build_encryption()
+    e, b, m, s, events = build_encryption()
     code = "1-foo"
     e.got_code(code)
     assert len(events) == 1
@@ -270,13 +172,12 @@ def test_good_key():
     key2 = sp.finish(msg1_bytes)
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
     e.got_pake(msg2)
-    assert len(events) == 3, events
+    assert len(events) == 2, events
     assert events[0] == ("b.got_key", key2)
     assert events[1][:2] == ("m.add_message", "version")
-    assert events[2] == ("r.got_key", key2)
 
 def test_bad():
-    e, b, m, r, events = build_encryption()
+    e, b, m, s, events = build_encryption()
     code = "1-foo"
     e.got_code(code)
     assert len(events) == 1
@@ -291,13 +192,14 @@ def test_bad():
     assert events == [("b.scared", )]
 
 def test_reversed():
-    # A receiver using input_code() will choose the nameplate first, then
-    # the rest of the code. Once the nameplate is selected, we'll claim
-    # it and open the mailbox, which will cause the senders PAKE to
-    # arrive before the code has been set. Encryption() is supposed to stash the
-    # PAKE message until the code is set (allowing the PAKE computation
-    # to finish). This test exercises that PAKE-then-code sequence.
-    e, b, m, r, events = build_encryption()
+    # A receiver using input_code() will choose the nameplate first,
+    # then the rest of the code. Once the nameplate is selected, we'll
+    # claim it and open the mailbox, which will cause the senders PAKE
+    # to arrive before the code has been set. Encryption() is supposed
+    # to stash the PAKE message until the code is set (allowing the
+    # PAKE computation to finish). This test exercises that
+    # PAKE-then-code sequence.
+    e, b, m, s, events = build_encryption()
     code = "1-foo"
 
     sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
@@ -307,7 +209,7 @@ def test_reversed():
     assert len(events) == 0
 
     e.got_code(code)
-    assert len(events) == 4
+    assert len(events) == 3
     assert events[0][:2] == ("m.add_message", "pake")
     msg1_json = events[0][2].decode("utf-8")
     msg1 = json.loads(msg1_json)
@@ -315,7 +217,95 @@ def test_reversed():
     key2 = sp.finish(msg1_bytes)
     assert events[1] == ("b.got_key", key2)
     assert events[2][:2] == ("m.add_message", "version")
-    assert events[3] == ("r.got_key", key2)
+
+
+def test_good_receive():
+    e, b, m, s, events = build_encryption()
+    key = b"key"
+    e._got_key(key)
+    events.clear()
+    verifier = derive_key(key, b"wormhole:verifier")
+    phase1_key = derive_phase_key(key, "side", "phase1")
+    data1 = b"data1"
+    good_body = encrypt_data(phase1_key, data1)
+    e.got_encrypted("side", "phase1", good_body)
+    assert events == [
+        ("s.got_verified_key", key),
+        ("b.happy", ),
+        ("b.got_verifier", verifier),
+        ("b.got_message", "phase1", data1),
+    ]
+
+    phase2_key = derive_phase_key(key, "side", "phase2")
+    data2 = b"data2"
+    good_body = encrypt_data(phase2_key, data2)
+    e.got_encrypted("side", "phase2", good_body)
+    assert events == [
+        ("s.got_verified_key", key),
+        ("b.happy", ),
+        ("b.got_verifier", verifier),
+        ("b.got_message", "phase1", data1),
+        ("b.got_message", "phase2", data2),
+    ]
+
+def test_early_bad():
+    e, b, m, s, events = build_encryption()
+    key = b"key"
+    e._got_key(key)
+    events.clear()
+    phase1_key = derive_phase_key(key, "side", "bad")
+    data1 = b"data1"
+    bad_body = encrypt_data(phase1_key, data1)
+    e.got_encrypted("side", "phase1", bad_body)
+    assert events == [
+        ("b.scared", ),
+    ]
+
+    phase2_key = derive_phase_key(key, "side", "phase2")
+    data2 = b"data2"
+    good_body = encrypt_data(phase2_key, data2)
+    e.got_encrypted("side", "phase2", good_body)
+    assert events == [
+        ("b.scared", ),
+    ]
+
+def test_late_bad():
+    e, b, m, s, events = build_encryption()
+    key = b"key"
+    e._got_key(key)
+    events.clear()
+    verifier = derive_key(key, b"wormhole:verifier")
+    phase1_key = derive_phase_key(key, "side", "phase1")
+    data1 = b"data1"
+    good_body = encrypt_data(phase1_key, data1)
+    e.got_encrypted("side", "phase1", good_body)
+    assert events == [
+        ("s.got_verified_key", key),
+        ("b.happy", ),
+        ("b.got_verifier", verifier),
+        ("b.got_message", "phase1", data1),
+    ]
+
+    phase2_key = derive_phase_key(key, "side", "bad")
+    data2 = b"data2"
+    bad_body = encrypt_data(phase2_key, data2)
+    e.got_encrypted("side", "phase2", bad_body)
+    assert events == [
+        ("s.got_verified_key", key),
+        ("b.happy", ),
+        ("b.got_verifier", verifier),
+        ("b.got_message", "phase1", data1),
+        ("b.scared", ),
+    ]
+    e.got_encrypted("side", "phase1", good_body)
+    e.got_encrypted("side", "phase2", bad_body)
+    assert events == [
+        ("s.got_verified_key", key),
+        ("b.happy", ),
+        ("b.got_verifier", verifier),
+        ("b.got_message", "phase1", data1),
+        ("b.scared", ),
+    ]
 
 
 def build_code():

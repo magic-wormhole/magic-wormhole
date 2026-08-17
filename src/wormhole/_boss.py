@@ -11,7 +11,7 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._encryption import Encryption, Receive, Send, Order
+from ._encryption import Encryption, Send, Order
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
@@ -62,7 +62,6 @@ class Boss:
         self._S = Send(self._side, self._timing)
         self._O = Order(self._side, self._timing)
         self._E = Encryption(self._appid, self._versions, self._side, self._timing)
-        self._R = Receive(self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
                                        self._timing, self._client_version, self._evolve_wormhole_status)
@@ -81,9 +80,8 @@ class Boss:
         self._N.wire(self._M, self._I, self._RC, self._T)
         self._M.wire(self, self._N, self._RC, self._O, self._T)
         self._S.wire(self._M)
-        self._O.wire(self._E, self._R)
-        self._E.wire(self, self._M, self._R)
-        self._R.wire(self, self._S)
+        self._O.wire(self._E)
+        self._E.wire(self, self._M, self._S)
         self._RC.wire(self, self._N, self._M, self._A, self._L, self._T)
         self._L.wire(self._RC, self._I)
         self._A.wire(self._RC, self._C)
@@ -149,7 +147,6 @@ class Boss:
             "S": self._S,
             "O": self._O,
             "E": self._E,
-            "R": self._R,
             "RC": self._RC,
             "L": self._L,
             "A": self._A,
@@ -285,7 +282,7 @@ class Boss:
         pass
 
     # Encryption sends (got_key, scared)
-    # Receive sends (got_message, happy, got_verifier, scared)
+    # Encryption sends (got_message, happy, got_verifier, scared)
     # Mailbox sends (crowded)
     @m.input()
     def happy(self):
