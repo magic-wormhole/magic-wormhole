@@ -122,10 +122,6 @@ class IEncryption(Interface):
     pass
 
 
-class IReceive(Interface):
-    pass
-
-
 class IRendezvousConnector(Interface):
     pass
 
