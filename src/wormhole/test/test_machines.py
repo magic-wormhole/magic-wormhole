@@ -11,7 +11,7 @@ from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lis
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
                            ILister, IMailbox, INameplate, IOrder,
-                           IRendezvousConnector, ISend, ITerminator, IWordlist,
+                           IRendezvousConnector, ITerminator, IWordlist,
                            ITorManager)
 from .._encryption import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
@@ -50,64 +50,6 @@ class Dummy:
             return self.retval
 
         setattr(self, meth, log)
-
-
-def build_send():
-    events = []
-    s = _encryption.Send("side", timing.DebugTiming())
-    m = Dummy("m", events, IMailbox, "add_message")
-    s.wire(m)
-    return s, m, events
-
-
-def test_send_first():
-    s, m, events = build_send()
-    s.send("phase1", b"msg")
-    assert events == []
-    key = b"\x00" * 32
-    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
-        s.got_verified_key(key)
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    # print(bytes_to_hexstr(events[0][2]))
-    enc1 = hexstr_to_bytes(
-        "000000000000000000000000000000000000000000000000"
-         "22f1a46c3c3496423c394621a2a5a8cf275b08")
-    assert events == [("m.add_message", "phase1", enc1)]
-    events[:] = []
-
-    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
-        s.send("phase2", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc2 = hexstr_to_bytes(
-        "0202020202020202020202020202020202020202"
-         "020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
-    assert events == [("m.add_message", "phase2", enc2)]
-
-def test_key_first():
-    s, m, events = build_send()
-    key = b"\x00" * 32
-    s.got_verified_key(key)
-    assert events == []
-
-    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
-        s.send("phase1", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc1 = hexstr_to_bytes("00000000000000000000000000000000000000000000"
-                            "000022f1a46c3c3496423c394621a2a5a8cf275b08")
-    assert events == [("m.add_message", "phase1", enc1)]
-    events[:] = []
-
-    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
-        s.send("phase2", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc2 = hexstr_to_bytes(
-        "0202020202020202020202020202020202020"
-         "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
-    assert events == [("m.add_message", "phase2", enc2)]
 
 
 def build_order():
@@ -152,13 +94,12 @@ def build_encryption():
     e = _encryption.Encryption("appid", {}, "side", timing.DebugTiming())
     b = Dummy("b", events, IBoss, "scared", "got_key", "happy", "got_verifier", "got_message")
     m = Dummy("m", events, IMailbox, "add_message")
-    s = Dummy("s", events, ISend, "got_verified_key")
-    e.wire(b, m, s)
-    return e, b, m, s, events
+    e.wire(b, m)
+    return e, b, m, events
 
 
 def test_good_key():
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     code = "1-foo"
     e.got_code(code)
     assert len(events) == 1
@@ -177,7 +118,7 @@ def test_good_key():
     assert events[1][:2] == ("m.add_message", "version")
 
 def test_bad():
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     code = "1-foo"
     e.got_code(code)
     assert len(events) == 1
@@ -199,7 +140,7 @@ def test_reversed():
     # to stash the PAKE message until the code is set (allowing the
     # PAKE computation to finish). This test exercises that
     # PAKE-then-code sequence.
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     code = "1-foo"
 
     sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
@@ -220,7 +161,7 @@ def test_reversed():
 
 
 def test_good_receive():
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     key = b"key"
     e._got_key(key)
     events.clear()
@@ -230,7 +171,6 @@ def test_good_receive():
     good_body = encrypt_data(phase1_key, data1)
     e.got_encrypted("side", "phase1", good_body)
     assert events == [
-        ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
@@ -241,7 +181,6 @@ def test_good_receive():
     good_body = encrypt_data(phase2_key, data2)
     e.got_encrypted("side", "phase2", good_body)
     assert events == [
-        ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
@@ -249,7 +188,7 @@ def test_good_receive():
     ]
 
 def test_early_bad():
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     key = b"key"
     e._got_key(key)
     events.clear()
@@ -270,7 +209,7 @@ def test_early_bad():
     ]
 
 def test_late_bad():
-    e, b, m, s, events = build_encryption()
+    e, b, m, events = build_encryption()
     key = b"key"
     e._got_key(key)
     events.clear()
@@ -280,7 +219,6 @@ def test_late_bad():
     good_body = encrypt_data(phase1_key, data1)
     e.got_encrypted("side", "phase1", good_body)
     assert events == [
-        ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
@@ -291,7 +229,6 @@ def test_late_bad():
     bad_body = encrypt_data(phase2_key, data2)
     e.got_encrypted("side", "phase2", bad_body)
     assert events == [
-        ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
@@ -300,12 +237,68 @@ def test_late_bad():
     e.got_encrypted("side", "phase1", good_body)
     e.got_encrypted("side", "phase2", bad_body)
     assert events == [
-        ("s.got_verified_key", key),
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
         ("b.scared", ),
     ]
+
+def test_send_first():
+    e, b, m, events = build_encryption()
+    e.send("phase1", b"msg")
+    assert events == []
+    key = b"\x00" * 32
+    verifier = derive_key(key, b"wormhole:verifier")
+    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
+    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
+        e._key = key
+        e._key_is_verified = True
+        e._got_verified_key()
+    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
+    # print(bytes_to_hexstr(events[0][2]))
+    enc1 = hexstr_to_bytes(
+        "000000000000000000000000000000000000000000000000"
+         "22f1a46c3c3496423c394621a2a5a8cf275b08")
+    assert events == [("m.add_message", "phase1", enc1),
+                      ("b.happy", ),
+                      ("b.got_verifier", verifier),
+                      ]
+    events[:] = []
+
+    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
+    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
+        e.send("phase2", b"msg")
+    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
+    enc2 = hexstr_to_bytes(
+        "0202020202020202020202020202020202020202"
+         "020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
+    assert events == [("m.add_message", "phase2", enc2)]
+
+def test_key_first():
+    e, b, m, events = build_encryption()
+    key = b"\x00" * 32
+    e._key = key
+    e._key_is_verified = True
+    e._got_verified_key()
+    events.clear()
+
+    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
+    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
+        e.send("phase1", b"msg")
+    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
+    enc1 = hexstr_to_bytes("00000000000000000000000000000000000000000000"
+                            "000022f1a46c3c3496423c394621a2a5a8cf275b08")
+    assert events == [("m.add_message", "phase1", enc1)]
+    events[:] = []
+
+    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
+    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
+        e.send("phase2", b"msg")
+    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
+    enc2 = hexstr_to_bytes(
+        "0202020202020202020202020202020202020"
+         "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
+    assert events == [("m.add_message", "phase2", enc2)]
 
 
 def build_code():
@@ -1327,7 +1320,7 @@ def build_boss():
                  tor_manager,
                  timing.DebugTiming())
     b._T = Dummy("t", events, ITerminator, "close")
-    b._S = Dummy("s", events, ISend, "send")
+    b._E = Dummy("e", events, IEncryption, "send")
     b._RC = Dummy("rc", events, IRendezvousConnector, "start")
     b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                  "set_code")
@@ -1368,7 +1361,7 @@ def test_boss_basic():
     events[:] = []
 
     b.send(b"msg2")
-    assert events == [("s.send", "0", b"msg2")]
+    assert events == [("e.send", "0", b"msg2")]
     events[:] = []
 
     b.close()
