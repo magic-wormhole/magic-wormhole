@@ -132,7 +132,7 @@ def test_good_receive():
     phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    e._got_encrypted("side", "phase1", good_body)
+    e.got_message("side", "phase1", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -142,7 +142,7 @@ def test_good_receive():
     phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    e._got_encrypted("side", "phase2", good_body)
+    e.got_message("side", "phase2", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -158,7 +158,7 @@ def test_early_bad():
     phase1_key = derive_phase_key(key, "side", "bad")
     data1 = b"data1"
     bad_body = encrypt_data(phase1_key, data1)
-    e._got_encrypted("side", "phase1", bad_body)
+    e.got_message("side", "phase1", bad_body)
     assert events == [
         ("b.scared", ),
     ]
@@ -166,7 +166,7 @@ def test_early_bad():
     phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    e._got_encrypted("side", "phase2", good_body)
+    e.got_message("side", "phase2", good_body)
     assert events == [
         ("b.scared", ),
     ]
@@ -180,7 +180,7 @@ def test_late_bad():
     phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    e._got_encrypted("side", "phase1", good_body)
+    e.got_message("side", "phase1", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -190,15 +190,15 @@ def test_late_bad():
     phase2_key = derive_phase_key(key, "side", "bad")
     data2 = b"data2"
     bad_body = encrypt_data(phase2_key, data2)
-    e._got_encrypted("side", "phase2", bad_body)
+    e.got_message("side", "phase2", bad_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
         ("b.scared", ),
     ]
-    e._got_encrypted("side", "phase1", good_body)
-    e._got_encrypted("side", "phase2", bad_body)
+    e.got_message("side", "phase1", good_body)
+    e.got_message("side", "phase2", bad_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -287,7 +287,7 @@ def test_order_PAKE_VERSION():
     assert not e._have_code
     assert not e._have_pake
     e._process_pake = lambda: (events.append("process_pake"),e._got_key(b"key"))
-    e._got_encrypted = lambda s,p,b: events.append(p)
+    e._decrypt_and_deliver = lambda s,p,b: events.append(p)
     e._have_code = b"code"
 
     e.got_message("side", "pake", b"pake_body")
@@ -311,7 +311,7 @@ def test_order_VERSION_PAKE():
     assert not e._have_code
     assert not e._have_pake
     e._process_pake = lambda: (events.append("process_pake"), e._got_key(b"key"))
-    e._got_encrypted = lambda s,p,b: events.append(p)
+    e._decrypt_and_deliver = lambda s,p,b: events.append(p)
     e._have_code = b"code"
 
     e.got_message("side", "version", b"body")
