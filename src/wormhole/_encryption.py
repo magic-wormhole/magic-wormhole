@@ -68,10 +68,12 @@ class Encryption:
     _key_is_verified = False # or True
     _scared = False # or True
 
-    def wire(self, boss, mailbox, send):
+    def __attrs_post_init__(self):
+        self._queued_sends = []
+
+    def wire(self, boss, mailbox):
         self._B = _interfaces.IBoss(boss)
         self._M = _interfaces.IMailbox(mailbox)
-        self._S = _interfaces.ISend(send)
 
     def set_trace(self, _tracer):
         pass # unimplemented on non-Automat machines for now
@@ -148,77 +150,38 @@ class Encryption:
             return
         if not self._key_is_verified:
             self._key_is_verified = True
-            self._S.got_verified_key(self._key)
-            self._B.happy()
-            self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
+            self._got_verified_key()
         self._B.got_message(phase, plaintext)
 
-@attrs
-@implementer(_interfaces.ISend)
-class Send:
-    _side = attrib(validator=instance_of(str))
-    _timing = attrib(validator=provides(_interfaces.ITiming))
-    m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace",
-                        lambda self, f: None)  # pragma: no cover
+    # this is also called by tests
+    def _got_verified_key(self):
+        assert self._key_is_verified
+        self._drain_queued_sends()
+        self._B.happy()
+        self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
 
-    def __attrs_post_init__(self):
-        self._queue = []
-
-    def wire(self, mailbox):
-        self._M = _interfaces.IMailbox(mailbox)
-
-    @m.state(initial=True)
-    def S0_no_key(self):
-        pass  # pragma: no cover
-
-    @m.state(terminal=True)
-    def S1_verified_key(self):
-        pass  # pragma: no cover
-
-    # from Receive
-    @m.input()
-    def got_verified_key(self, key):
-        pass
-
-    # from Boss
-    @m.input()
+    # input from Boss and Dilation
     def send(self, phase, plaintext):
-        pass
-
-    @m.output()
-    def queue(self, phase, plaintext):
         assert isinstance(phase, str), type(phase)
         assert isinstance(plaintext, bytes), type(plaintext)
-        self._queue.append((phase, plaintext))
-
-    @m.output()
-    def record_key(self, key):
-        self._key = key
-
-    @m.output()
-    def drain(self, key):
-        del key
-        for (phase, plaintext) in self._queue:
+        if self._key_is_verified:
             self._encrypt_and_send(phase, plaintext)
-        self._queue[:] = []
-
-    @m.output()
-    def deliver(self, phase, plaintext):
-        assert isinstance(phase, str), type(phase)
-        assert isinstance(plaintext, bytes), type(plaintext)
-        self._encrypt_and_send(phase, plaintext)
+        else:
+            self._queued_sends.append((phase, plaintext))
 
     def _encrypt_and_send(self, phase, plaintext):
         assert self._key
+        assert self._key_is_verified
         data_key = derive_phase_key(self._key, self._side, phase)
         encrypted = encrypt_data(data_key, plaintext)
         self._M.add_message(phase, encrypted)
 
-    S0_no_key.upon(send, enter=S0_no_key, outputs=[queue])
-    S0_no_key.upon(
-        got_verified_key, enter=S1_verified_key, outputs=[record_key, drain])
-    S1_verified_key.upon(send, enter=S1_verified_key, outputs=[deliver])
+    def _drain_queued_sends(self):
+        assert self._key
+        assert self._key_is_verified
+        for (phase, plaintext) in self._queued_sends:
+            self._encrypt_and_send(phase, plaintext)
+        self._queued_sends.clear()
 
 @attrs
 @implementer(_interfaces.IOrder)
