@@ -110,10 +110,6 @@ class IMailbox(Interface):
     pass
 
 
-class IOrder(Interface):
-    pass
-
-
 class IEncryption(Interface):
     pass
 

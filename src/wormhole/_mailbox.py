@@ -20,11 +20,11 @@ class Mailbox:
         self._pending_outbound = {}
         self._processed = set()
 
-    def wire(self, boss, nameplate, rendezvous_connector, ordering, terminator):
+    def wire(self, boss, nameplate, rendezvous_connector, encryption, terminator):
         self._B = _interfaces.IBoss(boss)
         self._N = _interfaces.INameplate(nameplate)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
-        self._O = _interfaces.IOrder(ordering)
+        self._E = _interfaces.IEncryption(encryption)
         self._T = _interfaces.ITerminator(terminator)
 
     # all -A states: not connected
@@ -167,7 +167,7 @@ class Mailbox:
         self._N.release()
         if phase not in self._processed:
             self._processed.add(phase)
-            self._O.got_message(side, phase, body)
+            self._E.got_message(side, phase, body)
 
     @m.output()
     def RC_tx_close(self):
