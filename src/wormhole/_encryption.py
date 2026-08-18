@@ -78,6 +78,8 @@ class Encryption:
     def set_trace(self, _tracer):
         pass # unimplemented on non-Automat machines for now
 
+    ### Key Setup
+
     # input from Boss
     def got_code(self, code):
         assert not self._have_code
@@ -86,16 +88,20 @@ class Encryption:
         if self._have_pake:
             self._process_pake()
 
+    def _build_pake(self, code):
+        with self._timing.add("pake1", waiting="crypto"):
+            self._sp = SPAKE2_Symmetric(
+                to_bytes(code), idSymmetric=to_bytes(self._appid))
+            msg1 = self._sp.start()
+        body = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg1)})
+        self._M.add_message("pake", body) # PAKE
+
     def _got_pake(self, body):
         assert isinstance(body, bytes), type(body)
         assert not self._have_pake
         self._have_pake = body
         if self._have_code:
             self._process_pake()
-
-    def _be_scared(self):
-        self._scared = True
-        self._B.scared()
 
     def _process_pake(self):
         assert not self._key
@@ -106,22 +112,14 @@ class Encryption:
         else:
             self._be_scared()
 
-    def _build_pake(self, code):
-        with self._timing.add("pake1", waiting="crypto"):
-            self._sp = SPAKE2_Symmetric(
-                to_bytes(code), idSymmetric=to_bytes(self._appid))
-            msg1 = self._sp.start()
-        body = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg1)})
-        self._M.add_message("pake", body) # PAKE
-
     def _compute_key(self, msg2):
         assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
         return key
 
-    # this is also called by tests
     def _got_key(self, key):
+        # this is also called by tests
         self._key = key # not yet verified
         # TODO: make B.got_key() an eventual send, since it will fire the
         # user/application-layer get_unverified_key() Deferred, and if that
@@ -134,8 +132,35 @@ class Encryption:
         self._M.add_message(phase, encrypted) # VERSION
         self._drain_queued_received_encrypted()
 
-    # these are encrypted messages
-    def _got_encrypted(self, side, phase, body):
+    def _got_verified_key(self):
+        # this is also called by tests
+        assert self._key_is_verified
+        self._drain_queued_sends()
+        self._B.happy()
+        self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
+
+    def _be_scared(self):
+        self._scared = True
+        self._B.scared()
+
+    ### inbound messages
+
+    # input from Mailbox
+    def got_message(self, side, phase, body):
+        assert isinstance(side, str), type(phase)
+        assert isinstance(phase, str), type(phase)
+        assert isinstance(body, bytes), type(body)
+        if phase == "pake":
+            self._got_pake(body) # TODO(v2): include side, protocol needs it
+        else:
+            if self._key:
+                self._decrypt_and_deliver(side, phase, body)
+            else:
+                self._queued_received_encrypted.append((side, phase, body))
+
+    def _decrypt_and_deliver(self, side, phase, body):
+        # these are encrypted messages (VERSION, DILATE-n, or
+        # app-level numeric phases)
         if self._scared:
             return # ignore message
         assert isinstance(side, str), type(phase)
@@ -153,12 +178,12 @@ class Encryption:
             self._got_verified_key()
         self._B.got_message(phase, plaintext)
 
-    # this is also called by tests
-    def _got_verified_key(self):
-        assert self._key_is_verified
-        self._drain_queued_sends()
-        self._B.happy()
-        self._B.got_verifier(derive_key(self._key, b"wormhole:verifier"))
+    def _drain_queued_received_encrypted(self):
+        for (side, phase, body) in self._queued_received_encrypted:
+            self._decrypt_and_deliver(side, phase, body)
+        self._queued_received_encrypted.clear()
+
+    ### outbound messages
 
     # input from Boss and Dilation
     def send(self, phase, plaintext):
@@ -182,22 +207,3 @@ class Encryption:
         for (phase, plaintext) in self._queued_sends:
             self._encrypt_and_send(phase, plaintext)
         self._queued_sends.clear()
-
-    # input from Mailbox
-    def got_message(self, side, phase, body):
-        # print("ORDER[%s].got_message(%s)" % (self._side, phase))
-        assert isinstance(side, str), type(phase)
-        assert isinstance(phase, str), type(phase)
-        assert isinstance(body, bytes), type(body)
-        if phase == "pake":
-            self._got_pake(body) # TODO(v2): include side, protocol needs it
-        else:
-            if self._key:
-                self._got_encrypted(side, phase, body)
-            else:
-                self._queued_received_encrypted.append((side, phase, body))
-
-    def _drain_queued_received_encrypted(self):
-        for (side, phase, body) in self._queued_received_encrypted:
-            self._got_encrypted(side, phase, body)
-        self._queued_received_encrypted.clear()
