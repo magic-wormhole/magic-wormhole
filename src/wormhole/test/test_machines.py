@@ -10,7 +10,7 @@ from .. import (__version__, _allocator, _boss, _code, _input, _encryption, _lis
                 _mailbox, _nameplate, _rendezvous,
                 _terminator, errors, timing)
 from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
-                           ILister, IMailbox, INameplate, IOrder,
+                           ILister, IMailbox, INameplate,
                            IRendezvousConnector, ITerminator, IWordlist,
                            ITorManager)
 from .._encryption import derive_key, derive_phase_key, encrypt_data
@@ -52,43 +52,6 @@ class Dummy:
         setattr(self, meth, log)
 
 
-def build_order():
-    events = []
-    o = _encryption.Order("side", timing.DebugTiming())
-    e = Dummy("e", events, IEncryption, "got_pake", "got_encrypted")
-    o.wire(e)
-    return o, e, events
-
-
-def test_in_order():
-    o, e, events = build_order()
-    o.got_message("side", "pake", b"body")
-    assert events == [("e.got_pake", b"body")]  # right away
-    o.got_message("side", "version", b"body")
-    o.got_message("side", "1", b"body")
-    assert events == [
-        ("e.got_pake", b"body"),
-        ("e.got_encrypted", "side", "version", b"body"),
-        ("e.got_encrypted", "side", "1", b"body"),
-    ]
-
-def test_out_of_order():
-    o, e, events = build_order()
-    o.got_message("side", "version", b"body")
-    assert events == []  # nothing yet
-    o.got_message("side", "1", b"body")
-    assert events == []  # nothing yet
-    o.got_message("side", "pake", b"body")
-    # got_pake is delivered first
-    assert events == [
-        ("e.got_pake", b"body"),
-        ("e.got_encrypted", "side", "version", b"body"),
-        ("e.got_encrypted", "side", "1", b"body"),
-    ]
-
-
-
-
 def build_encryption():
     events = []
     e = _encryption.Encryption("appid", {}, "side", timing.DebugTiming())
@@ -112,7 +75,7 @@ def test_good_key():
     msg2_bytes = sp.start()
     key2 = sp.finish(msg1_bytes)
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    e.got_pake(msg2)
+    e._got_pake(msg2)
     assert len(events) == 2, events
     assert events[0] == ("b.got_key", key2)
     assert events[1][:2] == ("m.add_message", "version")
@@ -129,7 +92,7 @@ def test_bad():
                      ["pake_v1"]  # value is PAKE stuff
     events[:] = []
     bad_pake_d = {"not_pake_v1": "stuff"}
-    e.got_pake(dict_to_bytes(bad_pake_d))
+    e._got_pake(dict_to_bytes(bad_pake_d))
     assert events == [("b.scared", )]
 
 def test_reversed():
@@ -146,7 +109,7 @@ def test_reversed():
     sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
     msg2_bytes = sp.start()
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    e.got_pake(msg2)
+    e._got_pake(msg2)
     assert len(events) == 0
 
     e.got_code(code)
@@ -169,7 +132,7 @@ def test_good_receive():
     phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    e.got_encrypted("side", "phase1", good_body)
+    e._got_encrypted("side", "phase1", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -179,7 +142,7 @@ def test_good_receive():
     phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    e.got_encrypted("side", "phase2", good_body)
+    e._got_encrypted("side", "phase2", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -195,7 +158,7 @@ def test_early_bad():
     phase1_key = derive_phase_key(key, "side", "bad")
     data1 = b"data1"
     bad_body = encrypt_data(phase1_key, data1)
-    e.got_encrypted("side", "phase1", bad_body)
+    e._got_encrypted("side", "phase1", bad_body)
     assert events == [
         ("b.scared", ),
     ]
@@ -203,7 +166,7 @@ def test_early_bad():
     phase2_key = derive_phase_key(key, "side", "phase2")
     data2 = b"data2"
     good_body = encrypt_data(phase2_key, data2)
-    e.got_encrypted("side", "phase2", good_body)
+    e._got_encrypted("side", "phase2", good_body)
     assert events == [
         ("b.scared", ),
     ]
@@ -217,7 +180,7 @@ def test_late_bad():
     phase1_key = derive_phase_key(key, "side", "phase1")
     data1 = b"data1"
     good_body = encrypt_data(phase1_key, data1)
-    e.got_encrypted("side", "phase1", good_body)
+    e._got_encrypted("side", "phase1", good_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -227,15 +190,15 @@ def test_late_bad():
     phase2_key = derive_phase_key(key, "side", "bad")
     data2 = b"data2"
     bad_body = encrypt_data(phase2_key, data2)
-    e.got_encrypted("side", "phase2", bad_body)
+    e._got_encrypted("side", "phase2", bad_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
         ("b.got_message", "phase1", data1),
         ("b.scared", ),
     ]
-    e.got_encrypted("side", "phase1", good_body)
-    e.got_encrypted("side", "phase2", bad_body)
+    e._got_encrypted("side", "phase1", good_body)
+    e._got_encrypted("side", "phase2", bad_body)
     assert events == [
         ("b.happy", ),
         ("b.got_verifier", verifier),
@@ -299,6 +262,74 @@ def test_key_first():
         "0202020202020202020202020202020202020"
          "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
     assert events == [("m.add_message", "phase2", enc2)]
+
+# The v0 code didn't particularly enforce that VERSION is delivered
+# (to Boss) before other encrypted phases like "0", so for now we just
+# check that PAKE is processed before VERSION even if they arrive the
+# other way around.
+ORDER_PHASES = ["PAKE", "VERSION"]
+
+# The v1 code *will* enforce that, because the v2 PAKE protocol is
+# more stringent about key confirmation. It shouldn't be possible to
+# get 0/PAKE/VERSION or 0/VERSION/PAKE (because our peer isn't
+# supposed to send "0" before receiving our VERSION, and we can't send
+# our version before receiving their PAKE). But the next step is to
+# guard against it anyways. The v2 protocol will also introduce new
+# PAKE-1/2/3 phases, which need to be delivered in order.
+#ORDER_PHASES = ["PAKE", "VERSION", "0"] # TODO(v1)
+
+def test_order_PAKE_VERSION():
+    # for this test, we don't provide a code yet: we're just looking
+    # at ordering of inbound messages, and that a VERSION is stalled
+    # until after the PAKE
+    e, b, m, events = build_encryption()
+    assert events == []
+    assert not e._have_code
+    assert not e._have_pake
+    e._process_pake = lambda: (events.append("process_pake"),e._got_key(b"key"))
+    e._got_encrypted = lambda s,p,b: events.append(p)
+    e._have_code = b"code"
+
+    e.got_message("side", "pake", b"pake_body")
+    assert e._have_pake
+    assert e._key == b"key"
+    assert events[0] == "process_pake" # immediate
+    assert events[1] == ("b.got_key", b"key")
+    assert events[2][0:2] == ("m.add_message", "version")
+    assert len(events) == 3
+    events.clear()
+
+    e.got_message("side", "version", b"body")
+    assert events == ["version"] # immediate
+    events.clear()
+    e.got_message("side", "1", b"body")
+    assert events == ["1"] # immediate
+
+def test_order_VERSION_PAKE():
+    e, b, m, events = build_encryption()
+    assert events == []
+    assert not e._have_code
+    assert not e._have_pake
+    e._process_pake = lambda: (events.append("process_pake"), e._got_key(b"key"))
+    e._got_encrypted = lambda s,p,b: events.append(p)
+    e._have_code = b"code"
+
+    e.got_message("side", "version", b"body")
+    assert events == []  # nothing yet
+    e.got_message("side", "1", b"body")
+    assert events == []  # nothing yet
+    assert not e._have_pake
+
+    e.got_message("side", "pake", b"body")
+    # _got_pake is delivered first
+    assert e._have_pake
+    # key establishement triggers these
+    assert events[0] == "process_pake" # immediate
+    assert events[1] == ("b.got_key", b"key")
+    assert events[2][0:2] == ("m.add_message", "version")
+    # then inbound messages should be processed
+    assert events[3] == "version"
+    assert events[4] == "1"
 
 
 def build_code():
@@ -1036,10 +1067,10 @@ def build_mailbox():
     n = Dummy("n", events, INameplate, "release")
     rc = Dummy("rc", events, IRendezvousConnector, "tx_add", "tx_open",
                "tx_close")
-    o = Dummy("o", events, IOrder, "got_message")
+    e = Dummy("e", events, IEncryption, "got_message")
     t = Dummy("t", events, ITerminator, "mailbox_done")
-    m.wire(b, n, rc, o, t)
-    return m, b, n, rc, o, t, events
+    m.wire(b, n, rc, e, t)
+    return m, b, n, rc, e, t, events
 
     # TODO: test moods
 
@@ -1051,7 +1082,7 @@ def assert_events(events, initial_events, tx_add_events):
 
 
 def test_connect_first_mailbox():  # connect before got_mailbox
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1102,7 +1133,7 @@ def test_connect_first_mailbox():  # connect before got_mailbox
     m.rx_message("side2", "phase1", b"msg1them")  # new message from peer
     assert events == [
         ("n.release", ),
-        ("o.got_message", "side2", "phase1", b"msg1them"),
+        ("e.got_message", "side2", "phase1", b"msg1them"),
     ]
     events[:] = []
 
@@ -1144,7 +1175,7 @@ def test_connect_first_mailbox():  # connect before got_mailbox
     assert events == []
 
 def test_mailbox_first():  # got_mailbox before connect
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1160,7 +1191,7 @@ def test_mailbox_first():  # got_mailbox before connect
     })
 
 def test_mailbox_crowded():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.connected()
     m.got_mailbox("mbox1")
     assert events == [("rc.tx_open", "mbox1")]
@@ -1168,7 +1199,7 @@ def test_mailbox_crowded():
     m.rx_message("side2", "phase1", b"msg1")  # new message from peer
     assert events == [
         ("n.release", ),
-        ("o.got_message", "side2", "phase1", b"msg1"),
+        ("e.got_message", "side2", "phase1", b"msg1"),
     ]
     events.clear()
     # message from a third peer should break the connection
@@ -1176,25 +1207,25 @@ def test_mailbox_crowded():
     assert events == [("b.crowded", )]
 
 def test_close_while_idle():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 
 def test_close_while_idle_but_connected():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.connected()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_mailbox_disconnected():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_reconnecting():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.connected()
     assert events == [("rc.tx_open", "mbox1")]

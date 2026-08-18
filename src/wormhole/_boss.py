@@ -11,7 +11,7 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._encryption import Encryption, Order
+from ._encryption import Encryption
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
@@ -59,7 +59,6 @@ class Boss:
     def _build_workers(self):
         self._N = Nameplate(self._evolve_wormhole_status)
         self._M = Mailbox(self._side)
-        self._O = Order(self._side, self._timing)
         self._E = Encryption(self._appid, self._versions, self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
@@ -77,8 +76,7 @@ class Boss:
         )
 
         self._N.wire(self._M, self._I, self._RC, self._T)
-        self._M.wire(self, self._N, self._RC, self._O, self._T)
-        self._O.wire(self._E)
+        self._M.wire(self, self._N, self._RC, self._E, self._T)
         self._E.wire(self, self._M)
         self._RC.wire(self, self._N, self._M, self._A, self._L, self._T)
         self._L.wire(self._RC, self._I)
@@ -142,7 +140,6 @@ class Boss:
             "B": self,
             "N": self._N,
             "M": self._M,
-            "O": self._O,
             "E": self._E,
             "RC": self._RC,
             "L": self._L,

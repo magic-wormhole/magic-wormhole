@@ -2,7 +2,6 @@ from hashlib import sha256
 
 from attr import attrib, attrs
 from attr.validators import instance_of
-from automat import MethodicalMachine
 from nacl import utils
 from nacl.exceptions import CryptoError
 from nacl.secret import SecretBox
@@ -69,6 +68,7 @@ class Encryption:
     _scared = False # or True
 
     def __attrs_post_init__(self):
+        self._queued_received_encrypted = []
         self._queued_sends = []
 
     def wire(self, boss, mailbox):
@@ -86,8 +86,7 @@ class Encryption:
         if self._have_pake:
             self._process_pake()
 
-    # input from Order
-    def got_pake(self, body):
+    def _got_pake(self, body):
         assert isinstance(body, bytes), type(body)
         assert not self._have_pake
         self._have_pake = body
@@ -133,9 +132,10 @@ class Encryption:
         plaintext = dict_to_bytes(self._versions)
         encrypted = encrypt_data(data_key, plaintext)
         self._M.add_message(phase, encrypted) # VERSION
+        self._drain_queued_received_encrypted()
 
-    # input from Order, these are encrypted messages
-    def got_encrypted(self, side, phase, body):
+    # these are encrypted messages
+    def _got_encrypted(self, side, phase, body):
         if self._scared:
             return # ignore message
         assert isinstance(side, str), type(phase)
@@ -183,74 +183,21 @@ class Encryption:
             self._encrypt_and_send(phase, plaintext)
         self._queued_sends.clear()
 
-@attrs
-@implementer(_interfaces.IOrder)
-class Order:
-    _side = attrib(validator=instance_of(str))
-    _timing = attrib(validator=provides(_interfaces.ITiming))
-    m = MethodicalMachine()
-    set_trace = getattr(m, "_setTrace",
-                        lambda self, f: None)  # pragma: no cover
-
-    def __attrs_post_init__(self):
-        self._encryption = None
-        self._queue = []
-
-    def wire(self, encryption):
-        self._E = _interfaces.IEncryption(encryption)
-
-    @m.state(initial=True)
-    def S0_no_pake(self):
-        pass  # pragma: no cover
-
-    @m.state(terminal=True)
-    def S1_yes_pake(self):
-        pass  # pragma: no cover
-
+    # input from Mailbox
     def got_message(self, side, phase, body):
         # print("ORDER[%s].got_message(%s)" % (self._side, phase))
         assert isinstance(side, str), type(phase)
         assert isinstance(phase, str), type(phase)
         assert isinstance(body, bytes), type(body)
         if phase == "pake":
-            self.got_pake(side, phase, body)
+            self._got_pake(body) # TODO(v2): include side, protocol needs it
         else:
-            self.got_non_pake(side, phase, body)
+            if self._key:
+                self._got_encrypted(side, phase, body)
+            else:
+                self._queued_received_encrypted.append((side, phase, body))
 
-    @m.input()
-    def got_pake(self, side, phase, body):
-        pass
-
-    @m.input()
-    def got_non_pake(self, side, phase, body):
-        pass
-
-    @m.output()
-    def queue(self, side, phase, body):
-        assert isinstance(side, str), type(phase)
-        assert isinstance(phase, str), type(phase)
-        assert isinstance(body, bytes), type(body)
-        self._queue.append((side, phase, body))
-
-    @m.output()
-    def notify_encryption(self, side, phase, body):
-        self._E.got_pake(body)
-
-    @m.output()
-    def drain(self, side, phase, body):
-        del phase
-        del body
-        for (side, phase, body) in self._queue:
-            self._deliver(side, phase, body)
-        self._queue[:] = []
-
-    @m.output()
-    def deliver(self, side, phase, body):
-        self._deliver(side, phase, body)
-
-    def _deliver(self, side, phase, body):
-        self._E.got_encrypted(side, phase, body)
-
-    S0_no_pake.upon(got_non_pake, enter=S0_no_pake, outputs=[queue])
-    S0_no_pake.upon(got_pake, enter=S1_yes_pake, outputs=[notify_encryption, drain])
-    S1_yes_pake.upon(got_non_pake, enter=S1_yes_pake, outputs=[deliver])
+    def _drain_queued_received_encrypted(self):
+        for (side, phase, body) in self._queued_received_encrypted:
+            self._got_encrypted(side, phase, body)
+        self._queued_received_encrypted.clear()
