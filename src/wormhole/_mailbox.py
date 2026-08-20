@@ -16,10 +16,12 @@ class Mailbox:
 
     def __attrs_post_init__(self):
         self._mailbox = None
+        self._their_side = None # set by first non-ours message
         self._pending_outbound = {}
         self._processed = set()
 
-    def wire(self, nameplate, rendezvous_connector, ordering, terminator):
+    def wire(self, boss, nameplate, rendezvous_connector, ordering, terminator):
+        self._B = _interfaces.IBoss(boss)
         self._N = _interfaces.INameplate(nameplate)
         self._RC = _interfaces.IRendezvousConnector(rendezvous_connector)
         self._O = _interfaces.IOrder(ordering)
@@ -101,7 +103,12 @@ class Mailbox:
         if side == self._side:
             self.rx_message_ours(phase, body)
         else:
-            self.rx_message_theirs(side, phase, body)
+            if self._their_side is None:
+                self._their_side = side
+            if side == self._their_side:
+                self.rx_message_theirs(side, phase, body)
+            else:
+                self._B.crowded()
 
     @m.input()
     def rx_message_ours(self, phase, body):

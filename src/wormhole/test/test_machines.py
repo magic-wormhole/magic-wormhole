@@ -1049,13 +1049,14 @@ def test_close_while_done_but_disconnected():
 def build_mailbox():
     events = []
     m = _mailbox.Mailbox("side1")
+    b = Dummy("b", events, IBoss, "crowded")
     n = Dummy("n", events, INameplate, "release")
     rc = Dummy("rc", events, IRendezvousConnector, "tx_add", "tx_open",
                "tx_close")
     o = Dummy("o", events, IOrder, "got_message")
     t = Dummy("t", events, ITerminator, "mailbox_done")
-    m.wire(n, rc, o, t)
-    return m, n, rc, o, t, events
+    m.wire(b, n, rc, o, t)
+    return m, b, n, rc, o, t, events
 
     # TODO: test moods
 
@@ -1067,7 +1068,7 @@ def assert_events(events, initial_events, tx_add_events):
 
 
 def test_connect_first_mailbox():  # connect before got_mailbox
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1160,7 +1161,7 @@ def test_connect_first_mailbox():  # connect before got_mailbox
     assert events == []
 
 def test_mailbox_first():  # got_mailbox before connect
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1175,27 +1176,42 @@ def test_mailbox_first():  # got_mailbox before connect
         ("rc.tx_add", "phase2", b"msg2"),
     })
 
+def test_mailbox_crowded():
+    m, b, n, rc, o, t, events = build_mailbox()
+    m.connected()
+    m.got_mailbox("mbox1")
+    assert events == [("rc.tx_open", "mbox1")]
+    events.clear()
+    m.rx_message("side2", "phase1", b"msg1")  # new message from peer
+    assert events == [
+        ("n.release", ),
+        ("o.got_message", "side2", "phase1", b"msg1"),
+    ]
+    events.clear()
+    # message from a third peer should break the connection
+    m.rx_message("side3", "phase1", b"msg3")
+    assert events == [("b.crowded", )]
 
 def test_close_while_idle():
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 
 def test_close_while_idle_but_connected():
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.connected()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_mailbox_disconnected():
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_reconnecting():
-    m, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, o, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.connected()
     assert events == [("rc.tx_open", "mbox1")]
@@ -1425,6 +1441,24 @@ def test_internal_error():
     assert events[0][0] == "w.closed"
     assert isinstance(events[0][1], ValueError)
     assert events[0][1].args[0] == "catch me"
+
+def test_boss_crowded():
+    b, events = build_boss()
+    # we can't become crowded without messages from a mailbox, which
+    # we can't get until we claim a nameplate, which we can't get
+    # without a code
+    b.set_code("1-code")
+    b.got_code("1-code")
+    assert events == [("c.set_code", "1-code"), ("w.got_code", "1-code")]
+    events.clear()
+
+    b.crowded()
+    assert events == [("t.close", "crowded")]
+    events.clear()
+    b.closed()
+    assert events[0][0] == "w.closed"
+    assert isinstance(events[0][1], errors.CrowdedError)
+    assert len(events) == 1
 
 def test_close_early():
     b, events = build_boss()

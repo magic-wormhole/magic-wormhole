@@ -23,7 +23,7 @@ from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey, Closed
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
 from .errors import (LonelyError, OnlyOneCodeError, ServerError, WelcomeError,
-                     WrongPasswordError, _UnknownPhaseError)
+                     WrongPasswordError, _UnknownPhaseError, CrowdedError)
 from .util import bytes_to_dict, provides
 
 
@@ -82,7 +82,7 @@ class Boss:
         )
 
         self._N.wire(self._M, self._I, self._RC, self._T)
-        self._M.wire(self._N, self._RC, self._O, self._T)
+        self._M.wire(self, self._N, self._RC, self._O, self._T)
         self._S.wire(self._M)
         self._O.wire(self._K, self._R)
         self._K.wire(self, self._M, self._R)
@@ -289,12 +289,17 @@ class Boss:
 
     # Key sends (got_key, scared)
     # Receive sends (got_message, happy, got_verifier, scared)
+    # Mailbox sends (crowded)
     @m.input()
     def happy(self):
         pass
 
     @m.input()
     def scared(self):
+        pass
+
+    @m.input()
+    def crowded(self):
         pass
 
     def got_message(self, phase, plaintext):
@@ -375,6 +380,11 @@ class Boss:
         self._T.close("scary")
 
     @m.output()
+    def close_crowded(self):
+        self._result = CrowdedError()
+        self._T.close("crowded")
+
+    @m.output()
     def close_lonely(self):
         self._result = LonelyError()
         self._T.close("lonely")
@@ -453,6 +463,7 @@ class Boss:
     S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
+    S1_lonely.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
     S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
@@ -465,6 +476,7 @@ class Boss:
     S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, send_status_confirmed_key])
     S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
+    S2_happy.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
@@ -478,6 +490,7 @@ class Boss:
     S3_closing.upon(_got_dilate, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
+    S3_closing.upon(crowded, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
     S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed, send_status_closed])
@@ -490,6 +503,7 @@ class Boss:
     S4_closed.upon(_got_dilate, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])
     S4_closed.upon(scared, enter=S4_closed, outputs=[])
+    S4_closed.upon(crowded, enter=S4_closed, outputs=[])
     S4_closed.upon(close, enter=S4_closed, outputs=[])
     S4_closed.upon(send, enter=S4_closed, outputs=[])
     S4_closed.upon(error, enter=S4_closed, outputs=[])
