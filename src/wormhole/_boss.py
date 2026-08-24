@@ -105,6 +105,7 @@ class Boss:
         self._rx_dilate_seqnums = {}  # seqnum -> plaintext
 
         self._result = "empty"
+        self._key = None
 
     def _evolve_wormhole_status(self, **kwargs):
         # we have to track "the wormhole status" somewhere, because
@@ -396,11 +397,13 @@ class Boss:
 
     @m.output()
     def W_got_key(self, key):
+        self._key = key
         self._W.got_key(key)
 
     @m.output()
-    def D_got_key(self, key):
-        self._D.got_key(key)
+    def D_got_verified_key(self, plaintext):
+        assert self._key
+        self._D.got_verified_key(self._key)
 
     @m.output()
     def send_status_peer_key(self, key):
@@ -466,14 +469,14 @@ class Boss:
     S1_lonely.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
-    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, D_got_key, send_status_peer_key])
+    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
-    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, send_status_confirmed_key])
+    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, D_got_verified_key, send_status_confirmed_key])
     S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(crowded, enter=S3_closing, outputs=[close_crowded])

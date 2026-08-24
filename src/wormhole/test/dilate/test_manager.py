@@ -71,7 +71,7 @@ def test_dilate_first():
     transit_key = object()
     with mock.patch("wormhole._dilation.manager.derive_key",
                     return_value=transit_key) as dk:
-        dil.got_key(key)
+        dil.got_verified_key(key)
     assert dk.mock_calls == [mock.call(key, b"dilation-v1", 32)]
     assert m.mock_calls == [mock.call.got_dilation_key(transit_key)]
     clear_mock_calls(m)
@@ -107,7 +107,7 @@ def test_dilate_later():
     transit_key = object()
     with mock.patch("wormhole._dilation.manager.derive_key",
                     return_value=transit_key) as dk:
-        dil.got_key(key)
+        dil.got_verified_key(key)
     assert dk.mock_calls == [mock.call(key, b"dilation-v1", 32)]
 
     wv = object()
@@ -143,7 +143,7 @@ async def test_peer_cannot_dilate():
     (dil, h) = make_dilator()
     eps = dil.dilate()
 
-    dil.got_key(b"\x01" * 32)
+    dil.got_verified_key(b"\x01" * 32)
     dil.got_wormhole_versions({})  # missing "can-dilate"
     f = mock.Mock()
     d = eps.connector_for("proto").connect(f)
@@ -157,7 +157,7 @@ async def test_disjoint_versions():
     (dil, h) = make_dilator()
     eps = dil.dilate()
 
-    dil.got_key(b"\x01" * 32)
+    dil.got_verified_key(b"\x01" * 32)
     dil.got_wormhole_versions({"can-dilate": ["-1"]})
     f = mock.Mock()
     d = eps.connector_for("proto").connect(f)

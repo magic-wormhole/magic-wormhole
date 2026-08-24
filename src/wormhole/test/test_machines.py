@@ -1341,7 +1341,7 @@ def build_boss():
     b._RC = Dummy("rc", events, IRendezvousConnector, "start")
     b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                  "set_code")
-    b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_key", _manager=None)
+    b._D = Dummy("d", events, IDilator, "got_wormhole_versions", "got_verified_key", _manager=None)
     return b, events
 
 def test_boss_basic():
@@ -1369,10 +1369,10 @@ def test_boss_basic():
     b.got_message("0", b"msg1")
     assert events == [
         ("w.got_key", b"key"),
-        ("d.got_key", b"key"),
         ("w.got_verifier", b"verifier"),
         ("d.got_wormhole_versions", {}),
         ("w.got_versions", {}),
+        ("d.got_verified_key", b"key"),
         ("w.received", b"msg1"),
     ]
     events[:] = []
