@@ -56,18 +56,6 @@ class IWormholeDelegate(Interface):
         to allocate one, or because one was set.
         """
 
-    def wormhole_got_unverified_key(key: bytes) -> None:  # XXX definitely bytes?
-        """
-        We have received the symmetric, secret key. It is "unverified"
-        because we have not yet successfully exchanged a message
-        confirming that the other side has the same key; the first
-        such message is the "versions" message.
-
-        It is also possible for the users to confirm that the same key
-        is being used by comparing the "verifier" strings (which are a
-        hash of the key).
-        """
-
     def wormhole_got_verifier(verifier: bytes) -> None:  # XXX bytes, or str?
         """
         A tagged hash of the secret key. If both sides compare their
@@ -260,21 +248,6 @@ class IDeferredWormhole(Interface):
         :rtype: ``Deferred[str]``
         """
 
-    def get_unverified_key():
-        """
-        Wait for key-exchange to occur, then return the raw unverified SPAKE2
-        key.  When this fires, we have not seen any evidence that anyone else
-        shares this key (nor have we seen evidence of a failed attack: e.g. a
-        payload encrypted with a different key).
-
-        This is only useful for testing, and for noticing a significant delay
-        between the key-agreement message and the subsequent key-verification
-        ("versions") message.
-
-        :return: the raw unverified SPAKE2 key
-        :rtype: ``Deferred[bytes]``
-        """
-
     def get_verifier():
         """
         Wait for key verification to occur, then return the verifier string.
@@ -329,7 +302,7 @@ class IDeferredWormhole(Interface):
 
         This must be called after the key has been established, so after any
         of
-        ``get_unverified_key()/get_verifier()/get_versions()/get_message()``
+        ``get_verifier()/get_versions()/get_message()``
         have fired.  ``derive_key()`` returns immediately, rather than
         returning a ``Deferred``.
 

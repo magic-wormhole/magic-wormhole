@@ -3,6 +3,10 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* **INCOMPATIBLE**: the method ``get_unverified_key()`` has been removed from the object returned by ``wormhole.create()``.
+  In addition, `wormhole_got_unverified_key()` of the Delegate object is no longer called.
+  Applications should use ``derive_key()`` to derive purpose-specific subkeys, after the wormhole is established.
+  A valid use of this method was to learn when we get the final key, which can now be accomplished using "status" API (via `on_status_update=` kwarg to ``wormhole.create()``.
 
 
 ## Release 0.24.0 (5-May-2026)

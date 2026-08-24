@@ -2,7 +2,7 @@ import os
 import sys
 
 from attr import attrib, attrs
-from twisted.python import failure
+from twisted.python import failure, log
 from twisted.internet.task import Cooperator
 from zope.interface import implementer
 
@@ -104,8 +104,7 @@ class _DelegatedWormhole:
     def got_code(self, code):
         self._delegate.wormhole_got_code(code)
 
-    def got_key(self, key):
-        self._delegate.wormhole_got_unverified_key(key)
+    def got_key(self, key): # unverified
         self._key = key  # for derive_key()
 
     def got_verifier(self, verifier):
@@ -128,7 +127,6 @@ class _DeferredWormhole:
         self._welcome_observer = OneShotObserver(eq)
         self._code_observer = OneShotObserver(eq)
         self._key = None
-        self._key_observer = OneShotObserver(eq)
         self._verifier_observer = OneShotObserver(eq)
         self._version_observer = OneShotObserver(eq)
         self._received_observer = SequenceObserver(eq)
@@ -151,9 +149,6 @@ class _DeferredWormhole:
 
     def get_welcome(self):
         return self._welcome_observer.when_fired()
-
-    def get_unverified_key(self):
-        return self._key_observer.when_fired()
 
     def get_verifier(self):
         return self._verifier_observer.when_fired()
@@ -229,9 +224,8 @@ class _DeferredWormhole:
     def got_code(self, code):
         self._code_observer.fire_if_not_fired(code)
 
-    def got_key(self, key):
+    def got_key(self, key): # unverified
         self._key = key  # for derive_key()
-        self._key_observer.fire_if_not_fired(key)
 
     def got_verifier(self, verifier):
         self._verifier_observer.fire_if_not_fired(verifier)
@@ -257,7 +251,6 @@ class _DeferredWormhole:
             self._closed_observer.fire_if_not_fired(result)
         self._welcome_observer.error(f)
         self._code_observer.error(f)
-        self._key_observer.error(f)
         self._verifier_observer.error(f)
         self._version_observer.error(f)
         self._received_observer.fire(f)
@@ -283,6 +276,8 @@ def create(
     cooperator = Cooperator(scheduler=eq.eventually)
 
     if delegate:
+        if hasattr(delegate, "wormhole_got_unverified_key"):
+            log.err(DeprecationWarning("WARNING: wormhole_got_unverified_key has been removed, see #732"))
         w = _DelegatedWormhole(delegate)
     else:
         w = _DeferredWormhole(reactor, eq, _enable_dilate=bool(dilation))
