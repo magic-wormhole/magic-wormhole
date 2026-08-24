@@ -15,7 +15,7 @@ from twisted.python import log
 from wormhole import __version__, create
 
 from ..errors import TransferError, UnsendableFileError
-from .._status import WormholeStatus, ConsumedCode
+from .._status import WormholeStatus, ConsumedCode, AllegedSharedKey, ConfirmedKey
 from ..transit import TransitSender
 from ..util import bytes_to_dict, bytes_to_hexstr, dict_to_bytes
 from .welcome import handle_welcome
@@ -47,7 +47,8 @@ class Sender:
         self._timing = args.timing
         self._fd_to_send = None
         self._transit_sender = None
-        self._status = WormholeStatus()
+        self._old_status = WormholeStatus()
+        self._slow_verification_timer = None
 
     @inlineCallbacks
     def go(self):
@@ -102,10 +103,31 @@ class Sender:
         data_bytes = dict_to_bytes(data)
         w.send_message(data_bytes)
 
+    def _on_slow_verification(self):
+        print("Key established, waiting for confirmation...", file=self._args.stderr)
+
+    def _start_on_slow_verification_timer(self):
+        if not self._slow_verification_timer:
+            self._slow_verification_timer = self._reactor.callLater(VERIFY_TIMER, self._on_slow_verification)
+
+    def _cancel_on_slow_verification_timer(self):
+        t = self._slow_verification_timer
+        if t and not t.called:
+            t.cancel()
+            self._slow_verification_timer = None
+
     def _on_status(self, status):
-        if not isinstance(self._status.code, ConsumedCode) and isinstance(status.code, ConsumedCode):
-            print("Note: code has been consumed and can no longer be used.", file=self._args.stdout)
-        self._status = status
+        if status.code != self._old_status.code:
+            match status.code:
+                case ConsumedCode():
+                    print("Note: code has been consumed and can no longer be used.", file=self._args.stdout)
+        if status.peer_key != self._old_status.peer_key:
+            match status.peer_key:
+                case AllegedSharedKey():
+                    self._start_on_slow_verification_timer()
+                case ConfirmedKey():
+                    self._cancel_on_slow_verification_timer()
+        self._old_status = status
 
     @inlineCallbacks
     def _go(self, w):
@@ -152,20 +174,18 @@ class Sender:
         # flush stderr so the code is displayed immediately
         args.stderr.flush()
 
-        # We don't print a "waiting" message for get_unverified_key() here,
-        # even though we do that in cmd_receive.py, because it's not at all
-        # surprising to we waiting here for a long time. We'll sit in
-        # get_unverified_key() until the receiver has typed in the code and
+        # We don't print a "Waiting" message before AllegedSharedKey,
+        # even though we do that in cmd_receive.py, because it's not
+        # at all surprising to we waiting here for a long time. We'll
+        # sit quietly until the receiver has typed in the code and
         # their PAKE message makes it to us.
-        yield w.get_unverified_key()
+
+        # but once _on_status(AllegedSharedKey) signals receipt of the
+        # unverified key, we start a pacification-message timer that
+        # is cancelled when the key is verified (ConfirmedKey)
 
         # TODO: don't stall on w.get_verifier() unless they want it
-        def on_slow_connection():
-            print(
-                "Key established, waiting for confirmation...",
-                file=args.stderr)
 
-        notify = self._reactor.callLater(VERIFY_TIMER, on_slow_connection)
         try:
             # The usual sender-chooses-code sequence means the receiver's
             # PAKE should be followed immediately by their VERSION, so
@@ -177,8 +197,7 @@ class Sender:
             # after a while.
             verifier_bytes = yield w.get_verifier()  # might WrongPasswordError
         finally:
-            if not notify.called:
-                notify.cancel()
+            self._cancel_on_slow_verification_timer()
 
         if args.verify:
             # check_verifier() does a blocking call to input(), so stall for
