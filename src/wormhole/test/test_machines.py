@@ -13,11 +13,11 @@ from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncrypti
                            ILister, IMailbox, INameplate,
                            IRendezvousConnector, ITerminator, IWordlist,
                            ITorManager)
-from .._encryption import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
 from .._status import WormholeStatus
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    hexstr_to_bytes, to_bytes)
+                    hexstr_to_bytes, to_bytes, derive_key,
+                    derive_phase_key, encrypt_data)
 import pytest
 import pytest_twisted
 

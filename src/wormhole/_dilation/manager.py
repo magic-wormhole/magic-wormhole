@@ -7,9 +7,8 @@ from zope.interface import implementer
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.python import log, failure
 from .._interfaces import IDilator, IDilationManager, IEncryption, ITerminator
-from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
+from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides, derive_key
 from ..observer import OneShotObserver
-from .._encryption import derive_key
 from .subchannel import (_WormholeAddress,
                          SubchannelConnectorEndpoint,
                          SubchannelDemultiplex,
