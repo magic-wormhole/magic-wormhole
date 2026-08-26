@@ -89,7 +89,7 @@ def parse_hint_argv(hint, stderr=sys.stderr):
     return DirectTCPV1Hint(hint_host, hint_port, priority)
 
 
-def endpoint_from_hint_obj(hint, tor, reactor):
+def endpoint_from_hint_obj(hint, tor, reactor, local_portnum=None):
     if tor:
         if isinstance(hint, (DirectTCPV1Hint, TorTCPV1Hint)):
             # this Tor object will throw ValueError for non-public IPv4
@@ -100,12 +100,17 @@ def endpoint_from_hint_obj(hint, tor, reactor):
                 return None
         return None
     if isinstance(hint, DirectTCPV1Hint):
+        # bind to local_portnum if possible, to help with hole-punching. We
+        # don't really want to bind to a specific interface, so we use "",
+        # which tells the python socket library to use INADDR_ANY
+        bindAddress = ("", local_portnum) if local_portnum else None
+        timeout = 30
         # avoid DNS lookup unless necessary
         if isIPAddress(hint.hostname):
-            return TCP4ClientEndpoint(reactor, hint.hostname, hint.port)
+            return TCP4ClientEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
         if isIPv6Address(hint.hostname):
-            return TCP6ClientEndpoint(reactor, hint.hostname, hint.port)
-        return HostnameEndpoint(reactor, hint.hostname, hint.port)
+            return TCP6ClientEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
+        return HostnameEndpoint(reactor, hint.hostname, hint.port, timeout, bindAddress)
     return None
 
 

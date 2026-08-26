@@ -1454,7 +1454,7 @@ async def test_success_direct_tor_relay():
     assert fc._descriptions == ["tor->relay:tcp:relay:1234"]
 
 
-def _endpoint_from_hint_obj(hint, _tor, _reactor):
+def _endpoint_from_hint_obj(hint, _tor, _reactor, local_portnum=None):
     if isinstance(hint, DirectTCPV1Hint):
         if hint.hostname == "unavailable":
             return None

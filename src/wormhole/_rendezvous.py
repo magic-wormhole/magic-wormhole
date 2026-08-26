@@ -5,6 +5,7 @@ from attr.validators import instance_of, optional
 from zope.interface import implementer
 from twisted.python import log
 from twisted.internet import defer, endpoints, task
+from twisted.internet.address import IPv4Address, IPv6Address
 from twisted.application import internet
 from autobahn.twisted import websocket
 from . import _interfaces, errors
@@ -18,7 +19,9 @@ class WSClient(websocket.WebSocketClientProtocol):
     def onConnect(self, response):
         # this fires during WebSocket negotiation, and isn't very useful
         # unless you want to modify the protocol settings
-        pass
+        client_addr = self.transport.getHost()
+        if isinstance(client_addr, (IPv4Address, IPv6Address)):
+            self._RC.ws_got_client_port(client_addr.port)
 
     def onOpen(self, *args):
         # this fires when the WebSocket is ready to go. No arguments
@@ -78,6 +81,7 @@ class RendezvousConnector:
 
         self._trace = None
         self._ws = None
+        self._ws_client_port = None
         f = WSFactory(self, self._url)
         # kind-of match what Dilation does for peer connections;
         # there, we send a ping every 30s and give up on the
@@ -121,10 +125,15 @@ class RendezvousConnector:
         port = p.port or (443 if tls else 80)
         if self._tor:
             return self._tor.stream_via(p.hostname, port, tls=tls)
+        timeout = 30
+        # a wildcard bindAddress doesn't really bind anything, but tells
+        # Twisted to set SO_REUSEPORT, so we can share this port later
+        bindAddress = ("", 0)
         if tls:
+            # give the "tls:" endpoint parser effectively the same thing
             return endpoints.clientFromString(self._reactor,
-                                              f"tls:{p.hostname}:{port}")
-        return endpoints.HostnameEndpoint(self._reactor, p.hostname, port)
+                                              f"tls:{p.hostname}:{port}:bindAddress=")
+        return endpoints.HostnameEndpoint(self._reactor, p.hostname, port, timeout, bindAddress)
 
     def wire(self, boss, nameplate, mailbox, allocator, lister, terminator):
         self._B = _interfaces.IBoss(boss)
@@ -137,6 +146,9 @@ class RendezvousConnector:
     # from Boss
     def start(self):
         self._connector.startService()
+
+    def get_client_port(self):
+        return self._ws_client_port
 
     # from Mailbox
     def tx_claim(self, nameplate):
@@ -186,6 +198,9 @@ class RendezvousConnector:
             d.addCallback(lambda _: self._B.error(sce))
 
     # from our WSClient (the WebSocket protocol)
+    def ws_got_client_port(self, port):
+        self._ws_client_port = port
+
     def ws_open(self, proto):
         self._debug("R.connected")
         self._have_made_a_successful_connection = True
@@ -237,6 +252,7 @@ class RendezvousConnector:
         self._debug("R.lost")
         was_open = bool(self._ws)
         self._ws = None
+        self._ws_client_port = None
         # when Autobahn connects to a non-websocket server, it gets a
         # CLOSE_STATUS_CODE_ABNORMAL_CLOSE, and delivers onClose() without
         # ever calling onOpen first. This confuses our state machines, so
