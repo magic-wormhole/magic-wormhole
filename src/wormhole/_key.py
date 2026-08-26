@@ -198,10 +198,7 @@ class _SortedKey:
         assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
             key = self._sp.finish(msg2)
-        # TODO: make B.got_key() an eventual send, since it will fire the
-        # user/application-layer get_unverified_key() Deferred, and if that
-        # calls back into other wormhole APIs, bad things will happen
-        self._B.got_key(key)
+        self._B.got_key(key) # unverified
         phase = "version"
         data_key = derive_phase_key(key, self._side, phase)
         plaintext = dict_to_bytes(self._versions)

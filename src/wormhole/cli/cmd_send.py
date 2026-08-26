@@ -48,6 +48,7 @@ class Sender:
         self._fd_to_send = None
         self._transit_sender = None
         self._old_status = WormholeStatus()
+        self._VERIFY_TIMER = VERIFY_TIMER
         self._slow_verification_timer = None
 
     @inlineCallbacks
@@ -108,7 +109,7 @@ class Sender:
 
     def _start_on_slow_verification_timer(self):
         if not self._slow_verification_timer:
-            self._slow_verification_timer = self._reactor.callLater(VERIFY_TIMER, self._on_slow_verification)
+            self._slow_verification_timer = self._reactor.callLater(self._VERIFY_TIMER, self._on_slow_verification)
 
     def _cancel_on_slow_verification_timer(self):
         t = self._slow_verification_timer

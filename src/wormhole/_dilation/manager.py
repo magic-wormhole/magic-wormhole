@@ -1027,7 +1027,7 @@ class Dilator:
 
     # from Boss
 
-    def got_key(self, key):
+    def got_verified_key(self, key):
         # TODO: verify this happens before got_wormhole_versions, or add a gate
         # to tolerate either ordering
         purpose = b"dilation-v1"

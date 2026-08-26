@@ -599,32 +599,27 @@ async def _do_test(
                 receive_d = cmd_receive.receive(recv_cfg)
         else:
             KEY_TIMER = 0 if mode == "slow-sender-text" else 99999
-            rxw = []
-            with mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER):
+            VERIFY_TIMER = 0 if mode == "slow-text" else 99999
+            with (mock.patch.object(cmd_receive, "KEY_TIMER", KEY_TIMER),
+                  mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER),
+                  mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER)):
                 send_d = cmd_send.send(send_cfg)
-                receive_d = cmd_receive.receive(recv_cfg, _debug_stash_wormhole=rxw)
-                # we need to keep KEY_TIMER patched until the receiver
-                # gets far enough to start the timer, which happens after
-                # the code is set
-                if mode == "slow-sender-text":
-                    await rxw[0].get_unverified_key()
+                receive_d = cmd_receive.receive(recv_cfg)
+                # both Sender and Receiver sample KEY/VERIFY_TIMER at creation
 
         # The sender might fail, leaving the receiver hanging, or vice
         # versa. Make sure we don't wait on one side exclusively
-        VERIFY_TIMER = 0 if mode == "slow-text" else 99999
-        with mock.patch.object(cmd_receive, "VERIFY_TIMER", VERIFY_TIMER):
-            with mock.patch.object(cmd_send, "VERIFY_TIMER", VERIFY_TIMER):
-                if mock_accept or verify:
-                    with mock.patch.object(builtins, 'input',
-                            return_value='yes') as i:
-                        await gatherResults([send_d, receive_d], True)
-                    if verify:
-                        s = i.mock_calls[0][1][0]
-                        mo = re.search(r'^Verifier (\w+)\. ok\?', s)
-                        assert mo, s
-                        sender_verifier = mo.group(1)
-                else:
-                    await gatherResults([send_d, receive_d], True)
+        if mock_accept or verify:
+            with mock.patch.object(builtins, 'input',
+                    return_value='yes') as i:
+                await gatherResults([send_d, receive_d], True)
+            if verify:
+                s = i.mock_calls[0][1][0]
+                mo = re.search(r'^Verifier (\w+)\. ok\?', s)
+                assert mo, s
+                sender_verifier = mo.group(1)
+        else:
+            await gatherResults([send_d, receive_d], True)
 
         if fake_tor:
             expected_endpoints = [("127.0.0.1", mailbox.port._realPortNumber, False)]

@@ -51,7 +51,8 @@ class Observer:
     def __call__(self, event_dict):
         is_error = event_dict.get('isError')
         if is_error:
-            self.failures.append(event_dict["failure"])
+            f = event_dict.get("failure") or event_dict.get("message")
+            self.failures.append(f)
 
     def flush(self, klass):
         flushed = [
@@ -70,7 +71,7 @@ class Observer:
         assert [] == self.failures
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def observe_errors():
     observer = Observer()
     gc.collect()

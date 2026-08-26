@@ -57,7 +57,9 @@ class Receiver:
         self._tor = None
         self._transit_receiver = None
         self._old_status = WormholeStatus()
+        self._KEY_TIMER = KEY_TIMER
         self._slow_key_timer = None
+        self._VERIFY_TIMER = VERIFY_TIMER
         self._slow_verification_timer = None
 
     def _msg(self, *args, **kwargs):
@@ -128,7 +130,7 @@ class Receiver:
 
     def _start_on_slow_key_timer(self):
         if not self._slow_key_timer:
-            self._slow_key_timer = self._reactor.callLater(KEY_TIMER, self._on_slow_key)
+            self._slow_key_timer = self._reactor.callLater(self._KEY_TIMER, self._on_slow_key)
 
     def _cancel_on_slow_key_timer(self):
         if self._slow_key_timer and not self._slow_key_timer.called:
@@ -140,7 +142,7 @@ class Receiver:
 
     def _start_on_slow_verification_timer(self):
         if not self._slow_verification_timer:
-            self._slow_verification_timer = self._reactor.callLater(VERIFY_TIMER, self._on_slow_verification)
+            self._slow_verification_timer = self._reactor.callLater(self._VERIFY_TIMER, self._on_slow_verification)
 
     def _cancel_on_slow_verification_timer(self):
         t = self._slow_verification_timer

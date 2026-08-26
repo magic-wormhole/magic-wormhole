@@ -34,7 +34,6 @@ class Delegate:
     def __init__(self):
         self.welcome = None
         self.code = None
-        self.key = None
         self.verifier = None
         self.versions = None
         self.messages = []
@@ -45,9 +44,6 @@ class Delegate:
 
     def wormhole_got_code(self, code):
         self.code = code
-
-    def wormhole_got_unverified_key(self, key):
-        self.key = key
 
     def wormhole_got_verifier(self, verifier):
         self.verifier = verifier
@@ -61,6 +57,20 @@ class Delegate:
     def wormhole_closed(self, result):
         self.closed = result
 
+class DelegateWithOldMethod(Delegate):
+
+    def wormhole_got_unverified_key(self, key):
+        raise NotImplementedError("should not be called")
+
+
+@ensureDeferred
+async def test_delegated_old_method(reactor, mailbox, observe_errors):
+    dg = DelegateWithOldMethod()
+    wormhole.create(APPID, mailbox.url, reactor, delegate=dg)
+    flushed = observe_errors.flush(DeprecationWarning)
+    assert len(flushed) == 1
+    assert "wormhole_got_unverified_key has been removed" in str(flushed[0])
+
 
 @ensureDeferred
 async def test_delegated(reactor, mailbox):
@@ -73,7 +83,6 @@ async def test_delegated(reactor, mailbox):
     assert dg.code == "1-abc"
     w2 = wormhole.create(APPID, mailbox.url, reactor)
     w2.set_code(dg.code)
-    await poll_until(lambda: dg.key is not None)
     await poll_until(lambda: dg.verifier is not None)
     await poll_until(lambda: dg.versions is not None)
 
@@ -158,8 +167,9 @@ async def test_basic(reactor, mailbox):
     code = await w1.get_code()
     w2.set_code(code)
 
-    await w1.get_unverified_key()
-    await w2.get_unverified_key()
+    verifier1 = await w1.get_verifier()
+    verifier2 = await w2.get_verifier()
+    assert verifier1 == verifier2
 
     key1 = w1.derive_key("purpose", 16)
     assert len(key1) == 16
@@ -168,10 +178,6 @@ async def test_basic(reactor, mailbox):
         w1.derive_key(b"not unicode", 16)
     with pytest.raises(TypeError):
         w1.derive_key(12345, 16)
-
-    verifier1 = await w1.get_verifier()
-    verifier2 = await w2.get_verifier()
-    assert verifier1 == verifier2
 
     versions1 = await w1.get_versions()
     versions2 = await w2.get_versions()
@@ -368,8 +374,6 @@ async def test_closed(reactor, mailbox):
         await w1.get_code()
     assert f.value.args[0] == "happy"
     with pytest.raises(WormholeClosed):
-        await w1.get_unverified_key()
-    with pytest.raises(WormholeClosed):
         await w1.get_verifier()
     with pytest.raises(WormholeClosed):
         await w1.get_versions()
@@ -386,7 +390,6 @@ async def test_closed_idle(reactor):
     d_welcome = w1.get_welcome()
     assert not d_welcome.called
     d_code = w1.get_code()
-    d_key = w1.get_unverified_key()
     d_verifier = w1.get_verifier()
     d_versions = w1.get_versions()
     d_message = w1.get_message()
@@ -398,8 +401,6 @@ async def test_closed_idle(reactor):
         await d_welcome
     with pytest.raises(LonelyError):
         await d_code
-    with pytest.raises(LonelyError):
-        await d_key
     with pytest.raises(LonelyError):
         await d_verifier
     with pytest.raises(LonelyError):
@@ -424,14 +425,6 @@ async def test_wrong_password(reactor, mailbox):
     # message arrives.
     w1.send_message(b"should still work")
     w2.send_message(b"should still work")
-
-    key2 = await w2.get_unverified_key()  # should work
-    # w2 has just received w1.PAKE, and is about to send w2.VERSION
-    key1 = await w1.get_unverified_key()  # should work
-    # w1 has just received w2.PAKE, and is about to send w1.VERSION, and
-    # then will receive w2.VERSION. When it sees w2.VERSION, it will
-    # learn about the WrongPasswordError.
-    assert key1 != key2
 
     # API calls that wait (i.e. get) will errback. We collect all these
     # Deferreds early to exercise the wait-then-fail path
@@ -464,21 +457,16 @@ async def test_wrong_password(reactor, mailbox):
     with pytest.raises(WrongPasswordError):
         await d2_received
 
-    # and at this point, with the failure safely noticed by both sides,
-    # new get_unverified_key() calls should signal the failure, even
-    # before we close
+    # and at this point, with the failure safely noticed by both
+    # sides, new calls should immediately signal failure, even before
+    # we close
 
-    # any new calls in the error state should immediately fail
-    with pytest.raises(WrongPasswordError):
-        await w1.get_unverified_key()
     with pytest.raises(WrongPasswordError):
         await w1.get_verifier()
     with pytest.raises(WrongPasswordError):
         await w1.get_versions()
     with pytest.raises(WrongPasswordError):
         await w1.get_message()
-    with pytest.raises(WrongPasswordError):
-        await w2.get_unverified_key()
     with pytest.raises(WrongPasswordError):
         await w2.get_verifier()
     with pytest.raises(WrongPasswordError):
@@ -493,15 +481,11 @@ async def test_wrong_password(reactor, mailbox):
 
     # API calls should still get the error, not WormholeClosed
     with pytest.raises(WrongPasswordError):
-        await w1.get_unverified_key()
-    with pytest.raises(WrongPasswordError):
         await w1.get_verifier()
     with pytest.raises(WrongPasswordError):
         await w1.get_versions()
     with pytest.raises(WrongPasswordError):
         await w1.get_message()
-    with pytest.raises(WrongPasswordError):
-        await w2.get_unverified_key()
     with pytest.raises(WrongPasswordError):
         await w2.get_verifier()
     with pytest.raises(WrongPasswordError):
@@ -758,10 +742,8 @@ async def test_bad_dns(reactor):
     # that should have already received an error, when it tried to
     # resolve the bogus DNS name. All API calls will return an error.
 
-    e = await assertSCEFailure(eq, w.get_unverified_key(), ValueError)
-    assert isinstance(e, ValueError)
+    e = await assertSCEFailure(eq, w.get_code(), ValueError)
     assert str(e) == "invalid hostname: %%%.example.org"
-    await assertSCEFailure(eq, w.get_code(), ValueError)
     await assertSCEFailure(eq, w.get_verifier(), ValueError)
     await assertSCEFailure(eq, w.get_versions(), ValueError)
     await assertSCEFailure(eq, w.get_message(), ValueError)
@@ -783,12 +765,10 @@ async def test_no_connection(reactor):
     w = wormhole.create(APPID, f"ws://127.0.0.1:{port}/v1", reactor)
     # nothing is listening, but it will take a turn to discover that
     d1 = w.get_code()
-    d2 = w.get_unverified_key()
     d3 = w.get_verifier()
     d4 = w.get_versions()
     d5 = w.get_message()
     await assertSCE(d1, ConnectionRefusedError)
-    await assertSCE(d2, ConnectionRefusedError)
     await assertSCE(d3, ConnectionRefusedError)
     await assertSCE(d4, ConnectionRefusedError)
     await assertSCE(d5, ConnectionRefusedError)
@@ -802,12 +782,10 @@ async def test_all_deferreds(reactor):
     # nothing is listening, but it will take a turn to discover that
     w.allocate_code()
     d1 = w.get_code()
-    d2 = w.get_unverified_key()
     d3 = w.get_verifier()
     d4 = w.get_versions()
     d5 = w.get_message()
     await assertSCE(d1, ConnectionRefusedError)
-    await assertSCE(d2, ConnectionRefusedError)
     await assertSCE(d3, ConnectionRefusedError)
     await assertSCE(d4, ConnectionRefusedError)
     await assertSCE(d5, ConnectionRefusedError)

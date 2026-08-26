@@ -440,16 +440,6 @@ Most applications will only use ``code``, ``received``, and ``close``.
    after ``w.set_code(code)`` is called. This is most useful after
    calling ``w.allocate_code()``, to show the generated code to the user
    so they can transcribe it to their peer.
--  key (``yield w.get_unverified_key()`` /
-   ``dg.wormhole_got_unverified_key(key)``): fired (with the raw master
-   SPAKE2 key) when the key-exchange process has completed and a
-   purported shared key is established. At this point we do not know
-   that anyone else actually shares this key: the peer may have used the
-   wrong code, or may have disappeared altogether. To wait for proof
-   that the key is shared, wait for ``get_verifier`` instead. This event
-   is really only useful for detecting that the initiating peer has
-   disconnected after leaving the initial PAKE message, to display a
-   pacifying message to the user.
 -  verifier (``verifier = yield w.get_verifier()`` /
    ``dg.wormhole_got_verifier(verifier)``: fired when the key-exchange
    process has completed and a valid VERSION message has arrived. The
@@ -756,9 +746,6 @@ Full API list
 +----------------------+----------------------+----------------------+
 | .                    | d=w.get_code()       | dg.wor               |
 |                      |                      | mhole_got_code(code) |
-+----------------------+----------------------+----------------------+
-| .                    | d=w.                 | dg.wormhole_got      |
-|                      | get_unverified_key() | _unverified_key(key) |
 +----------------------+----------------------+----------------------+
 | .                    | d=w.get_verifier()   | dg.wormhole_go       |
 |                      |                      | t_verifier(verifier) |
