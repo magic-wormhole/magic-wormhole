@@ -583,7 +583,7 @@ implementation (in the ``wormhole._dilation`` package):
 Internally, the overall endeavour is managed by the ``Manager`` object.
 For each generation, a single ``Connection`` object is created; this
 object manages the race between potential hints-based peer connections.
-A ``DilatedConnctionProtocol`` instance manages the Noise session
+A ``DilatedConnectionProtocol`` instance manages the Noise session
 itself.
 
 It knows via its ``_role`` attribute whether it is on the Leader or
