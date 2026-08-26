@@ -150,7 +150,7 @@ We can use Wormhole (especially with Dilation) for all kinds of peer protocols.
 
 * `git-withme <https://sr.ht/~meejah/git-withme>`_: use Git directly between two peers, no GitLab or similar host required;
 * `Pear On <https://sr.ht/~meejah/pear-on/>`_: share a terminal with one or more peers (``tty-share`` without a central server);
-* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fowl <https://github.com/meejah/fowl>`_ (foward-over-wormhole, locally).
+* Port-forwarding: over the classic Transit protocol in the `rust implementation <https://github.com/magic-wormhole/magic-wormhole.rs/blob/e6ddc75c63ba030d5681cac04ca3e5a2262acc50/src/forwarding.rs#L1>`_ and over the Dilation protocol in Python as `fowl <https://github.com/meejah/fowl>`_ (forward-over-wormhole, locally).
 
 
 Integrations
