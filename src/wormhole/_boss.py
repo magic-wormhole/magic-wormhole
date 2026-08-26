@@ -384,6 +384,7 @@ class Boss:
 
     @m.output()
     def W_got_key(self, key):
+        # unverified. TODO: move to new event, after verification
         self._key = key
         self._W.got_key(key)
 

@@ -55,6 +55,11 @@ class WrongPasswordError(WormholeError):
     # or the data blob was corrupted, and that's why decrypt failed
     pass
 
+class CausalityError(WormholeError):
+    """
+    Key setup received a message encrypted with a key that could not have been
+    generated yet. Indicates peer misbehavior.
+    """
 
 class KeyFormatError(WormholeError):
     """
