@@ -241,6 +241,25 @@ def test_reversed_refactored():
     cores.finish()
     assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
+def test_ignored_phase_refactored(observe_errors):
+    """
+    same as test_ignored_phase but with wire_cores
+    """
+    cores = wire_cores("side_a", "side_b")
+
+    # give one side an unknown phase message, that it should ignore
+    cores.sided_cores["side_a"].got_message("side_b", "ignored_phase", b"ignored body")
+
+    cores.got_code(CODE)
+    cores.finish()
+
+    # make sure that the unknown phase was logged correctly
+    er = observe_errors.flush(errors._UnknownPhaseError)
+    assert er[0].getErrorMessage() == "received unknown phase 'ignored_phase'"
+    assert len(er) == 1
+
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
+
 
 def test_good_key():
     c = build_encryption_core()
