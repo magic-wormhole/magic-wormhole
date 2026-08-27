@@ -2,6 +2,7 @@ import json, binascii
 import pytest
 
 from spake2 import SPAKE2_Symmetric
+from collections import defaultdict
 
 from .. import _encryption, timing, errors
 from .._encryption import derive_key, derive_phase_key, encrypt_data, decrypt_data
@@ -12,8 +13,8 @@ from .common import Dummy
 
 CODE = "1-code"
 
-def build_encryption_core():
-    c = _encryption._EncryptionCore("appid", {}, "side1", timing.DebugTiming())
+def build_encryption_core(side="side1"):
+    c = _encryption._EncryptionCore("appid", {}, side, timing.DebugTiming())
     return c
 
 def compute_pake0(code):
@@ -87,6 +88,181 @@ def decrypt_message(key, phase, encrypted):
     data_key = derive_phase_key(key, "side1", phase)
     return decrypt_data(data_key, encrypted)
 
+
+def test_happy_path():
+    """
+    Hook two negotiation cores together. We know they succeed if
+    both output a Done symbol with matching shared secrets.
+    """
+    # property-based testing-wise, "the property" is "matching keys"
+    a = build_encryption_core("side_a")
+    b = build_encryption_core("side_b")
+
+    # perform first part for side A
+    a.got_code(CODE)  # want return-value to be msg1
+    # ...but we have to do this dance
+
+    def relay_add_message(core0, side0, core1):
+        """
+        Drains all messages from 'core0' and feeds any
+        M_AddMessage into 'core1' with the 'side0' string as the side.
+
+        returns any unprocessed messages
+        """
+        others = []
+        while (msg := core0.output()) is not None:
+            if isinstance(msg, M_AddMessage):
+                core1.got_message(side0, msg.phase, msg.body)
+            else:
+                others.append(msg)
+        return others
+
+    messages0 = relay_add_message(a, "side_a", b)
+    b.got_code(CODE)
+    messages1 = relay_add_message(b, "side_b", a)
+
+    # drain the rest of the messages from both cores, and find their
+    # resulting keys.
+    messages0.extend(relay_add_message(a, "side_a", b))
+    messages1.extend(relay_add_message(b, "side_b", a))
+
+    print(messages0)
+    print(messages1)
+    assert messages0 == messages1, "Keys do not match"
+
+
+# add a bit more generalization to the above, and create an N-sided
+# situation so we can test more situations
+
+#@define
+class WiredCores:
+    sided_cores: dict[str, _encryption._EncryptionCore]
+    transcript: dict[str, list[_encryption.CoreOutput]]
+
+    def __init__(self, side_strings):
+        self.sided_cores = {}
+        self.transcript = defaultdict(list)
+        for side in side_strings:
+            self.sided_cores[side] = build_encryption_core(side)
+
+    def drain_from(self, target_side):
+        """
+        Drains all output messages from `target_side` and, for any
+        M_AddMessage events, inputs that message to all OTHER sides.
+        """
+        core = self.sided_cores[target_side]
+        while (msg := core.output()) is not None:
+            if isinstance(msg, M_AddMessage):
+                # forward this message to ALL OTHER cores
+                for otherside, othercore in self.sided_cores.items():
+                    if target_side != otherside:
+                        othercore.got_message(target_side, msg.phase, msg.body)
+            else:
+                self.transcript[target_side].append(msg)
+
+    def get_transcript(self, side):
+        return self.transcript[side].copy()
+
+    def got_code(self, code, side=None):
+        for s, core in self.sided_cores.items():
+            if side is not None and s != side:
+                continue
+            core.got_code(code)
+
+    def finished_sides(self, is_terminal_message):
+        """
+        Return all sides that are finished
+        """
+        # todo: again, a 'definitely done' message like Done or Error would help here too
+        def contains_terminal(transcript):
+            """
+            A GotMessage(phase='version') is our termination marker
+            """
+            for msg in transcript:
+                if is_terminal_message(msg):
+                    return True
+            return False
+        return [
+            side
+            for side, transcript in self.transcript.items()
+            if contains_terminal(transcript)
+        ]
+
+
+    def finish(self):
+        """
+        Does 'drain_from' on each side in turn, until ALL sides have a B_GotMessage(phase='version')
+        """
+        all_sides = set(self.sided_cores.keys())
+
+        def is_final_message(msg):
+            return isinstance(msg, B_GotMessage) and msg.phase == "version"
+
+        while not set(self.finished_sides(is_final_message)) == all_sides:
+            for side in self.sided_cores.keys():
+                self.drain_from(side)
+
+
+def wire_cores(*args):
+    """
+    Builds multiple encryption cores, one for each SIDE string in the *args
+    """
+    return WiredCores(args)
+
+
+def test_happy_path_nicer():
+    """
+    same as test_happy_path but with wired_cores() usage
+    """
+    cores = wire_cores("side_a", "side_b")
+
+    cores.got_code(CODE)
+    cores.finish()
+
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
+
+def test_reversed_refactored():
+    """
+    same as test_reversed but without custom pake stuff?
+    """
+    cores = wire_cores("side_a", "side_b")
+
+    # side a is receiver, side b is sender .. sender already has
+    # entire code so it's set
+    cores.got_code(CODE, "side_b")
+    # ...the receiver claims just the Nameplate + Mailbox and thus
+    # gets side_b's PAKE _before_ it has the code set
+
+    # side_b will have an M_AddMessage("pake") and this will deliver it to side_a
+    cores.drain_from("side_b")
+    # ...so _now_ we pretend that side_a finally typed the whole code in
+    cores.got_code(CODE, "side_a")
+
+    cores.finish()
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
+
+def test_ignored_phase_refactored(observe_errors):
+    """
+    same as test_ignored_phase but with wire_cores
+    """
+    # todo: this probably wants to be a Hypothesis "state-machine"
+    # test that is allowed to inject any number of "ignored_*"
+    # messages in the machines at any point, with invariant: still
+    # succeeds, but also logs all "ignore_*" messages.
+    cores = wire_cores("side_a", "side_b")
+
+    # give one side an unknown phase message, that it should ignore
+    cores.sided_cores["side_a"].got_message("side_b", "ignored_phase", b"ignored body")
+
+    cores.got_code(CODE)
+    cores.finish()
+
+    # make sure that the unknown phase was logged correctly
+    er = observe_errors.flush(errors._UnknownPhaseError)
+    assert er[0].getErrorMessage() == "received unknown phase 'ignored_phase'"
+    assert len(er) == 1
+
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
 
 def test_good_key():
