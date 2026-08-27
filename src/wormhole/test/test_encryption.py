@@ -12,8 +12,8 @@ from .common import Dummy
 
 CODE = "1-code"
 
-def build_encryption_core():
-    c = _encryption._EncryptionCore("appid", {}, "side1", timing.DebugTiming())
+def build_encryption_core(side="side1"):
+    c = _encryption._EncryptionCore("appid", {}, side, timing.DebugTiming())
     return c
 
 def compute_pake0(code):
@@ -87,6 +87,47 @@ def decrypt_message(key, phase, encrypted):
     data_key = derive_phase_key(key, "side1", phase)
     return decrypt_data(data_key, encrypted)
 
+
+def test_happy_path():
+    """
+    Hook two negotiation cores together. We know they succeed if
+    both output a Done symbol with matching shared secrets.
+    """
+    # property-based testing-wise, "the property" is "matching keys"
+    a = build_encryption_core("side_a")
+    b = build_encryption_core("side_b")
+
+    # perform first part for side A
+    a.got_code(CODE)  # want return-value to be msg1
+    # ...but we have to do this dance
+
+    def relay_add_message(core0, side0, core1):
+        """
+        Drains all messages from 'core0' and feeds any
+        M_AddMessage into 'core1' with the 'side0' string as the side.
+
+        returns any unprocessed messages
+        """
+        others = []
+        while (msg := core0.output()) is not None:
+            if isinstance(msg, M_AddMessage):
+                core1.got_message(side0, msg.phase, msg.body)
+            else:
+                others.append(msg)
+        return others
+
+    messages0 = relay_add_message(a, "side_a", b)
+    b.got_code(CODE)
+    messages1 = relay_add_message(b, "side_b", a)
+
+    # drain the rest of the messages from both cores, and find their
+    # resulting keys.
+    messages0.extend(relay_add_message(a, "side_a", b))
+    messages1.extend(relay_add_message(b, "side_b", a))
+
+    print(messages0)
+    print(messages1)
+    assert messages0 == messages1, "Keys do not match"
 
 
 def test_good_key():
