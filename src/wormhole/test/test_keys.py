@@ -1,6 +1,6 @@
 from unittest import mock
 
-from .._key import derive_key, derive_phase_key, encrypt_data, decrypt_data
+from .._encryption import derive_key, derive_phase_key, encrypt_data, decrypt_data
 from ..util import bytes_to_hexstr, hexstr_to_bytes
 import pytest
 

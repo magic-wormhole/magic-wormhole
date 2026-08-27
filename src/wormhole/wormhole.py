@@ -10,7 +10,7 @@ from ._boss import Boss
 from ._dilation.manager import DILATION_VERSIONS
 from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
-from ._key import derive_key
+from ._encryption import derive_key
 from .errors import NoKeyError, WormholeClosed
 from .eventual import EventualQueue
 from .journal import ImmediateJournal
@@ -93,7 +93,7 @@ class _DelegatedWormhole:
 
     def debug_set_trace(self,
                         client_name,
-                        which="B N M S O K SK R RC L C T",
+                        which="B N M E RC L C T",
                         file=sys.stderr):
         self._boss._set_trace(client_name, which, file)
 
@@ -213,7 +213,7 @@ class _DeferredWormhole:
 
     def debug_set_trace(self,
                         client_name,
-                        which="B N M S O K SK R RC L A I C T",
+                        which="B N M E RC L A I C T",
                         file=sys.stderr):
         self._boss._set_trace(client_name, which, file)
 
@@ -307,7 +307,7 @@ def create(
 #     assert serialized["serialized_wormhole_version"] == 1
 #     timing = timing or DebugTiming()
 #     w = _DelegatedWormhole(delegate)
-#     # now unpack state machines, including the SPAKE2 in Key
+#     # now unpack state machines, including the SPAKE2 in Encryption
 #     b = Boss.from_serialized(w, serialized["boss"], reactor, journal, timing)
 #     w._set_boss(b)
 #     b.start() # ??

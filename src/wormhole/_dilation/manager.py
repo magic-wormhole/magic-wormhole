@@ -6,10 +6,10 @@ from automat import MethodicalMachine
 from zope.interface import implementer
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.python import log, failure
-from .._interfaces import IDilator, IDilationManager, ISend, ITerminator
+from .._interfaces import IDilator, IDilationManager, IEncryption, ITerminator
 from ..util import dict_to_bytes, bytes_to_dict, bytes_to_hexstr, provides
 from ..observer import OneShotObserver
-from .._key import derive_key
+from .._encryption import derive_key
 from .subchannel import (_WormholeAddress,
                          SubchannelConnectorEndpoint,
                          SubchannelDemultiplex,
@@ -306,7 +306,7 @@ class TrafficTimer:
 @attrs(eq=False)
 @implementer(IDilationManager)
 class Manager:
-    _S = attrib(validator=provides(ISend), repr=False)
+    _E = attrib(validator=provides(IEncryption), repr=False)
     _my_side = attrib(validator=instance_of(str))
     _transit_relay_location = attrib(validator=optional(instance_of(str)))
     _reactor = attrib(repr=False)
@@ -483,7 +483,7 @@ class Manager:
     def send_dilation_generation(self, **fields):
         dilation_generation = self._next_dilation_generation
         self._next_dilation_generation += 1
-        self._S.send("dilate-%d" % dilation_generation, dict_to_bytes(fields))
+        self._E.send("dilate-%d" % dilation_generation, dict_to_bytes(fields))
 
     def send_hints(self, hints):  # from Connector
         self.send_dilation_generation(type="connection-hints", hints=hints)
@@ -967,8 +967,8 @@ class Dilator:
         self._pending_inbound_dilate_messages = deque()
         self._did_dilate = Once(CanOnlyDilateOnceError)
 
-    def wire(self, sender, terminator):
-        self._S = ISend(sender)
+    def wire(self, encryption, terminator):
+        self._E = IEncryption(encryption)
         self._T = ITerminator(terminator)
 
     # this is the primary entry point, called when w.dilate() is
@@ -988,7 +988,7 @@ class Dilator:
             # VERSIONS message arrives, and also when the dilation_key is set
             my_dilation_side = make_side()
             m = Manager(
-                self._S,
+                self._E,
                 my_dilation_side,
                 transit_relay_location,
                 self._reactor,

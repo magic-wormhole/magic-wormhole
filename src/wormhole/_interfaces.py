@@ -110,19 +110,7 @@ class IMailbox(Interface):
     pass
 
 
-class ISend(Interface):
-    pass
-
-
-class IOrder(Interface):
-    pass
-
-
-class IKey(Interface):
-    pass
-
-
-class IReceive(Interface):
+class IEncryption(Interface):
     pass
 
 

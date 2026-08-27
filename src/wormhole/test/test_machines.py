@@ -1,23 +1,18 @@
-import json
-
-from nacl.secret import SecretBox
-from spake2 import SPAKE2_Symmetric
 from zope.interface import directlyProvides, implementer
 
 from unittest import mock
 
-from .. import (__version__, _allocator, _boss, _code, _input, _key, _lister,
-                _mailbox, _nameplate, _order, _receive, _rendezvous, _send,
+from .. import (__version__, _allocator, _boss, _code, _input, _lister,
+                _mailbox, _nameplate, _rendezvous,
                 _terminator, errors, timing)
-from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IKey,
-                           ILister, IMailbox, INameplate, IOrder, IReceive,
-                           IRendezvousConnector, ISend, ITerminator, IWordlist,
+from .._interfaces import (IAllocator, IBoss, ICode, IDilator, IInput, IEncryption,
+                           ILister, IMailbox, INameplate,
+                           IRendezvousConnector, ITerminator, IWordlist,
                            ITorManager)
-from .._key import derive_key, derive_phase_key, encrypt_data
 from ..journal import ImmediateJournal
 from .._status import WormholeStatus
-from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    hexstr_to_bytes, to_bytes)
+from ..util import bytes_to_dict
+from .common import Dummy
 import pytest
 import pytest_twisted
 
@@ -32,315 +27,29 @@ class FakeWordList:
         return self._completions
 
 
-class Dummy:
-    def __init__(self, name, events, iface, *meths, **kw):
-        self.name = name
-        self.events = events
-        if iface:
-            directlyProvides(self, iface)
-        for meth in meths:
-            self.mock(meth)
-        self.retval = None
-        for k, v in kw.items():
-            setattr(self, k, v)
-
-    def mock(self, meth):
-        def log(*args):
-            self.events.append((f"{self.name}.{meth}", ) + args)
-            return self.retval
-
-        setattr(self, meth, log)
-
-
-def build_send():
-    events = []
-    s = _send.Send("side", timing.DebugTiming())
-    m = Dummy("m", events, IMailbox, "add_message")
-    s.wire(m)
-    return s, m, events
-
-
-def test_send_first():
-    s, m, events = build_send()
-    s.send("phase1", b"msg")
-    assert events == []
-    key = b"\x00" * 32
-    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
-        s.got_verified_key(key)
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    # print(bytes_to_hexstr(events[0][2]))
-    enc1 = hexstr_to_bytes(
-        "000000000000000000000000000000000000000000000000"
-         "22f1a46c3c3496423c394621a2a5a8cf275b08")
-    assert events == [("m.add_message", "phase1", enc1)]
-    events[:] = []
-
-    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
-        s.send("phase2", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc2 = hexstr_to_bytes(
-        "0202020202020202020202020202020202020202"
-         "020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
-    assert events == [("m.add_message", "phase2", enc2)]
-
-def test_key_first():
-    s, m, events = build_send()
-    key = b"\x00" * 32
-    s.got_verified_key(key)
-    assert events == []
-
-    nonce1 = b"\x00" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce1]) as r:
-        s.send("phase1", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc1 = hexstr_to_bytes("00000000000000000000000000000000000000000000"
-                            "000022f1a46c3c3496423c394621a2a5a8cf275b08")
-    assert events == [("m.add_message", "phase1", enc1)]
-    events[:] = []
-
-    nonce2 = b"\x02" * SecretBox.NONCE_SIZE
-    with mock.patch("nacl.utils.random", side_effect=[nonce2]) as r:
-        s.send("phase2", b"msg")
-    assert r.mock_calls == [mock.call(SecretBox.NONCE_SIZE)]
-    enc2 = hexstr_to_bytes(
-        "0202020202020202020202020202020202020"
-         "202020202026660337c3eac6513c0dac9818b62ef16d9cd7e")
-    assert events == [("m.add_message", "phase2", enc2)]
-
-
-def build_order():
-    events = []
-    o = _order.Order("side", timing.DebugTiming())
-    k = Dummy("k", events, IKey, "got_pake")
-    r = Dummy("r", events, IReceive, "got_message")
-    o.wire(k, r)
-    return o, k, r, events
-
-
-def test_in_order():
-    o, k, r, events = build_order()
-    o.got_message("side", "pake", b"body")
-    assert events == [("k.got_pake", b"body")]  # right away
-    o.got_message("side", "version", b"body")
-    o.got_message("side", "1", b"body")
-    assert events == [
-        ("k.got_pake", b"body"),
-        ("r.got_message", "side", "version", b"body"),
-        ("r.got_message", "side", "1", b"body"),
-    ]
-
-def test_out_of_order():
-    o, k, r, events = build_order()
-    o.got_message("side", "version", b"body")
-    assert events == []  # nothing yet
-    o.got_message("side", "1", b"body")
-    assert events == []  # nothing yet
-    o.got_message("side", "pake", b"body")
-    # got_pake is delivered first
-    assert events == [
-        ("k.got_pake", b"body"),
-        ("r.got_message", "side", "version", b"body"),
-        ("r.got_message", "side", "1", b"body"),
-    ]
-
-
-def build_receive():
-    events = []
-    r = _receive.Receive("side", timing.DebugTiming())
-    b = Dummy("b", events, IBoss, "happy", "scared", "got_verifier",
-              "got_message")
-    s = Dummy("s", events, ISend, "got_verified_key")
-    r.wire(b, s)
-    return r, b, s, events
-
-
-def test_good_receive():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, "side", "phase1")
-    data1 = b"data1"
-    good_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "phase2")
-    data2 = b"data2"
-    good_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.got_message", "phase2", data2),
-    ]
-
-def test_early_bad():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    phase1_key = derive_phase_key(key, "side", "bad")
-    data1 = b"data1"
-    bad_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", bad_body)
-    assert events == [
-        ("b.scared", ),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "phase2")
-    data2 = b"data2"
-    good_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", good_body)
-    assert events == [
-        ("b.scared", ),
-    ]
-
-def test_late_bad():
-    r, b, s, events = build_receive()
-    key = b"key"
-    r.got_key(key)
-    assert events == []
-    verifier = derive_key(key, b"wormhole:verifier")
-    phase1_key = derive_phase_key(key, "side", "phase1")
-    data1 = b"data1"
-    good_body = encrypt_data(phase1_key, data1)
-    r.got_message("side", "phase1", good_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-    ]
-
-    phase2_key = derive_phase_key(key, "side", "bad")
-    data2 = b"data2"
-    bad_body = encrypt_data(phase2_key, data2)
-    r.got_message("side", "phase2", bad_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.scared", ),
-    ]
-    r.got_message("side", "phase1", good_body)
-    r.got_message("side", "phase2", bad_body)
-    assert events == [
-        ("s.got_verified_key", key),
-        ("b.happy", ),
-        ("b.got_verifier", verifier),
-        ("b.got_message", "phase1", data1),
-        ("b.scared", ),
-    ]
-
-
-def build_key():
-    events = []
-    k = _key.Key("appid", {}, "side", timing.DebugTiming())
-    b = Dummy("b", events, IBoss, "scared", "got_key")
-    m = Dummy("m", events, IMailbox, "add_message")
-    r = Dummy("r", events, IReceive, "got_key")
-    k.wire(b, m, r)
-    return k, b, m, r, events
-
-
-def test_good_key():
-    k, b, m, r, events = build_key()
-    code = "1-foo"
-    k.got_code(code)
-    assert len(events) == 1
-    assert events[0][:2] == ("m.add_message", "pake")
-    msg1_json = events[0][2].decode("utf-8")
-    events[:] = []
-    msg1 = json.loads(msg1_json)
-    msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
-    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
-    msg2_bytes = sp.start()
-    key2 = sp.finish(msg1_bytes)
-    msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    k.got_pake(msg2)
-    assert len(events) == 3, events
-    assert events[0] == ("b.got_key", key2)
-    assert events[1][:2] == ("m.add_message", "version")
-    assert events[2] == ("r.got_key", key2)
-
-def test_bad():
-    k, b, m, r, events = build_key()
-    code = "1-foo"
-    k.got_code(code)
-    assert len(events) == 1
-    assert events[0][:2] == ("m.add_message", "pake")
-    pake_1_json = events[0][2].decode("utf-8")
-    pake_1 = json.loads(pake_1_json)
-    assert list(pake_1.keys()) == \
-                     ["pake_v1"]  # value is PAKE stuff
-    events[:] = []
-    bad_pake_d = {"not_pake_v1": "stuff"}
-    k.got_pake(dict_to_bytes(bad_pake_d))
-    assert events == [("b.scared", )]
-
-def test_reversed():
-    # A receiver using input_code() will choose the nameplate first, then
-    # the rest of the code. Once the nameplate is selected, we'll claim
-    # it and open the mailbox, which will cause the senders PAKE to
-    # arrive before the code has been set. Key() is supposed to stash the
-    # PAKE message until the code is set (allowing the PAKE computation
-    # to finish). This test exercises that PAKE-then-code sequence.
-    k, b, m, r, events = build_key()
-    code = "1-foo"
-
-    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
-    msg2_bytes = sp.start()
-    msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
-    k.got_pake(msg2)
-    assert len(events) == 0
-
-    k.got_code(code)
-    assert len(events) == 4
-    assert events[0][:2] == ("m.add_message", "pake")
-    msg1_json = events[0][2].decode("utf-8")
-    msg1 = json.loads(msg1_json)
-    msg1_bytes = hexstr_to_bytes(msg1["pake_v1"])
-    key2 = sp.finish(msg1_bytes)
-    assert events[1] == ("b.got_key", key2)
-    assert events[2][:2] == ("m.add_message", "version")
-    assert events[3] == ("r.got_key", key2)
-
-
 def build_code():
     events = []
     c = _code.Code(timing.DebugTiming())
     b = Dummy("b", events, IBoss, "got_code")
     a = Dummy("a", events, IAllocator, "allocate")
     n = Dummy("n", events, INameplate, "set_nameplate")
-    k = Dummy("k", events, IKey, "got_code")
+    e = Dummy("e", events, IEncryption, "got_code")
     i = Dummy("i", events, IInput, "start")
-    c.wire(b, a, n, k, i)
-    return c, b, a, n, k, i, events
+    c.wire(b, a, n, e, i)
+    return c, b, a, n, e, i, events
 
 
 def test_set_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     c.set_code("1-code")
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_set_code_invalid():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     with pytest.raises(errors.KeyFormatError) as e:
         c.set_code("1-code ")
     assert str(e.value) == "Code '1-code ' contains spaces."
@@ -357,11 +66,11 @@ def test_set_code_invalid():
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_allocate_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     wl = FakeWordList()
     c.allocate_code(2, wl)
     assert events == [("a.allocate", 2, wl)]
@@ -370,11 +79,11 @@ def test_allocate_code():
     assert events == [
         ("n.set_nameplate", "1"),
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 def test_input_code():
-    c, b, a, n, k, i, events = build_code()
+    c, b, a, n, e, i, events = build_code()
     c.input_code()
     assert events == [("i.start", )]
     events[:] = []
@@ -386,7 +95,7 @@ def test_input_code():
     c.finished_input("1-code")
     assert events == [
         ("b.got_code", "1-code"),
-        ("k.got_code", "1-code"),
+        ("e.got_code", "1-code"),
     ]
 
 
@@ -1053,10 +762,10 @@ def build_mailbox():
     n = Dummy("n", events, INameplate, "release")
     rc = Dummy("rc", events, IRendezvousConnector, "tx_add", "tx_open",
                "tx_close")
-    o = Dummy("o", events, IOrder, "got_message")
+    e = Dummy("e", events, IEncryption, "got_message")
     t = Dummy("t", events, ITerminator, "mailbox_done")
-    m.wire(b, n, rc, o, t)
-    return m, b, n, rc, o, t, events
+    m.wire(b, n, rc, e, t)
+    return m, b, n, rc, e, t, events
 
     # TODO: test moods
 
@@ -1068,7 +777,7 @@ def assert_events(events, initial_events, tx_add_events):
 
 
 def test_connect_first_mailbox():  # connect before got_mailbox
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1119,7 +828,7 @@ def test_connect_first_mailbox():  # connect before got_mailbox
     m.rx_message("side2", "phase1", b"msg1them")  # new message from peer
     assert events == [
         ("n.release", ),
-        ("o.got_message", "side2", "phase1", b"msg1them"),
+        ("e.got_message", "side2", "phase1", b"msg1them"),
     ]
     events[:] = []
 
@@ -1161,7 +870,7 @@ def test_connect_first_mailbox():  # connect before got_mailbox
     assert events == []
 
 def test_mailbox_first():  # got_mailbox before connect
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.add_message("phase1", b"msg1")
     assert events == []
 
@@ -1177,7 +886,7 @@ def test_mailbox_first():  # got_mailbox before connect
     })
 
 def test_mailbox_crowded():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.connected()
     m.got_mailbox("mbox1")
     assert events == [("rc.tx_open", "mbox1")]
@@ -1185,7 +894,7 @@ def test_mailbox_crowded():
     m.rx_message("side2", "phase1", b"msg1")  # new message from peer
     assert events == [
         ("n.release", ),
-        ("o.got_message", "side2", "phase1", b"msg1"),
+        ("e.got_message", "side2", "phase1", b"msg1"),
     ]
     events.clear()
     # message from a third peer should break the connection
@@ -1193,25 +902,25 @@ def test_mailbox_crowded():
     assert events == [("b.crowded", )]
 
 def test_close_while_idle():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 
 def test_close_while_idle_but_connected():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.connected()
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_mailbox_disconnected():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.close("happy")
     assert events == [("t.mailbox_done", )]
 
 def test_close_while_reconnecting():
-    m, b, n, rc, o, t, events = build_mailbox()
+    m, b, n, rc, e, t, events = build_mailbox()
     m.got_mailbox("mbox1")
     m.connected()
     assert events == [("rc.tx_open", "mbox1")]
@@ -1337,7 +1046,7 @@ def build_boss():
                  tor_manager,
                  timing.DebugTiming())
     b._T = Dummy("t", events, ITerminator, "close")
-    b._S = Dummy("s", events, ISend, "send")
+    b._E = Dummy("e", events, IEncryption, "send")
     b._RC = Dummy("rc", events, IRendezvousConnector, "start")
     b._C = Dummy("c", events, ICode, "allocate_code", "input_code",
                  "set_code")
@@ -1378,7 +1087,7 @@ def test_boss_basic():
     events[:] = []
 
     b.send(b"msg2")
-    assert events == [("s.send", "0", b"msg2")]
+    assert events == [("e.send", "0", b"msg2")]
     events[:] = []
 
     b.close()

@@ -6,7 +6,7 @@ import pytest
 import pytest_twisted
 
 from ...eventual import EventualQueue
-from ..._interfaces import ISend, ITerminator, ISubChannel
+from ..._interfaces import IEncryption, ITerminator, ISubChannel
 from ...util import dict_to_bytes
 from ..._dilation import roles
 from ..._dilation.manager import (Dilator, Manager, make_side,
@@ -34,12 +34,12 @@ def make_dilator():
         return term
     h.coop = Cooperator(terminationPredicateFactory=term_factory,
                         scheduler=h.eq.eventually)
-    h.send = mock.Mock()
-    alsoProvides(h.send, ISend)
+    h.encryption = mock.Mock()
+    alsoProvides(h.encryption, IEncryption)
     dil = Dilator(h.reactor, h.eq, h.coop, DILATION_VERSIONS)
     h.terminator = mock.Mock()
     alsoProvides(h.terminator, ITerminator)
-    dil.wire(h.send, h.terminator)
+    dil.wire(h.encryption, h.terminator)
     return dil, h
 
 
@@ -61,7 +61,7 @@ def test_dilate_first():
         with pytest.raises(CanOnlyDilateOnceError):
             dil.dilate()
     assert eps1 is eps
-    assert mm.mock_calls == [mock.call(h.send, side, None,
+    assert mm.mock_calls == [mock.call(h.encryption, side, None,
                                        h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
                                        False, None, initial_mailbox_status=None)]
 
@@ -176,7 +176,7 @@ def test_transit_relay():
          mock.patch("wormhole._dilation.manager.make_side",
                     return_value=side):
         dil.dilate(transit_relay_location)
-    assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
+    assert mm.mock_calls == [mock.call(h.encryption, side, transit_relay_location,
                                        h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
                                        False, None, initial_mailbox_status=None)]
 
@@ -223,8 +223,8 @@ class ReactorFake:
 
 def make_manager(leader=True):
     h = Holder()
-    h.send = mock.Mock()
-    alsoProvides(h.send, ISend)
+    h.encryption = mock.Mock()
+    alsoProvides(h.encryption, IEncryption)
     if leader:
         side = LEADER
     else:
@@ -254,7 +254,7 @@ def make_manager(leader=True):
          mock.patch("wormhole._dilation.subchannel.SubChannel", h.SubChannel), \
          mock.patch("wormhole._dilation.manager.SubchannelListenerEndpoint",
                     return_value=h.listen_ep):
-        m = Manager(h.send, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
+        m = Manager(h.encryption, side, h.relay, h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, {})
     h.hostaddr = m._host_addr
     m.got_dilation_key(h.key)
     return m, h
@@ -272,7 +272,7 @@ def test_create():
 
 def test_leader():
     m, h = make_manager(leader=True)
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
     assert h.Inbound.mock_calls == [mock.call(m, h.hostaddr)]
     assert h.Outbound.mock_calls == [mock.call(m, h.coop)]
     assert h.SubChannel.mock_calls == []
@@ -280,22 +280,22 @@ def test_leader():
     clear_mock_calls(h.inbound)
 
     m.got_wormhole_versions({"can-dilate": ["ged"]})
-    assert h.send.mock_calls == [
+    assert h.encryption.mock_calls == [
         mock.call.send("dilate-0",
                        dict_to_bytes({"type": "please", "side": LEADER, "use-version": "ged"}))
         ]
-    clear_mock_calls(h.send)
+    clear_mock_calls(h.encryption)
 
     # ignore early hints
     m.rx_HINTS({})
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
 
     c = mock.Mock()
     connector = mock.Mock(return_value=c)
     with mock.patch("wormhole._dilation.manager.Connector", connector):
         # receiving this PLEASE triggers creation of the Connector
         m.rx_PLEASE({"side": FOLLOWER})
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
     assert connector.mock_calls == [
         mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
                   False,  # no_listen
@@ -316,12 +316,12 @@ def test_leader():
 
     # and we send out any (listening) hints from our Connector
     m.send_hints([1, 2])
-    assert h.send.mock_calls == [
+    assert h.encryption.mock_calls == [
         mock.call.send("dilate-1",
                        dict_to_bytes({"type": "connection-hints",
                                       "hints": [1, 2]}))
         ]
-    clear_mock_calls(h.send)
+    clear_mock_calls(h.encryption)
 
     # the first successful connection fires when_first_connected(), so
     # the endpoints can activate
@@ -426,7 +426,7 @@ def test_leader():
     # that we're reconnecting.
 
     m.connector_connection_lost()
-    assert h.send.mock_calls == [
+    assert h.encryption.mock_calls == [
         mock.call.send("dilate-2",
                        dict_to_bytes({"type": "reconnect"}))
         ]
@@ -436,7 +436,7 @@ def test_leader():
     assert h.outbound.mock_calls == [
         mock.call.stop_using_connection()
         ]
-    clear_mock_calls(h.send, h.inbound, h.outbound)
+    clear_mock_calls(h.encryption, h.inbound, h.outbound)
 
     # leader does nothing (stays in FLUSHING) until the follower acks by
     # sending RECONNECTING
@@ -452,7 +452,7 @@ def test_leader():
     with mock.patch("wormhole._dilation.manager.Connector", connector2):
         # this triggers creation of a new Connector
         m.rx_RECONNECTING()
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
     assert connector2.mock_calls == [
         mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
                   False,  # no_listen
@@ -480,11 +480,11 @@ def test_follower():
     m, h = make_manager(leader=False)
 
     m.got_wormhole_versions({"can-dilate": ["ged"]})
-    assert h.send.mock_calls == [
+    assert h.encryption.mock_calls == [
         mock.call.send("dilate-0",
                        dict_to_bytes({"type": "please", "side": FOLLOWER, "use-version": "ged"}))
         ]
-    clear_mock_calls(h.send)
+    clear_mock_calls(h.encryption)
     clear_mock_calls(h.inbound)
 
     c = mock.Mock()
@@ -492,7 +492,7 @@ def test_follower():
     with mock.patch("wormhole._dilation.manager.Connector", connector):
         # receiving this PLEASE triggers creation of the Connector
         m.rx_PLEASE({"side": LEADER})
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
     assert connector.mock_calls == [
         mock.call(b"\x00" * 32, None, m, h.reactor, h.eq,
                   False,  # no_listen
@@ -513,21 +513,21 @@ def test_follower():
     # now lose the connection. As the follower, we don't notify the
     # leader, we just wait for them to notice
     m.connector_connection_lost()
-    assert h.send.mock_calls == []
+    assert h.encryption.mock_calls == []
     assert h.inbound.mock_calls == [
         mock.call.stop_using_connection()
         ]
     assert h.outbound.mock_calls == [
         mock.call.stop_using_connection()
         ]
-    clear_mock_calls(h.send, h.inbound, h.outbound)
+    clear_mock_calls(h.encryption, h.inbound, h.outbound)
 
     # now we get a RECONNECT: we should send RECONNECTING
     c2 = mock.Mock()
     connector2 = mock.Mock(return_value=c2)
     with mock.patch("wormhole._dilation.manager.Connector", connector2):
         m.rx_RECONNECT()
-    assert h.send.mock_calls == [
+    assert h.encryption.mock_calls == [
         mock.call.send("dilate-1",
                        dict_to_bytes({"type": "reconnecting"}))
         ]
@@ -586,7 +586,7 @@ def test_mirror():
     m, h = make_manager(leader=True)
 
     m.start()
-    clear_mock_calls(h.send)
+    clear_mock_calls(h.encryption)
     with pytest.raises(ValueError) as f:
         m.rx_PLEASE({"side": LEADER})
     assert str(f.value) == "their side shouldn't be equal: reflection?"

@@ -11,14 +11,11 @@ from ._allocator import Allocator
 from ._code import Code, validate_code
 from ._dilation.manager import Dilator
 from ._input import Input
-from ._key import Key
+from ._encryption import Encryption
 from ._lister import Lister
 from ._mailbox import Mailbox
 from ._nameplate import Nameplate
-from ._order import Order
-from ._receive import Receive
 from ._rendezvous import RendezvousConnector
-from ._send import Send
 from ._status import WormholeStatus, AllegedSharedKey, ConfirmedKey, Closed
 from ._terminator import Terminator
 from ._wordlist import PGPWordList
@@ -62,10 +59,7 @@ class Boss:
     def _build_workers(self):
         self._N = Nameplate(self._evolve_wormhole_status)
         self._M = Mailbox(self._side)
-        self._S = Send(self._side, self._timing)
-        self._O = Order(self._side, self._timing)
-        self._K = Key(self._appid, self._versions, self._side, self._timing)
-        self._R = Receive(self._side, self._timing)
+        self._E = Encryption(self._appid, self._versions, self._side, self._timing)
         self._RC = RendezvousConnector(self._url, self._appid, self._side,
                                        self._reactor, self._journal, self._tor,
                                        self._timing, self._client_version, self._evolve_wormhole_status)
@@ -82,18 +76,15 @@ class Boss:
         )
 
         self._N.wire(self._M, self._I, self._RC, self._T)
-        self._M.wire(self, self._N, self._RC, self._O, self._T)
-        self._S.wire(self._M)
-        self._O.wire(self._K, self._R)
-        self._K.wire(self, self._M, self._R)
-        self._R.wire(self, self._S)
+        self._M.wire(self, self._N, self._RC, self._E, self._T)
+        self._E.wire(self, self._M)
         self._RC.wire(self, self._N, self._M, self._A, self._L, self._T)
         self._L.wire(self._RC, self._I)
         self._A.wire(self._RC, self._C)
         self._I.wire(self._C, self._L)
-        self._C.wire(self, self._A, self._N, self._K, self._I)
+        self._C.wire(self, self._A, self._N, self._E, self._I)
         self._T.wire(self, self._RC, self._N, self._M, self._D)
-        self._D.wire(self._S, self._T)
+        self._D.wire(self._E, self._T)
 
     def _init_other_state(self):
         self._did_start_code = False
@@ -149,11 +140,7 @@ class Boss:
             "B": self,
             "N": self._N,
             "M": self._M,
-            "S": self._S,
-            "O": self._O,
-            "K": self._K,
-            "SK": self._K._SK,
-            "R": self._R,
+            "E": self._E,
             "RC": self._RC,
             "L": self._L,
             "A": self._A,
@@ -288,8 +275,8 @@ class Boss:
     def got_code(self, code):
         pass
 
-    # Key sends (got_key, scared)
-    # Receive sends (got_message, happy, got_verifier, scared)
+    # Encryption sends (got_key, scared)
+    # Encryption sends (got_message, happy, got_verifier, scared)
     # Mailbox sends (crowded)
     @m.input()
     def happy(self):
@@ -358,11 +345,11 @@ class Boss:
         self._W.got_versions(app_versions)
 
     @m.output()
-    def S_send(self, plaintext):
+    def E_send(self, plaintext):
         assert isinstance(plaintext, bytes), type(plaintext)
         phase = self._next_tx_phase
         self._next_tx_phase += 1
-        self._S.send("%d" % phase, plaintext)
+        self._E.send("%d" % phase, plaintext)
 
     @m.output()
     def close_unwelcome(self, welcome_error):
@@ -397,6 +384,7 @@ class Boss:
 
     @m.output()
     def W_got_key(self, key):
+        # unverified. TODO: move to new event, after verification
         self._key = key
         self._W.got_key(key)
 
@@ -457,7 +445,7 @@ class Boss:
         self._W.closed(self._result)
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
-    S0_empty.upon(send, enter=S0_empty, outputs=[S_send])
+    S0_empty.upon(send, enter=S0_empty, outputs=[E_send])
     S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
@@ -468,7 +456,7 @@ class Boss:
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
-    S1_lonely.upon(send, enter=S1_lonely, outputs=[S_send])
+    S1_lonely.upon(send, enter=S1_lonely, outputs=[E_send])
     S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
@@ -481,7 +469,7 @@ class Boss:
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
-    S2_happy.upon(send, enter=S2_happy, outputs=[S_send])
+    S2_happy.upon(send, enter=S2_happy, outputs=[E_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
 
