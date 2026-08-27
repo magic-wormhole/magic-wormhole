@@ -28,9 +28,9 @@ class Done:
     key: bytes
     version_data: bytes
 
-NegotiationOutput = Send | HaveAllegedKey | Done
+KeySetupOutput = Send | HaveAllegedKey | Done
 
-class INegotiation(Interface):
+class IKeySetup(Interface):
     def start(code: str) -> dict:
         """Set the wormhole code and generate the PAKE0 components.
 
@@ -60,10 +60,10 @@ class INegotiation(Interface):
         CausalityError, all of which are terminal and sticky.
         """
 
-    def output() -> NegotiationOutput | None:
+    def output() -> KeySetupOutput | None:
         """Pull the next output event, if any.
 
-        Returns an "action tuple", which describes something the Negotiation
+        Returns an "action tuple", which describes something the KeySetup
         machine wants to do next. The caller should perform the action and
         then call output() again, in a loop, until output() returns None. The
         valid actions are:

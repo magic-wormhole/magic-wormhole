@@ -5,16 +5,16 @@ from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, to_bytes, derive_phase_key,
                     encrypt_data, decrypt_data, CryptoError)
 from ..errors import CrowdedError, WrongPasswordError, CausalityError
-from .inegotiation import INegotiation, Send, HaveAllegedKey, Done, NegotiationOutput
+from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupOutput
 
 # This is the retroactively-named "v0" key-setup protocol: the initial
 # one used by all versions of magic-wormhole, at least through the
-# 0.24.0 release. We implement here as an INegotiation so that future
+# 0.24.0 release. We implement here as an IKeySetup so that future
 # versions of the client can fall back to it when their peer can't do
 # something better.
 
-@implementer(INegotiation)
-class Negotiate_V0:
+@implementer(IKeySetup)
+class KeySetup_V0:
     def __init__(self, side, appid, app_versions, timing):
         self._side = side
         self._appid = appid
@@ -31,7 +31,7 @@ class Negotiate_V0:
         self._their_side = None
         self._inbound_messages = dict()
         self._wanted = None
-        self._outputs: list[NegotiationOutput] = []
+        self._outputs: list[KeySetupOutput] = []
 
     def start(self, code):
         assert not self._started, "start() may only be called once)"

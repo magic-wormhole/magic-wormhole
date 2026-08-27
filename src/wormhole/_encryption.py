@@ -10,8 +10,8 @@ from .util import (dict_to_bytes,
                    derive_key, derive_phase_key,
                    encrypt_data, decrypt_data, CryptoError)
 from .errors import WrongPasswordError, CausalityError, _UnknownPhaseError
-from ._key_setup.inegotiation import INegotiation, Send, HaveAllegedKey, Done
-from ._key_setup.negotiate_v0 import Negotiate_V0
+from ._key_setup.ikeysetup import IKeySetup, Send, HaveAllegedKey, Done
+from ._key_setup.key_setup_v0 import KeySetup_V0
 
 __all__ = ["Encryption", "_EncryptionCore"]
 # phase classifiers
@@ -68,8 +68,8 @@ class _EncryptionCore:
         self._queued_received_encrypted = []
         self._queued_sends = []
         self._outputs: list[CoreOutput] = []
-        nv0 = Negotiate_V0(self._side, self._appid, self._app_versions, self._timing)
-        self._negotiation = INegotiation(nv0)
+        ks0 = KeySetup_V0(self._side, self._appid, self._app_versions, self._timing)
+        self._key_setup = IKeySetup(ks0)
 
     def _add_output(self, ev):
         self._outputs.append(ev)
@@ -84,10 +84,9 @@ class _EncryptionCore:
 
     ### Key Setup
 
-    def _process_negotiation(self):
-        n = self._negotiation
+    def _process_key_setup(self):
         while True:
-            match n.output():
+            match self._key_setup.output():
                 case None:
                     return
                 case Send(phase, body):
@@ -104,16 +103,16 @@ class _EncryptionCore:
                     self._drain_queued_received_encrypted()
                     self._drain_queued_sends()
                 case _:
-                    raise ValueError("unknown Negotiation_Output")
+                    raise ValueError("unknown KeySetupOutput")
 
     # input from Boss
     def got_code(self, code):
         # self._have_code enables delivery of inbound key-setup messages
         self._have_code = True
-        pieces = self._negotiation.start(code)
+        pieces = self._key_setup.start(code)
         body = dict_to_bytes(pieces)
         self._add_output(M_AddMessage("pake", body)) # PAKE
-        self._process_negotiation()
+        self._process_key_setup()
 
     def _be_scared(self):
         self._scared = True
@@ -130,14 +129,14 @@ class _EncryptionCore:
             return
         if is_key_setup(phase):
             try:
-                self._negotiation.input(side, phase, body) # can throw
+                self._key_setup.input(side, phase, body) # can throw
             except (WrongPasswordError, CausalityError):
                 self._be_scared()
                 return # TODO: want B.scared, maybe don't want others
             # Could get CrowdedError but only if Mailbox misbehaved.
             # Note that all errors in received messages (ws_message)
             # will mark the Boss as ERRORY, which stops everything
-            self._process_negotiation()
+            self._process_key_setup()
         elif is_dilation(phase) or is_numeric(phase):
             self._queued_received_encrypted.append((side, phase, body))
             if self._key:

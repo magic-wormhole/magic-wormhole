@@ -4,8 +4,8 @@ import pytest
 
 from .. import errors, timing
 from .._encryption import derive_phase_key, decrypt_data, encrypt_data
-from .._key_setup.negotiate_v0 import Negotiate_V0
-from .._key_setup.inegotiation import Send, HaveAllegedKey, Done
+from .._key_setup.key_setup_v0 import KeySetup_V0
+from .._key_setup.ikeysetup import Send, HaveAllegedKey, Done
 from ..util import (bytes_to_hexstr, hexstr_to_bytes,
                     bytes_to_dict, dict_to_bytes,
                     to_bytes)
@@ -18,7 +18,7 @@ side1 = "side1"
 side2 = "side2"
 side3 = "side3"
 
-# there are three events that involve a Negotiation instance:
+# there are three events that involve a KeySetup instance:
 # * A: start()
 # * B: input("pake")
 # * C: input("version")
@@ -47,12 +47,12 @@ def test_v0_ABC():
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
-    # A: trigger the Negotiation to help us build the PAKE message
-    pieces = n.start(code)
+    # A: trigger the KeySetup to help us build the PAKE message
+    pieces = ks.start(code)
     assert "pake_v1" in pieces
-    assert n.output() == None
+    assert ks.output() == None
 
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -63,13 +63,13 @@ def test_v0_ABC():
     msg3 = encrypt_data(side2_version_key, side2_version_bytes)
 
     # B: feed it a PAKE, it should get an alleged key and transmit a VERSION
-    n.input(side2, "pake", msg2)
-    assert n.output() == HaveAllegedKey(key)
-    v = n.output()
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == HaveAllegedKey(key)
+    v = ks.output()
     assert isinstance(v, Send)
     assert v.phase == "version"
     outbound_version_bytes = v.body
-    assert n.output() == None
+    assert ks.output() == None
 
     # verify outbound VERSION
     side1_version_key = derive_phase_key(key, side1, "version")
@@ -78,9 +78,9 @@ def test_v0_ABC():
     assert side1_version == app_versions
 
     # C: submit a VERSION, and it should verify it
-    n.input(side2, "version", msg3)
-    assert n.output() == Done(key, side2_version_bytes)
-    assert n.output() == None
+    ks.input(side2, "version", msg3)
+    assert ks.output() == Done(key, side2_version_bytes)
+    assert ks.output() == None
 
 def test_v0_ACB():
     code = "1-code"
@@ -90,12 +90,12 @@ def test_v0_ACB():
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
-    # A: trigger the Negotiation to help us build the PAKE message
-    pieces = n.start(code)
+    # A: trigger the KeySetup to help us build the PAKE message
+    pieces = ks.start(code)
     assert "pake_v1" in pieces
-    assert n.output() == None
+    assert ks.output() == None
 
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -106,19 +106,19 @@ def test_v0_ACB():
     msg3 = encrypt_data(side2_version_key, side2_version_bytes)
 
     # C: submit a VERSION, should be queued without actions
-    n.input(side2, "version", msg3)
-    assert n.output() == None
+    ks.input(side2, "version", msg3)
+    assert ks.output() == None
 
     # B: feed it a PAKE, it should get an alleged key and transmit a
     # VERSION, and then process the inbound VERSION to verify it
-    n.input(side2, "pake", msg2)
-    assert n.output() == HaveAllegedKey(key)
-    v = n.output()
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == HaveAllegedKey(key)
+    v = ks.output()
     assert isinstance(v, Send)
     assert v.phase == "version"
     outbound_version_bytes = v.body
-    assert n.output() == Done(key, side2_version_bytes)
-    assert n.output() == None
+    assert ks.output() == Done(key, side2_version_bytes)
+    assert ks.output() == None
 
     # verify outbound VERSION
     side1_version_key = derive_phase_key(key, side1, "version")
@@ -134,26 +134,26 @@ def test_v0_BAC():
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # B: feed it a PAKE, nothing should happen yet
-    n.input(side2, "pake", msg2)
-    assert n.output() == None
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == None
 
-    # A: trigger the Negotiation to help us build the PAKE message,
+    # A: trigger the KeySetup to help us build the PAKE message,
     # this should get an alleged key, transmit VERSION, and be waiting
     # for the peer's VERSION
-    pieces = n.start(code)
+    pieces = ks.start(code)
     assert "pake_v1" in pieces
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
 
-    assert n.output() == HaveAllegedKey(key)
-    v = n.output()
+    assert ks.output() == HaveAllegedKey(key)
+    v = ks.output()
     assert isinstance(v, Send)
     assert v.phase == "version"
     outbound_version_bytes = v.body
-    assert n.output() == None
+    assert ks.output() == None
 
     # build an inbound VERSION
     side2_app_versions = { "rah": "blurg" }
@@ -167,9 +167,9 @@ def test_v0_BAC():
     assert side1_version == app_versions
 
     # C: submit a VERSION, and it should verify it
-    n.input(side2, "version", msg3)
-    assert n.output() == Done(key, side2_version_bytes)
-    assert n.output() == None
+    ks.input(side2, "version", msg3)
+    assert ks.output() == Done(key, side2_version_bytes)
+    assert ks.output() == None
 
 # these three should cause errors
 def test_v0_BCA():
@@ -180,25 +180,25 @@ def test_v0_BCA():
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # B: feed it a PAKE, nothing should happen yet
-    n.input(side2, "pake", msg2)
-    assert n.output() == None
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == None
 
     # C: submit VERSION, bogus because they don't know our PAKE yet
     msg3 = b"you can't possibly have a session key yet"
     with pytest.raises(errors.CausalityError):
-        n.input(side2, "version", msg3)
+        ks.input(side2, "version", msg3)
 
 def test_v0_C(): # CAB and CBA
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # C: submit VERSION, bogus because they don't know our PAKE yet
     msg3 = b"you can't possibly have a session key yet"
     with pytest.raises(errors.CausalityError):
-        n.input(side2, "version", msg3)
+        ks.input(side2, "version", msg3)
 
 # use a bad key for the VERSION message to trigger WrongPasswordError
 def test_v0_bad_version(): # ABC
@@ -209,12 +209,12 @@ def test_v0_bad_version(): # ABC
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
-    # A: trigger the Negotiation to help us build the PAKE message
-    pieces = n.start(code)
+    # A: trigger the KeySetup to help us build the PAKE message
+    pieces = ks.start(code)
     assert "pake_v1" in pieces
-    assert n.output() == None
+    assert ks.output() == None
 
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -225,16 +225,16 @@ def test_v0_bad_version(): # ABC
     msg3 = encrypt_data(side2_version_key, side2_version_bytes)
 
     # B: feed it a PAKE, it should get an alleged key and transmit a VERSION
-    n.input(side2, "pake", msg2)
-    assert n.output() == HaveAllegedKey(key)
-    v = n.output()
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == HaveAllegedKey(key)
+    v = ks.output()
     assert isinstance(v, Send)
     assert v.phase == "version"
-    assert n.output() == None
+    assert ks.output() == None
 
     # C: submit a VERSION, and it should throw
     with pytest.raises(errors.WrongPasswordError):
-        n.input(side2, "version", msg3)
+        ks.input(side2, "version", msg3)
 
 # use different sides to trigger CrowdedError
 def test_v0_crowded(): # ABC
@@ -245,12 +245,12 @@ def test_v0_crowded(): # ABC
     msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(msg2_bytes)})
 
     # this is us
-    n = Negotiate_V0(side1, appid, app_versions, timing.DebugTiming())
+    ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
-    # A: trigger the Negotiation to help us build the PAKE message
-    pieces = n.start(code)
+    # A: trigger the KeySetup to help us build the PAKE message
+    pieces = ks.start(code)
     assert "pake_v1" in pieces
-    assert n.output() == None
+    assert ks.output() == None
 
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -261,13 +261,13 @@ def test_v0_crowded(): # ABC
     msg3 = encrypt_data(side2_version_key, side2_version_bytes)
 
     # B: feed it a PAKE, it should get an alleged key and transmit a VERSION
-    n.input(side2, "pake", msg2)
-    assert n.output() == HaveAllegedKey(key)
-    v = n.output()
+    ks.input(side2, "pake", msg2)
+    assert ks.output() == HaveAllegedKey(key)
+    v = ks.output()
     assert isinstance(v, Send)
     assert v.phase == "version"
-    assert n.output() == None
+    assert ks.output() == None
 
     # C: submit a VERSION from a third side
     with pytest.raises(errors.CrowdedError):
-        n.input(side3, "version", msg3)
+        ks.input(side3, "version", msg3)
