@@ -163,8 +163,10 @@ class WiredCores:
     def get_transcript(self, side):
         return self.transcript[side].copy()
 
-    def got_code(self, code):
-        for core in self.sided_cores.values():
+    def got_code(self, code, side=None):
+        for s, core in self.sided_cores.items():
+            if side is not None and s != side:
+                continue
             core.got_code(code)
 
 
@@ -193,6 +195,28 @@ def test_happy_path_nicer():
     cores.drain_from("side_a")
     cores.drain_from("side_b")
 
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
+
+def test_reversed_refactored():
+    """
+    same as test_reversed but without custom pake stuff?
+    """
+    cores = wire_cores("side_a", "side_b")
+
+    # side a is receiver, side b is sender .. sender already has
+    # entire code so it's set
+    cores.got_code(CODE, "side_b")
+    # ...the receiver claims just the Nameplate + Mailbox and thus
+    # gets side_b's PAKE _before_ it has the code set
+
+    # side_b will have an M_AddMessage("pake") and this will deliver it to side_a
+    cores.drain_from("side_b")
+    # ...so _now_ we pretend that side_a finally typed the whole code in
+    cores.got_code(CODE, "side_a")
+
+    cores.drain_from("side_a")
+    cores.drain_from("side_b")
+    cores.drain_from("side_a")
     assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
 
