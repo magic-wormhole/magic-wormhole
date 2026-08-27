@@ -394,9 +394,9 @@ If you desire shell tab-completion on sub-commands, we include generated
 files `from
 Click <https://click.palletsprojects.com/en/8.1.x/shell-completion/>`__
 for Bash, Zsh and Fish shells in
-`wormhole_completion.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_complete.bash>`__
+`wormhole_complete.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_complete.bash>`__
 (or ``.zsh``, ``.fish``). Put this file in your favourite location and
-add a line like ``source ~/wormhole_completion.bash`` to ``~/.bashrc``
+add a line like ``source ~/wormhole_complete.bash`` to ``~/.bashrc``
 (or similar for ``zsh`` and ``fish`` shells).
 
 Library
