@@ -169,6 +169,39 @@ class WiredCores:
                 continue
             core.got_code(code)
 
+    def finished_sides(self, is_terminal_message):
+        """
+        Return all sides that are finished
+        """
+        # todo: again, a 'definitely done' message like Done or Error would help here too
+        def contains_terminal(transcript):
+            """
+            A GotMessage(phase='version') is our termination marker
+            """
+            for msg in transcript:
+                if is_terminal_message(msg):
+                    return True
+            return False
+        return [
+            side
+            for side, transcript in self.transcript.items()
+            if contains_terminal(transcript)
+        ]
+
+
+    def finish(self):
+        """
+        Does 'drain_from' on each side in turn, until ALL sides have a B_GotMessage(phase='version')
+        """
+        all_sides = set(self.sided_cores.keys())
+
+        def is_final_message(msg):
+            return isinstance(msg, B_GotMessage) and msg.phase == "version"
+
+        while not set(self.finished_sides(is_final_message)) == all_sides:
+            for side in self.sided_cores.keys():
+                self.drain_from(side)
+
 
 def wire_cores(*args):
     """
@@ -184,16 +217,7 @@ def test_happy_path_nicer():
     cores = wire_cores("side_a", "side_b")
 
     cores.got_code(CODE)
-
-    cores.drain_from("side_a")
-    cores.drain_from("side_b")
-
-    # unfortunately have to encode a bit of knowledge here on "how
-    # many times to turn the crank"? Maybe with terminal messages we
-    # could "turn crank up to 100 times, or until we see a Done (or
-    # Error) from all sides?
-    cores.drain_from("side_a")
-    cores.drain_from("side_b")
+    cores.finish()
 
     assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
@@ -214,9 +238,7 @@ def test_reversed_refactored():
     # ...so _now_ we pretend that side_a finally typed the whole code in
     cores.got_code(CODE, "side_a")
 
-    cores.drain_from("side_a")
-    cores.drain_from("side_b")
-    cores.drain_from("side_a")
+    cores.finish()
     assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
 
