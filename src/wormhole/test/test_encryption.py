@@ -245,6 +245,10 @@ def test_ignored_phase_refactored(observe_errors):
     """
     same as test_ignored_phase but with wire_cores
     """
+    # todo: this probably wants to be a Hypothesis "state-machine"
+    # test that is allowed to inject any number of "ignored_*"
+    # messages in the machines at any point, with invariant: still
+    # succeeds, but also logs all "ignore_*" messages.
     cores = wire_cores("side_a", "side_b")
 
     # give one side an unknown phase message, that it should ignore
