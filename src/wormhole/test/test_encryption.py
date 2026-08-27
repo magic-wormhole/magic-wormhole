@@ -2,6 +2,7 @@ import json, binascii
 import pytest
 
 from spake2 import SPAKE2_Symmetric
+from collections import defaultdict
 
 from .. import _encryption, timing, errors
 from .._encryption import derive_key, derive_phase_key, encrypt_data, decrypt_data
@@ -128,6 +129,71 @@ def test_happy_path():
     print(messages0)
     print(messages1)
     assert messages0 == messages1, "Keys do not match"
+
+
+# add a bit more generalization to the above, and create an N-sided
+# situation so we can test more situations
+
+#@define
+class WiredCores:
+    sided_cores: dict[str, _encryption._EncryptionCore]
+    transcript: dict[str, list[_encryption.CoreOutput]]
+
+    def __init__(self, side_strings):
+        self.sided_cores = {}
+        self.transcript = defaultdict(list)
+        for side in side_strings:
+            self.sided_cores[side] = build_encryption_core(side)
+
+    def drain_from(self, target_side):
+        """
+        Drains all output messages from `target_side` and, for any
+        M_AddMessage events, inputs that message to all OTHER sides.
+        """
+        core = self.sided_cores[target_side]
+        while (msg := core.output()) is not None:
+            if isinstance(msg, M_AddMessage):
+                # forward this message to ALL OTHER cores
+                for otherside, othercore in self.sided_cores.items():
+                    if target_side != otherside:
+                        othercore.got_message(target_side, msg.phase, msg.body)
+            else:
+                self.transcript[target_side].append(msg)
+
+    def get_transcript(self, side):
+        return self.transcript[side].copy()
+
+    def got_code(self, code):
+        for core in self.sided_cores.values():
+            core.got_code(code)
+
+
+def wire_cores(*args):
+    """
+    Builds multiple encryption cores, one for each SIDE string in the *args
+    """
+    return WiredCores(args)
+
+
+def test_happy_path_nicer():
+    """
+    same as test_happy_path but with wired_cores() usage
+    """
+    cores = wire_cores("side_a", "side_b")
+
+    cores.got_code(CODE)
+
+    cores.drain_from("side_a")
+    cores.drain_from("side_b")
+
+    # unfortunately have to encode a bit of knowledge here on "how
+    # many times to turn the crank"? Maybe with terminal messages we
+    # could "turn crank up to 100 times, or until we see a Done (or
+    # Error) from all sides?
+    cores.drain_from("side_a")
+    cores.drain_from("side_b")
+
+    assert cores.get_transcript("side_a") == cores.get_transcript("side_b"), "Keys do not match"
 
 
 def test_good_key():
