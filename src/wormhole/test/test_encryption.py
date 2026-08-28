@@ -143,7 +143,7 @@ def test_bad_pake0_format():
     pake_1_json = body.decode("utf-8")
     pake_1 = json.loads(pake_1_json)
     # ["pake_v1"] value is a 66-char hex-encoded SPAKE2 group element
-    assert list(pake_1.keys()) == ["pake_v1"]
+    assert list(pake_1.keys()) == ["pake_v1", "versions"]
     good_spake2 = pake_1["pake_v1"]
     bad_pake_d = {"not_pake_v1": "stuff"}
     with pytest.raises(KeyError):
@@ -269,6 +269,11 @@ def test_scary_message():
 def test_causality_violation():
     c = build_encryption_core()
 
+    # send the inbound PAKE-0 to establish the protocol version
+    sp, msg2 = compute_pake0(CODE)
+    c.got_message("side2", "pake", msg2)
+    # but VERSION really needs the outbound PAKE-0, this is a
+    # non-causal guess, and should be rejected
     badver = encrypt_version(b"guessed", {})
     c.got_message("side2", "version", badver)
     assert c.output() == B_Scared()

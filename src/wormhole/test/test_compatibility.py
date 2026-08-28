@@ -29,7 +29,7 @@ def test_ignore_unrecognized_pake0_properties():
     msg2_bytes = sp.start()
     # extra properties should be ignored
     pake0 = {"pake_v1": bytes_to_hexstr(msg2_bytes), "ignore_me": "stuff"}
-    c.got_message("side", "pake", dict_to_bytes(pake0))
+    c.got_message("side2", "pake", dict_to_bytes(pake0))
     # the v0 protocol should compute the right key despite any extra
     # properties
     assert isinstance(c.output(), B_GotKey)
@@ -54,9 +54,9 @@ def test_ignore_future_versions():
 
     # extra properties should be ignored
     pake0 = {"pake_v1": bytes_to_hexstr(msg2_bytes),
-             "versions": ["v0", "99999-future"],
+             "versions": ["v99999-future", "v0"],
              }
-    c.got_message("side", "pake", dict_to_bytes(pake0))
+    c.got_message("side2", "pake", dict_to_bytes(pake0))
     # the v0 protocol should compute the right key despite any extra
     # properties
     assert c.output() == B_GotKey(key2)

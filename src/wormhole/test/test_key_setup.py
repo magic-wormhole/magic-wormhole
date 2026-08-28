@@ -3,7 +3,7 @@ from spake2 import SPAKE2_Symmetric
 import pytest
 
 from .. import errors, timing
-from .._encryption import derive_phase_key, decrypt_data, encrypt_data
+from .._encryption import derive_phase_key, decrypt_data, encrypt_data, negotiate
 from .._key_setup.key_setup_v0 import KeySetup_V0
 from .._key_setup.ikeysetup import Send, HaveAllegedKey, Done
 from ..util import (bytes_to_hexstr, hexstr_to_bytes,
@@ -50,7 +50,7 @@ def test_v0_ABC():
     ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # A: trigger the KeySetup to help us build the PAKE message
-    pieces = ks.start(code)
+    pieces = ks.start(code, side2)
     assert "pake_v1" in pieces
     assert ks.output() == None
 
@@ -93,7 +93,7 @@ def test_v0_ACB():
     ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # A: trigger the KeySetup to help us build the PAKE message
-    pieces = ks.start(code)
+    pieces = ks.start(code, side2)
     assert "pake_v1" in pieces
     assert ks.output() == None
 
@@ -143,7 +143,7 @@ def test_v0_BAC():
     # A: trigger the KeySetup to help us build the PAKE message,
     # this should get an alleged key, transmit VERSION, and be waiting
     # for the peer's VERSION
-    pieces = ks.start(code)
+    pieces = ks.start(code, side2)
     assert "pake_v1" in pieces
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -212,7 +212,7 @@ def test_v0_bad_version(): # ABC
     ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # A: trigger the KeySetup to help us build the PAKE message
-    pieces = ks.start(code)
+    pieces = ks.start(code, side2)
     assert "pake_v1" in pieces
     assert ks.output() == None
 
@@ -248,7 +248,7 @@ def test_v0_crowded(): # ABC
     ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
 
     # A: trigger the KeySetup to help us build the PAKE message
-    pieces = ks.start(code)
+    pieces = ks.start(code, side2)
     assert "pake_v1" in pieces
     assert ks.output() == None
 
@@ -271,3 +271,18 @@ def test_v0_crowded(): # ABC
     # C: submit a VERSION from a third side
     with pytest.raises(errors.CrowdedError):
         ks.input(side3, "version", msg3)
+
+
+def test_negotiate():
+    assert side2 > side1
+    # side2 is leader
+    assert negotiate(side1, side2, ["0"], ["0"]) == "0"
+    # plain numbers are fine too, and easier to type here, but are
+    # used by EncryptionCore because of truthyness tests
+    assert negotiate(side1, side2, [0], [0]) == 0
+    assert negotiate(side1, side2, [0,1], [0,1]) == 0
+    assert negotiate(side1, side2, [1,0], [0,1]) == 0 # leader wins
+    assert negotiate(side1, side2, [0,1], [1,0]) == 1 # leader wins
+    assert negotiate(side1, side2, [0,1,2], [2,3,4]) == 2
+    assert negotiate(side1, side2, [2,1,0], [4,3,2]) == 2
+    assert negotiate(side1, side2, [0], [4]) == None

@@ -1,11 +1,11 @@
 from zope.interface import implementer
-from spake2 import SPAKE2_Symmetric
 
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    hexstr_to_bytes, to_bytes, derive_phase_key,
+                    hexstr_to_bytes, derive_phase_key,
                     encrypt_data, decrypt_data, CryptoError)
 from ..errors import CrowdedError, WrongPasswordError, CausalityError
 from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupOutput
+from .spake2_helper import SPAKE2_Helper
 
 # This is the retroactively-named "v0" key-setup protocol: the initial
 # one used by all versions of magic-wormhole, at least through the
@@ -15,35 +15,33 @@ from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupOutput
 
 @implementer(IKeySetup)
 class KeySetup_V0:
-    def __init__(self, side, appid, app_versions, timing):
+    def __init__(self, side, appid, app_versions, timing, spake2_helper=None):
         self._side = side
         self._appid = appid
         self._app_versions = app_versions
         self._timing = timing
+        if not spake2_helper:
+            spake2_helper = SPAKE2_Helper(appid)
+        assert isinstance(spake2_helper, SPAKE2_Helper)
+        self._sph = spake2_helper
 
         self._started = False
         self._done = False
         self._error = None
-
-        self._sp = None # established by got_code
-        self._msg1 = None
 
         self._their_side = None
         self._inbound_messages = dict()
         self._wanted = None
         self._outputs: list[KeySetupOutput] = []
 
-    def start(self, code):
+    def start(self, code, _side):
+        # this protocol doesn't use the peer's side until later
         assert not self._started, "start() may only be called once)"
-        self._started = True
-        code_b = to_bytes(code)
-        id_b = to_bytes(self._appid)
-        with self._timing.add("pake1", waiting="crypto"):
-            self._sp = SPAKE2_Symmetric(code_b, idSymmetric=id_b)
-            self._msg1 = self._sp.start()
+        msg1 = self._sph.start(code)
         self._wanted = "pake"
         self._process()
-        return {"pake_v1": bytes_to_hexstr(self._msg1)}
+        self._started = True
+        return {"pake_v1": bytes_to_hexstr(msg1)}
 
     def input(self, side, phase, body):
         assert isinstance(side, str), type(phase)
@@ -77,7 +75,7 @@ class KeySetup_V0:
         msg2 = hexstr_to_bytes(payload["pake_v1"])
         assert isinstance(msg2, bytes)
         with self._timing.add("pake2", waiting="crypto"):
-            key = self._sp.finish(msg2)
+            key = self._sph.finish(msg2)
         self._key = key
 
         self._outputs.append(HaveAllegedKey(key))

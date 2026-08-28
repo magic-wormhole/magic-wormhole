@@ -31,7 +31,7 @@ class Done:
 KeySetupOutput = Send | HaveAllegedKey | Done
 
 class IKeySetup(Interface):
-    def start(code: str) -> dict:
+    def start(code: str, their_side: str | None) -> dict:
         """Set the wormhole code and generate the PAKE0 components.
 
         Call this when the complete wormhole code is available and
@@ -40,6 +40,12 @@ class IKeySetup(Interface):
         PAKE algorithms involved in this particular version of the key
         setup protocol. The return value contains components to go into
         our outbound PAKE-0 message.
+
+        If 'their_side' is None, which happens when we decide to start
+        before input() gets the peer's PAKE-0 message, start() may put
+        speculative components in the outbound PAKE-0 to accomodate
+        both (leader vs follower) roles it might end up playing. It can
+        avoid this extra work if their_side is available early.
         """
 
     def input(side: str, phase: str, body: bytes):
