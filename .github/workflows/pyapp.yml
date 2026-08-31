@@ -1,0 +1,56 @@
+name: Build PyApp magic-wormhole
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  pyapp:
+    strategy:
+      matrix:
+        include:
+           - os: macos-latest
+             python-version: "3.13"
+
+# counter-intuitively, we want the *oldest* linux runner so that we
+# get the oldest GLIBC version for wider compatibility (since we can't
+# actually statically-link rust)
+
+           - os: ubuntu-22.04
+             python-version: "3.13"
+
+           - os: windows-latest
+             python-version: "3.13"
+    runs-on: ${{ matrix.os }}
+    # fixme: figure out version automatically? can we "run-on" tags only?
+    env:
+      PYAPP_EXEC_SPEC: wormhole.cli.cli:wormhole
+      PYAPP_PROJECT_NAME: magic_wormhole
+      PYAPP_PROJECT_VERSION: 0.23.0
+    steps:
+    - name: Install PyApp
+      run: |
+        curl https://github.com/ofek/pyapp/releases/latest/download/source.tar.gz -Lo pyapp-source.tar.gz
+        tar -xzf pyapp-source.tar.gz
+        mv pyapp-v* pyapp-latest
+        cd pyapp-latest
+
+    - name: Build wormhole via PyApp
+      run: |
+        cd pyapp-latest && cargo build --release
+
+    - name: Upload the Artifact (unix)
+      if: ${{ !contains(matrix.os, 'windows') }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: wormhole-${{ matrix.os }}
+        path: pyapp-latest/target/release/pyapp
+
+    - name: Upload the Artifact (exe)
+      if: ${{ contains(matrix.os, 'windows') }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: wormhole-${{ matrix.os }}
+        path: pyapp-latest/target/release/pyapp.exe
