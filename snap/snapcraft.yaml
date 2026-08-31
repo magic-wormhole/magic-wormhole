@@ -1,0 +1,32 @@
+name: wormhole
+version: git
+summary: get things from one computer to another, safely
+description: |
+  This package provides a library and a command-line tool named wormhole, which
+  makes it possible to get arbitrary-sized files and directories (or short
+  pieces of text) from one computer to another. The two endpoints are identified
+  by using identical "wormhole codes": in general, the sending machine generates
+  and displays the code, which must then be typed into the receiving machine.
+grade: stable
+confinement: strict
+
+apps:
+  wormhole:
+    command: bin/wormhole
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+
+parts:
+  wormhole:
+    plugin: python
+    python-version: python2
+    source: .
+    build-packages:
+      - build-essential
+      - python-dev
+      - libffi-dev
+      - libssl-dev
+      - libsodium-dev
