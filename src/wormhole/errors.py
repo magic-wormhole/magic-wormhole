@@ -1,5 +1,5 @@
 class WormholeError(Exception):
-    """Parent class for all wormhole-related errors"""
+    """Parent class for all wormhole-related errors."""
 
 
 class UnsendableFileError(Exception):
@@ -41,7 +41,7 @@ class WelcomeError(WormholeError):
 
 class LonelyError(WormholeError):
     """wormhole.close() was called before the peer connection could be
-    established"""
+    established."""
 
 class CrowdedError(WormholeError):
     """We received messages from multiple peers, there can be only one."""
@@ -82,11 +82,11 @@ class NoTorError(WormholeError):
 
 
 class NoKeyError(WormholeError):
-    """w.derive_key() was called before got_verifier() fired"""
+    """w.derive_key() was called before got_verifier() fired."""
 
 
 class OnlyOneCodeError(WormholeError):
-    """Only one w.generate_code/w.set_code/w.input_code may be called"""
+    """Only one w.generate_code/w.set_code/w.input_code may be called."""
 
 
 class MustChooseNameplateFirstError(WormholeError):
@@ -117,8 +117,8 @@ class WormholeClosed(Exception):
 
 
 class _UnknownPhaseError(Exception):
-    """internal exception type, for tests."""
+    """Internal exception type, for tests."""
 
 
 class _UnknownMessageTypeError(Exception):
-    """internal exception type, for tests."""
+    """Internal exception type, for tests."""
