@@ -1,19 +1,44 @@
 from attrs import frozen
 from zope.interface import Interface
 
-# Send means a key-setup message needs to be sent to the peer
+## actions, returned by IKeySetup.output()
+
+# Send means a key-setup message needs to be sent to the
+# peer. "inTranscript" means it should also be added to the
+# negotiation transcript
 @frozen
 class Send:
+    body: bytes
+    inTranscript: bool
+
+# Add an inbound key-setup message to the negotiation transcript
+@frozen
+class AddToTranscript:
+    side: str
     phase: str
     body: bytes
 
-# HaveAllegedKey indicates that key setup has achieved a potential key
-# and is waiting for the VERSION/key-confirmation-message to arrive so
-# it can be verified
+# Request a call to transcriptIs() with the final negotiation
+# transcript
+@frozen
+class GetTranscript:
+    pass
+
+# Indicate that key setup has achieved a potential key and is waiting
+# for the VERSION/key-confirmation-message to arrive so it can be
+# verified
 #
 @frozen
 class HaveAllegedKey:
-    key: bytes
+    key: bytes # TODO remove
+
+# Send the "VERSION" (phase="version") key-confirmation message. This
+# is encrypted+MAC-ed by the KeySetup, and is never included in the
+# transcript (which was finalized already and served as input to the
+# key used for VERSION).
+@frozen
+class SendVersion:
+    body: bytes
 
 # Done indicates the key has been verified and key-setup is
 # complete. The action includes the session key and the decrypted
@@ -28,7 +53,8 @@ class Done:
     key: bytes
     version_data: bytes
 
-KeySetupOutput = Send | HaveAllegedKey | Done
+KeySetupAction = Send | AddToTranscript | GetTranscript | HaveAllegedKey | SendVersion | Done
+
 
 class IKeySetup(Interface):
     def start(code: str, their_side: str | None) -> dict:
@@ -66,7 +92,20 @@ class IKeySetup(Interface):
         CausalityError, all of which are terminal and sticky.
         """
 
-    def output() -> KeySetupOutput | None:
+    def transcriptIs(transcript: list[(str, str, bytes)]):
+        """Deliver the negotiation transcript, for hashing.
+
+        To prevent downgrade attacks, key-setup protocols should hash the
+        entire negotiation transcript into the final session key. The
+        EncryptionCore keeps track of the transcript, based on
+        Send(addToTranscript=True) and AddInboundToTranscript() actions
+        from the IKeySetup. The key-setup knows which messages are part of
+        the transcript (it excludes the later pre-version and VERSION
+        messages), but it doesn't know the outbound phases of the PAKE-n
+        messages, so the EncryptionCore must assemble those.
+        """
+
+    def output() -> KeySetupAction | None:
         """Pull the next output event, if any.
 
         Returns an "action tuple", which describes something the KeySetup
@@ -74,10 +113,15 @@ class IKeySetup(Interface):
         then call output() again, in a loop, until output() returns None. The
         valid actions are:
 
-        * Send(phase, body): send outbound key-setup message to the mailbox.
-          "phase" will specify a PAKE-n or VERSION phase. "body" is bytes.
+        * Send(body, inTranscript): send outbound key-setup message to the
+          mailbox. "body" is bytes. "inTranscript" means the outbound message
+          should be added to the transcript.
+        * AddToTranscript(side, phase, body): add an inbound message to the
+          transcript.
+        * GetTranscript(): request a transcriptIs() input with the transcript
         * HaveAllegedKey(key): we have an alleged key
           # TODO: stop providing the key, leave it for "done"
+        * SendVersion(body): send the phase="version" key-confirmation message
         * Done(key, version_data): the key and application version
           bytes should be delivered to the Boss.
         """

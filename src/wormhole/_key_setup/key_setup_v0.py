@@ -60,6 +60,8 @@ class KeySetup_V0:
         self._inbound_messages[phase] = (side, body)
         self._process()
 
+    # v0 does not use transcriptIs(), sadly
+
     def _process(self):
         while self._wanted and self._wanted in self._inbound_messages:
             (s, b) = self._inbound_messages[self._wanted]
