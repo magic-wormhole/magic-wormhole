@@ -1,10 +1,10 @@
 from zope.interface import implementer
 
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
-                    hexstr_to_bytes, derive_phase_key,
+                    hexstr_to_bytes, derive_phase_key, HKDF,
                     encrypt_data, decrypt_data, CryptoError)
 from ..errors import CrowdedError, WrongPasswordError, CausalityError
-from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupOutput
+from . import ikeysetup
 from .spake2_helper import SPAKE2_Helper
 from .hash_transcript import hash_transcript
 from .next_phase import next_phase
@@ -20,7 +20,7 @@ from .next_phase import next_phase
 # downgrade except where explicitly enabled with a "--enable-v0"
 # command-line argument.
 
-@implementer(IKeySetup)
+@implementer(ikeysetup.IKeySetup)
 class KeySetup_V1:
     VERSION = "v1"
 
@@ -44,7 +44,7 @@ class KeySetup_V1:
         self._inbound_messages = dict()
         self._want_transcript = False
         self._wanted = None
-        self._outputs: list[KeySetupOutput] = []
+        self._outputs: list[ikeysetup.KeySetupAction] = []
 
         self._have_pake = False
 
@@ -99,7 +99,7 @@ class KeySetup_V1:
         if not self._have_pake:
             # we start in "wanting pake_v1" mode, where all messages
             # go into the transcript
-            self._output(AddToTranscript(side, phase, body))
+            self._output(ikeysetup.AddToTranscript(side, phase, body))
             if "pake_v1" in payload:
                 # receiving a phase with "pake_v1" lets us build the
                 # key and go into "confirming" mode
@@ -108,7 +108,7 @@ class KeySetup_V1:
                 with self._timing.add("pake2", waiting="crypto"):
                     self._spake2_key = self._sph.finish(msg2)
                 # confirming mode means we want the transcript
-                self._output(GetTranscript())
+                self._output(ikeysetup.GetTranscript())
                 self._want_transcript = True
             # else keep waiting
         elif self._wanted != "version":
@@ -131,20 +131,20 @@ class KeySetup_V1:
         assert self._want_transcript
         assert self._spake2_key
         self._want_transcript = False
-        t_hash = HashTranscript(self.VERSION, transcript)
+        t_hash = hash_transcript(self.VERSION, transcript)
         skm = self._spake2_key + t_hash
         tag = b"magic-wormhole key setup"
         self._key = HKDF(skm, 32, CTXinfo=tag)
-        self._output(HaveAllegedKey())
+        self._output(ikeysetup.HaveAllegedKey())
         # send pre-version
         preversion = { "key_setup_version": self.VERSION }
         preversion_body = dict_to_bytes(preversion)
-        self._output(Send(preversion_body, False))
+        self._output(ikeysetup.Send(preversion_body, False))
         # send VERSION
         data_key = derive_phase_key(self._key, self._side, "version")
         plaintext = dict_to_bytes(self._app_versions)
         encrypted = encrypt_data(data_key, plaintext)
-        self._output(SendVersion(encrypted))
+        self._output(ikeysetup.SendVersion(encrypted))
         # next self._wanted should have pre-version
 
     def _process_version(self, side, phase, body):
@@ -157,7 +157,7 @@ class KeySetup_V1:
             self._error = WrongPasswordError()
             raise self._error
         self._done = True
-        self._output(Done(self._key, plaintext))
+        self._output(ikeysetup.Done(self._key, plaintext))
 
     def _output(self, action):
         self._outputs.append(action)

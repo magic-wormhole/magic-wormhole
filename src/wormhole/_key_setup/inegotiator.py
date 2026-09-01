@@ -1,5 +1,5 @@
 from zope.interface import Interface
-from attrs import define, frozen
+from attrs import frozen
 
 # actions
 @frozen
@@ -17,8 +17,7 @@ NegotiatorAction = Send | HaveAllegedKey | Done
 
 
 # inputs:
-@interface
-class INegotiator:
+class INegotiator(Interface):
     def got_code(self, code: str) -> None:
         """The wormhole code has been established"""
     def ready(self) -> None:

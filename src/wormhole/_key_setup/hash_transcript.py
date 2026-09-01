@@ -1,4 +1,6 @@
+import struct
 from hashlib import sha256
+from ..util import to_bytes
 
 def encode_bytes(b):
     assert len(b) < 2**32

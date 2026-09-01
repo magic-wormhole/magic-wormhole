@@ -5,13 +5,11 @@ from zope.interface import implementer
 from twisted.python import log
 
 from ._interfaces import IEncryption, ITiming, IBoss, IMailbox
-from .util import (dict_to_bytes, bytes_to_dict, provides,
-                   derive_key, derive_phase_key,
+from .util import (bytes_to_dict, provides, derive_phase_key,
                    encrypt_data, decrypt_data, CryptoError)
-from .errors import WrongPasswordError, CausalityError, _UnknownPhaseError
-from ._key_setup.ikeysetup import Send, HaveAllegedKey, Done
-from ._key_setup.key_setup_v0 import KeySetup_V0
-from ._key_setup.spake2_helper import SPAKE2_Helper
+from .errors import _UnknownPhaseError
+from ._key_setup import inegotiator
+from ._key_setup.negotiator import Negotiator
 
 __all__ = ["Encryption", "_EncryptionCore"]
 # phase classifiers
@@ -180,17 +178,18 @@ class _EncryptionCore:
             log.err(_UnknownPhaseError(f"received unknown phase '{phase}'"))
 
     def _process_negotiator(self):
-        match self._negotiator.output():
-            case None:
-                break
-            case inegotiator.Send(phase, body):
-                self._add_output(M_AddMessage(phase, body))
-            case inegotiator.HaveAllegedKey(key):
-                self._add_output(B_HaveAllegedKey())
-            case inegotiator.Done(key, version_data):
-                self._add_output(B_Happy(key, version_data))
-            case _:
-                raise ValueError("unknown NegotiatorAction")
+        while True:
+            match self._negotiator.output():
+                case None:
+                    break
+                case inegotiator.Send(phase, body):
+                    self._add_output(M_AddMessage(phase, body))
+                case inegotiator.HaveAllegedKey(key):
+                    self._add_output(B_HaveAllegedKey())
+                case inegotiator.Done(key, version_data):
+                    self._add_output(B_Happy(key, version_data))
+                case _:
+                    raise ValueError("unknown NegotiatorAction")
 
     def _drain_queued_received_encrypted(self):
         assert self._key

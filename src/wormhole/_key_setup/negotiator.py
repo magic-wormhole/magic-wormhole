@@ -1,6 +1,12 @@
-from zope.interface import implementer
+from attrs import frozen, define, field
+from zope.interface import implementer, provides
 from . import inegotiator, ikeysetup
 from .next_phase import next_phase
+from .spake2_helper import SPAKE2_Helper
+from .key_setup_v0 import KeySetup_V0
+from .key_setup_v1 import KeySetup_V1
+from .._interfaces import ITiming
+from ..util import dict_to_bytes
 
 # This defines all the versions we are capable+willing to speak, in
 # decreasing order of preference. This list will be sampled at
@@ -24,10 +30,15 @@ def negotiate(my_side, their_side, my_versions, their_versions):
             return v
     return None
 
+class UnknownState(Exception):
+    pass
+class IllegalCall(Exception):
+    pass
+
 # states
 
 @frozen
-class Waiting: pass
+class Waiting:
     pass
 @frozen
 class WaitingReady:
@@ -37,14 +48,14 @@ class WaitingCode:
     code: str
 @frozen
 class WaitingVersion:
-    key_setup: IKeySetup
+    key_setup: ikeysetup.IKeySetup
 @frozen
 class Speculating:
     code: str
     panel: dict[str]
 @frozen
 class Negotiating:
-    key_setup: IKeySetup
+    key_setup: ikeysetup.IKeySetup
 @frozen
 class Done:
     key: bytes
@@ -69,6 +80,7 @@ class Negotiator:
         self._delivered_transcript = False
         self._next_outbound_phase = "pake" # PAKE-0
         self._outputs: list[inegotiator.NegotiatorAction] = []
+        self._their_side: str | None = None # set by got_versions
 
     def _send_pakeN(self, data: dict, inTranscript: bool):
         phase = self._next_outbound_phase
@@ -90,7 +102,8 @@ class Negotiator:
                 self._send_pakeN(pake0, True)
                 self._state = Speculating(code, panel)
             case WaitingVersion(key_setup):
-                pake0 = key_setup.start(code, their_side)
+                assert self._their_side
+                pake0 = key_setup.start(code, self._their_side)
                 assert "versions" not in pake0
                 pake0["versions"] = self._key_setup_versions
                 self._send_pakeN(pake0, True)
@@ -117,6 +130,7 @@ class Negotiator:
                 raise UnknownState
 
     def got_versions(self, their_side: str, their_versions: list[str]) -> None:
+        self._their_side = their_side
         version = negotiate(self._side, their_side, self._key_setup_versions, their_versions)
         match self._state:
             case Waiting() | WaitingReady():
@@ -182,7 +196,7 @@ class Negotiator:
             key_setup.got_message(side, phase, body)
             self._drain_key_setup(key_setup)
 
-    def output(self) -> N_Actions | None:
+    def output(self) -> inegotiator.NegotiatorAction | None:
         if self._outputs:
             return self._outputs.pop(0)
         return None
@@ -201,6 +215,9 @@ class Negotiator:
         if "v0" in self._key_setup_versions:
             ks0 = KeySetup_V0(self._side, self._appid, self._app_versions, self._timing, sph)
             panel["v0"] = ks0
+        if "v1" in self._key_setup_versions:
+            ks1 = KeySetup_V1(self._side, self._appid, self._app_versions, self._timing, sph)
+            panel["v1"] = ks1
         # if "v1" in self._key_setup_versions:
         #     ks1 = KeySetup_V1(..)
         #     panel["v1"] = ks1
@@ -231,8 +248,10 @@ class Negotiator:
         match version:
             case "v0":
                 return KeySetup_V0(self._side, self._appid, self._app_versions, self._timing, sph)
+            case "v1":
+                return KeySetup_V1(self._side, self._appid, self._app_versions, self._timing, sph)
+            # add new versions here
             # case "v1":
             #     return KeySetup_V1(..)
-            # add new versions here
             case _:
                 raise ValueError("bad version %s" % version)
