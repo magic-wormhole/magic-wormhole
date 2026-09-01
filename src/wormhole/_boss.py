@@ -275,11 +275,17 @@ class Boss:
     def got_code(self, code):
         pass
 
-    # Encryption sends (got_key, scared)
-    # Encryption sends (got_message, happy, got_verifier, scared)
+    # Wormhole expects got_verified_key, got_versions
+
+    # Encryption sends: have_alleged_key, happy(key, version_data)
+    #   but could send "scared" at any time
     # Mailbox sends (crowded)
     @m.input()
-    def happy(self):
+    def have_alleged_key(self):
+        pass
+
+    @m.input()
+    def happy(self, key, version_data):
         pass
 
     @m.input()
@@ -293,10 +299,9 @@ class Boss:
     def got_message(self, phase, plaintext):
         assert isinstance(phase, str), type(phase)
         assert isinstance(plaintext, bytes), type(plaintext)
+        assert phase != "version" # should arrive in happy()
         d_mo = re.search(r'^dilate-(\d+)$', phase)
-        if phase == "version":
-            self._got_version(plaintext)
-        elif d_mo:
+        if d_mo:
             self._got_dilate(int(d_mo.group(1)), plaintext)
         elif re.search(r'^\d+$', phase):
             self._got_phase(int(phase), plaintext)
@@ -306,23 +311,11 @@ class Boss:
             log.err(_UnknownPhaseError(f"received unknown phase '{phase}'"))
 
     @m.input()
-    def _got_version(self, plaintext):
-        pass
-
-    @m.input()
     def _got_phase(self, phase, plaintext):
         pass
 
     @m.input()
     def _got_dilate(self, seqnum, plaintext):
-        pass
-
-    @m.input()
-    def got_key(self, key):
-        pass
-
-    @m.input()
-    def got_verifier(self, verifier):
         pass
 
     # Terminator sends closed
@@ -335,14 +328,17 @@ class Boss:
         self._W.got_code(code)
 
     @m.output()
-    def process_version(self, plaintext):
+    def process_key_and_version(self, key, version_plaintext):
+        self._W.got_verified_key(key)
         # most of this is wormhole-to-wormhole, ignored for now
         # in the future, this is how Dilation is signalled
-        self._their_versions = bytes_to_dict(plaintext)
+        self._D.got_verified_key(self._key)
+        self._their_versions = bytes_to_dict(version_plaintext)
         self._D.got_wormhole_versions(self._their_versions)
         # but this part is app-to-app
         app_versions = self._their_versions.get("app_versions", {})
         self._W.got_versions(app_versions)
+        self._evolve_wormhole_status(peer_key=ConfirmedKey())
 
     @m.output()
     def E_send(self, plaintext):
@@ -383,37 +379,10 @@ class Boss:
         self._T.close("happy")
 
     @m.output()
-    def W_got_key(self, key):
-        # unverified. TODO: move to new event, after verification
-        self._key = key
-        self._W.got_key(key)
-
-    @m.output()
-    def D_got_verified_key(self, plaintext):
-        assert self._key
-        self._D.got_verified_key(self._key)
-
-    @m.output()
-    def send_status_peer_key(self, key):
+    def send_status_alleged_key(self):
         self._evolve_wormhole_status(
             peer_key=AllegedSharedKey(),
         )
-
-    @m.output()
-    def send_status_confirmed_key(self, plaintext):
-        self._evolve_wormhole_status(
-            peer_key=ConfirmedKey(),
-        )
-
-    @m.output()
-    def send_status_closed(self):
-        self._evolve_wormhole_status(
-            mailbox_connection=Closed(),
-        )
-
-    @m.output()
-    def W_got_verifier(self, verifier):
-        self._W.got_verifier(verifier)
 
     @m.output()
     def W_received(self, phase, plaintext):
@@ -438,59 +407,55 @@ class Boss:
     def W_close_with_error(self, err):
         self._result = err  # exception
         self._W.closed(self._result)
+        self._evolve_wormhole_status(mailbox_connection=Closed())
 
     @m.output()
     def W_closed(self):
         # result is either "happy" or a WormholeError of some sort
         self._W.closed(self._result)
+        self._evolve_wormhole_status(mailbox_connection=Closed())
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[E_send])
     S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
+    S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
-    S1_lonely.upon(happy, enter=S2_happy, outputs=[])
+    S1_lonely.upon(have_alleged_key, enter=S1_lonely, outputs=[send_status_alleged_key])
+    S1_lonely.upon(happy, enter=S2_happy, outputs=[process_key_and_version])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])
     S1_lonely.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S1_lonely.upon(close, enter=S3_closing, outputs=[close_lonely])
     S1_lonely.upon(send, enter=S1_lonely, outputs=[E_send])
-    S1_lonely.upon(got_key, enter=S1_lonely, outputs=[W_got_key, send_status_peer_key])
     S1_lonely.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
+    S1_lonely.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S2_happy.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
-    S2_happy.upon(got_verifier, enter=S2_happy, outputs=[W_got_verifier])
     S2_happy.upon(_got_phase, enter=S2_happy, outputs=[W_received])
-    S2_happy.upon(_got_version, enter=S2_happy, outputs=[process_version, D_got_verified_key, send_status_confirmed_key])
     S2_happy.upon(_got_dilate, enter=S2_happy, outputs=[D_received_dilate])
     S2_happy.upon(scared, enter=S3_closing, outputs=[close_scared])
     S2_happy.upon(crowded, enter=S3_closing, outputs=[close_crowded])
     S2_happy.upon(close, enter=S3_closing, outputs=[close_happy])
     S2_happy.upon(send, enter=S2_happy, outputs=[E_send])
     S2_happy.upon(rx_error, enter=S3_closing, outputs=[close_error])
-    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
+    S2_happy.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S3_closing.upon(rx_unwelcome, enter=S3_closing, outputs=[])
     S3_closing.upon(rx_error, enter=S3_closing, outputs=[])
-    S3_closing.upon(got_verifier, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_phase, enter=S3_closing, outputs=[])
-    S3_closing.upon(_got_version, enter=S3_closing, outputs=[])
     S3_closing.upon(_got_dilate, enter=S3_closing, outputs=[])
     S3_closing.upon(happy, enter=S3_closing, outputs=[])
     S3_closing.upon(scared, enter=S3_closing, outputs=[])
     S3_closing.upon(crowded, enter=S3_closing, outputs=[])
     S3_closing.upon(close, enter=S3_closing, outputs=[])
     S3_closing.upon(send, enter=S3_closing, outputs=[])
-    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed, send_status_closed])
-    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error, send_status_closed])
+    S3_closing.upon(closed, enter=S4_closed, outputs=[W_closed])
+    S3_closing.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S4_closed.upon(rx_unwelcome, enter=S4_closed, outputs=[])
-    S4_closed.upon(got_verifier, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_phase, enter=S4_closed, outputs=[])
-    S4_closed.upon(_got_version, enter=S4_closed, outputs=[])
     S4_closed.upon(_got_dilate, enter=S4_closed, outputs=[])
     S4_closed.upon(happy, enter=S4_closed, outputs=[])
     S4_closed.upon(scared, enter=S4_closed, outputs=[])

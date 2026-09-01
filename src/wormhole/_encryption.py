@@ -46,18 +46,17 @@ def is_dilation(phase):
 def is_numeric(phase):
     return bool(NUMERIC_RE.search(phase))
 
+# Boss expects have_alleged_key, happy, scared, got_message
 @frozen
-class B_GotKey:
-    key: bytes
+class B_HaveAllegedKey:
+    pass
 @frozen
 class B_Happy:
-    pass
+    key: bytes
+    version_data: bytes
 @frozen
 class B_Scared:
     pass
-@frozen
-class B_GotVerifier:
-    verifier: bytes
 @frozen
 class B_GotMessage:
     phase: str
@@ -67,7 +66,7 @@ class M_AddMessage:
     phase: str
     body: bytes
 
-CoreOutput = B_GotKey | B_Happy | B_Scared | B_GotVerifier | B_GotMessage | M_AddMessage
+CoreOutput = B_HaveAllegedKey | B_Happy | B_Scared | B_GotMessage | M_AddMessage
 
 # EncryptionCore has three key-setup input events: got_code(),
 # begin(), got_message(pake0). Both begin() and got-pake0 make us
@@ -97,13 +96,12 @@ class _EncryptionCore:
     _timing: ITiming = field(validator=provides(ITiming))
 
     _code = None
-    _alleged_key = None # or unverified session key
     _key = None # or verified session key
     _scared = False # or True
 
     def __attrs_post_init__(self):
         self._outputs: list[CoreOutput] = []
-        # these are held until we have a verified key
+        # these queues are held until we have a verified key
         self._queued_received_encrypted = []
         self._queued_sends = []
 
@@ -167,6 +165,7 @@ class _EncryptionCore:
         if is_key_setup(phase):
             if phase == "pake":
                 data = bytes_to_dict(body)
+                # legacy peers are v0-only
                 their_versions = data.get("my_key_setup_versions", ["v0"])
                 self._negotiator.got_versions(side, their_versions)
             self._negotiator.got_key_setup_message(side, phase, body)
@@ -187,11 +186,11 @@ class _EncryptionCore:
             case inegotiator.Send(phase, body):
                 self._add_output(M_AddMessage(phase, body))
             case inegotiator.HaveAllegedKey(key):
-                NotImplementedError XXX
+                self._add_output(B_HaveAllegedKey())
             case inegotiator.Done(key, version_data):
-                self._add_output(B_Happy())
-                self._add_output(B_GotKey(key))
-                "deliver version_data" XXX
+                self._add_output(B_Happy(key, version_data))
+            case _:
+                raise ValueError("unknown NegotiatorAction")
 
     def _drain_queued_received_encrypted(self):
         assert self._key
@@ -254,14 +253,12 @@ class Encryption:
             match self._core.output():
                 case None:
                     return
-                case B_GotKey(key):
-                    self._B.got_key(key) # unverified
-                case B_Happy():
-                    self._B.happy()
+                case B_HaveAllegedKey():
+                    self._B.have_alleged_key()
+                case B_Happy(key, version_data):
+                    self._B.happy(key, version_data)
                 case B_Scared():
                     self._B.scared()
-                case B_GotVerifier(verifier):
-                    self._B.got_verifier(verifier)
                 case B_GotMessage(phase, body):
                     self._B.got_message(phase, body)
                 case M_AddMessage(phase, body):

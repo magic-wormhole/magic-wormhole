@@ -8,7 +8,7 @@ class Send:
     body: bytes
 @frozen
 class HaveAllegedKey:
-    key: bytes # TODO remove
+    pass
 @frozen
 class Done:
     key: bytes
