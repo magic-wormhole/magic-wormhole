@@ -1,12 +1,12 @@
 from attrs import frozen, define, field
-from zope.interface import implementer, provides
+from zope.interface import implementer
 from . import inegotiator, ikeysetup
 from .next_phase import next_phase
 from .spake2_helper import SPAKE2_Helper
 from .key_setup_v0 import KeySetup_V0
 from .key_setup_v1 import KeySetup_V1
 from .._interfaces import ITiming
-from ..util import dict_to_bytes
+from ..util import dict_to_bytes, provides
 
 # This defines all the versions we are capable+willing to speak, in
 # decreasing order of preference. This list will be sampled at
@@ -63,7 +63,7 @@ class Done:
 State = Waiting | WaitingReady | WaitingCode | WaitingVersion | Speculating | Negotiating | Done
 
 @implementer(inegotiator.INegotiator)
-@define
+@define(slots=False)
 class Negotiator:
     _appid: str
     _app_versions: dict
@@ -229,7 +229,7 @@ class Negotiator:
         # SPAKE2, they must share the SPAKE2 instance, so both get the
         # same SPAKE2 first message)
         for ver,ks in panel.items():
-            pieces = ks.start(self._code, None) # we don't know their_side yet
+            pieces = ks.start(code, None) # we don't know their_side yet
             assert ks.output() == None # should be waiting for peer PAKE0
             for key,value in pieces.items():
                 assert isinstance(value, str)

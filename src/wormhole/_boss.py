@@ -285,7 +285,7 @@ class Boss:
         pass
 
     @m.input()
-    def happy(self, key, version_data):
+    def happy(self, key, version_plaintext):
         pass
 
     @m.input()

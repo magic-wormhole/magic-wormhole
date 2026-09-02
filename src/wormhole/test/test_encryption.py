@@ -4,9 +4,9 @@ import pytest
 from spake2 import SPAKE2_Symmetric
 
 from .. import _encryption, timing, errors
-from .._encryption import derive_key, derive_phase_key, encrypt_data, decrypt_data
 from .._encryption import B_GotKey, B_Happy, B_Scared, B_GotVerifier, B_GotMessage, M_AddMessage
 from .._interfaces import IBoss, IMailbox
+from ..util import derive_key, derive_phase_key, encrypt_data, decrypt_data
 from ..util import bytes_to_hexstr, dict_to_bytes, hexstr_to_bytes, to_bytes
 from .common import Dummy
 

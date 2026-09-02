@@ -4,7 +4,7 @@ from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, derive_phase_key,
                     encrypt_data, decrypt_data, CryptoError)
 from ..errors import CrowdedError, WrongPasswordError, CausalityError
-from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupOutput
+from .ikeysetup import IKeySetup, Send, HaveAllegedKey, Done, KeySetupAction
 from .spake2_helper import SPAKE2_Helper
 
 # This is the retroactively-named "v0" key-setup protocol: the initial
@@ -32,7 +32,7 @@ class KeySetup_V0:
         self._their_side = None
         self._inbound_messages = dict()
         self._wanted = None
-        self._outputs: list[KeySetupOutput] = []
+        self._outputs: list[KeySetupAction] = []
 
     def start(self, code, _side):
         # this protocol doesn't use the peer's side until later

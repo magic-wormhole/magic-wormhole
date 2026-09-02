@@ -56,7 +56,7 @@ class KeySetup_V1:
         assert not self._started, "start() may only be called once)"
         msg1 = self._sph.start(code)
         self._wanted = "pake"
-        self._process()
+        self._process_inbound()
         self._started = True
         return {"pake_v1": bytes_to_hexstr(msg1)}
 

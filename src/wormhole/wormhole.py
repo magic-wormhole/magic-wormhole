@@ -10,13 +10,12 @@ from ._boss import Boss
 from ._dilation.manager import DILATION_VERSIONS
 from ._dilation.connector import Connector
 from ._interfaces import IDeferredWormhole, IWormhole
-from ._encryption import derive_key
 from .errors import NoKeyError, WormholeClosed
 from .eventual import EventualQueue
 from .journal import ImmediateJournal
 from .observer import OneShotObserver, SequenceObserver
 from .timing import DebugTiming
-from .util import bytes_to_hexstr, to_bytes
+from .util import bytes_to_hexstr, to_bytes, derive_key
 from ._version import get_versions
 
 __version__ = get_versions()['version']
