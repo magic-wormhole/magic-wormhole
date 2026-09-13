@@ -163,6 +163,9 @@ class Receiver:
                     self._start_on_slow_verification_timer()
                 case ConfirmedKey():
                     self._cancel_on_slow_verification_timer()
+        if status.key_setup_version != self._old_status.key_setup_version:
+            print("(negotiated version %s)" % status.key_setup_version,
+                  file=self.args.stderr)
         self._old_status = status
 
     @inlineCallbacks
