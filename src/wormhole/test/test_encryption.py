@@ -1,5 +1,6 @@
 import json, binascii
 import pytest
+from unittest import mock
 
 from spake2 import SPAKE2_Symmetric
 
@@ -7,14 +8,21 @@ from .. import _encryption, timing, errors
 from .._encryption import B_HaveAllegedKey, B_Happy, B_GotAppVersions, B_Scared, B_GotMessage, M_AddMessage
 from .._encryption import B_DecidedKeySetupVersion
 from .._interfaces import IBoss, IMailbox
+from .._key_setup.negotiator import KEY_SETUP_VERSIONS
 from ..util import derive_key, derive_phase_key, encrypt_data, decrypt_data
 from ..util import bytes_to_hexstr, dict_to_bytes, hexstr_to_bytes, to_bytes
 from .common import Dummy
 
 CODE = "1-code"
 
-def build_encryption_core():
-    c = _encryption._EncryptionCore("appid", {}, "side1", timing.DebugTiming())
+def build_encryption_core(version=None):
+    if not version:
+        c = _encryption._EncryptionCore("appid", {}, "side1", timing.DebugTiming())
+    else:
+        assert version in KEY_SETUP_VERSIONS
+        versions = [ version ]
+        with mock.patch("wormhole._key_setup.negotiator.KEY_SETUP_VERSIONS", versions):
+            c = _encryption._EncryptionCore("appid", {}, "side1", timing.DebugTiming())
     return c
 
 def compute_pake0(code):
@@ -148,7 +156,7 @@ def test_reversed():
 # exceptions.
 
 def test_v0_bad_pake0_format():
-    c = build_encryption_core()
+    c = build_encryption_core("v0")
     actions = c.got_code(CODE)
     body = assert_MAddMessage(actions.pop(0), "pake")
     assert actions == []
