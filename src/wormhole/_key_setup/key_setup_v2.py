@@ -104,7 +104,7 @@ class KeySetup_V2:
         self._state = StartedEarly()
         msg = {"pake_v1": bytes_to_hexstr(msg1)}
         self._need_to_send_spake2 = False # sent
-        print("-building pake0, I am", self._role)
+        #print("-building pake0, I am", self._role)
         match self._role:
             case Leader() | Unknown():
                 # leader does KeyGen and Decapsulate
@@ -116,7 +116,7 @@ class KeySetup_V2:
                 pass # wait for leader's pubkey
             case _:
                 raise ValueError("bad state")
-        print(" outbound pake0 has", list(msg))
+        #print(" outbound pake0 has", list(msg))
         return msg
 
     def submit_outbound_pake0(self, pake0mt: MessageTuple):
@@ -134,7 +134,7 @@ class KeySetup_V2:
         self._transcript.append(pake0mt)
         self._determine_leader(their_side) # always known by now
         assert self._role in [Leader(), Follower()]
-        print("-building pake1, I am", self._role)
+        #print("-building pake1, I am", self._role)
 
         components = {}
         msg1 = self._sph.start(code)
@@ -173,7 +173,7 @@ class KeySetup_V2:
             # fast as if we'd bundled it in our PAKE-1
             pass
 
-        print(" outbound pake1 has", list(components))
+        #print(" outbound pake1 has", list(components))
         body = dict_to_bytes(components)
         send = ikeysetup.Send(self._side, "pake-1", body)
         self._next_outbound_phase = "pake-2"
@@ -182,8 +182,8 @@ class KeySetup_V2:
         return (wanted, [send])
 
     def input(self, side: str, phase: str, body: bytes) -> NextKeySetupInput:
-        print("INPUT(%s)" % phase)
-        print(" to state", self._state)
+        #print("INPUT(%s)" % phase)
+        #print(" to state", self._state)
         assert isinstance(side, str), type(phase)
         assert isinstance(phase, str), type(phase)
         assert isinstance(body, bytes), type(body)
@@ -203,19 +203,19 @@ class KeySetup_V2:
             case StartedEarly():
                 raise ValueError("input() before submit_outbound_pake0")
             case WantPAKE(wanted):
-                print("WantPAKE (%s) start: wants: " % self._role,
-                      "spake2 " if self._want_spake2 else "",
-                      "mlkem_pubkey " if self._want_mlkem_pubkey else "",
-                      "mlkem_ct " if self._want_mlkem_ct else "",
-                      "have keys: ",
-                      "spake2 " if self._spake2_key else "",
-                      "mlkem " if self._mlkem_key else "")
+                #print("WantPAKE (%s) start: wants: " % self._role,
+                #      "spake2 " if self._want_spake2 else "",
+                #      "mlkem_pubkey " if self._want_mlkem_pubkey else "",
+                #      "mlkem_ct " if self._want_mlkem_ct else "",
+                #      "have keys: ",
+                #      "spake2 " if self._spake2_key else "",
+                #      "mlkem " if self._mlkem_key else "")
                 actions = []
                 assert phase == wanted
                 self._transcript.append((side, phase, body))
                 assert self._want_spake2 or self._want_mlkem_pubkey or self._want_mlkem_ct
                 payload = bytes_to_dict(body)
-                print(" got", list(payload))
+                #print(" got", list(payload))
                 if self._want_spake2 and "pake_v1" in payload:
                     # this lets us build the SPAKE2 portion of our key
                     msg2 = hexstr_to_bytes(payload["pake_v1"])
@@ -244,13 +244,13 @@ class KeySetup_V2:
                     ct = hexstr_to_bytes(payload["v2_mlkem_ciphertext"])
                     self._mlkem_key = self._privkey.decapsulate(ct)
                     self._want_mlkem_ct = False
-                print("WantPAKE (%s) later: wants: " % self._role,
-                      "spake2 " if self._want_spake2 else "",
-                      "mlkem_pubkey " if self._want_mlkem_pubkey else "",
-                      "mlkem_ct " if self._want_mlkem_ct else "",
-                      "have keys: ",
-                      "spake2 " if self._spake2_key else "",
-                      "mlkem " if self._mlkem_key else "")
+                #print("WantPAKE (%s) later: wants: " % self._role,
+                #      "spake2 " if self._want_spake2 else "",
+                #      "mlkem_pubkey " if self._want_mlkem_pubkey else "",
+                #      "mlkem_ct " if self._want_mlkem_ct else "",
+                #      "have keys: ",
+                #      "spake2 " if self._spake2_key else "",
+                #      "mlkem " if self._mlkem_key else "")
                 
                 assert self._spake2_key or self._want_spake2
                 assert self._mlkem_key or (self._want_mlkem_pubkey or self._want_mlkem_ct)
@@ -261,17 +261,17 @@ class KeySetup_V2:
                     actions.append(self._send_version(kcm_key))
                     next_wanted = next_phase(phase)
                     self._state = VerifyingOurVersion(kcm_key, main_key, next_wanted)
-                    print(" waiting for pre-VERSION", next_wanted)
+                    #print(" waiting for pre-VERSION", next_wanted)
                 else:
                     # still waiting for all the pieces
                     next_wanted = next_phase(phase)
                     self._state = WantPAKE(next_wanted)
-                    print(" still waiting for key pieces, next phase", next_wanted)
+                    #print(" still waiting for key pieces, next phase", next_wanted)
             case VerifyingOurVersion(kcm_key, main_key, wanted):
                 assert phase == wanted
                 # *not* added to transcript
                 payload = bytes_to_dict(body)
-                print(" got", payload)
+                #print(" got", payload)
                 if "our_key_setup_version" in payload:
                     their_version = payload["our_key_setup_version"]
                     if their_version != self.VERSION:
@@ -282,13 +282,13 @@ class KeySetup_V2:
                     actions = []
                     next_wanted = "version"
                     self._state = VerifyingKey(kcm_key, main_key)
-                    print(" verified our_key_setup_version, next phase", next_wanted)
+                    #print(" verified our_key_setup_version, next phase", next_wanted)
                 else:
                     # keep waiting, WEIRD
                     actions = []
                     next_wanted = next_phase(phase)
                     self._state = VerifyingOurVersion(kcm_key, main_key, next_wanted)
-                    print(" still hungry for pre-VERSION, next phase", next_wanted)
+                    #print(" still hungry for pre-VERSION, next phase", next_wanted)
             case VerifyingKey(kcm_key, main_key):
                 assert phase == "version"
                 data_key = derive_phase_key(kcm_key, side, phase)
@@ -300,7 +300,7 @@ class KeySetup_V2:
                 next_wanted = None
                 actions = [ikeysetup.Done(main_key, plaintext)]
                 self._state = Done()
-                print(" verified VERSION")
+                #print(" verified VERSION")
             case _:
                 raise ValueError("bad state")
         assert isinstance(actions, list)
@@ -309,17 +309,17 @@ class KeySetup_V2:
 
     def _compute_session_key(self):
         t_hash = hash_transcript(self.VERSION, self._transcript)
-        print("_COMPUTE_SESSION_KEY")
-        print("transcript: %d items" % len(self._transcript))
-        print(" spake2:", bytes_to_hexstr(self._spake2_key))
-        print(" mlkem :", bytes_to_hexstr(self._mlkem_key))
-        print(" t_hash:", bytes_to_hexstr(t_hash))
+        #print("_COMPUTE_SESSION_KEY")
+        #print("transcript: %d items" % len(self._transcript))
+        #print(" spake2:", bytes_to_hexstr(self._spake2_key))
+        #print(" mlkem :", bytes_to_hexstr(self._mlkem_key))
+        #print(" t_hash:", bytes_to_hexstr(t_hash))
         ikm = self._spake2_key + self._mlkem_key
         kcm_tag = b"magic-wormhole key setup key-confirmation"
         kcm_key = HKDF(ikm, 32, salt=t_hash, CTXinfo=kcm_tag)
         main_tag = b"magic-wormhole key setup main key"
         main_key = HKDF(ikm, 32, salt=t_hash, CTXinfo=main_tag)
-        print(" key:", bytes_to_hexstr(main_key))
+        #print(" key:", bytes_to_hexstr(main_key))
         return kcm_key, main_key
 
     def _send_pre_version(self):
