@@ -18,6 +18,7 @@ from .._status import WormholeStatus
 from ..util import (bytes_to_dict, bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, to_bytes, derive_key,
                     derive_phase_key, encrypt_data)
+from .common import Dummy
 import pytest
 import pytest_twisted
 
@@ -30,26 +31,6 @@ class FakeWordList:
     def get_completions(self, prefix):
         self._get_completions_prefix = prefix
         return self._completions
-
-
-class Dummy:
-    def __init__(self, name, events, iface, *meths, **kw):
-        self.name = name
-        self.events = events
-        if iface:
-            directlyProvides(self, iface)
-        for meth in meths:
-            self.mock(meth)
-        self.retval = None
-        for k, v in kw.items():
-            setattr(self, k, v)
-
-    def mock(self, meth):
-        def log(*args):
-            self.events.append((f"{self.name}.{meth}", ) + args)
-            return self.retval
-
-        setattr(self, meth, log)
 
 
 def build_encryption():
