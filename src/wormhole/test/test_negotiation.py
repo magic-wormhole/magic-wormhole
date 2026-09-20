@@ -130,6 +130,7 @@ def test_v0_ABCD_basic():
     actions = n.got_versions(side2, ["v0"]) # C1
     p0 = (side1, "pake", dict_to_bytes(exp_pake0))
     assert fv0.t_all_called() == [("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     # but receiving the inbound PAKE-0 body will build the alleged key,
@@ -189,6 +190,7 @@ def test_v0_ABDC():
     actions = n.got_versions(side2, ["v0"]) # C1
     p0 = (side1, "pake", dict_to_bytes(exp_pake0))
     assert fv0.t_all_called() == [("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     #assert fv0.t_all_called() == [("input", side2, "version", b"vct2")]
@@ -237,6 +239,7 @@ def test_v0_ACBD():
     assert ks0c.call_count == 1
     assert fv0.t_all_called() == [("start_pake0", code, side2),
                                   ("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions.pop(0) == inegotiator.Send("pake", dict_to_bytes(exp_pake0))
     assert actions == []
 
@@ -292,6 +295,7 @@ def test_v0_BACD():
     actions = n.got_versions(side2, ["v0"]) # C1
     p0 = (side1, "pake", dict_to_bytes(exp_pake0))
     assert fv0.t_all_called() == [("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     # but receiving the inbound PAKE-0 body will build the alleged key,
@@ -348,6 +352,7 @@ def test_v0_BADC():
     actions = n.got_versions(side2, ["v0"]) # C1
     p0 = (side1, "pake", dict_to_bytes(exp_pake0))
     assert fv0.t_all_called() == [("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     pake0b = dict_to_bytes({"pake_v1": "stuff2"})
@@ -389,6 +394,7 @@ def test_v0_BCAD():
     actions = n.got_versions(side2, ["v0"]) # C1
     assert ks0c.call_count == 1
     assert fv0.t_all_called() == []
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     # so their PAKE-0 is queued inside the negotiator
@@ -437,6 +443,7 @@ def test_v0_CBAD():
     actions = n.got_versions(side2, ["v0"]) # C1
     assert ks0c.call_count == 1
     assert fv0.t_all_called() == []
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v0")
     assert actions == []
 
     # so their PAKE-0 is queued

@@ -4,7 +4,8 @@ from .. import (_encryption, timing)
 from ..util import (bytes_to_hexstr, dict_to_bytes,
                     hexstr_to_bytes, to_bytes,
                     derive_phase_key, encrypt_data)
-from .._encryption import B_HaveAllegedKey, B_Happy, B_GotAppVersions, M_AddMessage
+from .._encryption import (B_HaveAllegedKey, B_Happy, B_GotAppVersions, M_AddMessage,
+                           B_DecidedKeySetupVersion)
 
 def build_encryption_core():
     c = _encryption._EncryptionCore("appid", {}, "side", timing.DebugTiming())
@@ -40,6 +41,7 @@ def test_ignore_unrecognized_pake0_properties():
     actions = c.got_message("side2", "pake", dict_to_bytes(pake0))
     # the v0 protocol should compute the right key despite any extra
     # properties
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     assert_MAddMessage(actions.pop(0), "version")
     assert actions == []
@@ -69,6 +71,7 @@ def test_ignore_future_versions():
     actions = c.got_message("side2", "pake", dict_to_bytes(pake0))
     # the v0 protocol should compute the right key despite any extra
     # properties
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     assert_MAddMessage(actions.pop(0), "version")
     assert actions == []

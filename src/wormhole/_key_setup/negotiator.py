@@ -229,6 +229,7 @@ class Negotiator:
             err.my_versions = self._key_setup_versions.copy()
             err.their_versions = their_versions.copy()
             raise err
+        self._outputs.append(inegotiator.DecidedKeySetupVersion(version))
         match self._state:
             case Waiting() | WaitingReady():
                 # TODO: assert not self._queued_inbound ??

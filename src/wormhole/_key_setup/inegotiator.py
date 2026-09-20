@@ -7,13 +7,16 @@ class Send:
     phase: str
     body: bytes
 @frozen
+class DecidedKeySetupVersion:
+    version: str
+@frozen
 class HaveAllegedKey:
     pass
 @frozen
 class Done:
     key: bytes
     version_data: bytes
-NegotiatorAction = Send | HaveAllegedKey | Done
+NegotiatorAction = Send | DecidedKeySetupVersion | HaveAllegedKey | Done
 
 
 # inputs:

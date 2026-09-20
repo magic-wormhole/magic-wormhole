@@ -46,6 +46,9 @@ def is_numeric(phase):
 
 # Boss expects have_alleged_key, happy, scared, got_message
 @frozen
+class B_DecidedKeySetupVersion:
+    version: str
+@frozen
 class B_HaveAllegedKey:
     pass
 @frozen
@@ -66,7 +69,7 @@ class M_AddMessage:
     phase: str
     body: bytes
 
-CoreActions = B_HaveAllegedKey | B_Happy | B_GotAppVersions | B_Scared | B_GotMessage | M_AddMessage
+CoreActions = B_DecidedKeySetupVersion | B_HaveAllegedKey | B_Happy | B_GotAppVersions | B_Scared | B_GotMessage | M_AddMessage
 
 # EncryptionCore has three key-setup input events: got_code(),
 # begin(), got_message(pake0). Both begin() and got-pake0 make us
@@ -190,6 +193,8 @@ class _EncryptionCore:
     def _process_negotiator_actions(self, actions):
         for action in actions:
             match action:
+                case inegotiator.DecidedKeySetupVersion(version):
+                    self._add_output(B_DecidedKeySetupVersion(version))
                 case inegotiator.Send(phase, body):
                     self._add_output(M_AddMessage(phase, body))
                 case inegotiator.HaveAllegedKey():
@@ -263,6 +268,8 @@ class Encryption:
         # other wormhole APIs, bad things will happen
         for action in actions:
             match action:
+                case B_DecidedKeySetupVersion(version):
+                    self._B.decided_key_setup_version(version)
                 case B_HaveAllegedKey():
                     self._B.have_alleged_key()
                 case B_Happy(key):

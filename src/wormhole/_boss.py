@@ -276,9 +276,13 @@ class Boss:
 
     # Wormhole expects got_verified_key, got_app_versions
 
-    # Encryption sends: have_alleged_key, happy(key), got_app_versions(version_plaintext)
+    # Encryption sends: decided_key_setup_version, have_alleged_key, happy(key), got_app_versions(version_plaintext)
     #   but could send "scared" at any time
     # Mailbox sends (crowded)
+    @m.input()
+    def decided_key_setup_version(self, version):
+        pass
+
     @m.input()
     def have_alleged_key(self):
         pass
@@ -386,6 +390,12 @@ class Boss:
         self._T.close("happy")
 
     @m.output()
+    def send_status_key_setup_version(self, version):
+        self._evolve_wormhole_status(
+            key_setup_version=version,
+            )
+
+    @m.output()
     def send_status_alleged_key(self):
         self._evolve_wormhole_status(
             peer_key=AllegedSharedKey(),
@@ -424,12 +434,14 @@ class Boss:
 
     S0_empty.upon(close, enter=S3_closing, outputs=[close_lonely])
     S0_empty.upon(send, enter=S0_empty, outputs=[E_send])
+    S0_empty.upon(decided_key_setup_version, enter=S0_empty, outputs=[send_status_key_setup_version])
     S0_empty.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
     S0_empty.upon(got_code, enter=S1_lonely, outputs=[do_got_code])
     S0_empty.upon(rx_error, enter=S3_closing, outputs=[close_error])
     S0_empty.upon(error, enter=S4_closed, outputs=[W_close_with_error])
 
     S1_lonely.upon(rx_unwelcome, enter=S3_closing, outputs=[close_unwelcome])
+    S1_lonely.upon(decided_key_setup_version, enter=S1_lonely, outputs=[send_status_key_setup_version])
     S1_lonely.upon(have_alleged_key, enter=S1_lonely, outputs=[send_status_alleged_key])
     S1_lonely.upon(happy, enter=S2_happy, outputs=[process_key])
     S1_lonely.upon(scared, enter=S3_closing, outputs=[close_scared])

@@ -5,6 +5,7 @@ from spake2 import SPAKE2_Symmetric
 
 from .. import _encryption, timing, errors
 from .._encryption import B_HaveAllegedKey, B_Happy, B_GotAppVersions, B_Scared, B_GotMessage, M_AddMessage
+from .._encryption import B_DecidedKeySetupVersion
 from .._interfaces import IBoss, IMailbox
 from ..util import derive_key, derive_phase_key, encrypt_data, decrypt_data
 from ..util import bytes_to_hexstr, dict_to_bytes, hexstr_to_bytes, to_bytes
@@ -52,6 +53,7 @@ def do_key_setup():
 
     key, msg2 = compute_key(CODE, body)
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     body = assert_MAddMessage(actions.pop(0), "version")
     assert decrypt_version(key, body) == {}
@@ -96,6 +98,7 @@ def test_good_key():
     assert actions == []
     key, msg2 = compute_key(CODE, body)
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     body = assert_MAddMessage(actions.pop(0), "version")
     assert decrypt_version(key, body) == {}
@@ -121,6 +124,7 @@ def test_reversed():
 
     sp, msg2 = compute_pake0(CODE)
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions == []
 
     actions = c.got_code(CODE)
@@ -202,6 +206,7 @@ def test_ignored_phase(observe_errors):
     assert actions == []
     key, msg2 = compute_key(CODE, body)
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     body = assert_MAddMessage(actions.pop(0), "version")
     assert decrypt_version(key, body) == {}
@@ -286,6 +291,7 @@ def test_early_send():
 
     # computing the key, but not verifying it, should not trigger sends
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     assert_MAddMessage(actions.pop(0), "version")
     assert actions == []
@@ -374,6 +380,7 @@ def test_order_PAKE_VERSION():
     assert actions == []
 
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     assert_MAddMessage(actions.pop(0), "version")
     assert actions == []
@@ -409,6 +416,7 @@ def test_order_VERSION_PAKE():
     assert actions == []
 
     actions = c.got_message("side2", "pake", msg2)
+    assert actions.pop(0) == B_DecidedKeySetupVersion("v0")
     assert actions.pop(0) == B_HaveAllegedKey()
     assert_MAddMessage(actions.pop(0), "version")
     assert actions.pop(0) == B_Happy(key)

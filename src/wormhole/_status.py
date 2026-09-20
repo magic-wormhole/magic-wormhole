@@ -138,6 +138,10 @@ class WormholeStatus:
     # basically
     peer_key: PeerSharedKey = NoKey()
 
+    # when PAKE negotiation begins, a common key setup version is
+    # decided, something like "v0" or "v1": this shows the version
+    key_setup_version: str | None = None
+
     # we don't reveal the actual code here, on the theory the UI
     # should already know it and/or be displaying it somehow. This
     # communicates the *status* of that code, e.g. whether it is stale
