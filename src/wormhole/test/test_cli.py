@@ -531,6 +531,7 @@ async def _do_test(
             '',
             'send',
             '--hide-progress',
+            '--no-qr',
             '--code',
             send_cfg.code,
         ] + content_args
@@ -576,6 +577,7 @@ async def _do_test(
         assert receive_rc == 0, f"receive failed: {receive_res}"
 
     else:
+        send_cfg.qr = False
         send_cfg.cwd = send_dir
         recv_cfg.cwd = receive_dir
 
