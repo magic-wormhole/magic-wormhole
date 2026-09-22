@@ -3,7 +3,7 @@ from pytest_twisted import ensureDeferred
 import pytest
 
 from .. import wormhole
-from ..errors import NoCommonVersionError
+from ..errors import NoCommonVersionError, WrongPasswordError
 from ..util import bytes_to_dict, dict_to_bytes
 from .._mailbox import Mailbox
 from .._key_setup.negotiator import KEY_SETUP_VERSIONS, KEY_SETUP_CONSTRUCTORS
@@ -114,6 +114,68 @@ async def test_v1_remove_v1_no_common(reactor, mailbox, observe_errors):
             await make_connection(reactor, mailbox, status)
         assert err.value.my_versions == ["v1"]
         assert err.value.their_versions == ["v0"] # legacy
+    assert status[0].key_setup_version == None
+    assert status[1].key_setup_version == None
+    observe_errors.flush(NoCommonVersionError)
+
+# v0+v1+v2 clients are more interesting
+
+def do_v0v1v2():
+    return mock.patch("wormhole._key_setup.negotiator.KEY_SETUP_VERSIONS", ["v0", "v1", "v2"])
+def do_v1v2():
+    return mock.patch("wormhole._key_setup.negotiator.KEY_SETUP_VERSIONS", ["v1", "v2"])
+
+# One class of attack is to remove v2, in an attempt to force v1. This
+# will be caught by the transcript hash divergence, regardless of
+# whether the client accepts v0 or not.
+
+@ensureDeferred
+async def test_v0v1v2_remove_v2_caught(reactor, mailbox):
+    status = [None, None]
+    with (do_v0v1v2(), corrupt(remove=["v2"])):
+        with pytest.raises(WrongPasswordError):
+            await make_connection(reactor, mailbox, status)
+    assert status[0].key_setup_version == "v1"
+    assert status[1].key_setup_version == "v1"
+
+# Such a client is vulnerable to downgrade all the way to v0 (by
+# removing both v1 and v2).
+
+@ensureDeferred
+async def test_v0v1v2_remove_v1v2_vulnerable(reactor, mailbox):
+    status = [None, None]
+    with (do_v0v1v2(), corrupt(remove_all=True)):
+        await make_connection(reactor, mailbox, status)
+    assert status[0].key_setup_version == "v0"
+    assert status[1].key_setup_version == "v0"
+
+# a v0+v1+v2 client which rejects v0 is not vulnerable: downgrading to
+# v1 is caught by the transcript hash, downgrading to v0 causes
+# NoCommonVersionError
+
+@ensureDeferred
+async def test_v1v2_remove_v2_caught(reactor, mailbox):
+    status = [None, None]
+    with (do_v1v2(), corrupt(remove=["v2"])):
+        with pytest.raises(WrongPasswordError) as err:
+            await make_connection(reactor, mailbox, status)
+        print()
+        print("---HERE")
+        print(err)
+        print(err.value, type(err.value))
+        print(dir(err))
+    assert status[0].key_setup_version == "v1"
+    assert status[1].key_setup_version == "v1"
+
+@ensureDeferred
+async def test_v1v2_remove_v1v2_no_common(reactor, mailbox, observe_errors):
+    status = [None, None]
+    with (do_v1v2(), corrupt(remove_all=True)):
+        with pytest.raises(NoCommonVersionError) as err:
+            await make_connection(reactor, mailbox, status)
+        #print(err)
+        assert err.value.my_versions == ["v1", "v2"]
+        assert err.value.their_versions == ["v0"]
     assert status[0].key_setup_version == None
     assert status[1].key_setup_version == None
     observe_errors.flush(NoCommonVersionError)

@@ -2,12 +2,14 @@ import re
 import pytest
 
 from spake2 import SPAKE2_Symmetric
+from cryptography.hazmat.primitives.asymmetric import mlkem
 
 from .. import errors, timing
 from ..util import derive_phase_key, decrypt_data, encrypt_data, HKDF
 from .._key_setup.hash_transcript import hash_transcript
 from .._key_setup.key_setup_v0 import KeySetup_V0
 from .._key_setup.key_setup_v1 import KeySetup_V1
+from .._key_setup.key_setup_v2 import KeySetup_V2
 from .._key_setup.ikeysetup import (Send, HaveAllegedKey, Done)
 from ..util import (bytes_to_hexstr, hexstr_to_bytes,
                     bytes_to_dict, dict_to_bytes,
@@ -218,3 +220,86 @@ def test_v1_good():
 def test_v1_wrong_password():
     _test_v1(side_known_early=True, version_is_good=False)
     _test_v1(side_known_early=False, version_is_good=False)
+
+
+# v2: SPAKE2+MLKEM hybrid
+
+# first test will have DUT be Leader, v2-optimistic
+def test_v2():
+    side1 = "99Leader"
+    side2 = "22Follower"
+    assert side1 > side2
+    # this is us, the Device Under Test
+    t = Transcript()
+    ks = KeySetup_V2(side1, appid, app_versions, timing.DebugTiming())
+
+    # A: trigger the KeySetup to help us build the PAKE message
+    pieces = ks.start_pake0(code, side2)
+    print("PIECES", pieces)
+    assert "pake_v1" in pieces
+    assert "v2_mlkem_pubkey" in pieces
+    pake0 = make_pake0(pieces, ["v2"])
+    pake0b = dict_to_bytes(pake0)
+    pake0mt = (side1, "pake", pake0b)
+    t.add(side1, "pake", pake0b)
+
+    wanted = ks.submit_outbound_pake0(pake0mt)
+    assert wanted == "pake"
+
+    # build the response
+    sp = SPAKE2_Symmetric(to_bytes(code), idSymmetric=to_bytes("appid"))
+    spake2_msg2_bytes = sp.start()
+    pk_bytes = hexstr_to_bytes(pieces["v2_mlkem_pubkey"])
+    pubkey = mlkem.MLKEM768PublicKey.from_public_bytes(pk_bytes)
+    mlkem_key, ct = pubkey.encapsulate()
+    # note: this is faster than the real protocol, which puts pake_v1
+    # in PAKE-1 and v2_mlkem_ciphertext in PAKE-2
+    msg2 = dict_to_bytes({"pake_v1": bytes_to_hexstr(spake2_msg2_bytes),
+                          "v2_mlkem_ciphertext": bytes_to_hexstr(ct)})
+    t.add(side2, "pake", msg2)
+
+    # compute the key for later
+    spake2_key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
+    t_hash = t.hash("v2")
+    ikm = spake2_key + mlkem_key
+    kcm_tag = b"magic-wormhole key setup key-confirmation"
+    kcm_key = HKDF(ikm, 32, salt=t_hash, CTXinfo=kcm_tag)
+    main_tag = b"magic-wormhole key setup main key"
+    main_key = HKDF(ikm, 32, salt=t_hash, CTXinfo=main_tag)
+    pre_version = dict_to_bytes({"our_key_setup_version": "v2"})
+
+    # submit PAKE-0, should get alleged key, pre-VERSION, VERSION
+    (actions, wanted) = ks.input(side2, "pake", msg2)
+    assert actions[0] == HaveAllegedKey()
+    # verify outbound pre-VERSION
+    assert actions[1] == Send(side1, "pake-1", pre_version)
+    # the pre-version does not go into the transcript, nor does VERSION
+    s = actions[2]
+    assert isinstance(s, Send)
+    assert s.side == side1
+    assert s.phase == "version"
+    outbound_version_bytes = s.body
+    assert len(actions) == 3
+    assert wanted == "pake-1"
+
+    # verify outbound VERSION
+    side1_version_key = derive_phase_key(kcm_key, side1, "version")
+    side1_version_bytes = decrypt_data(side1_version_key, outbound_version_bytes)
+    side1_version = bytes_to_dict(side1_version_bytes)
+    assert side1_version == app_versions
+
+    # submit inbound pre-VERSION, should not explode
+    (actions, wanted) = ks.input(side2, "pake-1", pre_version)
+    assert actions == []
+    assert wanted == "version"
+
+    # build an inbound VERSION
+    side2_app_versions = { "rah": "blurg" }
+    side2_version_bytes = dict_to_bytes(side2_app_versions)
+    side2_good_version_key = derive_phase_key(kcm_key, side2, "version")
+    good_inbound_version_bytes = encrypt_data(side2_good_version_key, side2_version_bytes)
+
+    # submit the VERSION, and it should verify it
+    (actions, wanted) = ks.input(side2, "version", good_inbound_version_bytes)
+    assert actions == [Done(main_key, side2_version_bytes)]
+    assert wanted == None
