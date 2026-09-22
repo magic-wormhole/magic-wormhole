@@ -61,6 +61,16 @@ class NegotiationError(WormholeError):
     confusion.
     """
 
+class NoCommonVersionError(WormholeError):
+    """
+    Unable to find a mutually-acceptable key setup protocol version to use.
+
+    err.their_versions contains a list of what the peer can accept.
+    err.my_versions contains the list of what we can accept
+
+    Might be addressed by upgrading your client or enabling older versions.
+    """
+
 class KeyFormatError(WormholeError):
     """
     The key you entered contains spaces or was missing a dash. Magic-wormhole

@@ -1,14 +1,40 @@
 from attrs import frozen, define, field
 from zope.interface import implementer
 from . import inegotiator, ikeysetup
+from .next_phase import next_phase
+from .spake2_helper import SPAKE2_Helper
 from .key_setup_v0 import KeySetup_V0
 from .._interfaces import ITiming
 from ..util import dict_to_bytes, provides
+from ..errors import NoCommonVersionError
 
-# constructors are sampled at construction time, for unit tests
+# This defines all the versions we are capable+willing to speak, in
+# increasing order of preference (so the right-most version is the
+# most preferable). This list will be sampled at construction time, so
+# unit tests can mock.patch the list, to simulate older clients and
+# ensure they can interoperate. Each version here must have an
+# IKeySetup provider in the code below.
+
+KEY_SETUP_VERSIONS = ["v0"]
+
+# the constructors are sampled too, for unit tests
 KEY_SETUP_CONSTRUCTORS = {
     "v0": KeySetup_V0,
 }
+
+def negotiate(my_side, their_side, my_versions, their_versions):
+    assert my_side != their_side
+    if my_side > their_side:
+        # I am the leader
+        leader_versions = my_versions
+        follower_versions = set(their_versions)
+    else:
+        leader_versions = their_versions
+        follower_versions = set(my_versions)
+    for v in reversed(leader_versions):
+        if v in follower_versions:
+            return v
+    return None
 
 class UnknownState(Exception):
     pass
@@ -21,6 +47,22 @@ class IllegalCall(Exception):
 class Waiting:
     pass
 @frozen
+class WaitingReady:
+    pass
+@frozen
+class WaitingCode:
+    code: str
+@frozen
+class WaitingVersion:
+    key_setup: ikeysetup.IKeySetup
+    # next is key_setup.start_pake0()
+@frozen
+class Speculating:
+    code: str
+    panel: dict[str]
+    pake0: ikeysetup.MessageTuple
+    # next is select one key_setup from panel, do key_setup.submit_outbound_pake0()
+@frozen
 class Negotiating:
     key_setup: ikeysetup.IKeySetup
     wanted: str
@@ -29,7 +71,7 @@ class Negotiating:
 class Done:
     key: bytes
 
-State = Waiting | Negotiating | Done
+State = Waiting | WaitingReady | WaitingCode | WaitingVersion | Speculating | Negotiating | Done
 
 @implementer(inegotiator.INegotiator)
 @define(slots=False)
@@ -41,25 +83,86 @@ class Negotiator:
 
     def __attrs_post_init__(self):
         # sample at startup so tests can modify, copy() probably overkill
+        self._key_setup_versions = KEY_SETUP_VERSIONS.copy()
         self._key_setup_constructors = KEY_SETUP_CONSTRUCTORS.copy()
 
         self._state: State = Waiting()
         self._their_side: str | None = None # set by got_versions
         self._queued_inbound: dict(str, bytes) = {} # awaiting being wanted
         self._wanted: str | None = None
+        self._next_outbound_phase = "pake"
         self._outputs: list[inegotiator.NegotiatorAction] = []
 
-    def _build_negotiator(self):
-        # for now we only do v0
-        ks0 = self._key_setup_constructors["v0"]
-        key_setup = ks0(self._side, self._appid, self._app_versions, self._timing)
-        return key_setup
+    def _build_panel(self, code):
+        # for now, all versions need a SPAKE2. (v0 was always
+        # SPAKE2, the planned v1 is also only SPAKE2, and the
+        # planned v2 is SPAKE2+MLKEM)
+        with self._timing.add("pake1", waiting="crypto"):
+            sph = SPAKE2_Helper(self._appid)
+
+        # walk all implemented versions, collect an IKeySetup for each
+        panel = {}
+        c = self._key_setup_constructors
+        if "v0" in self._key_setup_versions:
+            ks0 = c["v0"](self._side, self._appid, self._app_versions, self._timing, sph)
+            panel["v0"] = ks0
+        # add new versions here, sharing the SPAKE2 if they use it
+        # if "v999" in self._key_setup_versions:
+        #     ks999 = KeySetup_V999(..)
+        #     panel["v999"] = ks999
+
+        pake0 = {}
+        # merge pieces from all versions into the PAKE0 dict. Any
+        # duplicates must match exactly (e.g. both v0 and v1 use
+        # SPAKE2, they must share the SPAKE2 instance, so both get the
+        # same SPAKE2 first message)
+        for ver,ks in panel.items():
+
+            pieces = ks.start_pake0(code, None) # we don't know their_side yet
+            for key,value in pieces.items():
+                assert isinstance(value, str)
+                if key in pake0:
+                    assert value == pake0[key]
+                else:
+                    pake0[key] = value
+
+        return panel, pake0
+
+    def _build_negotiator(self, version):
+        # for now, all versions need a SPAKE2
+        with self._timing.add("pake1", waiting="crypto"):
+            sph = SPAKE2_Helper(self._appid)
+        # create exactly one IKeySetup
+        c = self._key_setup_constructors
+        match version:
+            case "v0":
+                return c["v0"](self._side, self._appid, self._app_versions, self._timing, sph)
+            # add new versions here
+            # case "v999":
+            #     return KeySetup_V999(..)
+            case _:
+                raise ValueError("bad version %s" % version)
+
+    def _send_pakeN(self, data: dict):
+        phase = self._next_outbound_phase
+        body = dict_to_bytes(data)
+        self._outputs.append(inegotiator.Send(phase, body)) # PAKE-0 or -1
+        self._next_outbound_phase = next_phase(phase)
+        return (self._side, phase, body)
+
+    def _start_speculating(self, code):
+        panel, components = self._build_panel(code)
+        assert "my_key_setup_versions" not in components
+        components["my_key_setup_versions"] = self._key_setup_versions
+        pake0 = self._send_pakeN(components)
+        return Speculating(code, panel, pake0)
 
     def _start_one_version(self, key_setup, code):
-        data = key_setup.start_pake0(code, self._their_side)
-        body = dict_to_bytes(data)
-        self._outputs.append(inegotiator.Send("pake", body))
-        wanted = "pake"
+        components = key_setup.start_pake0(code, self._their_side)
+        assert "my_key_setup_versions" not in components
+        components["my_key_setup_versions"] = self._key_setup_versions
+        pake0 = self._send_pakeN(components)
+        wanted = key_setup.submit_outbound_pake0(pake0)
         return Negotiating(key_setup, wanted)
 
     def _drain_inbound(self):
@@ -78,6 +181,7 @@ class Negotiator:
         for action in actions:
             match action:
                 case ikeysetup.Send(side, phase, body):
+                    # TODO maybe assert any PAKE-N is sequential, then VERSION just once
                     assert side == self._side
                     self._outputs.append(inegotiator.Send(phase, body))
                 case ikeysetup.HaveAllegedKey():
@@ -91,10 +195,61 @@ class Negotiator:
     def got_code(self, code: str) -> None:
         match self._state:
             case Waiting():
-                key_setup = self._build_negotiator()
+                self._state = WaitingCode(code)
+            case WaitingReady():
+                self._state = self._start_speculating(code)
+            case WaitingVersion(key_setup):
+                assert self._their_side
+                # make PAKE-0 for a single version
                 self._state = self._start_one_version(key_setup, code)
                 self._drain_inbound()
-            case Negotiating() | Done():
+            case WaitingCode() | Speculating() | Negotiating() | Done():
+                raise IllegalCall
+            case _:
+                raise UnknownState
+        return self._get_actions()
+
+    def ready(self) -> None:
+        match self._state:
+            case Waiting():
+                self._state = WaitingReady()
+            case WaitingCode(code):
+                self._state = self._start_speculating(code)
+            case WaitingReady() | WaitingVersion() | Speculating() | Negotiating() | Done():
+                pass
+            case _:
+                raise UnknownState
+        return self._get_actions()
+
+    def got_versions(self, their_side: str, their_versions: list[str]) -> None:
+        self._their_side = their_side
+        version = negotiate(self._side, their_side, self._key_setup_versions, their_versions)
+        if not version:
+            err = NoCommonVersionError("no key setup versions in common")
+            err.my_versions = self._key_setup_versions.copy()
+            err.their_versions = their_versions.copy()
+            raise err
+        match self._state:
+            case Waiting() | WaitingReady():
+                # TODO: assert not self._queued_inbound ??
+                # version is fully determined
+                key_setup = self._build_negotiator(version) # not started yet, lacks code
+                self._state = WaitingVersion(key_setup)
+            case WaitingCode(code):
+                key_setup = self._build_negotiator(version)
+                self._state = self._start_one_version(key_setup, code)
+                self._drain_inbound()
+            case Speculating(code, panel, pake0):
+                if version in panel: # lucky
+                    key_setup = panel[version]
+                    wanted = key_setup.submit_outbound_pake0(pake0)
+                else: # unlucky
+                    key_setup = self._build_negotiator(version)
+                    (wanted, actions) = key_setup.start_pake1(code, their_side, pake0)
+                    self._process_actions(actions)
+                self._state = Negotiating(key_setup, wanted)
+                self._drain_inbound()
+            case WaitingVersion() | Negotiating() | Done():
                 raise IllegalCall
             case _:
                 raise UnknownState

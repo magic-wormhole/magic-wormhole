@@ -151,10 +151,11 @@ def test_v0_bad_pake0_format():
     pake_1_json = body.decode("utf-8")
     pake_1 = json.loads(pake_1_json)
     # ["pake_v1"] value is a 66-char hex-encoded SPAKE2 group element
-    assert list(pake_1.keys()) == ["pake_v1"]
+    assert list(pake_1.keys()) == ["pake_v1", "my_key_setup_versions"]
     good_spake2 = pake_1["pake_v1"]
 
-    # v0 requires "pake_v1" in the PAKE-0
+    # by omitting my_key_setup_versions:, we force v0, which requires
+    # "pake_v1" in the PAKE-0
     bad_pake_d = {"not_pake_v1": "stuff"}
     with pytest.raises(errors.NegotiationError):
         actions = c.got_message("side2", "pake", dict_to_bytes(bad_pake_d))

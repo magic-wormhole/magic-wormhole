@@ -7,7 +7,7 @@ from ..util import (bytes_to_dict, bytes_to_hexstr,
                     decrypt_data, CryptoError)
 from ..errors import CrowdedError, WrongPasswordError, NegotiationError
 from . import ikeysetup
-from .ikeysetup import IKeySetup, NextKeySetupInput
+from .ikeysetup import IKeySetup, NextKeySetupInput, MessageTuple
 from .spake2_helper import SPAKE2_Helper
 
 # This is the retroactively-named "v0" key-setup protocol: the initial
@@ -21,6 +21,9 @@ from .spake2_helper import SPAKE2_Helper
 class Init:
     pass
 @frozen
+class StartedEarly: # waiting for outbound PAKE-0
+    pass
+@frozen
 class WantPAKE: # -> VerifyingOurVersion
     wanted: str
 @frozen
@@ -32,12 +35,15 @@ class Done:
 
 @implementer(IKeySetup)
 class KeySetup_V0:
-    def __init__(self, side, appid, app_versions, timing):
+    def __init__(self, side, appid, app_versions, timing, spake2_helper=None):
         self._side = side
         self._appid = appid
         self._app_versions = app_versions
         self._timing = timing
-        self._sph = SPAKE2_Helper(appid)
+        if not spake2_helper:
+            spake2_helper = SPAKE2_Helper(appid)
+        assert isinstance(spake2_helper, SPAKE2_Helper)
+        self._sph = spake2_helper
 
         self._error = None
 
@@ -46,11 +52,18 @@ class KeySetup_V0:
 
     def start_pake0(self, code: str, their_side: str | None) -> dict:
         assert self._state == Init()
-        with self._timing.add("pake1", waiting="crypto"):
-            msg1 = self._sph.start(code)
+        msg1 = self._sph.start(code)
+        self._state = StartedEarly()
+        return {"pake_v1": bytes_to_hexstr(msg1)}
+
+    def submit_outbound_pake0(self, pake0mt: MessageTuple):
+        # v0 doesn't use a transcript, the PAKE-0 is ignored
         wanted = "pake"
         self._state = WantPAKE(wanted)
-        return {"pake_v1": bytes_to_hexstr(msg1)}
+        return wanted
+
+    def start_pake1(self, code: str, their_side: str, pake0mt: MessageTuple) -> NextKeySetupInput:
+        raise ValueError("v0 cannot be started late")
 
     def input(self, side: str, phase: str, body: bytes) -> NextKeySetupInput:
         assert isinstance(side, str), type(phase)
@@ -67,6 +80,8 @@ class KeySetup_V0:
         match self._state:
             case Init():
                 raise ValueError("input() before start")
+            case StartedEarly():
+                raise ValueError("input() before submit_outbound_pake0")
             case WantPAKE(wanted):
                 assert phase == wanted
                 payload = bytes_to_dict(body)

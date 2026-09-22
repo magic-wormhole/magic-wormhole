@@ -5,7 +5,7 @@ from zope.interface import implementer
 from twisted.python import log
 
 from ._interfaces import IEncryption, ITiming, IBoss, IMailbox
-from .util import (provides, derive_phase_key,
+from .util import (bytes_to_dict, provides, derive_phase_key,
                    encrypt_data, decrypt_data, CryptoError)
 from .errors import _UnknownPhaseError, WrongPasswordError
 from ._key_setup import inegotiator
@@ -68,6 +68,24 @@ class M_AddMessage:
 
 CoreActions = B_HaveAllegedKey | B_Happy | B_GotAppVersions | B_Scared | B_GotMessage | M_AddMessage
 
+# EncryptionCore has three key-setup input events: got_code(),
+# begin(), got_message(pake0). Both begin() and got-pake0 make us
+# "ready". When we have the code AND are ready, we create and send our
+# own pake0. When we receive pake0 we can resolve the version. If we
+# create-pake0 before resolving the version, we must make all
+# optimistic IKeySetups and merge their pieces. If we create-pake0
+# after resolving the version, we create only a single IKeySetup. If
+# we resolve the version after creating multiple IKeySetups, and the
+# resolved version was one of them, promote it, else create a new
+# IKeySetup of the new version, in either case discard the rest.
+
+# 1: CODE-BEGIN-sendpake0multi-PAKE0-resolve-deliver
+# 2: BEGIN-CODE-sendpake0multi-PAKE0-resolve-deliver
+# 3: CODE-PAKE0-resolve-sendpake0single-deliver-(BEGIN-nop)
+# 4: BEGIN-PAKE0-resolve-deliver-CODE-sendpake0single
+# 5: PAKE0-resolve-deliver-CODE-sendpake0single-(BEGIN-nop)
+# 6: PAKE0-resolve-deliver-BEGIN-nop-CODE-sendpake0single
+
 # This class is the sans-io core of the Encryption machine
 
 @define(slots=False)
@@ -101,6 +119,29 @@ class _EncryptionCore:
     def got_code(self, code) -> list[CoreActions]:
         actions = self._negotiator.got_code(code)
         self._process_negotiator_actions(actions)
+        # TODO: don't mark ourselves as "ready" just yet. We'll get
+        # performance improvements from the v2 (post-quantum) protocol
+        # by deferring "ready" until we've received the peer's PAKE-0,
+        # if possible (e.g. when we're the second party). The task is:
+        # add code to the network connection path to call begin()
+        # after pending messages have probably arrived, or when we're
+        # the first party (allocate-code) so we have to speak
+        # first. Then remove this call to ready()
+        actions = self._negotiator.ready()
+        self._process_negotiator_actions(actions)
+        return self._get_actions()
+
+    def begin(self):
+        # Call this when we shouldn't wait any longer for messages
+        # from our peer. The ideal approach is to get an OPENED(count)
+        # from the mailbox server and fire it after 'count' messages
+        # have arrived. Since we don't have OPENED, another approach
+        # is to call it one second after we send the OPEN command. Or,
+        # if we're allocating, fire it immediately.
+
+        # this may be called late, ignore it
+        actions = self._negotiator.ready()
+        self._process_negotiator_actions(actions)
         return self._get_actions()
 
     def _be_scared(self):
@@ -120,8 +161,17 @@ class _EncryptionCore:
             self._their_side = side
         assert side == self._their_side # Mailbox should catch this
         if is_key_setup(phase):
+            if phase == "pake":
+                # this "PAKE-0" phase is always first, and contains
+                # their version-negotiation offer (if capable), which
+                # is delivered separately to the negotiator
+                data = bytes_to_dict(body)
+                # legacy peers are v0-only
+                their_versions = data.get("my_key_setup_versions", ["v0"])
+                actions = self._negotiator.got_versions(side, their_versions)
+                self._process_negotiator_actions(actions)
             try:
-                # sometimes this is where a bad password will be discovered
+                # this is where a bad password will be discovered
                 actions = self._negotiator.got_key_setup_message(side, phase, body)
                 self._process_negotiator_actions(actions)
             except (CryptoError, WrongPasswordError):

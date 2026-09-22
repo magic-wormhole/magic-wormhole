@@ -20,9 +20,15 @@ side1 = "side1"
 side2 = "side2"
 side3 = "side3"
 
-def make_pake0(pieces):
+def make_pake0(pieces, versions):
     pake0 = pieces.copy()
+    pake0["my_key_setup_versions"] = versions
     return pake0
+
+# For v0, we only ever use start_pake0 (a v0 peer cannot handle a
+# PAKE-1, so there's no way to hit the start_pake1 case). We may or
+# may not know the peer's "side" when we start, but that doesn't
+# influence the v0 protocol.
 
 # v0: the original SPAKE2-only protocol used by at least <=0.24.0
 
@@ -39,6 +45,10 @@ def _test_v0(side_known_early, version_is_good):
     side_early = side2 if side_known_early else None
     pieces = ks.start_pake0(code, side_early)
     assert "pake_v1" in pieces
+    pake0 = make_pake0(pieces, ["v0"])
+
+    wanted = ks.submit_outbound_pake0(pake0)
+    assert wanted == "pake"
 
     # extract its SPAKE2 public value, and complete the protocol
     key = sp.finish(hexstr_to_bytes(pieces["pake_v1"]))
@@ -90,6 +100,9 @@ def test_v0_wrong_password():
 
 def test_v0_errors():
     ks = KeySetup_V0(side1, appid, app_versions, timing.DebugTiming())
+    pake0 = (side1, "pake", b"body")
+    with pytest.raises(ValueError, match="v0 cannot be started late"):
+        ks.start_pake1(code, side2, pake0)
     with pytest.raises(AssertionError):
         ks.input(b"non-str side", "phase", b"body")
     with pytest.raises(AssertionError):
