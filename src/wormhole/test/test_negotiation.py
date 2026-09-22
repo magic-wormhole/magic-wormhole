@@ -5,6 +5,7 @@ from .. import timing
 from .._key_setup.negotiator import negotiate, Negotiator
 from .._key_setup import ikeysetup, inegotiator
 from .._key_setup.key_setup_v0 import KeySetup_V0
+from .._key_setup.key_setup_v1 import KeySetup_V1
 from ..util import dict_to_bytes
 
 code = "1-code"
@@ -478,5 +479,60 @@ def test_v0_CBAD():
     fv0.t_expect("input", ([ikeysetup.Done(b"key", b"vbytes2")], None))
     actions = n.got_key_setup_message(side2, "version", b"vct2") # D
     assert fv0.t_all_called() == [("input", side2, "version", b"vct2")]
+    assert actions.pop(0) == inegotiator.Done(b"key", b"vbytes2")
+    assert actions == []
+
+
+def test_v1_basic():
+    fv1 = FakeKeySetup()
+    ks1c = mock.create_autospec(KeySetup_V1)
+    ks1c.return_value = fv1
+    with (mock.patch("wormhole._key_setup.negotiator.KEY_SETUP_VERSIONS", ["v1"]),
+          mock.patch("wormhole._key_setup.negotiator.KEY_SETUP_CONSTRUCTORS", {"v1": ks1c})):
+        n = Negotiator(appid, app_versions, side1, timing)
+    # merely creating the Negotiator shouldn't create a KeySetup yet
+    assert ks1c.call_count == 0
+
+    # getting the code shouldn't either, because we haven't declared ready()
+    actions = n.got_code(code) # A
+    assert ks1c.call_count == 0
+    assert actions == []
+
+    # ready() should trigger creation of the speculative panel,
+    # calling start_pake0() but not submit_outbound_pake0() yet. The
+    # Negotiator should send the PAKE-0
+    fv1.t_expect("start_pake0", {"pake_v1": "stuff"})
+    actions = n.ready() # B
+    assert ks1c.call_count == 1
+    assert fv1.t_all_called() == [("start_pake0", code, None)]
+    # assume dict_to_bytes is deterministic
+    exp_pake0 = {"pake_v1": "stuff", "my_key_setup_versions": ["v1"]}
+    assert actions.pop(0) == inegotiator.Send("pake", dict_to_bytes(exp_pake0))
+    assert actions == []
+
+    # receiving versions from their PAKE-0 selects a winner, which
+    # submits the outbound pake0, but we were optimistic so it doesn't
+    # need to emit any new actions
+    fv1.t_expect("submit_outbound_pake0", "pake")
+    actions = n.got_versions(side2, ["v1"]) # C1
+    p0 = (side1, "pake", dict_to_bytes(exp_pake0))
+    assert fv1.t_all_called() == [("submit_outbound_pake0", p0)]
+    assert actions.pop(0) == inegotiator.DecidedKeySetupVersion("v1")
+    assert actions == []
+
+    # but receiving the inbound PAKE-0 body will build the alleged key,
+    # emit VERSION, and wait for VERSION
+    fv1.t_expect("input", ([ikeysetup.HaveAllegedKey(), ikeysetup.Send(side1, "version", b"vbytes")], "version"))
+    pake0b = dict_to_bytes({"pake_v1": "stuff2"})
+    actions = n.got_key_setup_message(side2, "pake", pake0b) # C2
+    assert fv1.t_all_called() == [("input", side2, "pake", pake0b)]
+    assert actions.pop(0) == inegotiator.HaveAllegedKey()
+    assert actions.pop(0) == inegotiator.Send("version", b"vbytes")
+    assert actions == []
+
+    # and the peer's VERSION will verify the key, and stop waiting
+    fv1.t_expect("input", ([ikeysetup.Done(b"key", b"vbytes2")], None))
+    actions = n.got_key_setup_message(side2, "version", b"vct2") # D
+    assert fv1.t_all_called() == [("input", side2, "version", b"vct2")]
     assert actions.pop(0) == inegotiator.Done(b"key", b"vbytes2")
     assert actions == []

@@ -4,6 +4,7 @@ from . import inegotiator, ikeysetup
 from .next_phase import next_phase
 from .spake2_helper import SPAKE2_Helper
 from .key_setup_v0 import KeySetup_V0
+from .key_setup_v1 import KeySetup_V1
 from .._interfaces import ITiming
 from ..util import dict_to_bytes, provides
 from ..errors import NoCommonVersionError
@@ -15,11 +16,12 @@ from ..errors import NoCommonVersionError
 # ensure they can interoperate. Each version here must have an
 # IKeySetup provider in the code below.
 
-KEY_SETUP_VERSIONS = ["v0"]
+KEY_SETUP_VERSIONS = ["v0", "v1"]
 
 # the constructors are sampled too, for unit tests
 KEY_SETUP_CONSTRUCTORS = {
     "v0": KeySetup_V0,
+    "v1": KeySetup_V1,
 }
 
 def negotiate(my_side, their_side, my_versions, their_versions):
@@ -106,6 +108,9 @@ class Negotiator:
         if "v0" in self._key_setup_versions:
             ks0 = c["v0"](self._side, self._appid, self._app_versions, self._timing, sph)
             panel["v0"] = ks0
+        if "v1" in self._key_setup_versions:
+            ks1 = c["v1"](self._side, self._appid, self._app_versions, self._timing, sph)
+            panel["v1"] = ks1
         # add new versions here, sharing the SPAKE2 if they use it
         # if "v999" in self._key_setup_versions:
         #     ks999 = KeySetup_V999(..)
@@ -137,6 +142,8 @@ class Negotiator:
         match version:
             case "v0":
                 return c["v0"](self._side, self._appid, self._app_versions, self._timing, sph)
+            case "v1":
+                return c["v1"](self._side, self._appid, self._app_versions, self._timing, sph)
             # add new versions here
             # case "v999":
             #     return KeySetup_V999(..)
