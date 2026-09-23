@@ -124,7 +124,7 @@ class _EncryptionCore:
                 # sometimes this is where a bad password will be discovered
                 actions = self._negotiator.got_key_setup_message(side, phase, body)
                 self._process_negotiator_actions(actions)
-            except CryptoError, WrongPasswordError:
+            except (CryptoError, WrongPasswordError):
                 self._be_scared()
                 return self._get_actions()
         elif is_dilation(phase) or is_numeric(phase):
