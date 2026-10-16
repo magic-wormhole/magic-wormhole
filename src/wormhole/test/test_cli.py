@@ -66,8 +66,7 @@ def test_text_offer():
 
 
 def test_text_ignores_transit():
-    # a text-mode send has no TransitSender, so a "transit" message from
-    # the peer must be ignored instead of crashing (#742)
+    """A text-mode send ignores a transit message from the peer."""
     cfg = create_config()
     cfg.text = "blah blah blah ponies"
     s = cmd_send.Sender(cfg, None)

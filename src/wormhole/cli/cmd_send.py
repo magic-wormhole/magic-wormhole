@@ -289,10 +289,9 @@ class Sender:
     def _handle_transit(self, receiver_transit):
         ts = self._transit_sender
         if ts is None:
-            # text-mode sends never create a TransitSender, so there is
-            # nothing to give the peer's hints to. Some clients send a
-            # "transit" message unconditionally; ignore it rather than
-            # crashing (#742).
+            # The peer's sending implementation should not send transit
+            # messages for text-mode sends. Until that bug is fixed, ignore
+            # this unsolicited message rather than crashing (#742).
             log.msg("ignoring transit message: no transit in use")
             return
         ts.add_connection_hints(receiver_transit.get("hints-v1", []))
