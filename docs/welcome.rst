@@ -19,7 +19,7 @@ Get Things
 The first and most popular "Thing" is a file or directory.
 For more on this, see the :doc:`file-transfer-protocol`
 
-Magic Wormhole can send any sort of message, though, including messages making up streams -- for example, `Fowl <https://github.com/meejah/fowl>`_ does exactly this.
+Magic Wormhole can send any sort of message, though, including messages making up streams -- for example, `Fowl <https://github.com/magic-wormhole/fowl>`_ does exactly this.
 ``fowl`` is built on a feature called "Dilation"; see :doc:`dilation-protocol` for more detail.
 
 
@@ -259,7 +259,7 @@ On Windows, python2 may work better than python3. On older systems,
 can compile all the dependencies. Most of the dependencies are published
 as binary wheels, but in case your system is unable to find these, it
 will have to compile them, for which `Microsoft Visual C++
-9.0 <https://support.microsoft.com/en-us/topic/the-latest-supported-visual-c-downloads-2647da03-1eea-4433-9aff-95f26a218cc0>`__
+9.0 <https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170>`__
 may be required.
 
 Motivation
@@ -304,7 +304,7 @@ family of cryptographic algorithms that uses a short low-entropy
 password to establish a strong high-entropy shared key. This key can
 then be used to encrypt data. ``wormhole`` uses the SPAKE2 algorithm,
 due to Abdalla and
-Pointcheval\ `1 <https://www.di.ens.fr/~pointche/Documents/Papers/2005_rsa.pdf>`__.
+Pointcheval\ `1 <https://www.di.ens.fr/david.pointcheval/Documents/Papers/2005_rsa.pdf>`__.
 
 PAKE effectively trades off interaction against offline attacks. The
 only way for a network attacker to learn the shared key is to perform a
@@ -392,7 +392,7 @@ Wormhole codes will tab-complete for receivers out-of-the-box.
 
 If you desire shell tab-completion on sub-commands, we include generated
 files `from
-Click <https://click.palletsprojects.com/en/8.1.x/shell-completion/>`__
+Click <https://click.palletsprojects.com/en/stable/shell-completion/>`__
 for Bash, Zsh and Fish shells in
 `wormhole_complete.bash <https://github.com/magic-wormhole/magic-wormhole/blob/master/wormhole_complete.bash>`__
 (or ``.zsh``, ``.fish``). Put this file in your favourite location and
