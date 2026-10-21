@@ -70,7 +70,7 @@ That is, for a subprotocol named ``"subproto"``, one side does client-style and 
     However, we are *open to introducing this in a future revision* of the protocol.
 
     The only use-case we can think of is when you need an absolute, total ordering of messages sent by both sides.
-    If you have a concrete use-case that _can't_ be implemented with the current APIs, **please** get in touch!
+    If you have a concrete use-case that *can't* be implemented with the current APIs, **please** get in touch!
 
 
 
