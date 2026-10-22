@@ -187,6 +187,13 @@ async def test_no_relay_hints():
     assert hints == []
 
 
+@pytest.mark.parametrize("helper", ["relay.example:4001", "tcp:relay.example:port"])
+def test_reject_invalid_relay(helper):
+    """Invalid relay hints are rejected before a listener can be started."""
+    with pytest.raises(ValueError, match="tcp:HOST:PORT"):
+        transit.Common(helper, no_listen=True)
+
+
 def test_ignore_bad_hints():
     c = transit.Common("")
     c.add_connection_hints([{"type": "unknown"}])
