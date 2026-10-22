@@ -566,6 +566,10 @@ class Common:
                 raise InternalError
             # TODO: allow multiple hints for a single relay
             relay_hint = parse_hint_argv(transit_relay)
+            if relay_hint is None:
+                raise ValueError(
+                    f"Invalid transit relay {transit_relay!r}: expected tcp:HOST:PORT"
+                )
             relay = RelayV1Hint(hints=(relay_hint, ))
             self._transit_relays = [relay]
         else:

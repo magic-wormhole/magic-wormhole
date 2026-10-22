@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* Report malformed ``--transit-helper`` values as command-line errors before starting a transfer (#429).
 * Fix a crash in ``wormhole send --text`` when the peer sends a ``transit`` message (#742)
 * **INCOMPATIBLE**: the method ``get_unverified_key()`` has been removed from the object returned by ``wormhole.create()``.
   In addition, `wormhole_got_unverified_key()` of the Delegate object is no longer called.
