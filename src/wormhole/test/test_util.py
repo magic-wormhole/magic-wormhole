@@ -61,7 +61,8 @@ def test_free_space():
 )
 def test_free_space_from_statvfs(f_blocks, f_bfree, expected):
     stats = mock.Mock(f_frsize=4096, f_blocks=f_blocks, f_bfree=f_bfree)
-    with mock.patch("os.statvfs", return_value=stats):
+    # create=True: os.statvfs doesn't exist on Windows
+    with mock.patch("os.statvfs", return_value=stats, create=True):
         assert util.estimate_free_space(".") == expected
 
 def test_no_statvfs():
