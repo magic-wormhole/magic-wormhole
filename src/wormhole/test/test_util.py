@@ -2,6 +2,8 @@ import unicodedata
 
 from unittest import mock
 
+import pytest
+
 from .. import util
 
 def test_to_bytes():
@@ -46,6 +48,22 @@ def test_free_space():
     # some platforms (I think the VMs used by travis are in this
     # category) return 0, and windows will return None, so don't assert
     # anything more specific about the return value
+
+@pytest.mark.parametrize(
+    "f_blocks, f_bfree, expected",
+    [
+        # Linux "ramfs" doesn't track its capacity and reports zero
+        # total blocks: free space is unknown, not zero (#493)
+        (0, 0, None),
+        # a filesystem that does report its size and is full
+        (1000, 0, 0),
+    ],
+)
+def test_free_space_from_statvfs(f_blocks, f_bfree, expected):
+    stats = mock.Mock(f_frsize=4096, f_blocks=f_blocks, f_bfree=f_bfree)
+    # create=True: os.statvfs doesn't exist on Windows
+    with mock.patch("os.statvfs", return_value=stats, create=True):
+        assert util.estimate_free_space(".") == expected
 
 def test_no_statvfs():
     # this mock.patch fails on windows, which is sad because windows is
