@@ -75,6 +75,11 @@ def estimate_free_space(target):
     # basic (larger) estimate.
     try:
         s = os.statvfs(os.path.dirname(os.path.abspath(target)))
+        if s.f_blocks == 0:
+            # Some filesystems (like Linux "ramfs") don't track their
+            # capacity and report zero total blocks. That means the free
+            # space is unknown, not that there is none.
+            return None
         return s.f_frsize * s.f_bfree
     except AttributeError:
         return None
