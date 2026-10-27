@@ -507,7 +507,7 @@ Github.
   suitably-permissioned remote `~/.ssh/authorized_keys` file. These commands
   are experimental: the syntax might be changed in the future, or they might
   be removed altogether.
-* CLI: "wormhole recv" and "wormhole recieve"[sic] are now accepted as aliases
+* CLI: "wormhole recv" and "wormhole receive"[sic] are now accepted as aliases
   for "wormhole receive", to help bad spelers :)
 * CLI: improve display of abbreviated file sizes
 * CLI: don't print traceback upon "normal" errors
