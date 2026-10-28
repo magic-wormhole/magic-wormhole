@@ -26,11 +26,11 @@ class Code:
     set_trace = getattr(m, "_setTrace",
                         lambda self, f: None)  # pragma: no cover
 
-    def wire(self, boss, allocator, nameplate, key, input):
+    def wire(self, boss, allocator, nameplate, encryption, input):
         self._B = _interfaces.IBoss(boss)
         self._A = _interfaces.IAllocator(allocator)
         self._N = _interfaces.INameplate(nameplate)
-        self._K = _interfaces.IKey(key)
+        self._E = _interfaces.IEncryption(encryption)
         self._I = _interfaces.IInput(input)
 
     @m.state(initial=True)
@@ -89,7 +89,7 @@ class Code:
         nameplate = code.split("-", 2)[0]
         self._N.set_nameplate(nameplate)
         self._B.got_code(code)
-        self._K.got_code(code)
+        self._E.got_code(code)
 
     @m.output()
     def do_start_input(self):
@@ -102,7 +102,7 @@ class Code:
     @m.output()
     def do_finish_input(self, code):
         self._B.got_code(code)
-        self._K.got_code(code)
+        self._E.got_code(code)
 
     @m.output()
     def do_start_allocate(self, length, wordlist):
@@ -113,7 +113,7 @@ class Code:
         assert code.startswith(nameplate + "-"), (nameplate, code)
         self._N.set_nameplate(nameplate)
         self._B.got_code(code)
-        self._K.got_code(code)
+        self._E.got_code(code)
 
     S0_idle.upon(_set_code, enter=S4_known, outputs=[do_set_code])
     S0_idle.upon(
