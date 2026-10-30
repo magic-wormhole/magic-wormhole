@@ -11,6 +11,7 @@ def receive(reactor,
             appid,
             relay_url,
             code,
+            code_length=2,
             use_tor=False,
             launch_tor=False,
             tor_control_port=None,
@@ -26,7 +27,10 @@ def receive(reactor,
 
     :param unicode relay_url: the relay URL to use
 
-    :param unicode code: a pre-existing code to use, or None
+    :param unicode | None code: a pre-existing code to use, or None
+
+    :param int code_length: the number of random words to use.  More
+            words means the code is harder to guess.  Defaults to 2.
 
     :param bool use_tor: True if we should use Tor, False to not use it (None
                          for default)
@@ -45,7 +49,7 @@ def receive(reactor,
 
     wh = wormhole.create(appid, relay_url, reactor, tor=tor)
     if code is None:
-        wh.allocate_code()
+        wh.allocate_code(code_length)
         code = yield wh.get_code()
     else:
         wh.set_code(code)
