@@ -5,6 +5,7 @@ User-visible changes in "magic-wormhole":
 * (add release-notes here when making PRs)
 * Export the status API's union types (``ConnectionStatus``, ``PeerSharedKey``, ``CodeStatus``, ``PeerConnection``) and their member classes from ``wormhole`` (#608, #641)
 * Fix a crash in ``wormhole send --text`` when the peer sends a ``transit`` message (#742)
+* Receiving onto a filesystem that doesn't report its capacity, such as Linux ``ramfs``, no longer fails with "insufficient free space" (#493)
 * **INCOMPATIBLE**: the method ``get_unverified_key()`` has been removed from the object returned by ``wormhole.create()``.
   In addition, `wormhole_got_unverified_key()` of the Delegate object is no longer called.
   Applications should use ``derive_key()`` to derive purpose-specific subkeys, after the wormhole is established.
