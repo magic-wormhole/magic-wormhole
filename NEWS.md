@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* Report malformed ``--transit-helper`` values as command-line errors before starting a transfer (#429).
 * Export the status API's union types (``ConnectionStatus``, ``PeerSharedKey``, ``CodeStatus``, ``PeerConnection``) and their member classes from ``wormhole`` (#608, #641)
 * Fix a crash in ``wormhole send --text`` when the peer sends a ``transit`` message (#742)
 * **INCOMPATIBLE**: the method ``get_unverified_key()`` has been removed from the object returned by ``wormhole.create()``.

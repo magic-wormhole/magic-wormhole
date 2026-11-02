@@ -3,6 +3,10 @@ import sys
 
 from unittest import mock
 
+import pytest
+from click.testing import CliRunner
+
+from ..cli import cli
 from ..cli.public_relay import RENDEZVOUS_RELAY, TRANSIT_RELAY
 from .common import config
 
@@ -83,13 +87,13 @@ def test_send_relay_env_var():
     assert cfg.relay_url == relay_url_2
 
 def test_send_transit_env_var():
-    transit_url = str(mock.sentinel.transit_url)
+    transit_url = "tcp:relay.example:4001"
     with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
         cfg = config("send")
     assert cfg.transit_helper == transit_url
 
     # Make sure cmd line option overrides environment variable
-    transit_url_2 = str(mock.sentinel.transit_url_2)
+    transit_url_2 = "tcp:other-relay.example:4002"
     with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
         cfg = config("--transit-helper", transit_url_2, "send")
     assert cfg.transit_helper == transit_url_2
@@ -175,16 +179,51 @@ def test_receive_relay_env_var():
     assert cfg.relay_url == relay_url_2
 
 def test_receive_transit_env_var():
-    transit_url = str(mock.sentinel.transit_url)
+    transit_url = "tcp:relay.example:4001"
     with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
         cfg = config("receive")
     assert cfg.transit_helper == transit_url
 
     # Make sure cmd line option overrides environment variable
-    transit_url_2 = str(mock.sentinel.transit_url_2)
+    transit_url_2 = "tcp:other-relay.example:4002"
     with mock.patch.dict(os.environ, WORMHOLE_TRANSIT_HELPER=transit_url):
         cfg = config("--transit-helper", transit_url_2, "receive")
     assert cfg.transit_helper == transit_url_2
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+@pytest.mark.parametrize("helper", ["relay.example:4001", "tcp:relay.example:port"])
+@pytest.mark.parametrize("from_env", [False, True])
+def test_invalid_transit_helper(command, helper, from_env):
+    """Malformed relay settings fail before starting a transfer command."""
+    argv = [command]
+    env = {}
+    if from_env:
+        env["WORMHOLE_TRANSIT_HELPER"] = helper
+    else:
+        argv = ["--transit-helper", helper] + argv
+
+    with mock.patch("wormhole.cli.cli.go") as go:
+        result = CliRunner().invoke(cli.wormhole, argv, env=env)
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--transit-helper'" in result.output
+    assert "tcp:HOST:PORT" in result.output
+    assert "Traceback" not in result.output
+    go.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+@pytest.mark.parametrize("helper", [
+    "",
+    "tcp:relay.example:4001",
+    "tcp:[::1]:4001:priority=2.6",
+])
+def test_valid_transit_helper_preserves_connection_options(command, helper):
+    """Valid and disabled relays retain the explicit no-listen setting."""
+    cfg = config("--transit-helper", helper, command, "--no-listen")
+    assert cfg.transit_helper == helper
+    assert not cfg.listen
 
 def test_receive_accept_file_env_var():
     with mock.patch.dict(os.environ, WORMHOLE_ACCEPT_FILE="true"):
