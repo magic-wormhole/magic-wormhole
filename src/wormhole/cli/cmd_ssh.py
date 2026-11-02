@@ -110,6 +110,7 @@ def invite(cfg, reactor=reactor):
         cfg.appid or "lothar.com/wormhole/ssh-add",
         cfg.relay_url,
         None,  # allocate a code for us
+        code_length=cfg.code_length,
         use_tor=cfg.tor,
         launch_tor=cfg.launch_tor,
         tor_control_port=cfg.tor_control_port,

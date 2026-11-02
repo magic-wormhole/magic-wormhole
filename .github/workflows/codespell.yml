@@ -11,9 +11,6 @@ on:
   pull_request:
     branches: [master]
 
-permissions:
-  contents: read
-
 jobs:
   codespell:
     name: Check for spelling errors

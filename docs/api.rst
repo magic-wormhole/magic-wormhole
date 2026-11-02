@@ -153,7 +153,11 @@ several optional arguments:
    used to indicate peer capabilities.
 - ``on_status_update``: this single-argument callable will receive
    instances of ``wormhole.WormholeStatus`` as the status of our
-   wormhole changes; useful to show your users
+   wormhole changes; useful to show your users.
+   ``wormhole`` also exports the union types of its fields
+   (``ConnectionStatus``, ``PeerSharedKey``, ``CodeStatus`` and
+   ``PeerConnection``) and each of their member classes, such as
+   ``wormhole.Connected`` and ``wormhole.ConfirmedKey``.
 
 
 Code Management
