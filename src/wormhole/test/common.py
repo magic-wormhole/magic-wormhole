@@ -4,6 +4,7 @@ from click.testing import CliRunner
 from twisted.application import internet, service
 from twisted.internet import defer, endpoints, reactor, protocol
 from twisted.python import log
+from zope.interface import directlyProvides
 
 from unittest import mock
 from wormhole_mailbox_server.database import create_channel_db, create_usage_db
@@ -157,3 +158,23 @@ async def poll_until(predicate):
         d = defer.Deferred()
         reactor.callLater(0.001, d.callback, None)
         await d
+
+
+class Dummy:
+    def __init__(self, name, events, iface, *meths, **kw):
+        self.name = name
+        self.events = events
+        if iface:
+            directlyProvides(self, iface)
+        for meth in meths:
+            self.mock(meth)
+        self.retval = None
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+    def mock(self, meth):
+        def log(*args):
+            self.events.append((f"{self.name}.{meth}", ) + args)
+            return self.retval
+
+        setattr(self, meth, log)

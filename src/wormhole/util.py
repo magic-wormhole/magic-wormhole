@@ -3,9 +3,16 @@ import json
 import os
 import unicodedata
 from binascii import hexlify, unhexlify
+from hashlib import sha256
+
 from cryptography.hazmat.primitives.kdf import hkdf
 from cryptography.hazmat.primitives import hashes
+from nacl.secret import SecretBox
+from nacl import utils as nacl_utils
+from nacl.exceptions import CryptoError
 from attr import attrs, attrib
+
+CryptoError # re-export
 
 
 def HKDF(skm, outlen, salt=None, CTXinfo=b""):
@@ -117,3 +124,41 @@ def provides(interface):
         value it got.
     """
     return _ProvidesValidator(interface)
+
+
+def derive_key(key, purpose, length=SecretBox.KEY_SIZE):
+    if not isinstance(key, bytes):
+        raise TypeError(type(key))
+    if not isinstance(purpose, bytes):
+        raise TypeError(type(purpose))
+    if not isinstance(length, int):
+        raise TypeError(type(length))
+    return HKDF(key, length, CTXinfo=purpose)
+
+
+def derive_phase_key(key, side, phase):
+    assert isinstance(side, str), type(side)
+    assert isinstance(phase, str), type(phase)
+    side_bytes = side.encode("ascii")
+    phase_bytes = phase.encode("ascii")
+    purpose = (b"wormhole:phase:" + sha256(side_bytes).digest() +
+               sha256(phase_bytes).digest())
+    return derive_key(key, purpose)
+
+
+def decrypt_data(key, encrypted):
+    assert isinstance(key, bytes), type(key)
+    assert isinstance(encrypted, bytes), type(encrypted)
+    assert len(key) == SecretBox.KEY_SIZE, len(key)
+    box = SecretBox(key)
+    data = box.decrypt(encrypted)
+    return data
+
+
+def encrypt_data(key, plaintext):
+    assert isinstance(key, bytes), type(key)
+    assert isinstance(plaintext, bytes), type(plaintext)
+    assert len(key) == SecretBox.KEY_SIZE, len(key)
+    box = SecretBox(key)
+    nonce = nacl_utils.random(SecretBox.NONCE_SIZE)
+    return box.encrypt(plaintext, nonce)

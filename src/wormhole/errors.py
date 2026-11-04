@@ -55,6 +55,11 @@ class WrongPasswordError(WormholeError):
     # or the data blob was corrupted, and that's why decrypt failed
     pass
 
+class NegotiationError(WormholeError):
+    """
+    Key setup received the wrong message. Indicates peer misbehavior or
+    confusion.
+    """
 
 class KeyFormatError(WormholeError):
     """

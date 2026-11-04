@@ -48,7 +48,7 @@ class Config:
         if not debug_state:
             return
         valid_machines = [
-            'B', 'N', 'M', 'S', 'O', 'K', 'SK', 'R', 'RC', 'L', 'C', 'T'
+            'B', 'N', 'M', 'E', 'RC', 'L', 'C', 'T'
         ]
         debug_state = debug_state.split(",")
         invalid_machines = [
@@ -292,14 +292,14 @@ def help(context, **kwargs):
 @click.option(
     "--debug-state",
     is_flag=False,
-    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    flag_value="B,N,M,E,RC,L,C,T",
     default=None,
     metavar="MACHINES",
     help=(
         "Debug state-machine transitions. "
         "Possible machines to debug are accepted as a comma-separated list "
         "and the default is all of them. Valid machines are "
-        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+        "any of: B,N,M,E,RC,L,C,T"
     )
 )
 @click.option(
@@ -367,14 +367,14 @@ def go(f, cfg):
 @click.option(
     "--debug-state",
     is_flag=False,
-    flag_value="B,N,M,S,O,K,SK,R,RC,L,C,T",
+    flag_value="B,N,M,E,RC,L,C,T",
     default=None,
     metavar="MACHINES",
     help=(
         "Debug state-machine transitions. "
         "Possible machines to debug are accepted as a comma-separated list "
         "and the default is all of them. Valid machines are "
-        "any of: B,N,M,S,O,K,SK,R,RC,L,C,T"
+        "any of: B,N,M,E,RC,L,C,T"
     )
 )
 @click.argument(
