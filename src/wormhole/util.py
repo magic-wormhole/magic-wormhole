@@ -78,7 +78,10 @@ def estimate_free_space(target):
         if s.f_blocks == 0:
             # Some filesystems (like Linux "ramfs") don't track their
             # capacity and report zero total blocks. That means the free
-            # space is unknown, not that there is none.
+            # space is unknown, not that there is none. ramfs answers
+            # statfs() with the kernel's simple_statfs(), which leaves the
+            # block counts at zero:
+            # https://github.com/torvalds/linux/blob/v6.12/fs/libfs.c#L43-L52
             return None
         return s.f_frsize * s.f_bfree
     except AttributeError:
