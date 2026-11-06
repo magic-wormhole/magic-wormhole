@@ -502,7 +502,8 @@ class Receiver:
         zf.extract(info.filename, path=extract_dir)
 
         # not sure why zipfiles store the perms 16 bits away but they do
-        perm = info.external_attr >> 16
+        # strip the high bits for safety
+        perm = (info.external_attr >> 16) & 0o755
         os.chmod(out_path, perm)
 
     def _write_directory(self, f):
