@@ -1677,14 +1677,14 @@ def test_endpoints():
     with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
                     return_value=new_ep) as he:
         ep = rc._make_endpoint("ws://host:4000/v1")
-    assert he.mock_calls == [mock.call(reactor, "host", 4000)]
+    assert he.mock_calls == [mock.call(reactor, "host", 4000, 30, ("", 0))]
     assert ep is new_ep
 
     new_ep = object()
     with mock.patch("twisted.internet.endpoints.HostnameEndpoint",
                     return_value=new_ep) as he:
         ep = rc._make_endpoint("ws://host/v1")
-    assert he.mock_calls == [mock.call(reactor, "host", 80)]
+    assert he.mock_calls == [mock.call(reactor, "host", 80, 30, ("", 0))]
     assert ep is new_ep
 
     new_ep = object()
