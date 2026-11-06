@@ -629,26 +629,28 @@ class Common:
                 "hostname": dh.hostname,
                 "port": dh.port,  # integer
             })
-        if self._punched_hint:
-            # We want hole-punched hints to have a lower priority than "local"
-            # direct hints, so when both sides are inside the same NAT, we
-            # prefer a direct connection over a hairpin-routed path (out
-            # through the NAT and then right back in again), if the NAT/router
-            # supports that). But note that _connect() only pays attention to
-            # priority for relay hints, not direct hints. We publish the
-            # priority in the hopes that some day the other side can benefit
-            # from it. Also note that relay hints have priority=0.0 by default,
-            # so that future mechanism needs to stack all relay hints *lower*
-            # than the lowest-priority direct hint.
+        if self._tor is None:
+            if self._punched_hint:
+                # We want hole-punched hints to have a lower priority than "local"
+                # direct hints, so when both sides are inside the same NAT, we
+                # prefer a direct connection over a hairpin-routed path (out
+                # through the NAT and then right back in again), if the NAT/router
+                # supports that). But note that _connect() only pays attention to
+                # priority for relay hints, not direct hints. We publish the
+                # priority in the hopes that some day the other side can benefit
+                # from it. Also note that relay hints have priority=0.0 by default,
+                # so that future mechanism needs to stack all relay hints *lower*
+                # than the lowest-priority direct hint.
 
-            punched_hostname, punched_port = self._punched_hint
-            punched_priority = -1.0 # lower than direct, higher than relay
-            hints.append({
-                u"type": u"direct-tcp-v1",
-                u"priority": punched_priority,
-                u"hostname": punched_hostname,
-                u"port": punched_port,  # integer
-            })
+                punched_hostname, punched_port = self._punched_hint
+                punched_priority = -1.0 # lower than direct, higher than relay
+                hints.append({
+                    u"type": u"direct-tcp-v1",
+                    u"priority": punched_priority,
+                    u"hostname": punched_hostname,
+                    u"port": punched_port,  # integer
+                })
+        # hints below here should all be Tor safe
         for relay in self._transit_relays:
             rhint = {"type": "relay-v1", "hints": []}
             for rh in relay.hints:
