@@ -44,6 +44,10 @@ class ReuseConnector(tcp.Connector):
 
 
 def _wrap_reactor(reactor):
+    # no longer required since 26.10.0
+    from twisted import version
+    if version.major > 26 or (version.major == 26 and version.minor >= 10):
+        return reactor
 
     @wraps(reactor.listenTCP)
     def _listenTCP(port, factory, backlog=50, interface=""):
