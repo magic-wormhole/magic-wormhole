@@ -30,8 +30,8 @@ jobs:
         persist-credentials: false
 
     - name: Set up Python
-      # this is v4.9.1
-      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
+      # this is v7.1.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -53,14 +53,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # this is v4.2.2
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    # this is v7.0.1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
 
     - name: Set up Python
-      # this is v4.9.1
-      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
+      # this is v7.1.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
 
     - name: Install dependencies
       run: |
@@ -75,14 +75,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # this is v4.2.2
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    # this is v7.0.1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
 
     - name: Set up Python
-      # this is v4.9.1
-      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
+      # this is v7.1.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
 
     - name: Install dependencies
       run: |
