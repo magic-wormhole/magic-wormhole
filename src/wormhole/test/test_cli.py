@@ -5,7 +5,6 @@ import re
 import stat
 import sys
 import tempfile
-import socket
 import zipfile
 from functools import partial
 from textwrap import dedent, fill
@@ -14,7 +13,7 @@ from pathlib import Path
 from click import UsageError
 from click.testing import CliRunner
 from humanize import naturalsize
-from twisted.internet import endpoints, reactor, tcp
+from twisted.internet import endpoints, reactor
 from twisted.internet.defer import gatherResults, CancelledError, ensureDeferred
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.utils import getProcessOutputAndValue
