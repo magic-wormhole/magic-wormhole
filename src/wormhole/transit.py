@@ -694,6 +694,9 @@ class Common:
         # tests. We are running a Mailbox on the same machine as the
         # two clients -- but in manual testing this works fine
         # (without having to retry).
+        #
+        # (maybe the same thread/process can't both connect and listen
+        # on the same port?)
 
         d = self._listener.listen(f)
 
