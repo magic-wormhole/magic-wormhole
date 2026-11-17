@@ -103,7 +103,7 @@ def endpoint_from_hint_obj(hint, tor, reactor, local_portnum=None):
         # bind to local_portnum if possible, to help with hole-punching. We
         # don't really want to bind to a specific interface, so we use "",
         # which tells the python socket library to use INADDR_ANY
-        bindAddress = ("", local_portnum) if local_portnum else None
+        bindAddress = ("", local_portnum) if local_portnum else ("", 0)
         timeout = 30
         # avoid DNS lookup unless necessary
         if isIPAddress(hint.hostname):
