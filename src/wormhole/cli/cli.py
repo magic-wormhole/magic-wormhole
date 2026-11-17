@@ -154,10 +154,9 @@ def _dispatch_command(reactor, cfg, command):
     errors for the user.
     """
 
-    # See https://github.com/twisted/twisted/issues/9101
-    # There is no API in Twisted for setting both SO_REUSEADDR and
-    # SO_REUSEPORT, so until there is we use the following wrapping
-    # code.
+    # Before Twisted 26.10.0 there was no API for setting both
+    # SO_REUSEADDR and SO_REUSEPORT but for earlier versions this
+    # wrapper code will run
     from . import _workaround_9101
     reactor = _workaround_9101._wrap_reactor(reactor)
 
