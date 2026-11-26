@@ -15,8 +15,8 @@ from ..._dilation import manager
 from ..._dilation._noise import NoiseConnection
 
 
-@implementer(_interfaces.ISend)
-class MySend:
+@implementer(_interfaces.IEncryption)
+class MyEncryption:
     def __init__(self, side):
         self.rx_phase = 0
         self.side = side
@@ -46,10 +46,10 @@ class FakeTerminator:
 @pytest.mark.skipif(not NoiseConnection, reason="noiseprotocol required")
 async def test1():
     # print()
-    send_left = MySend("left")
-    send_right = MySend("right")
-    send_left.peer = send_right
-    send_right.peer = send_left
+    encryption_left = MyEncryption("left")
+    encryption_right = MyEncryption("right")
+    encryption_left.peer = encryption_right
+    encryption_right.peer = encryption_left
     key = b"\x00"*32
     eq = EventualQueue(reactor)
     cooperator = Cooperator(scheduler=eq.eventually)
@@ -58,16 +58,16 @@ async def test1():
     t_right = FakeTerminator()
 
     d_left = manager.Dilator(reactor, eq, cooperator, ["ged"])
-    d_left.wire(send_left, t_left)
+    d_left.wire(encryption_left, t_left)
     d_left.got_verified_key(key)
     d_left.got_wormhole_versions({"can-dilate": ["ged"]})
-    send_left.dilator = d_left
+    encryption_left.dilator = d_left
 
     d_right = manager.Dilator(reactor, eq, cooperator, ["ged"])
-    d_right.wire(send_right, t_right)
+    d_right.wire(encryption_right, t_right)
     d_right.got_verified_key(key)
     d_right.got_wormhole_versions({"can-dilate": ["ged"]})
-    send_right.dilator = d_right
+    encryption_right.dilator = d_right
 
     with mock.patch("wormhole._dilation.connector.ipaddrs.find_addresses",
                     return_value=["127.0.0.1"]):
