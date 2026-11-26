@@ -153,6 +153,13 @@ def _dispatch_command(reactor, cfg, command):
     callable) with the Config instance in cfg and interprets any
     errors for the user.
     """
+
+    # Before Twisted 26.10.0 there was no API for setting both
+    # SO_REUSEADDR and SO_REUSEPORT but for earlier versions this
+    # wrapper code will run
+    from . import _workaround_9101
+    reactor = _workaround_9101._wrap_reactor(reactor)
+
     cfg.timing.add("command dispatch")
     cfg.timing.add(
         "import", when=start, which="top").finish(when=top_import_finish)

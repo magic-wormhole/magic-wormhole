@@ -743,8 +743,9 @@ async def _do_test(
             fn = os.path.join(receive_dir, receive_dirname, str(i))
             with open(fn) as f:
                 assert f.read() == message(i)
+            # this seems to _require_ umask 0022 in the test environment ...
             assert modes[i] == stat.S_IMODE(
-                os.stat(fn).st_mode)
+                os.stat(fn).st_mode), "{:o} vs {:o}".format(modes[i], stat.S_IMODE(os.stat(fn).st_mode))
 
 async def test_text(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory):
     await _do_test(wormhole_executable, scripts_env, mailbox, transit_relay, tmpdir_factory)
