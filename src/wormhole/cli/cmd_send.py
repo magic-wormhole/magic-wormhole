@@ -222,6 +222,7 @@ class Sender:
             ts = TransitSender(
                 args.transit_helper,
                 no_listen=(not args.listen),
+                listen_port_range=args.listen_port_range,
                 tor=self._tor,
                 reactor=self._reactor,
                 timing=self._timing)

@@ -319,6 +319,7 @@ class Manager:
     _no_listen = attrib(validator=instance_of(bool), default=False)
     _status = attrib(default=None)  # callable([DilationStatus])
     _initial_mailbox_status = attrib(default=None)  # WormholeStatus
+    _listen_port_range = attrib(default=None)  # (low, high) or None
 
     _dilation_key = None
     _tor = None  # TODO
@@ -803,7 +804,8 @@ class Manager:
                                     self._no_listen, self._tor,
                                     self._timing,
                                     self._my_side,  # needed for relay handshake
-                                    self._my_role)
+                                    self._my_role,
+                                    listen_port_range=self._listen_port_range)
         if self._debug_stall_connector:
             # unit tests use this hook to send messages while we know we
             # don't have a connection
@@ -975,7 +977,7 @@ class Dilator:
     # invoked; upstream calls are basically just call-through -- so
     # all these inputs should be validated.
     def dilate(self, transit_relay_location=None, no_listen=False, wormhole_status=None, status_update=None,
-               ping_interval=None, expected_subprotocols=None):
+               ping_interval=None, expected_subprotocols=None, listen_port_range=None):
         # ensure users can only call this API once -- in the past, it
         # was possible to call the API more than once but any cal
         # after the first would have no real effect:
@@ -1000,6 +1002,7 @@ class Dilator:
                 no_listen,
                 status_update,
                 initial_mailbox_status=wormhole_status,
+                listen_port_range=listen_port_range,
             )
             self._manager = m
             if self._pending_dilation_key is not None:

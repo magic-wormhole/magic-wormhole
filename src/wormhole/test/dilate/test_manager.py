@@ -63,7 +63,8 @@ def test_dilate_first():
     assert eps1 is eps
     assert mm.mock_calls == [mock.call(h.send, side, None,
                                        h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
-                                       False, None, initial_mailbox_status=None)]
+                                       False, None, initial_mailbox_status=None,
+                                       listen_port_range=None)]
 
     assert m.mock_calls == []
 
@@ -178,7 +179,8 @@ def test_transit_relay():
         dil.dilate(transit_relay_location)
     assert mm.mock_calls == [mock.call(h.send, side, transit_relay_location,
                                        h.reactor, h.eq, h.coop, DILATION_VERSIONS, 30.0, None,
-                                       False, None, initial_mailbox_status=None)]
+                                       False, None, initial_mailbox_status=None,
+                                       listen_port_range=None)]
 
 
 LEADER = "ff3456abcdef"
@@ -301,7 +303,8 @@ def test_leader():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  LEADER, roles.LEADER),
+                  LEADER, roles.LEADER,
+                  listen_port_range=None),
         ]
     assert c.mock_calls == [mock.call.start()]
     clear_mock_calls(connector, c)
@@ -458,7 +461,8 @@ def test_leader():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  LEADER, roles.LEADER),
+                  LEADER, roles.LEADER,
+                  listen_port_range=None),
         ]
     assert c2.mock_calls == [mock.call.start()]
     clear_mock_calls(connector2, c2)
@@ -498,7 +502,8 @@ def test_follower():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  FOLLOWER, roles.FOLLOWER),
+                  FOLLOWER, roles.FOLLOWER,
+                  listen_port_range=None),
         ]
     assert c.mock_calls == [mock.call.start()]
     clear_mock_calls(connector, c)
@@ -536,7 +541,8 @@ def test_follower():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  FOLLOWER, roles.FOLLOWER),
+                  FOLLOWER, roles.FOLLOWER,
+                  listen_port_range=None),
         ]
     assert c2.mock_calls == [mock.call.start()]
     clear_mock_calls(connector2, c2)
@@ -553,7 +559,8 @@ def test_follower():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  FOLLOWER, roles.FOLLOWER),
+                  FOLLOWER, roles.FOLLOWER,
+                  listen_port_range=None),
         ]
     assert c3.mock_calls == [mock.call.start()]
     clear_mock_calls(c2, connector3, c3)
@@ -575,7 +582,8 @@ def test_follower():
                   False,  # no_listen
                   None,  # tor
                   None,  # timing
-                  FOLLOWER, roles.FOLLOWER),
+                  FOLLOWER, roles.FOLLOWER,
+                  listen_port_range=None),
         ]
     assert c4.mock_calls == [mock.call.start()]
     clear_mock_calls(c3, connector4, c4)

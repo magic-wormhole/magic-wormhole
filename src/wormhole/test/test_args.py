@@ -238,3 +238,44 @@ def test_receive_send():
 def test_receive_receive():
     cfg = config("receive")
     assert cfg.stdout == sys.stdout
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+def test_listen_port_range_default(command):
+    cfg = config(command)
+    assert cfg.listen_port_range is None
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+@pytest.mark.parametrize("value, expected", [
+    ("50000-50010", (50000, 50010)),
+    ("50000", (50000, 50000)),
+])
+def test_listen_port_range(command, value, expected):
+    cfg = config(command, "--listen-port-range", value)
+    assert cfg.listen_port_range == expected
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+def test_listen_port_range_env_var(command):
+    with mock.patch.dict(os.environ, WORMHOLE_LISTEN_PORT_RANGE="50000-50010"):
+        cfg = config(command)
+    assert cfg.listen_port_range == (50000, 50010)
+
+    # Make sure cmd line option overrides environment variable
+    with mock.patch.dict(os.environ, WORMHOLE_LISTEN_PORT_RANGE="50000-50010"):
+        cfg = config(command, "--listen-port-range", "60000-60001")
+    assert cfg.listen_port_range == (60000, 60001)
+
+
+@pytest.mark.parametrize("command", ["send", "receive"])
+@pytest.mark.parametrize("value", ["nope", "50010-50000", "0-10", "1-65536", "1-2-3", ""])
+def test_invalid_listen_port_range(command, value):
+    with mock.patch("wormhole.cli.cli.go") as go:
+        result = CliRunner().invoke(
+            cli.wormhole, [command, "--listen-port-range", value])
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--listen-port-range'" in result.output
+    assert "Traceback" not in result.output
+    go.assert_not_called()

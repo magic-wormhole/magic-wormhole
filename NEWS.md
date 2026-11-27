@@ -3,6 +3,7 @@ User-visible changes in "magic-wormhole":
 ## Upcoming Release
 
 * (add release-notes here when making PRs)
+* New ``--listen-port-range LOW-HIGH`` option (and ``WORMHOLE_LISTEN_PORT_RANGE``) for ``wormhole send`` and ``wormhole receive`` to only listen for direct connections on ports a firewall allows; Dilation applications can pass ``listen_port_range=`` to ``dilate()`` (#673)
 * Report malformed ``--transit-helper`` values as command-line errors before starting a transfer (#429).
 * Export the status API's union types (``ConnectionStatus``, ``PeerSharedKey``, ``CodeStatus``, ``PeerConnection``) and their member classes from ``wormhole`` (#608, #641)
 * Fix a crash in ``wormhole send --text`` when the peer sends a ``transit`` message (#742)

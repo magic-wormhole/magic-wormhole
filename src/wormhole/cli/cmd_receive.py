@@ -275,6 +275,7 @@ class Receiver:
         tr = TransitReceiver(
             self.args.transit_helper,
             no_listen=(not self.args.listen),
+            listen_port_range=self.args.listen_port_range,
             tor=self._tor,
             reactor=self._reactor,
             timing=self.args.timing)

@@ -15,6 +15,7 @@ from twisted.python.runtime import platformType
 from zope.interface import implementer
 
 from . import ipaddrs
+from ._listen import PortRangeServerEndpoint
 from .errors import InternalError
 from .timing import DebugTiming
 from .util import bytes_to_hexstr, HKDF
@@ -559,7 +560,8 @@ class Common:
                  no_listen=False,
                  tor=None,
                  reactor=None,
-                 timing=None):
+                 timing=None,
+                 listen_port_range=None):
         self._side = bytes_to_hexstr(os.urandom(8))  # unicode
         if transit_relay:
             if not isinstance(transit_relay, str):
@@ -579,6 +581,8 @@ class Common:
         self._tor = tor
         self._transit_key = None
         self._no_listen = no_listen
+        # (low, high) inclusive TCP ports to listen on, or None for any port
+        self._listen_port_range = listen_port_range
         self._waiting_for_transit_key = []
         self._listener = None
         self._winner = None
@@ -591,13 +595,20 @@ class Common:
     def _build_listener(self):
         if self._no_listen or self._tor:
             return ([], None)
-        portnum = allocate_tcp_port()
         addresses = ipaddrs.find_addresses()
         non_loopback_addresses = [a for a in addresses if a != "127.0.0.1"]
         if non_loopback_addresses:
             # some test hosts, including the appveyor VMs, *only* have
             # 127.0.0.1, and the tests will hang badly if we remove it.
             addresses = non_loopback_addresses
+        self._listener_addresses = addresses
+        if self._listen_port_range is not None:
+            # we only learn the port once we're listening, so the hints are
+            # filled in by _get_direct_hints
+            ep = PortRangeServerEndpoint(self._reactor,
+                                         self._listen_port_range)
+            return [], ep
+        portnum = allocate_tcp_port()
         direct_hints = [
             DirectTCPV1Hint(str(addr), portnum, 0.0) for addr in addresses
         ]
@@ -669,9 +680,27 @@ class Common:
                 return res
 
             self._listener_d.addBoth(_stop_listening)
+            if self._listen_port_range is not None:
+                portnum = lp.getHost().port
+                self._my_direct_hints = [
+                    DirectTCPV1Hint(str(addr), portnum, 0.0)
+                    for addr in self._listener_addresses
+                ]
+            return self._my_direct_hints
+
+        def _no_free_port(f):
+            # The user asked for specific ports, so don't fall back to an
+            # arbitrary one: carry on without direct hints, as if
+            # --no-listen had been given. Outbound and relay connections can
+            # still work.
+            f.trap(error.CannotListenError)
+            log.msg(f"not listening for direct connections: {f.value}")
+            self._listener_d = None
             return self._my_direct_hints
 
         d.addCallback(_listening)
+        if self._listen_port_range is not None:
+            d.addErrback(_no_free_port)
         return d
 
     def _stop_listening(self):

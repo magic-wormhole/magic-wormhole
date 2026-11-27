@@ -3,9 +3,9 @@ from unittest import mock
 from zope.interface import alsoProvides
 import twisted.logger
 from twisted.internet.task import Clock
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, fail
 from twisted.internet.address import IPv4Address, IPv6Address, HostnameAddress
-from twisted.internet.error import ConnectError
+from twisted.internet.error import CannotListenError, ConnectError
 import pytest
 
 from ...eventual import EventualQueue
@@ -114,7 +114,8 @@ def test_build_inbound():
     assert p.factory is f
 
 
-def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
+def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER,
+                   listen_port_range=None):
     class Holder:
         pass
     h = Holder()
@@ -132,7 +133,8 @@ def make_connector(listen=True, tor=False, relay=None, role=roles.LEADER):
     h.side = "abcd1234abcd5678"
     h.role = role
     c = Connector(h.dilation_key, h.relay, h.manager, h.reactor, h.eq,
-                  not listen, h.tor, timing, h.side, h.role)
+                  not listen, h.tor, timing, h.side, h.role,
+                  listen_port_range=listen_port_range)
     return c, h
 
 
@@ -302,6 +304,44 @@ def test_start_listen():
                                              "priority": 0.0
                                              },
                                             ])]
+
+
+def test_start_listen_port_range():
+    c, h = make_connector(listen=True, role=roles.LEADER,
+                          listen_port_range=(6000, 6010))
+    ep = mock.Mock()
+    d = Deferred()
+    ep.listen = mock.Mock(return_value=d)
+    with mock.patch("wormhole._dilation.connector.PortRangeServerEndpoint",
+                    return_value=ep) as prse:
+        with mock.patch("wormhole._dilation.connector.serverFromString") as sfs:
+            c._start_listener(["1.2.3.4"])
+    assert prse.mock_calls == [mock.call(h.reactor, (6000, 6010))]
+    assert sfs.mock_calls == []
+    lp = mock.Mock()
+    host = mock.Mock()
+    host.port = 6004
+    lp.getHost = mock.Mock(return_value=host)
+    d.callback(lp)
+    expected_hints = [{"type": "direct-tcp-v1", "hostname": "1.2.3.4",
+                       "port": 6004, "priority": 0.0}]
+    assert h.manager.mock_calls == [mock.call.send_hints(expected_hints)]
+
+
+def test_start_listen_port_range_no_free_port():
+    # no free port in the range: carry on without direct hints, and don't
+    # log it as an unhandled error
+    c, h = make_connector(listen=True, role=roles.LEADER,
+                          listen_port_range=(6000, 6010))
+    ep = mock.Mock()
+    ep.listen = mock.Mock(return_value=fail(
+        CannotListenError("", "6000-6010", "tried 5 port(s), none was free")))
+    with mock.patch("wormhole._dilation.connector.PortRangeServerEndpoint",
+                    return_value=ep):
+        c._start_listener(["1.2.3.4"])
+    assert h.manager.mock_calls == []
+    assert c._listeners == set()
+
 
 def test_schedule_connection_no_relay():
     c, h = make_connector(listen=True, role=roles.LEADER)
