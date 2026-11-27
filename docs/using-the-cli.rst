@@ -24,6 +24,7 @@ Most options have what we consider good defaults, and several can be controlled 
 - ``WORMHOLE_TRANSIT_HELPER``: same as ``--transit-helper`` to configure the Transit relay
 - ``WORMHOLE_ACCEPT_FILE``: same as ``--accept-file`` to avoid "y / n " prompts
 - ``WORMHOLE_QR``: same as ``--qr`` or ``--no-qr``, e.g. ``export WORMHOLE_QR=0`` turns off the QR code.
+- ``WORMHOLE_LISTEN_PORT_RANGE``: same as ``--listen-port-range`` to choose the ports for direct connections
 
 
 Aliases
@@ -46,6 +47,15 @@ Some more explanation of selected global options:
 - ``--appid`` mostly useful for developers, every distinct use-case of Magic Wormhole should have a distinct "AppID" (e.g. the "file transfer" that most people are familiar with uses ``lothar.com/wormhole/text-or-file-xfer``). Each distinct AppID represents a completely separate namespace. That is, any AppID could be hosted on a completely different Mailbox server.
 - ``--relay-url`` may be used to reach a different Mailbox server (all clients need to use the same server to successfully connect)
 - ``--transit-helper`` the third-party relay to use in case a direct connection is not possible. You could run your own and use it for all your own transfers (only) without e.g. using an alternative Mailbox relay
+
+
+Firewalls and Direct Connections
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both ``wormhole send`` and ``wormhole receive`` listen on a TCP port so that the other side can connect to them directly, which is usually much faster than going through the Transit relay.
+By default the operating system picks that port from its ephemeral range.
+If a firewall only lets through some ports, use ``--listen-port-range`` to listen on one of them instead, e.g. ``--listen-port-range 60000-60010`` (or ``--listen-port-range 60000`` for a single port).
+If none of the ports tried in that range is free, we don't listen at all (as with ``--no-listen``): the transfer can still use a connection to the other side's port, or the Transit relay.
 
 
 Network Location Privacy

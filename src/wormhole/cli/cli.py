@@ -14,6 +14,7 @@ from twisted.python.failure import Failure  # noqa: E402
 from . import public_relay  # noqa: E402
 from .. import __version__  # noqa: E402
 from .._hints import parse_hint_argv  # noqa: E402
+from .._listen import parse_port_range  # noqa: E402
 from ..errors import (KeyFormatError, NoTorError,  # noqa: E402
                       ServerConnectionError, ServerError,
                       TransferError, UnsendableFileError, WelcomeError,
@@ -97,6 +98,16 @@ def _validate_transit_helper(ctx, param, value):
                 param=param,
             )
     return value
+
+
+def _validate_port_range(ctx, param, value):
+    """Turn "LOW-HIGH" (or "PORT") into a (low, high) tuple."""
+    if value is None:
+        return None
+    try:
+        return parse_port_range(value)
+    except ValueError as e:
+        raise click.BadParameter(str(e), ctx=ctx, param=param)
 
 
 # top-level command ("wormhole ...")
@@ -237,6 +248,17 @@ CommonArgs = _compose(
         "--listen/--no-listen",
         default=True,
         help="(debug) don't open a listening socket for Transit",
+    ),
+    click.option(
+        "--listen-port-range",
+        default=None,
+        metavar="LOW-HIGH",
+        envvar="WORMHOLE_LISTEN_PORT_RANGE",
+        show_envvar=True,
+        callback=_validate_port_range,
+        help=("only listen for direct connections on a TCP port in this"
+              " range (or on this single PORT), e.g. to match a firewall"
+              " rule"),
     ),
 )
 

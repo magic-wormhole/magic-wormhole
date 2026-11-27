@@ -191,8 +191,14 @@ class _DeferredWormhole:
 
     # todo: transit_relay_locations (plural) probably, and ability to
     # pass a list? (there's a TODO about this is connector.py too)
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
+    def dilate(self, transit_relay_location=None, no_listen=False,
+               on_status_update=None, ping_interval=None,
+               expected_subprotocols=None, listen_port_range=None):
         """
+        :param listen_port_range: optional ``(low, high)`` tuple of TCP
+            ports (inclusive) to listen on for direct connections,
+            instead of one the operating system picks.
+
         :returns DilatedWormhole: an instance for accessing dilation
             functionality. This includes creating endpoints that open
             new subchannels (i.e. the OPEN goes from us to the other
@@ -200,7 +206,9 @@ class _DeferredWormhole:
         """
         if not self._enable_dilate:
             raise NotImplementedError
-        return self._boss.dilate(transit_relay_location, no_listen, on_status_update, ping_interval, expected_subprotocols)
+        return self._boss.dilate(transit_relay_location, no_listen,
+                                 on_status_update, ping_interval,
+                                 expected_subprotocols, listen_port_range)
 
     def close(self):
         # fails with WormholeError unless we established a connection

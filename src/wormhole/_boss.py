@@ -231,7 +231,9 @@ class Boss:
         self._did_start_code = True
         self._C.set_code(code)
 
-    def dilate(self, transit_relay_location=None, no_listen=False, on_status_update=None, ping_interval=None, expected_subprotocols=None):
+    def dilate(self, transit_relay_location=None, no_listen=False,
+               on_status_update=None, ping_interval=None,
+               expected_subprotocols=None, listen_port_range=None):
         # returns DilatedWormhole instance; see wormhole.dilate() docs
         return self._D.dilate(
             transit_relay_location,
@@ -240,6 +242,7 @@ class Boss:
             status_update=on_status_update,
             ping_interval=ping_interval,
             expected_subprotocols=expected_subprotocols,
+            listen_port_range=listen_port_range,
         )
 
     @m.input()

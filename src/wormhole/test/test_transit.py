@@ -12,6 +12,7 @@ from wormhole_transit_relay import transit_server
 from pytest_twisted import ensureDeferred
 
 from .. import transit
+from .._listen import PortRangeServerEndpoint
 from .._hints import DirectTCPV1Hint
 from ..errors import InternalError
 from ..util import HKDF
@@ -346,6 +347,45 @@ async def test_get_direct_hints():
     assert await d2 == hints
 
     c._stop_listening()
+
+
+def test_listener_port_range():
+    c = transit.Common("", listen_port_range=(6000, 6010))
+    hints, ep = c._build_listener()
+    # the port isn't known until we're listening
+    assert hints == []
+    assert isinstance(ep, PortRangeServerEndpoint)
+
+
+@ensureDeferred
+async def test_get_direct_hints_port_range():
+    port = transit.allocate_tcp_port()
+    c = transit.TransitSender("", listen_port_range=(port, port))
+
+    hints = await c.get_connection_hints()
+
+    assert hints
+    assert {h["port"] for h in hints} == {port}
+    assert await c.get_connection_hints() == hints
+
+    c._stop_listening()
+
+
+@ensureDeferred
+async def test_get_direct_hints_no_free_port(reactor):
+    # the only port we may use is taken: carry on without direct hints,
+    # rather than listening on a port the firewall won't let through
+    port = transit.allocate_tcp_port()
+    factory = protocol.Factory.forProtocol(protocol.Protocol)
+    other = await endpoints.serverFromString(reactor, f"tcp:{port}").listen(factory)
+    try:
+        c = transit.TransitSender("", listen_port_range=(port, port))
+        hints = await c.get_connection_hints()
+    finally:
+        await other.stopListening()
+
+    assert [h for h in hints if h["type"] == "direct-tcp-v1"] == []
+    assert c._listener_d is None
 
 
 class DummyProtocol(protocol.Protocol):

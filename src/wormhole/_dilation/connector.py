@@ -9,9 +9,11 @@ from twisted.internet.defer import DeferredList, CancelledError
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.protocol import ClientFactory, ServerFactory
 from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address
-from twisted.internet.error import ConnectingCancelledError, ConnectionRefusedError, DNSLookupError, ConnectError
+from twisted.internet.error import (ConnectingCancelledError, ConnectionRefusedError,
+                                    DNSLookupError, ConnectError, CannotListenError)
 from twisted.python import log
 from .. import ipaddrs  # TODO: move into _dilation/
+from .._listen import PortRangeServerEndpoint
 from .._interfaces import IDilationConnector, IDilationManager
 from ..timing import DebugTiming
 from ..observer import EmptyableSet
@@ -86,6 +88,8 @@ class Connector:
     _side = attrib(validator=instance_of(str))
     # was self._side = bytes_to_hexstr(os.urandom(8)) # unicode
     _role = attrib()
+    # (low, high) inclusive TCP ports to listen on, or None for any port
+    _listen_port_range = attrib(default=None)
 
     m = MethodicalMachine()
     set_trace = getattr(m, "_setTrace", lambda self, f: None)  # pragma: no cover
@@ -284,7 +288,11 @@ class Connector:
         # TODO: listen on a fixed port, if possible, for NAT/p2p benefits, also
         # to make firewall configs easier
         # TODO: retain listening port between connection generations?
-        ep = serverFromString(self._reactor, "tcp:0")
+        if self._listen_port_range is None:
+            ep = serverFromString(self._reactor, "tcp:0")
+        else:
+            ep = PortRangeServerEndpoint(self._reactor,
+                                         self._listen_port_range)
         f = InboundConnectionFactory(self)
         d = ep.listen(f)
 
@@ -295,7 +303,15 @@ class Connector:
             direct_hints = [DirectTCPV1Hint(to_unicode(addr), portnum, 0.0)
                             for addr in addresses]
             self.listener_ready(direct_hints)
+
+        def _no_free_port(f):
+            # carry on without direct hints, as if no_listen had been given
+            f.trap(CannotListenError)
+            log.msg(f"not listening for direct connections: {f.value}")
+
         d.addCallback(_listening)
+        if self._listen_port_range is not None:
+            d.addErrback(_no_free_port)
         d.addErrback(log.err)
 
     def _schedule_connection(self, delay, h, is_relay):
